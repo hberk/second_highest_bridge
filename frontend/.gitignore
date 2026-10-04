@@ -1,0 +1,4 @@
+node_modules/
+dist/
+# Regenerated from the Python engine: npm run fixtures (CI does it on every run)
+src/lib/engine/__fixtures__/

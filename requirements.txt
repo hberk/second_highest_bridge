@@ -1,0 +1,10 @@
+# The app's ONLY third-party dependency. Everything else it imports is the
+# standard library or a local module (bridge/, web/, ai.py, card.py, game.py).
+#
+# Verified on streamlit 1.50.0 under Python 3.9.13 and 1.64.0 under 3.12.10;
+# the full suite (155 tests, including tests/test_app_flow.py, which executes
+# app.py headlessly) passes on both.
+#
+# Nothing here is needed to build or run research/solver-rs -- that is Rust,
+# it is never imported by the app, and it is excluded from the repo.
+streamlit>=1.50,<2

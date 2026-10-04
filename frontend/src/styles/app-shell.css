@@ -1,0 +1,375 @@
+/* Page chrome and controls. These replace the rules in ../styles.css that
+   restyled Streamlit's own widgets; the look is kept the same. */
+
+:root {
+    --suit-nt: #101820;
+    --suit-nt-lt: #e7ebee;
+    color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    background:
+        radial-gradient(1100px 620px at 50% -10%, #1a242c 0%, rgba(15,20,24,0) 70%),
+        var(--bg);
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.45;
+    min-height: 100vh;
+}
+
+.page {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 18px 16px 32px;
+}
+
+h2, h3 { margin: 0.4rem 0 0.6rem; line-height: 1.25; }
+h2 { font-size: 1.35rem; }
+h3 { font-size: 1.1rem; }
+p { margin: 0.4rem 0 0.8rem; }
+hr, .divider { border: none; border-top: 1px solid var(--line); margin: 18px 0; }
+.caption { font-size: 13px; color: var(--dim); }
+.muted { color: var(--dim); }
+
+/* ── Masthead row with the display settings ─────────────────────────────── */
+
+.masthead-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.settings { position: relative; }
+.settings > summary {
+    list-style: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--dim);
+    border: 1px solid var(--line-2);
+    border-radius: 8px;
+    padding: 5px 12px;
+    background: var(--panel);
+}
+.settings > summary::-webkit-details-marker { display: none; }
+.settings[open] > summary { color: var(--gold-hi); border-color: var(--gold); }
+.settings-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 80;
+    width: min(320px, calc(100vw - 32px));
+    background: #0c1114;
+    border: 1px solid var(--line-2);
+    border-radius: 10px;
+    padding: 12px 14px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.55);
+    display: grid;
+    gap: 10px;
+    font-size: 14px;
+}
+.settings-panel label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.settings-panel fieldset { border: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.settings-panel legend { font-weight: 700; margin-bottom: 4px; }
+.settings-panel .caption { margin: 0 0 0 24px; }
+
+/* ── Tabs ────────────────────────────────────────────────────────────────── */
+
+.tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 14px;
+    overflow-x: auto;
+}
+.tab {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--dim);
+    font: inherit;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 8px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--gold); }
+.tab:hover { color: var(--text); }
+
+/* ── Layout helpers ──────────────────────────────────────────────────────── */
+
+.table-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 3.8fr) minmax(0, 1.1fr);
+    gap: 16px;
+    align-items: start;
+}
+.table-layout.wide-west { grid-template-columns: minmax(0, 2.1fr) minmax(0, 2.8fr) minmax(0, 1.1fr); }
+.table-layout.wide-east { grid-template-columns: minmax(0, 1.1fr) minmax(0, 2.8fr) minmax(0, 2.1fr); }
+.table-layout.centered { align-items: center; }
+.table-layout > .west { order: 1; }
+.table-layout > .center { order: 2; }
+.table-layout > .east { order: 3; }
+
+.split { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; }
+.stack { display: grid; gap: 10px; }
+
+@media (max-width: 760px) {
+    .table-layout, .table-layout.wide-west, .table-layout.wide-east {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    .table-layout > .center { grid-column: 1 / -1; order: 0; }
+    .split { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+.btn {
+    font: inherit;
+    font-weight: 700;
+    font-size: 14px;
+    border-radius: 8px;
+    padding: 8px 16px;
+    cursor: pointer;
+    border: 1px solid var(--line-2);
+    background: var(--panel-2);
+    color: var(--text);
+    transition: transform 0.14s ease, box-shadow 0.14s ease,
+                border-color 0.14s ease, background-color 0.14s ease;
+}
+.btn:hover:not(:disabled) { border-color: var(--gold); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.full { width: 100%; }
+
+.btn.primary {
+    background: linear-gradient(180deg, var(--gold-hi) 0%, var(--gold) 100%);
+    border: 1px solid var(--gold-hi);
+    box-shadow: 0 4px 14px rgba(201,169,97,0.22);
+    color: #2a2113;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+}
+.btn.primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 22px rgba(201,169,97,0.34);
+}
+
+/* Playing-card buttons: a card face you can click. */
+.card-btn-row {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+    margin: 2px 0 6px 0;
+    overflow-x: auto;
+    padding: 8px 2px 2px;
+}
+.card-btn-gap { flex: 0 0 8px; }
+.card-btn {
+    flex: 0 0 auto;
+    min-width: 40px;
+    height: 56px;
+    padding: 0 4px;
+    background: var(--card-face);
+    border: 1px solid #c3ccd5;
+    border-radius: 6px;
+    box-shadow: 0 3px 7px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.9);
+    font: inherit;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+    line-height: 1.05;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+}
+.card-btn:hover:not(:disabled), .card-btn:focus-visible:not(:disabled) {
+    transform: translateY(-6px);
+    border-color: var(--gold);
+    box-shadow: 0 12px 20px rgba(0,0,0,0.5), 0 0 0 1.5px var(--gold),
+                inset 0 1px 0 rgba(255,255,255,0.9);
+}
+/* Unplayable cards stay readable: a greyed face, not faded into the table. */
+.card-btn:disabled {
+    background: var(--card-dead);
+    border-color: #8b96a1;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+.card-btn.s { color: var(--suit-s); } .card-btn.s:disabled { color: var(--suit-s-dim); }
+.card-btn.h { color: var(--suit-h); } .card-btn.h:disabled { color: var(--suit-h-dim); }
+.card-btn.d { color: var(--suit-d); } .card-btn.d:disabled { color: var(--suit-d-dim); }
+.card-btn.c { color: var(--suit-c); } .card-btn.c:disabled { color: var(--suit-c-dim); }
+
+/* Bidding box: Pass / Double / Redouble, then a 7x5 ladder. */
+.bid-actions, .bid-ladder {
+    display: grid;
+    gap: 0.3rem;
+    margin-bottom: 0.3rem;
+}
+.bid-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 0.6rem; }
+.bid-ladder { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.bid-btn {
+    font: inherit;
+    background: var(--panel-2);
+    border: 1px solid var(--line-2);
+    color: var(--text);
+    height: 36px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform 0.14s ease, border-color 0.14s ease, background-color 0.14s ease;
+}
+.bid-btn.s { color: var(--suit-s-lt); }
+.bid-btn.h { color: var(--suit-h-lt); }
+.bid-btn.d { color: var(--suit-d-lt); }
+.bid-btn.c { color: var(--suit-c-lt); }
+.bid-btn:hover:not(:disabled) {
+    border-color: var(--gold);
+    background: #2b353f;
+    transform: translateY(-1px);
+}
+/* Bids below the current one stay on screen, so the player can see how much
+   room is left: a sunken face, still legible. */
+.bid-btn:disabled {
+    background: #131a20;
+    border-color: #232c35;
+    color: #5d6873;
+    cursor: not-allowed;
+}
+.bid-btn.pass:not(:disabled) { border-color: rgba(82,177,120,0.55); color: #7fce9f; }
+.bid-btn.dbl:not(:disabled)  { border-color: rgba(220,70,80,0.55);  color: #f0919a; }
+.bid-btn.rdbl:not(:disabled) { border-color: rgba(90,140,235,0.55); color: #9dbdf5; }
+.bidding-box-container { padding-bottom: 13px; }
+
+/* ── Auction grid ────────────────────────────────────────────────────────── */
+
+.auction-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px 8px;
+    align-items: center;
+}
+/* Keep tooltips inside the grid at its left and right edges. */
+.auction-grid > .col-first .bid-alert-tip { left: 0; transform: translateX(0) translateY(3px); }
+.auction-grid > .col-first .bid-alerted:hover .bid-alert-tip,
+.auction-grid > .col-first .bid-alerted:focus-within .bid-alert-tip { transform: translateX(0) translateY(0); }
+.auction-grid > .col-last .bid-alert-tip { left: auto; right: 0; transform: translateX(0) translateY(3px); }
+.auction-grid > .col-last .bid-alerted:hover .bid-alert-tip,
+.auction-grid > .col-last .bid-alerted:focus-within .bid-alert-tip { transform: translateX(0) translateY(0); }
+
+/* ── Notices, metrics, expanders, tables ─────────────────────────────────── */
+
+.notice {
+    border-radius: 10px;
+    border: 1px solid var(--line-2);
+    padding: 10px 14px;
+    margin: 8px 0 12px;
+    font-size: 14px;
+}
+.notice.info    { background: rgba(70,120,220,0.12); border-color: rgba(90,140,235,0.4); }
+.notice.warning { background: rgba(220,170,60,0.12); border-color: rgba(220,170,60,0.45); }
+.notice.success { background: rgba(52,131,90,0.16);  border-color: rgba(82,177,120,0.45); }
+.notice.error   { background: rgba(200,40,50,0.14);  border-color: rgba(220,70,80,0.45); }
+
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.metric { padding: 4px 0; }
+.metric-label { font-size: 0.85rem; font-weight: 700; color: var(--dim); }
+.metric-value { font-size: 1.3rem; font-weight: 800; white-space: nowrap; }
+.metric-delta { font-size: 0.85rem; font-weight: 700; }
+.metric-delta.good { color: #7fce9f; }
+.metric-delta.bad  { color: #f0919a; }
+
+details.expander {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    margin: 10px 0;
+    background: rgba(23,30,36,0.5);
+}
+details.expander > summary {
+    cursor: pointer;
+    padding: 9px 14px;
+    font-weight: 700;
+    font-size: 14px;
+}
+details.expander > .expander-body { padding: 4px 14px 14px; }
+
+.log-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.log-table th, .log-table td {
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    white-space: nowrap;
+}
+.log-table th { color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; }
+.table-scroll { overflow-x: auto; }
+
+select, input[type="range"] { font: inherit; }
+select {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--line-2);
+    border-radius: 8px;
+    padding: 7px 10px;
+    width: 100%;
+    max-width: 640px;
+}
+input[type="range"] { width: 100%; accent-color: var(--gold); }
+
+.replay-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.trick-jumps { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.trick-jumps .btn { padding: 4px 8px; font-size: 12px; min-width: 38px; }
+.replay-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr) minmax(0, 1fr);
+    grid-template-areas: ". n ." "w f e" ". s .";
+    gap: 14px;
+    align-items: center;
+}
+.replay-grid .north { grid-area: n; }
+.replay-grid .west  { grid-area: w; }
+.replay-grid .felt  { grid-area: f; }
+.replay-grid .east  { grid-area: e; }
+.replay-grid .south { grid-area: s; }
+@media (max-width: 760px) {
+    .replay-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas: "f f" "n s" "w e";
+    }
+}
+
+/* Strain header above the bidding ladder, one label per column. */
+.bid-grid-head { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.3rem; margin-bottom: 4px; }
+.bid-grid-head span { text-align: center; font-size: 12px; font-weight: 800; color: var(--dim); }
+.bid-grid-head .s { color: var(--suit-s-lt); }
+.bid-grid-head .h { color: var(--suit-h-lt); }
+.bid-grid-head .d { color: var(--suit-d-lt); }
+.bid-grid-head .c { color: var(--suit-c-lt); }
+
+/* Room for the winner badge, which hangs below a lifted card. */
+.felt-top { margin-bottom: 10px; }
+
+.hand-wrap { min-width: 0; }
+
+/* ── Focus visibility and motion ─────────────────────────────────────────── */
+
+:is(button, a, select, input, summary, [tabindex]):focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card-btn:hover:not(:disabled), .card-btn:focus-visible:not(:disabled) { transform: none; }
+}

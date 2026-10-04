@@ -1,0 +1,1231 @@
+/* ==========================================================================
+   Second-Highest Bridge — Card Room Theme
+   ========================================================================== */
+
+:root {
+    --bg:        #0f1418;
+    --panel:     #171e24;
+    --panel-2:   #1d262d;
+    --line:      #2a343d;
+    --line-2:    #3a4650;
+    --text:      #e7ebee;
+    --dim:       #98a4b0;
+    --faint:     #8792a0;   /* was #6a7681 — 3.6:1 on panel, failed AA at 10-11px */
+    --gold:      #c9a961;
+    --gold-hi:   #eccf8f;
+    --felt-1:    #226f47;
+    --felt-2:    #12472b;
+    --felt-3:    #0a2b19;
+    --card-blk:  #101820;
+    --card-face: linear-gradient(180deg, #ffffff 0%, #eef1f4 100%);
+
+    /* Per-suit ink. app.py overrides these at runtime from the deck setting
+       (classic two-colour vs four-colour). Every value clears WCAG AA (4.5:1)
+       against the white card face, so a card stays legible in either deck. */
+    --suit-s: #101820;
+    --suit-h: #c8102e;
+    --suit-d: #c8102e;
+    --suit-c: #101820;
+
+    /* Same hues darkened for the greyed (unplayable) card face. */
+    --suit-s-dim: #101820;
+    --suit-h-dim: #8c0a20;
+    --suit-d-dim: #8c0a20;
+    --suit-c-dim: #101820;
+
+    /* Suit ink for the bidding grid, which sits on the dark panel instead of
+       a white card face. All four clear AA (>=6.9:1) on --panel-2. */
+    --suit-s-lt: #dbe3ea;
+    --suit-h-lt: #ff8d9c;
+    --suit-d-lt: #ff8d9c;
+    --suit-c-lt: #dbe3ea;
+
+    /* Greyed-out (unplayable) card face — light enough that the ink on top
+       still clears AA, rather than fading the whole card toward the table. */
+    --card-dead:     linear-gradient(180deg, #c2cbd4 0%, #b3bdc7 100%);
+    --card-dead-ink: #1f2933;
+    --card-dead-red: #7a1523;
+
+    --focus: #8ecbff;
+}
+
+/* ── Page shell ──────────────────────────────────────────────────────────── */
+
+.stApp {
+    background:
+        radial-gradient(1100px 620px at 50% -10%, #1a242c 0%, rgba(15,20,24,0) 70%),
+        var(--bg);
+}
+
+/* Streamlit's header floats above the page; clear it so the masthead isn't hidden. */
+header[data-testid="stHeader"] {
+    background: transparent !important;
+    height: 2.75rem !important;
+}
+
+.block-container {
+    padding-top: 3.25rem !important;
+    padding-bottom: 1.5rem !important;
+    max-width: 1240px;
+}
+
+/* Tabs */
+button[data-testid="stTab"] p, div[data-testid="stTabs"] button p {
+    font-weight: 700 !important;
+    font-size: 14px !important;
+    letter-spacing: 0.2px;
+}
+
+div[data-testid="stTabs"] [data-baseweb="tab-border"] { background: var(--line) !important; }
+div[data-testid="stTabs"] [data-baseweb="tab-highlight"] { background: var(--gold) !important; }
+
+hr { border-color: var(--line) !important; }
+
+/* ── Masthead + scoreboard ───────────────────────────────────────────────── */
+
+.masthead {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 0 0 10px 0;
+}
+
+.masthead-title {
+    font-size: 25px;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+    color: var(--text);
+    line-height: 1.1;
+}
+
+.masthead-title .pip { color: var(--gold); }
+
+.masthead-sub {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--faint);
+}
+
+.scoreboard {
+    display: flex;
+    align-items: stretch;
+    background: linear-gradient(180deg, var(--panel) 0%, #141a20 100%);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 14px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+}
+
+.score-cell {
+    flex: 1;
+    padding: 9px 16px;
+    border-right: 1px solid var(--line);
+    min-width: 0;
+}
+
+.score-cell:last-child { border-right: none; }
+
+.score-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: 3px;
+    white-space: nowrap;
+}
+
+.score-value {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.score-value .accent { color: var(--gold-hi); }
+.score-value .muted  { color: var(--dim); font-weight: 600; font-size: 14px; }
+.score-cell.vul .score-value { color: #f0a3a3; }
+
+/* ── Playing cards ───────────────────────────────────────────────────────── */
+
+.pcard-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin: 2px 0 6px 0;
+}
+
+.pcard-gap { width: 10px; flex: 0 0 10px; }
+
+.pcard {
+    width: 38px;
+    height: 52px;
+    flex: 0 0 38px;
+    background: var(--card-face);
+    border: 1px solid #c3ccd5;
+    border-radius: 6px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    user-select: none;
+}
+
+.pcard-rank { font-size: 15px; font-weight: 800; letter-spacing: -0.3px; }
+.pcard-suit { font-size: 14px; margin-top: 1px; }
+
+.pcard.dim { opacity: 0.5; }
+
+.pcard-empty {
+    color: var(--faint);
+    font-style: italic;
+    font-size: 13px;
+    padding: 6px 0;
+}
+
+/* ── Compact hand diagrams (hand-record style) ───────────────────────────── */
+
+.seat-box {
+    background: #fbfcfd;
+    border: 1px solid #c3ccd5;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.seat-box-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: #e4e9ee;
+    border-bottom: 1px solid #c3ccd5;
+    padding: 4px 8px;
+}
+
+.seat-letter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    background: #16202a;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.seat-box-name { font-size: 13px; font-weight: 800; color: #16202a; }
+
+.seat-box-role {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: #6a7681;
+}
+
+.seat-box-role.is-declarer { color: #9a7a2c; }
+.seat-box-role.is-dummy    { color: #2f6aa3; }
+
+.hand-diagram { padding: 6px 10px 8px 10px; }
+
+.hd-line {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 17px;
+    line-height: 1.35;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: #16202a;
+}
+
+.hd-suit { flex: 0 0 14px; text-align: center; color: #16202a; }
+.hd-ranks { white-space: nowrap; }
+
+/* ── Hand headers ────────────────────────────────────────────────────────── */
+
+.hand-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 14px;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    margin-bottom: 6px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.hand-header.active-header {
+    background: linear-gradient(180deg, #23303a 0%, #1a242c 100%);
+    border: 1px solid var(--gold);
+    box-shadow: 0 0 0 1px rgba(201,169,97,0.18), 0 3px 14px rgba(201,169,97,0.14);
+}
+
+.hand-header.active-header strong { color: var(--gold-hi); }
+
+.turn-pill {
+    background: linear-gradient(180deg, var(--gold-hi) 0%, var(--gold) 100%);
+    color: #2a2113;
+    font-weight: 800;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 4px 11px;
+    border-radius: 20px;
+    animation: glow 2.2s ease-in-out infinite;
+    white-space: nowrap;
+}
+
+@keyframes glow {
+    0%, 100% { box-shadow: 0 0 0 rgba(201,169,97,0); }
+    50%      { box-shadow: 0 0 14px rgba(201,169,97,0.55); }
+}
+
+/* ── Felt table ──────────────────────────────────────────────────────────── */
+
+.bridge-felt-container {
+    background:
+        radial-gradient(circle at 50% 42%, var(--felt-1) 0%, var(--felt-2) 58%, var(--felt-3) 100%);
+    border: 1px solid rgba(201,169,97,0.22);
+    border-radius: 18px;
+    padding: 14px 22px;
+    box-shadow:
+        inset 0 0 60px rgba(0,0,0,0.45),
+        inset 0 1px 0 rgba(255,255,255,0.06),
+        0 10px 28px rgba(0,0,0,0.45);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 236px;
+    margin: 8px 0 10px 0;
+}
+
+.felt-top, .felt-bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+
+.felt-middle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 440px;
+    margin: 2px 0;
+}
+
+.felt-west-side, .felt-east-side {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+
+.felt-center-info { text-align: center; }
+
+.trick-title {
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 1.4px;
+    color: var(--gold-hi);
+}
+
+.felt-rule {
+    font-size: 11px;
+    color: rgba(232,244,226,0.82);   /* was .55 — 3.2:1 on felt */
+    margin-top: 3px;
+    letter-spacing: 0.3px;
+}
+
+.seat-label {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.88);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+.felt-card {
+    background: var(--card-face);
+    border-radius: 7px;
+    width: 50px;
+    height: 68px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 14px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.9);
+    border: 1px solid #c3ccd5;
+    position: relative;
+}
+
+.felt-card.winner-card {
+    border: 1.5px solid var(--gold);
+    box-shadow: 0 0 22px rgba(201,169,97,0.75), 0 6px 14px rgba(0,0,0,0.5);
+    transform: translateY(-3px) scale(1.06);
+}
+
+.winner-badge {
+    position: absolute;
+    bottom: -9px;
+    background: linear-gradient(180deg, var(--gold-hi), var(--gold));
+    color: #2a2113;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.3px;
+    padding: 2px 6px;
+    border-radius: 5px;
+    white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+}
+
+.felt-card-rank { font-weight: 900; font-size: 19px; line-height: 1; }
+.felt-card-suit { font-size: 18px; line-height: 1; margin-top: 2px; }
+
+.empty-felt-slot {
+    width: 50px;
+    height: 68px;
+    border: 1.5px dashed rgba(255,255,255,0.18);
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.18);
+}
+
+.slot-letter {
+    color: rgba(255,255,255,0.62);   /* was .28 — 2.0:1, invisible */
+    font-weight: 800;
+    font-size: 16px;
+}
+
+.led-tag {
+    display: inline-block;
+    background: rgba(0,0,0,0.32);
+    border: 1px solid rgba(255,255,255,0.16);
+    padding: 2px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    color: #fde68a;
+    font-weight: 700;
+    margin-top: 3px;
+}
+
+/* ── Trick result banner ─────────────────────────────────────────────────── */
+
+.trick-result {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    background: linear-gradient(180deg, rgba(201,169,97,0.13) 0%, rgba(201,169,97,0.05) 100%);
+    border: 1px solid rgba(201,169,97,0.38);
+    border-radius: 10px;
+    padding: 9px 16px;
+    margin: 0 0 10px 0;
+}
+
+.tr-winner {
+    font-weight: 800;
+    font-size: 15px;
+    color: var(--gold-hi);
+    letter-spacing: 0.2px;
+}
+
+.tr-text { font-size: 13px; color: var(--dim); }
+
+.tr-card {
+    background: var(--card-face);
+    color: var(--card-blk);
+    font-weight: 900;
+    font-size: 14px;
+    padding: 3px 9px;
+    border-radius: 5px;
+    border: 1px solid #c3ccd5;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+}
+
+
+/* ── Opponent / seat panels ──────────────────────────────────────────────── */
+
+.ai-player-box {
+    background: linear-gradient(180deg, var(--panel) 0%, #141a20 100%);
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    padding: 12px 14px;
+    text-align: center;
+}
+
+.seat-name {
+    font-weight: 800;
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 3px;
+}
+
+.seat-role {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: 7px;
+}
+
+.seat-role.is-declarer { color: var(--gold); }
+.seat-role.is-dummy    { color: #7fb5e8; }
+
+.seat-count {
+    font-size: 12.5px;
+    color: var(--dim);
+    font-weight: 600;
+}
+
+.seat-count strong { color: var(--text); }
+
+/* ── Auction ─────────────────────────────────────────────────────────────── */
+
+.section-title {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 14px 0 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-title::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+}
+
+.auction-head {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--faint);
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--line);
+}
+
+.auction-head.dealer-col { color: var(--gold); }
+
+.bid-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 7px;
+    font-weight: 800;
+    font-size: 13px;
+    background: var(--panel-2);
+    border: 1px solid var(--line-2);
+    color: var(--text);
+}
+
+.bid-contract { background: #fbfcfd; border-color: #c3ccd5; }
+.bid-pass { background: rgba(52,131,90,0.16); color: #7fce9f; border-color: rgba(82,177,120,0.4); }
+.bid-dbl  { background: rgba(200,40,50,0.16);  color: #f0919a; border-color: rgba(220,70,80,0.4); }
+.bid-rdbl { background: rgba(70,120,220,0.16); color: #9dbdf5; border-color: rgba(90,140,235,0.4); }
+
+.bid-empty { color: var(--faint); }
+
+.bidding-box-container {
+    background: linear-gradient(180deg, #1b232a 0%, #151b21 100%);
+    border: 1px solid var(--gold);
+    border-radius: 13px;
+    padding: 13px 16px 4px 16px;
+    margin-top: 12px;
+    box-shadow: 0 0 0 1px rgba(201,169,97,0.12), 0 6px 20px rgba(0,0,0,0.4);
+}
+
+.bidding-box-title {
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--gold-hi);
+    margin-bottom: 9px;
+}
+
+/* ── Contract bar (auction finished, before play) / result panels ────────── */
+
+.contract-ready {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    background: linear-gradient(180deg, #1b232a 0%, #151b21 100%);
+    border: 1px solid var(--gold);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin: 12px 0 10px 0;
+    box-shadow: 0 0 0 1px rgba(201,169,97,0.12), 0 6px 20px rgba(0,0,0,0.4);
+}
+
+.cr-label {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--gold-hi);
+}
+
+.cr-contract { font-size: 24px; font-weight: 900; color: #ffffff; line-height: 1; }
+.cr-detail { font-size: 13.5px; color: var(--dim); }
+.cr-detail strong { color: var(--text); }
+.cr-gold { color: var(--gold-hi); font-weight: 700; }
+
+.result-panel {
+    background: linear-gradient(180deg, #1b232a 0%, #141a20 100%);
+    border: 1px solid var(--line-2);
+    border-radius: 14px;
+    padding: 18px 20px;
+    text-align: center;
+}
+
+.result-eyebrow {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: 8px;
+}
+
+.result-contract {
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--text);
+    margin-bottom: 6px;
+}
+
+.result-verdict {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+}
+
+.result-verdict.made { color: #7fce9f; }
+.result-verdict.down { color: #f0919a; }
+
+.result-points {
+    background: #0f1418;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px;
+    color: var(--gold-hi);
+    font-size: 28px;
+    font-weight: 900;
+}
+
+.result-to {
+    color: var(--faint);
+    font-size: 11px;
+    margin-top: 7px;
+    letter-spacing: 0.5px;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+div[data-testid="stButton"] { display: flex !important; justify-content: center !important; }
+
+div[data-testid="stButton"] button {
+    border-radius: 8px !important;
+    font-weight: 700 !important;
+    transition: transform 0.14s ease, box-shadow 0.14s ease,
+                border-color 0.14s ease, background-color 0.14s ease !important;
+}
+
+/* Playing-card buttons (keys start with "play_") */
+[class*="st-key-play_"] div[data-testid="stButton"] { margin: 0 !important; }
+
+[class*="st-key-play_"] button {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 54px !important;
+    min-height: 54px !important;
+    padding: 0 !important;
+    background: var(--card-face) !important;
+    border: 1px solid #c3ccd5 !important;
+    border-radius: 6px !important;
+    box-shadow: 0 3px 7px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.9) !important;
+}
+
+[class*="st-key-play_"] button p {
+    color: var(--suit-s) !important;
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.3px !important;
+    line-height: 1.05 !important;
+    text-align: center !important;
+    margin: 0 !important;
+}
+
+/* Suit ink per card. The button key is play_<seat>_<suit>_<rank>_<n>, which
+   Streamlit mirrors onto the wrapper as st-key-play_South_S_A_0 — so the seat
+   and suit are matched together and "_S_" can never catch "_South_". */
+[class*="st-key-play_North_S_"] button p,
+[class*="st-key-play_South_S_"] button p { color: var(--suit-s) !important; }
+[class*="st-key-play_North_H_"] button p,
+[class*="st-key-play_South_H_"] button p { color: var(--suit-h) !important; }
+[class*="st-key-play_North_D_"] button p,
+[class*="st-key-play_South_D_"] button p { color: var(--suit-d) !important; }
+[class*="st-key-play_North_C_"] button p,
+[class*="st-key-play_South_C_"] button p { color: var(--suit-c) !important; }
+
+[class*="st-key-play_"] button:hover:not(:disabled) {
+    transform: translateY(-6px) !important;
+    border-color: var(--gold) !important;
+    box-shadow: 0 12px 20px rgba(0,0,0,0.5), 0 0 0 1.5px var(--gold),
+                inset 0 1px 0 rgba(255,255,255,0.9) !important;
+}
+
+/* Unplayable cards stay readable — greyed face, not faded into the background. */
+[class*="st-key-play_"] button:disabled {
+    background: var(--card-dead) !important;
+    border-color: #8b96a1 !important;
+    transform: none !important;
+    box-shadow: none !important;
+    cursor: not-allowed !important;
+}
+
+[class*="st-key-play_"] button:disabled,
+[class*="st-key-play_"] button:disabled * { opacity: 1 !important; }
+
+[class*="st-key-play_North_S_"] button:disabled p,
+[class*="st-key-play_South_S_"] button:disabled p { color: var(--suit-s-dim) !important; }
+[class*="st-key-play_North_H_"] button:disabled p,
+[class*="st-key-play_South_H_"] button:disabled p { color: var(--suit-h-dim) !important; }
+[class*="st-key-play_North_D_"] button:disabled p,
+[class*="st-key-play_South_D_"] button:disabled p { color: var(--suit-d-dim) !important; }
+[class*="st-key-play_North_C_"] button:disabled p,
+[class*="st-key-play_South_C_"] button:disabled p { color: var(--suit-c-dim) !important; }
+
+/* ── Bidding box: a 7x5 grid of bids (levels down, strains across) plus a
+      Pass / Double / Redouble row, the layout every online bridge client uses.
+      Keys are bid_btn_<strain><level> (S3, NT7) so a strain can be matched with
+      one prefix selector; the action buttons use the bidact_ prefix instead. ── */
+
+[class*="st-key-bid_btn_"] button,
+[class*="st-key-bidact_"] button {
+    background: var(--panel-2) !important;
+    border: 1px solid var(--line-2) !important;
+    color: var(--text) !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    padding: 0 !important;
+}
+
+[class*="st-key-bid_btn_"] button p,
+[class*="st-key-bidact_"] button p {
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    color: var(--text) !important;
+}
+
+[class*="st-key-bid_btn_S"] button p  { color: var(--suit-s-lt) !important; }
+[class*="st-key-bid_btn_H"] button p  { color: var(--suit-h-lt) !important; }
+[class*="st-key-bid_btn_D"] button p  { color: var(--suit-d-lt) !important; }
+[class*="st-key-bid_btn_C"] button p  { color: var(--suit-c-lt) !important; }
+[class*="st-key-bid_btn_N"] button p  { color: var(--text) !important; }
+
+[class*="st-key-bid_btn_"] button:hover:not(:disabled),
+[class*="st-key-bidact_"] button:hover:not(:disabled) {
+    border-color: var(--gold) !important;
+    background: #2b353f !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Bids below the current one are shown, not hidden — a bridge player reads the
+   whole ladder to see how much room is left. They were at opacity 0.34 (2.8:1);
+   an explicit sunken face keeps them legible while still clearly out of play. */
+[class*="st-key-bid_btn_"] button:disabled,
+[class*="st-key-bidact_"] button:disabled {
+    background: #131a20 !important;
+    border-color: #232c35 !important;
+    cursor: not-allowed !important;
+    opacity: 1 !important;
+}
+
+[class*="st-key-bid_btn_"] button:disabled p,
+[class*="st-key-bidact_"] button:disabled p {
+    color: #5d6873 !important;
+}
+
+/* Pass green, Double red, Redouble blue — the standard colour coding. */
+[class*="st-key-bidact_pass"] button:not(:disabled) {
+    border-color: rgba(82,177,120,0.55) !important;
+}
+[class*="st-key-bidact_pass"] button:not(:disabled) p { color: #7fce9f !important; }
+
+[class*="st-key-bidact_dbl"] button:not(:disabled) {
+    border-color: rgba(220,70,80,0.55) !important;
+}
+[class*="st-key-bidact_dbl"] button:not(:disabled) p { color: #f0919a !important; }
+
+[class*="st-key-bidact_rdbl"] button:not(:disabled) {
+    border-color: rgba(90,140,235,0.55) !important;
+}
+[class*="st-key-bidact_rdbl"] button:not(:disabled) p { color: #9dbdf5 !important; }
+
+/* The strain header above the grid */
+.bid-grid-head {
+    display: flex;
+    gap: 0.3rem;
+    margin-bottom: 4px;
+}
+
+.bid-grid-head span {
+    flex: 1;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--dim);
+}
+
+.bid-grid-head .s  { color: var(--suit-s-lt); }
+.bid-grid-head .h  { color: var(--suit-h-lt); }
+.bid-grid-head .d  { color: var(--suit-d-lt); }
+.bid-grid-head .c  { color: var(--suit-c-lt); }
+
+[class*="st-key-bidgrid"] div[data-testid="stHorizontalBlock"] { gap: 0.3rem !important; }
+[class*="st-key-bidgrid"] div[data-testid="stVerticalBlock"]   { gap: 0.3rem !important; }
+
+/* Primary action buttons (Start Play, Next Trick, Deal Next Board) */
+button[data-testid="stBaseButton-primary"] {
+    background: linear-gradient(180deg, var(--gold-hi) 0%, var(--gold) 100%) !important;
+    border: 1px solid var(--gold-hi) !important;
+    box-shadow: 0 4px 14px rgba(201,169,97,0.22) !important;
+}
+
+button[data-testid="stBaseButton-primary"] p {
+    color: #2a2113 !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.3px !important;
+}
+
+button[data-testid="stBaseButton-primary"]:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 8px 22px rgba(201,169,97,0.34) !important;
+}
+
+/* Tight gaps inside the interactive hand rows */
+[class*="st-key-handrow_"] div[data-testid="stHorizontalBlock"] {
+    gap: 0.3rem !important;
+}
+
+[class*="st-key-handrow_"] div[data-testid="stVerticalBlock"] { gap: 0 !important; }
+
+/* ── Streamlit chrome cleanup ────────────────────────────────────────────── */
+
+div[data-testid="stAlertContainer"] {
+    border-radius: 10px !important;
+    border: 1px solid var(--line-2) !important;
+}
+
+section[data-testid="stSidebar"] {
+    background: #0c1114 !important;
+    border-right: 1px solid var(--line);
+}
+
+div[data-testid="stMetricValue"] { font-size: 1.3rem !important; white-space: nowrap !important; }
+div[data-testid="stMetricLabel"] { font-size: 0.85rem !important; font-weight: 700 !important; }
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+    .scoreboard { flex-wrap: wrap; }
+    .score-cell { flex: 1 1 45%; border-bottom: 1px solid var(--line); }
+    .pcard { width: 32px; height: 44px; flex: 0 0 32px; }
+    .pcard-rank { font-size: 13px; }
+    .pcard-suit { font-size: 12px; }
+}
+
+/* ==========================================================================
+   Accessibility
+   ========================================================================== */
+
+/* ── Focus visibility ────────────────────────────────────────────────────────
+   The button rules above set box-shadow with !important, which wiped out the
+   keyboard focus ring and left tab-navigation invisible. These restore it at
+   equal specificity, using outline (which nothing else sets) so it can't be
+   clobbered again by a future box-shadow rule. */
+
+:is(button, a, input, select, textarea, summary, [role="button"], [tabindex]):focus-visible,
+div[data-testid="stButton"] button:focus-visible,
+[class*="st-key-play_"] button:focus-visible,
+[class*="st-key-bid_btn_"] button:focus-visible,
+[class*="st-key-bidact_"] button:focus-visible,
+button[data-testid="stBaseButton-primary"]:focus-visible,
+div[data-testid="stTabs"] button:focus-visible {
+    outline: 3px solid var(--focus) !important;
+    outline-offset: 2px !important;
+    border-radius: 6px;
+}
+
+/* A focused card also lifts, so focus is legible without relying on the ring
+   colour alone. */
+[class*="st-key-play_"] button:focus-visible:not(:disabled) {
+    transform: translateY(-6px) !important;
+    z-index: 5;
+    position: relative;
+}
+
+/* Skip-style affordance: the felt table is decorative, so keep it out of the
+   reading order of assistive tech while leaving the seat labels readable. */
+.bridge-felt-container { position: relative; }
+
+/* ── Reduced motion ─────────────────────────────────────────────────────────
+   The turn pill pulses indefinitely, which is exactly the kind of looping
+   animation that should stop when the OS asks for less motion. */
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .turn-pill { animation: none !important; box-shadow: 0 0 0 2px rgba(201,169,97,0.6) !important; }
+
+    [class*="st-key-play_"] button:hover:not(:disabled),
+    [class*="st-key-play_"] button:focus-visible:not(:disabled) {
+        transform: none !important;
+    }
+
+    .felt-card.winner-card { transform: none !important; }
+}
+
+/* ── Increased contrast ─────────────────────────────────────────────────────
+   When the OS asks for more contrast, drop the soft greys and thicken borders. */
+
+@media (prefers-contrast: more) {
+    :root {
+        --dim:    #c3ccd5;
+        --faint:  #aab4bf;
+        --line:   #46525d;
+        --line-2: #5d6b78;
+    }
+
+    .pcard, .felt-card { border-width: 2px; }
+    .empty-felt-slot { border-color: rgba(255,255,255,0.45); }
+}
+
+/* ── Screen-reader-only text ─────────────────────────────────────────────────
+   Carries the information that colour and suit glyphs convey visually, e.g.
+   spelling "spades" next to the ♠ pip. */
+
+.sr-only {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ==========================================================================
+   Table furniture added for parity with the mainstream clients
+   ========================================================================== */
+
+/* ── Vulnerability pills ────────────────────────────────────────────────────
+   Every client marks vulnerability on the board panel. Filled vs outlined
+   carries the state as well as red vs grey does, so it survives colour
+   blindness and greyscale printing. */
+
+.vul-pills { display: inline-flex; gap: 5px; align-items: center; }
+
+.vul-pill {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    padding: 2px 8px;
+    border-radius: 5px;
+    line-height: 1.5;
+}
+
+.vul-pill.vul-on {
+    background: #c0392b;
+    border: 1px solid #e05c4d;
+    color: #ffffff;
+}
+
+.vul-pill.vul-off {
+    background: transparent;
+    border: 1px dashed var(--line-2);
+    color: var(--dim);
+}
+
+/* ── Fanned card backs for the concealed hands ──────────────────────────── */
+
+.card-backs {
+    display: flex;
+    justify-content: center;
+    margin: 2px 0 7px 0;
+    height: 34px;
+}
+
+.cb {
+    width: 15px;
+    height: 34px;
+    margin-left: -7px;
+    border-radius: 3px;
+    border: 1px solid #0d2136;
+    background:
+        repeating-linear-gradient(45deg, #2f5d8c 0 3px, #26507a 3px 6px);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+.cb:first-child { margin-left: 0; }
+
+/* ── Your-hand summary strip (HCP / shape), as FunBridge and IntoBridge show ── */
+
+.hand-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    font-size: 12.5px;
+    color: var(--dim);
+    padding: 2px 2px 6px 2px;
+}
+
+.hand-summary strong { color: var(--text); font-weight: 800; }
+.hand-summary .hs-sep { color: var(--line-2); }
+
+/* ── Running trick tally on the felt ───────────────────────────────────────── */
+
+.felt-tally {
+    display: flex;
+    justify-content: center;
+    gap: 9px;
+    margin-top: 5px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+}
+
+.felt-tally span {
+    background: rgba(0,0,0,0.34);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 5px;
+    padding: 2px 7px;
+    color: #ffffff;
+}
+
+.felt-tally .us { border-color: rgba(201,169,97,0.6); color: var(--gold-hi); }
+
+/* ── Auction recap while the hand is being played ─────────────────────────── */
+
+.auction-recap-note {
+    font-size: 12px;
+    color: var(--dim);
+    margin-bottom: 6px;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+/* Streamlit collapses st.columns into a vertical stack on narrow screens, which
+   would turn a 13-card hand into a 13-item list. Keep hand and bidding rows
+   laid out horizontally and let them scroll instead. */
+
+@media (max-width: 640px) {
+    [class*="st-key-handrow_"] div[data-testid="stHorizontalBlock"],
+    [class*="st-key-bidgrid"] div[data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    [class*="st-key-handrow_"] div[data-testid="stHorizontalBlock"] > div,
+    [class*="st-key-bidgrid"] div[data-testid="stHorizontalBlock"] > div {
+        min-width: 42px !important;
+        flex: 0 0 auto !important;
+    }
+
+    .bridge-felt-container { padding: 12px 10px; min-height: 210px; }
+    .felt-middle { max-width: 100%; }
+}
+
+
+/* ── Alerted robot bids ───────────────────────────────────────────────────────
+   At a real table an alerted bid is flagged so the opponents can ask what it
+   shows. The robots do the same here: every call they make carries a marker and
+   an explanation, revealed on hover or keyboard focus. The tip is positioned
+   above the badge so it never covers the call that follows it in the grid. */
+.bid-alerted {
+    position: relative;
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 2px;
+    cursor: help;
+}
+.bid-alerted:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+.bid-alert-dot {
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--gold-hi);
+    background: rgba(201, 169, 97, .18);
+    border: 1px solid rgba(201, 169, 97, .55);
+    border-radius: 50%;
+    width: 13px;
+    height: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+    flex: none;
+}
+
+.bid-alert-tip {
+    position: absolute;
+    bottom: calc(100% + 9px);
+    left: 50%;
+    transform: translateX(-50%) translateY(3px);
+    z-index: 60;
+
+    width: max-content;
+    max-width: 290px;
+    padding: 9px 11px;
+    text-align: left;
+    white-space: normal;
+
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--line-2);
+    border-radius: 8px;
+    box-shadow: 0 10px 28px -10px rgba(0, 0, 0, .75);
+
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1.45;
+    letter-spacing: .1px;
+
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .13s ease, transform .13s ease;
+    pointer-events: none;
+}
+.bid-alert-tip::after {          /* the little pointer down to the badge */
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border: 5px solid transparent;
+    border-top-color: var(--line-2);
+}
+
+.bid-alerted:hover .bid-alert-tip,
+.bid-alerted:focus .bid-alert-tip,
+.bid-alerted:focus-within .bid-alert-tip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* Near the left and right edges of the four-column grid, a centred tip would
+   run off the panel, so nudge it back inside. */
+[data-testid="column"]:first-child .bid-alert-tip {
+    left: 0;
+    transform: translateX(0) translateY(3px);
+}
+[data-testid="column"]:first-child .bid-alerted:hover .bid-alert-tip,
+[data-testid="column"]:first-child .bid-alerted:focus-within .bid-alert-tip {
+    transform: translateX(0) translateY(0);
+}
+[data-testid="column"]:last-child .bid-alert-tip {
+    left: auto;
+    right: 0;
+    transform: translateX(0) translateY(3px);
+}
+[data-testid="column"]:last-child .bid-alerted:hover .bid-alert-tip,
+[data-testid="column"]:last-child .bid-alerted:focus-within .bid-alert-tip {
+    transform: translateX(0) translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bid-alert-tip { transition: none; }
+}
+
+/* ── Challenge mode: you against the robots on the same deal ───────────────── */
+.challenge-verdict {
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 0.6rem 0.9rem;
+  border-radius: 4px;
+  margin: 0.25rem 0 0.9rem;
+  border-left: 4px solid currentColor;
+}
+.challenge-verdict.is-won   { color: #7fd17f; background: rgba(127, 209, 127, 0.10); }
+.challenge-verdict.is-lost  { color: #e08a7c; background: rgba(224, 138, 124, 0.10); }
+.challenge-verdict.is-level { color: #c9a961; background: rgba(201, 169, 97, 0.10); }
+
+.challenge-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  margin: 0.4rem 0 0.2rem;
+}
+.challenge-table th,
+.challenge-table td {
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid rgba(231, 235, 238, 0.12);
+  text-align: right;
+}
+.challenge-table thead th {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9aa6ae;
+  border-bottom: 1px solid rgba(231, 235, 238, 0.28);
+}
+.challenge-table tbody th {
+  text-align: left;
+  font-weight: 500;
+  color: #c7ced4;
+}
+.challenge-table tbody tr:last-child th,
+.challenge-table tbody tr:last-child td {
+  border-bottom: none;
+  font-weight: 600;
+}

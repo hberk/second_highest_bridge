@@ -1,0 +1,27 @@
+=== dataset tests 2026-09-14 20:11 ===
+PASS test_value_from_matches_value_from_every_starting_guess
+PASS test_value_from_can_share_a_table_with_earlier_solves
+PASS test_best_fit_prefers_length_then_honours_then_rank
+PASS test_strains_are_both_fits_then_notrump_without_duplicates
+PASS test_declarer_is_the_longer_partner_and_the_lead_comes_from_their_left
+PASS test_solve_strain_matches_independent_solves
+PASS test_deals_are_reproducible_from_their_id
+PASS test_hands_round_trip_through_text
+PASS test_plan_is_deterministic_and_puts_notrump_in_every_deal
+PASS test_run_resumes_without_duplicating_or_losing_records
+PASS test_run_recovers_from_a_record_cut_off_mid_write
+PASS test_run_works_through_a_process_pool
+
+Dataset generator verified.
+
+=== pilot run 2026-09-14 20:11 ===
+75 solve pairs planned, 0 already done, 75 to go, 4 worker(s)
+[1/75] deal   1  S  N/S  9  E/W  4      256s   elapsed   4.3m  eta  316.6m
+[2/75] deal   1  H  N/S  4  E/W  9      225s   elapsed   8.0m  eta  293.3m
+[3/75] deal   0  S  N/S  8  E/W  5      728s   elapsed  12.1m  eta  291.6m
+[4/75] deal   0  C  N/S  6  E/W  6      854s   elapsed  14.2m  eta  252.8m
+[5/75] deal   2  H  N/S  6  E/W  7      107s   elapsed  16.0m  eta  224.5m
+[6/75] deal   1 NT  N/S  5  E/W  8      552s   elapsed  17.2m  eta  198.3m
+[7/75] deal   2  D  N/S 11  E/W  1      439s   elapsed  19.5m  eta  189.1m
+[8/75] deal   0 NT  N/S  8  E/W  5     1240s   elapsed  20.7m  eta  173.2m
+[9/75] deal   2 NT  N/S 10  E/W  3      340s   elapsed  21.7m  eta  159.2m

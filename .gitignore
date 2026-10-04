@@ -1,0 +1,30 @@
+# Rust build artifacts: 49 MB, and nothing outside research/solver-rs needs
+# them. The engine is rebuilt with `cargo build --release` (see CLAUDE.md).
+research/solver-rs/target/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Streamlit secrets -- never commit these
+.streamlit/secrets.toml
+
+# Personal Claude Code settings (local permissions)
+.claude/settings.local.json
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+*.swp
+
+# NOTE on what is deliberately NOT ignored:
+#   research/data/*.jsonl  (964 KB) is the solved double-dummy dataset. Every
+#   figure in CLAUDE.md's "Hand evaluation and bidding" section is fitted from
+#   it, and regenerating it costs hours of solver time, so it belongs in the
+#   repo even though it is generated.

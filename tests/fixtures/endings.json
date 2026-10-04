@@ -1,0 +1,2769 @@
+{
+ "note": "Ground truth for the Second-Highest double dummy solver. Produced by exhaustive enumeration with no pruning or memoisation. Frozen: a change to ns_tricks means a rules change or a bug, never a speedup.",
+ "generator": "tests/fixtures/generate_endings.py",
+ "solver": "bridge/solver/brute.py",
+ "ns_tricks": "tricks taken by North/South with optimal play by both sides",
+ "nodes": "nodes visited by exhaustive enumeration, a cost baseline for later stages",
+ "positions": [
+  {
+   "id": "crafted-single-suit-nt",
+   "cards_each": 3,
+   "strain": "NT",
+   "leader": "North",
+   "hands": {
+    "North": "AS KS QS",
+    "East": "JS 10S 9S",
+    "South": "8S 7S 6S",
+    "West": "5S 4S 3S"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 7735
+  },
+  {
+   "id": "crafted-single-suit-nt-mid",
+   "cards_each": 3,
+   "strain": "NT",
+   "leader": "North",
+   "hands": {
+    "North": "AS KS",
+    "East": "JS 10S 9S",
+    "South": "8S 7S 6S",
+    "West": "5S 4S 3S"
+   },
+   "trick": "QS",
+   "ns_tricks": 0,
+   "nodes": 2578
+  },
+  {
+   "id": "crafted-single-suit-trump",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "AS KS QS",
+    "East": "JS 10S 9S",
+    "South": "8S 7S 6S",
+    "West": "5S 4S 3S"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 7735
+  },
+  {
+   "id": "crafted-single-suit-trump-mid",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "AS KS",
+    "East": "JS 10S 9S",
+    "South": "8S 7S 6S",
+    "West": "5S 4S 3S"
+   },
+   "trick": "QS",
+   "ns_tricks": 0,
+   "nodes": 2578
+  },
+  {
+   "id": "crafted-single-suit-offtrump",
+   "cards_each": 3,
+   "strain": "H",
+   "leader": "East",
+   "hands": {
+    "North": "AS KS QS",
+    "East": "JS 10S 9S",
+    "South": "8S 7S 6S",
+    "West": "5S 4S 3S"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 7735
+  },
+  {
+   "id": "crafted-single-suit-offtrump-mid",
+   "cards_each": 3,
+   "strain": "H",
+   "leader": "East",
+   "hands": {
+    "North": "AS KS QS",
+    "East": "JS 10S",
+    "South": "8S 7S 6S",
+    "West": "5S 4S 3S"
+   },
+   "trick": "9S",
+   "ns_tricks": 0,
+   "nodes": 2578
+  },
+  {
+   "id": "crafted-stranded-ace",
+   "cards_each": 2,
+   "strain": "NT",
+   "leader": "North",
+   "hands": {
+    "North": "AS 2S",
+    "East": "KS 3S",
+    "South": "QS 4S",
+    "West": "JS 5S"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 95
+  },
+  {
+   "id": "crafted-stranded-ace-mid",
+   "cards_each": 2,
+   "strain": "NT",
+   "leader": "North",
+   "hands": {
+    "North": "AS",
+    "East": "KS 3S",
+    "South": "QS 4S",
+    "West": "JS 5S"
+   },
+   "trick": "2S",
+   "ns_tricks": 1,
+   "nodes": 47
+  },
+  {
+   "id": "crafted-stranded-ace-trump",
+   "cards_each": 2,
+   "strain": "S",
+   "leader": "South",
+   "hands": {
+    "North": "AS 2S",
+    "East": "KS 3S",
+    "South": "QS 4S",
+    "West": "JS 5S"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 95
+  },
+  {
+   "id": "crafted-stranded-ace-trump-mid",
+   "cards_each": 2,
+   "strain": "S",
+   "leader": "South",
+   "hands": {
+    "North": "AS 2S",
+    "East": "KS 3S",
+    "South": "QS",
+    "West": "JS 5S"
+   },
+   "trick": "4S",
+   "ns_tricks": 1,
+   "nodes": 47
+  },
+  {
+   "id": "crafted-two-suit",
+   "cards_each": 4,
+   "strain": "NT",
+   "leader": "North",
+   "hands": {
+    "North": "AS KS AH KH",
+    "East": "QS JS QH JH",
+    "South": "10S 9S 10H 9H",
+    "West": "8S 7S 8H 7H"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 12349
+  },
+  {
+   "id": "crafted-two-suit-mid",
+   "cards_each": 4,
+   "strain": "NT",
+   "leader": "North",
+   "hands": {
+    "North": "AS KS AH",
+    "East": "QS JS QH JH",
+    "South": "10S 9S 10H 9H",
+    "West": "8S 7S 8H 7H"
+   },
+   "trick": "KH",
+   "ns_tricks": 0,
+   "nodes": 3087
+  },
+  {
+   "id": "crafted-two-suit-trump",
+   "cards_each": 4,
+   "strain": "H",
+   "leader": "West",
+   "hands": {
+    "North": "AS KS AH KH",
+    "East": "QS JS QH JH",
+    "South": "10S 9S 10H 9H",
+    "West": "8S 7S 8H 7H"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 12349
+  },
+  {
+   "id": "crafted-two-suit-trump-mid",
+   "cards_each": 4,
+   "strain": "H",
+   "leader": "West",
+   "hands": {
+    "North": "AS KS AH KH",
+    "East": "QS JS QH JH",
+    "South": "10S 9S 10H 9H",
+    "West": "8S 7S 8H"
+   },
+   "trick": "7H",
+   "ns_tricks": 0,
+   "nodes": 3087
+  },
+  {
+   "id": "crafted-mutual-voids",
+   "cards_each": 4,
+   "strain": "NT",
+   "leader": "North",
+   "hands": {
+    "North": "AS KS QS JS",
+    "East": "AH KH QH JH",
+    "South": "AD KD QD JD",
+    "West": "AC KC QC JC"
+   },
+   "trick": "",
+   "ns_tricks": 4,
+   "nodes": 1980245
+  },
+  {
+   "id": "crafted-mutual-voids-mid",
+   "cards_each": 4,
+   "strain": "NT",
+   "leader": "North",
+   "hands": {
+    "North": "AS KS QS",
+    "East": "AH KH QH JH",
+    "South": "AD KD QD JD",
+    "West": "AC KC QC JC"
+   },
+   "trick": "JS",
+   "ns_tricks": 4,
+   "nodes": 495061
+  },
+  {
+   "id": "crafted-mutual-voids-trump",
+   "cards_each": 4,
+   "strain": "D",
+   "leader": "North",
+   "hands": {
+    "North": "AS KS QS JS",
+    "East": "AH KH QH JH",
+    "South": "AD KD QD JD",
+    "West": "AC KC QC JC"
+   },
+   "trick": "",
+   "ns_tricks": 4,
+   "nodes": 1980245
+  },
+  {
+   "id": "crafted-mutual-voids-trump-mid",
+   "cards_each": 4,
+   "strain": "D",
+   "leader": "North",
+   "hands": {
+    "North": "AS KS QS",
+    "East": "AH KH QH JH",
+    "South": "AD KD QD JD",
+    "West": "AC KC QC JC"
+   },
+   "trick": "JS",
+   "ns_tricks": 4,
+   "nodes": 495061
+  },
+  {
+   "id": "crafted-ruff-race",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "AS 2S AH",
+    "East": "KS 3S KH",
+    "South": "QS 4S QH",
+    "West": "JS 5S JH"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 385
+  },
+  {
+   "id": "crafted-ruff-race-mid",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "AS 2S AH",
+    "East": "KS 3S",
+    "South": "QS 4S QH",
+    "West": "JS 5S JH"
+   },
+   "trick": "KH",
+   "ns_tricks": 1,
+   "nodes": 98
+  },
+  {
+   "id": "crafted-one-defender-void",
+   "cards_each": 3,
+   "strain": "NT",
+   "leader": "North",
+   "hands": {
+    "North": "AH KH QH",
+    "East": "4S 3S 2S",
+    "South": "JH 10H 9H",
+    "West": "8H 7H 6H"
+   },
+   "trick": "",
+   "ns_tricks": 3,
+   "nodes": 7735
+  },
+  {
+   "id": "crafted-one-defender-void-mid",
+   "cards_each": 3,
+   "strain": "NT",
+   "leader": "North",
+   "hands": {
+    "North": "AH KH",
+    "East": "4S 3S 2S",
+    "South": "JH 10H 9H",
+    "West": "8H 7H 6H"
+   },
+   "trick": "QH",
+   "ns_tricks": 3,
+   "nodes": 2578
+  },
+  {
+   "id": "crafted-touching-honours",
+   "cards_each": 3,
+   "strain": "NT",
+   "leader": "North",
+   "hands": {
+    "North": "AS KS QS",
+    "East": "JS 10S 9H",
+    "South": "8S 7S 6H",
+    "West": "5S 4S 3H"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 670
+  },
+  {
+   "id": "crafted-touching-honours-mid",
+   "cards_each": 3,
+   "strain": "NT",
+   "leader": "North",
+   "hands": {
+    "North": "AS KS",
+    "East": "JS 10S 9H",
+    "South": "8S 7S 6H",
+    "West": "5S 4S 3H"
+   },
+   "trick": "QS",
+   "ns_tricks": 1,
+   "nodes": 223
+  },
+  {
+   "id": "random-1-00",
+   "cards_each": 1,
+   "strain": "D",
+   "leader": "East",
+   "hands": {
+    "North": "6C",
+    "East": "9D",
+    "South": "9S",
+    "West": "JD"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-01",
+   "cards_each": 1,
+   "strain": "D",
+   "leader": "East",
+   "hands": {
+    "North": "7C",
+    "East": "AD",
+    "South": "8S",
+    "West": "8C"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-02",
+   "cards_each": 1,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "JD",
+    "East": "9S",
+    "South": "JH",
+    "West": "8D"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-03",
+   "cards_each": 1,
+   "strain": "C",
+   "leader": "South",
+   "hands": {
+    "North": "8H",
+    "East": "KD",
+    "South": "4S",
+    "West": "9S"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-04",
+   "cards_each": 1,
+   "strain": "D",
+   "leader": "West",
+   "hands": {
+    "North": "2S",
+    "East": "5H",
+    "South": "9H",
+    "West": "7C"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-05",
+   "cards_each": 1,
+   "strain": "S",
+   "leader": "West",
+   "hands": {
+    "North": "AS",
+    "East": "9D",
+    "South": "2C",
+    "West": "4S"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-06",
+   "cards_each": 1,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "AH",
+    "East": "5C",
+    "South": "AD",
+    "West": "4C"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-07",
+   "cards_each": 1,
+   "strain": "C",
+   "leader": "West",
+   "hands": {
+    "North": "2C",
+    "East": "8S",
+    "South": "JS",
+    "West": "JC"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-08",
+   "cards_each": 1,
+   "strain": "D",
+   "leader": "West",
+   "hands": {
+    "North": "8C",
+    "East": "9D",
+    "South": "QH",
+    "West": "KD"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-09",
+   "cards_each": 1,
+   "strain": "H",
+   "leader": "South",
+   "hands": {
+    "North": "3D",
+    "East": "AC",
+    "South": "QC",
+    "West": "2C"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-10",
+   "cards_each": 1,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "7D",
+    "East": "JC",
+    "South": "9D",
+    "West": "QH"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-11",
+   "cards_each": 1,
+   "strain": "H",
+   "leader": "North",
+   "hands": {
+    "North": "KD",
+    "East": "3H",
+    "South": "QD",
+    "West": "5H"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-12",
+   "cards_each": 1,
+   "strain": "H",
+   "leader": "South",
+   "hands": {
+    "North": "5C",
+    "East": "AC",
+    "South": "3C",
+    "West": "6D"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-13",
+   "cards_each": 1,
+   "strain": "S",
+   "leader": "West",
+   "hands": {
+    "North": "7C",
+    "East": "4D",
+    "South": "3C",
+    "West": "4S"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-14",
+   "cards_each": 1,
+   "strain": "H",
+   "leader": "South",
+   "hands": {
+    "North": "3S",
+    "East": "4C",
+    "South": "5H",
+    "West": "5D"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-15",
+   "cards_each": 1,
+   "strain": "NT",
+   "leader": "West",
+   "hands": {
+    "North": "AC",
+    "East": "5S",
+    "South": "AD",
+    "West": "QC"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-16",
+   "cards_each": 1,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "5C",
+    "East": "JH",
+    "South": "JC",
+    "West": "3D"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-17",
+   "cards_each": 1,
+   "strain": "NT",
+   "leader": "West",
+   "hands": {
+    "North": "4S",
+    "East": "3H",
+    "South": "KH",
+    "West": "4D"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-18",
+   "cards_each": 1,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "9H",
+    "East": "QH",
+    "South": "5H",
+    "West": "7H"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-19",
+   "cards_each": 1,
+   "strain": "C",
+   "leader": "North",
+   "hands": {
+    "North": "7C",
+    "East": "AS",
+    "South": "8D",
+    "West": "9C"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-20",
+   "cards_each": 1,
+   "strain": "D",
+   "leader": "North",
+   "hands": {
+    "North": "3D",
+    "East": "4C",
+    "South": "4H",
+    "West": "QS"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-21",
+   "cards_each": 1,
+   "strain": "D",
+   "leader": "North",
+   "hands": {
+    "North": "AC",
+    "East": "JH",
+    "South": "9C",
+    "West": "3S"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-22",
+   "cards_each": 1,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "6H",
+    "East": "8D",
+    "South": "5C",
+    "West": "3D"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 5
+  },
+  {
+   "id": "random-1-23",
+   "cards_each": 1,
+   "strain": "C",
+   "leader": "North",
+   "hands": {
+    "North": "2S",
+    "East": "KS",
+    "South": "3D",
+    "West": "6D"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 5
+  },
+  {
+   "id": "random-2-00",
+   "cards_each": 2,
+   "strain": "D",
+   "leader": "East",
+   "hands": {
+    "North": "AC 6C",
+    "East": "5S 9D",
+    "South": "9S 6S",
+    "West": "7H JD"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 73
+  },
+  {
+   "id": "random-2-01",
+   "cards_each": 2,
+   "strain": "D",
+   "leader": "East",
+   "hands": {
+    "North": "AS 7C",
+    "East": "AD",
+    "South": "8S 3D",
+    "West": "5D 8C"
+   },
+   "trick": "4D",
+   "ns_tricks": 0,
+   "nodes": 13
+  },
+  {
+   "id": "random-2-02",
+   "cards_each": 2,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "QH JD",
+    "East": "9S",
+    "South": "JH",
+    "West": "KH 8D"
+   },
+   "trick": "6H 9H",
+   "ns_tricks": 1,
+   "nodes": 7
+  },
+  {
+   "id": "random-2-03",
+   "cards_each": 2,
+   "strain": "C",
+   "leader": "North",
+   "hands": {
+    "North": "8H",
+    "East": "KD",
+    "South": "4S",
+    "West": "9S 8S"
+   },
+   "trick": "2D 10D 3D",
+   "ns_tricks": 2,
+   "nodes": 11
+  },
+  {
+   "id": "random-2-04",
+   "cards_each": 2,
+   "strain": "D",
+   "leader": "South",
+   "hands": {
+    "North": "2S JD",
+    "East": "7S 5H",
+    "South": "9H 3D",
+    "West": "7D 7C"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 41
+  },
+  {
+   "id": "random-2-05",
+   "cards_each": 2,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "AS",
+    "East": "2H 9D",
+    "South": "6H 2C",
+    "West": "9S 4S"
+   },
+   "trick": "JS",
+   "ns_tricks": 0,
+   "nodes": 47
+  },
+  {
+   "id": "random-2-06",
+   "cards_each": 2,
+   "strain": "S",
+   "leader": "South",
+   "hands": {
+    "North": "3S AH",
+    "East": "7D 5C",
+    "South": "AD",
+    "West": "4C"
+   },
+   "trick": "JS 5D",
+   "ns_tricks": 2,
+   "nodes": 12
+  },
+  {
+   "id": "random-2-07",
+   "cards_each": 2,
+   "strain": "C",
+   "leader": "South",
+   "hands": {
+    "North": "2C",
+    "East": "8S 6S",
+    "South": "JS",
+    "West": "JC"
+   },
+   "trick": "QH 8C 2S",
+   "ns_tricks": 1,
+   "nodes": 11
+  },
+  {
+   "id": "random-2-08",
+   "cards_each": 2,
+   "strain": "D",
+   "leader": "North",
+   "hands": {
+    "North": "4H 8C",
+    "East": "3H 9D",
+    "South": "QH 5H",
+    "West": "KD 3D"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 72
+  },
+  {
+   "id": "random-2-09",
+   "cards_each": 2,
+   "strain": "H",
+   "leader": "North",
+   "hands": {
+    "North": "3D",
+    "East": "QS AC",
+    "South": "4H QC",
+    "West": "2S 2C"
+   },
+   "trick": "7S",
+   "ns_tricks": 2,
+   "nodes": 14
+  },
+  {
+   "id": "random-2-10",
+   "cards_each": 2,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "9S 7D",
+    "East": "JC",
+    "South": "9D",
+    "West": "QH 6H"
+   },
+   "trick": "4H JH",
+   "ns_tricks": 2,
+   "nodes": 23
+  },
+  {
+   "id": "random-2-11",
+   "cards_each": 2,
+   "strain": "H",
+   "leader": "East",
+   "hands": {
+    "North": "7H KD",
+    "East": "3H",
+    "South": "QD",
+    "West": "5H"
+   },
+   "trick": "9H 4S 6H",
+   "ns_tricks": 1,
+   "nodes": 6
+  },
+  {
+   "id": "random-2-12",
+   "cards_each": 2,
+   "strain": "H",
+   "leader": "South",
+   "hands": {
+    "North": "KC 5C",
+    "East": "AD AC",
+    "South": "7H 3C",
+    "West": "KD 6D"
+   },
+   "trick": "",
+   "ns_tricks": 2,
+   "nodes": 75
+  },
+  {
+   "id": "random-2-13",
+   "cards_each": 2,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "7C",
+    "East": "4H 4D",
+    "South": "10H 3C",
+    "West": "6S 4S"
+   },
+   "trick": "9H",
+   "ns_tricks": 0,
+   "nodes": 13
+  },
+  {
+   "id": "random-2-14",
+   "cards_each": 2,
+   "strain": "H",
+   "leader": "East",
+   "hands": {
+    "North": "AS 3S",
+    "East": "4C",
+    "South": "5H",
+    "West": "JS 5D"
+   },
+   "trick": "AH KH",
+   "ns_tricks": 2,
+   "nodes": 23
+  },
+  {
+   "id": "random-2-15",
+   "cards_each": 2,
+   "strain": "NT",
+   "leader": "North",
+   "hands": {
+    "North": "AC",
+    "East": "5S",
+    "South": "AD",
+    "West": "QC 4C"
+   },
+   "trick": "6C 9S 10D",
+   "ns_tricks": 0,
+   "nodes": 11
+  },
+  {
+   "id": "random-2-16",
+   "cards_each": 2,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "3S 5C",
+    "East": "JH 7H",
+    "South": "JS JC",
+    "West": "7D 3D"
+   },
+   "trick": "",
+   "ns_tricks": 2,
+   "nodes": 95
+  },
+  {
+   "id": "random-2-17",
+   "cards_each": 2,
+   "strain": "NT",
+   "leader": "West",
+   "hands": {
+    "North": "9S 4S",
+    "East": "3S 3H",
+    "South": "KH KD",
+    "West": "4D"
+   },
+   "trick": "8D",
+   "ns_tricks": 0,
+   "nodes": 27
+  },
+  {
+   "id": "random-2-18",
+   "cards_each": 2,
+   "strain": "S",
+   "leader": "West",
+   "hands": {
+    "North": "9H",
+    "East": "QH 2C",
+    "South": "10H 5H",
+    "West": "7H"
+   },
+   "trick": "10D 3D",
+   "ns_tricks": 2,
+   "nodes": 23
+  },
+  {
+   "id": "random-2-19",
+   "cards_each": 2,
+   "strain": "C",
+   "leader": "South",
+   "hands": {
+    "North": "7C",
+    "East": "AS 8S",
+    "South": "8D",
+    "West": "9C"
+   },
+   "trick": "5S JC 6C",
+   "ns_tricks": 2,
+   "nodes": 11
+  },
+  {
+   "id": "random-2-20",
+   "cards_each": 2,
+   "strain": "D",
+   "leader": "East",
+   "hands": {
+    "North": "QD 3D",
+    "East": "4C 2C",
+    "South": "5S 4H",
+    "West": "QS JC"
+   },
+   "trick": "",
+   "ns_tricks": 2,
+   "nodes": 51
+  },
+  {
+   "id": "random-2-21",
+   "cards_each": 2,
+   "strain": "D",
+   "leader": "South",
+   "hands": {
+    "North": "AC 10C",
+    "East": "JH 10H",
+    "South": "9C",
+    "West": "3S 6H"
+   },
+   "trick": "JC",
+   "ns_tricks": 2,
+   "nodes": 47
+  },
+  {
+   "id": "random-2-22",
+   "cards_each": 2,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "6H",
+    "East": "8D",
+    "South": "AH 5C",
+    "West": "3D 10C"
+   },
+   "trick": "10S 6C",
+   "ns_tricks": 2,
+   "nodes": 23
+  },
+  {
+   "id": "random-2-23",
+   "cards_each": 2,
+   "strain": "C",
+   "leader": "South",
+   "hands": {
+    "North": "2S",
+    "East": "KS 9S",
+    "South": "3D",
+    "West": "6D"
+   },
+   "trick": "4H 9H QC",
+   "ns_tricks": 2,
+   "nodes": 11
+  },
+  {
+   "id": "random-2-24",
+   "cards_each": 2,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "QD JD",
+    "East": "10H 3H",
+    "South": "6H 5H",
+    "West": "7D QC"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 95
+  },
+  {
+   "id": "random-2-25",
+   "cards_each": 2,
+   "strain": "NT",
+   "leader": "East",
+   "hands": {
+    "North": "6D JC",
+    "East": "7D",
+    "South": "4D 8C",
+    "West": "8D 5D"
+   },
+   "trick": "AD",
+   "ns_tricks": 0,
+   "nodes": 14
+  },
+  {
+   "id": "random-2-26",
+   "cards_each": 2,
+   "strain": "NT",
+   "leader": "West",
+   "hands": {
+    "North": "3S",
+    "East": "7S 4H",
+    "South": "QC 6C",
+    "West": "3H"
+   },
+   "trick": "10H JS",
+   "ns_tricks": 1,
+   "nodes": 12
+  },
+  {
+   "id": "random-2-27",
+   "cards_each": 2,
+   "strain": "S",
+   "leader": "West",
+   "hands": {
+    "North": "9S",
+    "East": "QC",
+    "South": "2S KD",
+    "West": "10D"
+   },
+   "trick": "4S 10S 9C",
+   "ns_tricks": 1,
+   "nodes": 6
+  },
+  {
+   "id": "random-2-28",
+   "cards_each": 2,
+   "strain": "H",
+   "leader": "West",
+   "hands": {
+    "North": "4H 3H",
+    "East": "7S JD",
+    "South": "KS JC",
+    "West": "10S 2H"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 63
+  },
+  {
+   "id": "random-2-29",
+   "cards_each": 2,
+   "strain": "H",
+   "leader": "South",
+   "hands": {
+    "North": "5S KC",
+    "East": "KS 7S",
+    "South": "4S",
+    "West": "QS 3C"
+   },
+   "trick": "6S",
+   "ns_tricks": 0,
+   "nodes": 13
+  },
+  {
+   "id": "random-2-30",
+   "cards_each": 2,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "7S JH",
+    "East": "JD",
+    "South": "6D",
+    "West": "AD 2D"
+   },
+   "trick": "QD 9D",
+   "ns_tricks": 2,
+   "nodes": 23
+  },
+  {
+   "id": "random-2-31",
+   "cards_each": 2,
+   "strain": "D",
+   "leader": "North",
+   "hands": {
+    "North": "JH",
+    "East": "10S",
+    "South": "AS",
+    "West": "QS 6S"
+   },
+   "trick": "9H 6D 2H",
+   "ns_tricks": 0,
+   "nodes": 11
+  },
+  {
+   "id": "random-2-32",
+   "cards_each": 2,
+   "strain": "H",
+   "leader": "East",
+   "hands": {
+    "North": "AS KS",
+    "East": "QH 5H",
+    "South": "10H 4H",
+    "West": "8D 6C"
+   },
+   "trick": "",
+   "ns_tricks": 2,
+   "nodes": 95
+  },
+  {
+   "id": "random-2-33",
+   "cards_each": 2,
+   "strain": "H",
+   "leader": "East",
+   "hands": {
+    "North": "AD 7C",
+    "East": "KH",
+    "South": "QD 5D",
+    "West": "9H 6H"
+   },
+   "trick": "7H",
+   "ns_tricks": 0,
+   "nodes": 47
+  },
+  {
+   "id": "random-2-34",
+   "cards_each": 2,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "6H 4H",
+    "East": "AC",
+    "South": "2S",
+    "West": "KD QD"
+   },
+   "trick": "10C 4C",
+   "ns_tricks": 2,
+   "nodes": 23
+  },
+  {
+   "id": "random-2-35",
+   "cards_each": 2,
+   "strain": "C",
+   "leader": "West",
+   "hands": {
+    "North": "5S",
+    "East": "4C",
+    "South": "4S 6D",
+    "West": "10S"
+   },
+   "trick": "7D 9D 8D",
+   "ns_tricks": 0,
+   "nodes": 6
+  },
+  {
+   "id": "random-2-36",
+   "cards_each": 2,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "7S 6H",
+    "East": "KS 10S",
+    "South": "10H 7H",
+    "West": "6D 5C"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 55
+  },
+  {
+   "id": "random-2-37",
+   "cards_each": 2,
+   "strain": "NT",
+   "leader": "East",
+   "hands": {
+    "North": "QC 6C",
+    "East": "JD",
+    "South": "4S KC",
+    "West": "3S 7C"
+   },
+   "trick": "8D",
+   "ns_tricks": 0,
+   "nodes": 47
+  },
+  {
+   "id": "random-2-38",
+   "cards_each": 2,
+   "strain": "NT",
+   "leader": "West",
+   "hands": {
+    "North": "7D",
+    "East": "8S 4D",
+    "South": "AD 8D",
+    "West": "9S"
+   },
+   "trick": "6C 3D",
+   "ns_tricks": 0,
+   "nodes": 23
+  },
+  {
+   "id": "random-2-39",
+   "cards_each": 2,
+   "strain": "C",
+   "leader": "West",
+   "hands": {
+    "North": "JH",
+    "East": "QC",
+    "South": "8S 3S",
+    "West": "KC"
+   },
+   "trick": "AD 9D 4C",
+   "ns_tricks": 0,
+   "nodes": 11
+  },
+  {
+   "id": "random-3-00",
+   "cards_each": 3,
+   "strain": "D",
+   "leader": "West",
+   "hands": {
+    "North": "AH AC 6C",
+    "East": "5S 9D 4D",
+    "South": "10S 9S 6S",
+    "West": "7H 2H JD"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 3177
+  },
+  {
+   "id": "random-3-01",
+   "cards_each": 3,
+   "strain": "D",
+   "leader": "West",
+   "hands": {
+    "North": "AS 7C 4C",
+    "East": "AD 10D 4D",
+    "South": "8S 3D 2C",
+    "West": "5D 8C"
+   },
+   "trick": "9C",
+   "ns_tricks": 0,
+   "nodes": 171
+  },
+  {
+   "id": "random-3-02",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "QH JD 6C",
+    "East": "9S 6H",
+    "South": "JH 9H",
+    "West": "KH 8D 7C"
+   },
+   "trick": "4S 4H",
+   "ns_tricks": 1,
+   "nodes": 647
+  },
+  {
+   "id": "random-3-03",
+   "cards_each": 3,
+   "strain": "C",
+   "leader": "North",
+   "hands": {
+    "North": "8H 2D",
+    "East": "KD 10D",
+    "South": "4S 3D",
+    "West": "9S 8S 10H"
+   },
+   "trick": "2H 10S AD",
+   "ns_tricks": 3,
+   "nodes": 74
+  },
+  {
+   "id": "random-3-04",
+   "cards_each": 3,
+   "strain": "D",
+   "leader": "West",
+   "hands": {
+    "North": "2S QH JD",
+    "East": "7S AH 5H",
+    "South": "9H 6D 3D",
+    "West": "7D 7C 3C"
+   },
+   "trick": "",
+   "ns_tricks": 2,
+   "nodes": 3332
+  },
+  {
+   "id": "random-3-05",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "South",
+   "hands": {
+    "North": "AS JS 3S",
+    "East": "2H 10D 9D",
+    "South": "6H 2C",
+    "West": "9S 4S QC"
+   },
+   "trick": "9C",
+   "ns_tricks": 2,
+   "nodes": 860
+  },
+  {
+   "id": "random-3-06",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "3S AH JD",
+    "East": "7D 5C",
+    "South": "JS AD",
+    "West": "5D 7C 4C"
+   },
+   "trick": "QC 8C",
+   "ns_tricks": 3,
+   "nodes": 263
+  },
+  {
+   "id": "random-3-07",
+   "cards_each": 3,
+   "strain": "C",
+   "leader": "West",
+   "hands": {
+    "North": "2S 2C",
+    "East": "8S 6S",
+    "South": "JS QH 3C",
+    "West": "JC 8C"
+   },
+   "trick": "9D QC QS",
+   "ns_tricks": 3,
+   "nodes": 198
+  },
+  {
+   "id": "random-3-08",
+   "cards_each": 3,
+   "strain": "D",
+   "leader": "North",
+   "hands": {
+    "North": "4H QC 8C",
+    "East": "6H 3H 9D",
+    "South": "QH 5H 9C",
+    "West": "KD 3D AC"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 1011
+  },
+  {
+   "id": "random-3-09",
+   "cards_each": 3,
+   "strain": "H",
+   "leader": "North",
+   "hands": {
+    "North": "7S 3D",
+    "East": "QS 4S AC",
+    "South": "8S 4H QC",
+    "West": "AS 2S 2C"
+   },
+   "trick": "JS",
+   "ns_tricks": 2,
+   "nodes": 220
+  },
+  {
+   "id": "random-3-10",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "9S 7D",
+    "East": "4H JC",
+    "South": "JH 9D KC",
+    "West": "QH 6H 5H"
+   },
+   "trick": "5C 7C",
+   "ns_tricks": 2,
+   "nodes": 218
+  },
+  {
+   "id": "random-3-11",
+   "cards_each": 3,
+   "strain": "H",
+   "leader": "East",
+   "hands": {
+    "North": "7H KD 4D",
+    "East": "9H 3H",
+    "South": "4S QD",
+    "West": "6H 5H"
+   },
+   "trick": "5D AD QS",
+   "ns_tricks": 1,
+   "nodes": 129
+  },
+  {
+   "id": "random-3-12",
+   "cards_each": 3,
+   "strain": "H",
+   "leader": "West",
+   "hands": {
+    "North": "KC 10C 5C",
+    "East": "3S AD AC",
+    "South": "JS 7H 3C",
+    "West": "KS KD 6D"
+   },
+   "trick": "",
+   "ns_tricks": 3,
+   "nodes": 1315
+  },
+  {
+   "id": "random-3-13",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "West",
+   "hands": {
+    "North": "9H 9D 7C",
+    "East": "4H KD 4D",
+    "South": "10H 3H 3C",
+    "West": "6S 4S"
+   },
+   "trick": "7D",
+   "ns_tricks": 0,
+   "nodes": 439
+  },
+  {
+   "id": "random-3-14",
+   "cards_each": 3,
+   "strain": "H",
+   "leader": "East",
+   "hands": {
+    "North": "AS 9S 3S",
+    "East": "AH 4C",
+    "South": "KH 5H",
+    "West": "JS 2S 5D"
+   },
+   "trick": "7C KC",
+   "ns_tricks": 2,
+   "nodes": 859
+  },
+  {
+   "id": "random-3-15",
+   "cards_each": 3,
+   "strain": "NT",
+   "leader": "North",
+   "hands": {
+    "North": "AC 6C",
+    "East": "9S 5S",
+    "South": "AD 10D",
+    "West": "QD QC 4C"
+   },
+   "trick": "AH 4S 5D",
+   "ns_tricks": 1,
+   "nodes": 206
+  },
+  {
+   "id": "random-3-16",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "3S QC 5C",
+    "East": "JH 7H 5H",
+    "South": "JS AH JC",
+    "West": "7D 4D 3D"
+   },
+   "trick": "",
+   "ns_tricks": 3,
+   "nodes": 2185
+  },
+  {
+   "id": "random-3-17",
+   "cards_each": 3,
+   "strain": "NT",
+   "leader": "West",
+   "hands": {
+    "North": "QS 9S 4S",
+    "East": "3S 3H 2D",
+    "South": "KH KD 9D",
+    "West": "8D 4D"
+   },
+   "trick": "6D",
+   "ns_tricks": 0,
+   "nodes": 337
+  },
+  {
+   "id": "random-3-18",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "West",
+   "hands": {
+    "North": "9H 3D",
+    "East": "QH QC 2C",
+    "South": "10H 5H QD",
+    "West": "7H 10D"
+   },
+   "trick": "7D 2D",
+   "ns_tricks": 2,
+   "nodes": 129
+  },
+  {
+   "id": "random-3-19",
+   "cards_each": 3,
+   "strain": "C",
+   "leader": "North",
+   "hands": {
+    "North": "7C 6C",
+    "East": "AS 8S",
+    "South": "5S 8D",
+    "West": "9H JC 9C"
+   },
+   "trick": "QH 9S 10H",
+   "ns_tricks": 3,
+   "nodes": 96
+  },
+  {
+   "id": "random-3-20",
+   "cards_each": 3,
+   "strain": "D",
+   "leader": "West",
+   "hands": {
+    "North": "KD QD 3D",
+    "East": "2D 4C 2C",
+    "South": "7S 5S 4H",
+    "West": "QS 9S JC"
+   },
+   "trick": "",
+   "ns_tricks": 2,
+   "nodes": 2707
+  },
+  {
+   "id": "random-3-21",
+   "cards_each": 3,
+   "strain": "D",
+   "leader": "South",
+   "hands": {
+    "North": "AC 10C 8C",
+    "East": "JH 10H 5C",
+    "South": "JC 9C",
+    "West": "5S 3S 6H"
+   },
+   "trick": "6C",
+   "ns_tricks": 3,
+   "nodes": 868
+  },
+  {
+   "id": "random-3-22",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "10S 6H",
+    "East": "8D 6C",
+    "South": "9S AH 5C",
+    "West": "3D 10C 9C"
+   },
+   "trick": "5S 8H",
+   "ns_tricks": 3,
+   "nodes": 221
+  },
+  {
+   "id": "random-3-23",
+   "cards_each": 3,
+   "strain": "C",
+   "leader": "South",
+   "hands": {
+    "North": "2S QC",
+    "East": "KS 9S 10H",
+    "South": "4H 3D",
+    "West": "9H 6D"
+   },
+   "trick": "5D 7D 8S",
+   "ns_tricks": 3,
+   "nodes": 128
+  },
+  {
+   "id": "random-3-24",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "West",
+   "hands": {
+    "North": "QD JD 9D",
+    "East": "KS 10H 3H",
+    "South": "AH 6H 5H",
+    "West": "7D AC QC"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 7735
+  },
+  {
+   "id": "random-3-25",
+   "cards_each": 3,
+   "strain": "NT",
+   "leader": "East",
+   "hands": {
+    "North": "6D QC JC",
+    "East": "AD 7D",
+    "South": "9D 4D 8C",
+    "West": "KD 8D 5D"
+   },
+   "trick": "9H",
+   "ns_tricks": 0,
+   "nodes": 1270
+  },
+  {
+   "id": "random-3-26",
+   "cards_each": 3,
+   "strain": "NT",
+   "leader": "East",
+   "hands": {
+    "North": "JS 4S 3S",
+    "East": "7S 4H",
+    "South": "QC 6C",
+    "West": "10H 3H 5C"
+   },
+   "trick": "2C JC",
+   "ns_tricks": 0,
+   "nodes": 155
+  },
+  {
+   "id": "random-3-27",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "10S 9S 4C",
+    "East": "QC 9C",
+    "South": "2S KD",
+    "West": "4S 10D"
+   },
+   "trick": "10C 3C 8S",
+   "ns_tricks": 1,
+   "nodes": 56
+  },
+  {
+   "id": "random-3-28",
+   "cards_each": 3,
+   "strain": "H",
+   "leader": "East",
+   "hands": {
+    "North": "4H 3H 8D",
+    "East": "7S QD JD",
+    "South": "KS 2S JC",
+    "West": "10S AH 2H"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 1968
+  },
+  {
+   "id": "random-3-29",
+   "cards_each": 3,
+   "strain": "H",
+   "leader": "West",
+   "hands": {
+    "North": "5S 4D KC",
+    "East": "KS 7S KD",
+    "South": "6S 4S 10D",
+    "West": "QS 3C"
+   },
+   "trick": "7D",
+   "ns_tricks": 1,
+   "nodes": 30
+  },
+  {
+   "id": "random-3-30",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "South",
+   "hands": {
+    "North": "7S JH 6H",
+    "East": "8S QD JD",
+    "South": "9D 6D",
+    "West": "AD 2D"
+   },
+   "trick": "QC 7D",
+   "ns_tricks": 2,
+   "nodes": 699
+  },
+  {
+   "id": "random-3-31",
+   "cards_each": 3,
+   "strain": "D",
+   "leader": "North",
+   "hands": {
+    "North": "JH 9H",
+    "East": "10S 6D",
+    "South": "AS 2H",
+    "West": "QS 8S 6S"
+   },
+   "trick": "5D JD 7S",
+   "ns_tricks": 1,
+   "nodes": 154
+  },
+  {
+   "id": "random-3-32",
+   "cards_each": 3,
+   "strain": "H",
+   "leader": "South",
+   "hands": {
+    "North": "AS KS 6D",
+    "East": "QH 5H 3H",
+    "South": "10H 6H 4H",
+    "West": "9D 8D 6C"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 7735
+  },
+  {
+   "id": "random-3-33",
+   "cards_each": 3,
+   "strain": "H",
+   "leader": "West",
+   "hands": {
+    "North": "AS AD 7C",
+    "East": "KS KH 7H",
+    "South": "QD 8D 5D",
+    "West": "9H 6H"
+   },
+   "trick": "8S",
+   "ns_tricks": 0,
+   "nodes": 288
+  },
+  {
+   "id": "random-3-34",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "6H 4H",
+    "East": "AC 10C",
+    "South": "2S 6D 4C",
+    "West": "KH KD QD"
+   },
+   "trick": "5H 7H",
+   "ns_tricks": 3,
+   "nodes": 243
+  },
+  {
+   "id": "random-3-35",
+   "cards_each": 3,
+   "strain": "C",
+   "leader": "East",
+   "hands": {
+    "North": "5S 9D 3D",
+    "East": "8D 4C",
+    "South": "4S 6D",
+    "West": "10S 7D"
+   },
+   "trick": "JD 4D 10D",
+   "ns_tricks": 0,
+   "nodes": 47
+  },
+  {
+   "id": "random-3-36",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "7S 6S 6H",
+    "East": "KS 10S 2S",
+    "South": "JH 10H 7H",
+    "West": "6D 4D 5C"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 4450
+  },
+  {
+   "id": "random-3-37",
+   "cards_each": 3,
+   "strain": "NT",
+   "leader": "North",
+   "hands": {
+    "North": "QC 6C",
+    "East": "JD 10D 8D",
+    "South": "4S 6D KC",
+    "West": "3S AH 7C"
+   },
+   "trick": "AD",
+   "ns_tricks": 0,
+   "nodes": 862
+  },
+  {
+   "id": "random-3-38",
+   "cards_each": 3,
+   "strain": "NT",
+   "leader": "West",
+   "hands": {
+    "North": "7D 3D",
+    "East": "8S 8H 4D",
+    "South": "AD JD 8D",
+    "West": "9S 6C"
+   },
+   "trick": "5H 5C",
+   "ns_tricks": 0,
+   "nodes": 221
+  },
+  {
+   "id": "random-3-39",
+   "cards_each": 3,
+   "strain": "C",
+   "leader": "North",
+   "hands": {
+    "North": "JH 9D",
+    "East": "QC 4C",
+    "South": "8S 3S",
+    "West": "AD 2D KC"
+   },
+   "trick": "10D 10H JS",
+   "ns_tricks": 0,
+   "nodes": 148
+  },
+  {
+   "id": "random-3-40",
+   "cards_each": 3,
+   "strain": "D",
+   "leader": "North",
+   "hands": {
+    "North": "JS JC 9C",
+    "East": "3H KD 9D",
+    "South": "AC 5C 3C",
+    "West": "JD 6D 4D"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 5755
+  },
+  {
+   "id": "random-3-41",
+   "cards_each": 3,
+   "strain": "C",
+   "leader": "East",
+   "hands": {
+    "North": "8H 9C 7C",
+    "East": "KC 5C",
+    "South": "JD 9D 8D",
+    "West": "AS 6D 3D"
+   },
+   "trick": "10H",
+   "ns_tricks": 2,
+   "nodes": 868
+  },
+  {
+   "id": "random-3-42",
+   "cards_each": 3,
+   "strain": "H",
+   "leader": "East",
+   "hands": {
+    "North": "AD 8D 5D",
+    "East": "KS 5H",
+    "South": "QS JH",
+    "West": "10H 8C 7C"
+   },
+   "trick": "5S 8S",
+   "ns_tricks": 0,
+   "nodes": 517
+  },
+  {
+   "id": "random-3-43",
+   "cards_each": 3,
+   "strain": "C",
+   "leader": "East",
+   "hands": {
+    "North": "AS 10D 3D",
+    "East": "4H 5D",
+    "South": "QH 3H",
+    "West": "7S 5S"
+   },
+   "trick": "9H 10H AH",
+   "ns_tricks": 3,
+   "nodes": 166
+  },
+  {
+   "id": "random-3-44",
+   "cards_each": 3,
+   "strain": "C",
+   "leader": "East",
+   "hands": {
+    "North": "10D 6D 2D",
+    "East": "6S JH 5H",
+    "South": "AS 2S JC",
+    "West": "10S 9H 3D"
+   },
+   "trick": "",
+   "ns_tricks": 2,
+   "nodes": 1376
+  },
+  {
+   "id": "random-3-45",
+   "cards_each": 3,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "5H 4D",
+    "East": "2S 4H KC",
+    "South": "9S 6S JC",
+    "West": "10D 5D 3C"
+   },
+   "trick": "AD",
+   "ns_tricks": 1,
+   "nodes": 903
+  },
+  {
+   "id": "random-3-46",
+   "cards_each": 3,
+   "strain": "NT",
+   "leader": "West",
+   "hands": {
+    "North": "6S JH",
+    "East": "9S 6H 5H",
+    "South": "AS 10C 5C",
+    "West": "KH 6C"
+   },
+   "trick": "3S KS",
+   "ns_tricks": 3,
+   "nodes": 77
+  },
+  {
+   "id": "random-3-47",
+   "cards_each": 3,
+   "strain": "NT",
+   "leader": "West",
+   "hands": {
+    "North": "KS 5C",
+    "East": "10S 5S",
+    "South": "4H 3C 2C",
+    "West": "5H KD"
+   },
+   "trick": "8H 4S KC",
+   "ns_tricks": 3,
+   "nodes": 52
+  },
+  {
+   "id": "random-4-00",
+   "cards_each": 4,
+   "strain": "D",
+   "leader": "North",
+   "hands": {
+    "North": "AH AC 7C 6C",
+    "East": "AS 5S 9D 4D",
+    "South": "10S 9S 6S 8C",
+    "West": "7H 2H JD 8D"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 338793
+  },
+  {
+   "id": "random-4-01",
+   "cards_each": 4,
+   "strain": "D",
+   "leader": "North",
+   "hands": {
+    "North": "AS 7C 4C",
+    "East": "10S AD 10D 4D",
+    "South": "8S 3D 5C 2C",
+    "West": "5D 10C 9C 8C"
+   },
+   "trick": "JC",
+   "ns_tricks": 0,
+   "nodes": 12457
+  },
+  {
+   "id": "random-4-02",
+   "cards_each": 4,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "QH 2H JD 6C",
+    "East": "9S 4S 6H",
+    "South": "JH 9H 4H",
+    "West": "KH 8D 7C 5C"
+   },
+   "trick": "7S 2C",
+   "ns_tricks": 1,
+   "nodes": 72969
+  },
+  {
+   "id": "random-4-03",
+   "cards_each": 4,
+   "strain": "C",
+   "leader": "North",
+   "hands": {
+    "North": "8H 2H 2D",
+    "East": "10S KD 10D",
+    "South": "4S AD 3D",
+    "West": "9S 8S 10H 6H"
+   },
+   "trick": "5H JS 2S",
+   "ns_tricks": 4,
+   "nodes": 3443
+  },
+  {
+   "id": "random-4-04",
+   "cards_each": 4,
+   "strain": "D",
+   "leader": "West",
+   "hands": {
+    "North": "KS 2S QH JD",
+    "East": "7S AH 5H AC",
+    "South": "9H 6D 3D 2C",
+    "West": "7D 8C 7C 3C"
+   },
+   "trick": "",
+   "ns_tricks": 2,
+   "nodes": 45078
+  },
+  {
+   "id": "random-4-05",
+   "cards_each": 4,
+   "strain": "S",
+   "leader": "West",
+   "hands": {
+    "North": "AS JS 3S KC",
+    "East": "2H 10D 9D 4C",
+    "South": "6H 9C 7C 2C",
+    "West": "9S 4S QC"
+   },
+   "trick": "5C",
+   "ns_tricks": 3,
+   "nodes": 10701
+  },
+  {
+   "id": "random-4-06",
+   "cards_each": 4,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "6S 3S AH JD",
+    "East": "7D QC 5C",
+    "South": "JS AD 8C",
+    "West": "KH 5D 7C 4C"
+   },
+   "trick": "7S 10S",
+   "ns_tricks": 3,
+   "nodes": 3993
+  },
+  {
+   "id": "random-4-07",
+   "cards_each": 4,
+   "strain": "C",
+   "leader": "West",
+   "hands": {
+    "North": "2S QC 2C",
+    "East": "QS 8S 6S",
+    "South": "JS QH JH 3C",
+    "West": "9D JC 8C"
+   },
+   "trick": "10H 6D 4H",
+   "ns_tricks": 2,
+   "nodes": 5399
+  },
+  {
+   "id": "random-4-08",
+   "cards_each": 4,
+   "strain": "D",
+   "leader": "West",
+   "hands": {
+    "North": "4H 10D QC 8C",
+    "East": "6H 3H JD 9D",
+    "South": "9S QH 5H 9C",
+    "West": "KD 3D 2D AC"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 46396
+  },
+  {
+   "id": "random-4-09",
+   "cards_each": 4,
+   "strain": "H",
+   "leader": "North",
+   "hands": {
+    "North": "JS 7S 3D",
+    "East": "QS 4S 3S AC",
+    "South": "8S 4H QC 3C",
+    "West": "AS 2S KC 2C"
+   },
+   "trick": "4D",
+   "ns_tricks": 3,
+   "nodes": 109559
+  },
+  {
+   "id": "random-4-10",
+   "cards_each": 4,
+   "strain": "S",
+   "leader": "West",
+   "hands": {
+    "North": "9S 7D 5C",
+    "East": "4H JC 10C 7C",
+    "South": "JH 9D KC 6C",
+    "West": "QH 6H 5H"
+   },
+   "trick": "4C 8C",
+   "ns_tricks": 4,
+   "nodes": 10645
+  },
+  {
+   "id": "random-4-11",
+   "cards_each": 4,
+   "strain": "H",
+   "leader": "West",
+   "hands": {
+    "North": "7H KD 4D",
+    "East": "9H 3H 5D",
+    "South": "4S AD QD 3D",
+    "West": "QS 6H 5H"
+   },
+   "trick": "8H AH QH",
+   "ns_tricks": 0,
+   "nodes": 5835
+  },
+  {
+   "id": "random-4-12",
+   "cards_each": 4,
+   "strain": "H",
+   "leader": "East",
+   "hands": {
+    "North": "8D KC 10C 5C",
+    "East": "4S 3S AD AC",
+    "South": "JS 8S 7H 3C",
+    "West": "KS 5S KD 6D"
+   },
+   "trick": "",
+   "ns_tricks": 3,
+   "nodes": 104654
+  },
+  {
+   "id": "random-4-13",
+   "cards_each": 4,
+   "strain": "S",
+   "leader": "West",
+   "hands": {
+    "North": "9H 7H 9D 7C",
+    "East": "5H 4H KD 4D",
+    "South": "AH 10H 3H 3C",
+    "West": "6S 4S 7D"
+   },
+   "trick": "QS",
+   "ns_tricks": 0,
+   "nodes": 286501
+  },
+  {
+   "id": "random-4-14",
+   "cards_each": 4,
+   "strain": "H",
+   "leader": "East",
+   "hands": {
+    "North": "AS 9S 3S JH",
+    "East": "AH 7C 4C",
+    "South": "KH 5H KC",
+    "West": "JS 2S 4H 5D"
+   },
+   "trick": "10H 6H",
+   "ns_tricks": 2,
+   "nodes": 3442
+  },
+  {
+   "id": "random-4-15",
+   "cards_each": 4,
+   "strain": "NT",
+   "leader": "North",
+   "hands": {
+    "North": "AH AC 6C",
+    "East": "9S 5S 4S",
+    "South": "AD 10D 5D",
+    "West": "QD QC 4C 2C"
+   },
+   "trick": "7C AS 8C",
+   "ns_tricks": 2,
+   "nodes": 11314
+  },
+  {
+   "id": "random-4-16",
+   "cards_each": 4,
+   "strain": "S",
+   "leader": "South",
+   "hands": {
+    "North": "3S KD QC 5C",
+    "East": "JH 10H 7H 5H",
+    "South": "JS AH QH JC",
+    "West": "2H 7D 4D 3D"
+   },
+   "trick": "",
+   "ns_tricks": 4,
+   "nodes": 247291
+  },
+  {
+   "id": "random-4-17",
+   "cards_each": 4,
+   "strain": "NT",
+   "leader": "West",
+   "hands": {
+    "North": "QS 9S 4S 2S",
+    "East": "3S 3H 10D 2D",
+    "South": "KH KD 9D 5D",
+    "West": "8D 6D 4D"
+   },
+   "trick": "7D",
+   "ns_tricks": 1,
+   "nodes": 46609
+  },
+  {
+   "id": "random-4-18",
+   "cards_each": 4,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "9H 2H 3D 2D",
+    "East": "QH QC 2C",
+    "South": "10H 5H QD",
+    "West": "7H 6H 10D 7D"
+   },
+   "trick": "3H KH",
+   "ns_tricks": 3,
+   "nodes": 2677
+  },
+  {
+   "id": "random-4-19",
+   "cards_each": 4,
+   "strain": "C",
+   "leader": "East",
+   "hands": {
+    "North": "QH 10C 7C 6C",
+    "East": "AS 9S 8S",
+    "South": "5S 10H 8D",
+    "West": "9H JC 9C"
+   },
+   "trick": "KS 4S KH",
+   "ns_tricks": 4,
+   "nodes": 10647
+  },
+  {
+   "id": "random-4-20",
+   "cards_each": 4,
+   "strain": "D",
+   "leader": "East",
+   "hands": {
+    "North": "KD QD 3D KC",
+    "East": "2D 9C 4C 2C",
+    "South": "7S 5S 4H 10C",
+    "West": "QS 9S QC JC"
+   },
+   "trick": "",
+   "ns_tricks": 2,
+   "nodes": 42028
+  },
+  {
+   "id": "random-4-21",
+   "cards_each": 4,
+   "strain": "D",
+   "leader": "South",
+   "hands": {
+    "North": "5D AC 10C 8C",
+    "East": "QH JH 10H 5C",
+    "South": "JC 9C 6C",
+    "West": "5S 3S 6H KC"
+   },
+   "trick": "4D",
+   "ns_tricks": 4,
+   "nodes": 31141
+  },
+  {
+   "id": "random-4-22",
+   "cards_each": 4,
+   "strain": "S",
+   "leader": "West",
+   "hands": {
+    "North": "10S 5S 6H",
+    "East": "8H 8D 7D 6C",
+    "South": "9S AH 9D 5C",
+    "West": "3D 10C 9C"
+   },
+   "trick": "6D JS",
+   "ns_tricks": 4,
+   "nodes": 2267
+  },
+  {
+   "id": "random-4-23",
+   "cards_each": 4,
+   "strain": "C",
+   "leader": "West",
+   "hands": {
+    "North": "8S 2S QC",
+    "East": "KS 9S 10H",
+    "South": "4H QD 5D 3D",
+    "West": "9H 7D 6D"
+   },
+   "trick": "KD 10D 6H",
+   "ns_tricks": 4,
+   "nodes": 10820
+  },
+  {
+   "id": "random-4-24",
+   "cards_each": 4,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "10S QD JD 9D",
+    "East": "KS 6S 10H 3H",
+    "South": "AH 6H 5H 4H",
+    "West": "8S 7D AC QC"
+   },
+   "trick": "",
+   "ns_tricks": 0,
+   "nodes": 485915
+  },
+  {
+   "id": "random-4-25",
+   "cards_each": 4,
+   "strain": "NT",
+   "leader": "South",
+   "hands": {
+    "North": "4H 6D QC JC",
+    "East": "10H 9H AD 7D",
+    "South": "9D 4D 8C",
+    "West": "6H KD 8D 5D"
+   },
+   "trick": "KH",
+   "ns_tricks": 0,
+   "nodes": 3915
+  },
+  {
+   "id": "random-4-26",
+   "cards_each": 4,
+   "strain": "NT",
+   "leader": "East",
+   "hands": {
+    "North": "JS 4S 3S JD",
+    "East": "7S 4H 2C",
+    "South": "QC JC 6C",
+    "West": "10H 6H 3H 5C"
+   },
+   "trick": "9H JH",
+   "ns_tricks": 0,
+   "nodes": 33982
+  },
+  {
+   "id": "random-4-27",
+   "cards_each": 4,
+   "strain": "S",
+   "leader": "South",
+   "hands": {
+    "North": "10S 9S 4C",
+    "East": "9H QC 10C 9C",
+    "South": "2S KD 3C",
+    "West": "8S 4S 10D"
+   },
+   "trick": "3H 6D AH",
+   "ns_tricks": 1,
+   "nodes": 500
+  },
+  {
+   "id": "random-4-28",
+   "cards_each": 4,
+   "strain": "H",
+   "leader": "East",
+   "hands": {
+    "North": "4H 3H 8D 6D",
+    "East": "7S QD JD 2C",
+    "South": "KS 2S JC 4C",
+    "West": "QS 10S AH 2H"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 264809
+  },
+  {
+   "id": "random-4-29",
+   "cards_each": 4,
+   "strain": "H",
+   "leader": "West",
+   "hands": {
+    "North": "5S 4D KC 2C",
+    "East": "KS 7S KD 10C",
+    "South": "10S 6S 4S 10D",
+    "West": "QS 7D 3C"
+   },
+   "trick": "6C",
+   "ns_tricks": 2,
+   "nodes": 2967
+  },
+  {
+   "id": "random-4-30",
+   "cards_each": 4,
+   "strain": "S",
+   "leader": "South",
+   "hands": {
+    "North": "7S JH 6H 8D",
+    "East": "8S QD JD 10D",
+    "South": "9D 6D QC",
+    "West": "AD 7D 2D"
+   },
+   "trick": "2C 5D",
+   "ns_tricks": 3,
+   "nodes": 54285
+  },
+  {
+   "id": "random-4-31",
+   "cards_each": 4,
+   "strain": "D",
+   "leader": "West",
+   "hands": {
+    "North": "JH 9H 5D",
+    "East": "10S JD 6D",
+    "South": "AS 7S 2S 2H",
+    "West": "QS 8S 6S"
+   },
+   "trick": "9C 8D 8H",
+   "ns_tricks": 2,
+   "nodes": 14185
+  },
+  {
+   "id": "random-4-32",
+   "cards_each": 4,
+   "strain": "H",
+   "leader": "North",
+   "hands": {
+    "North": "AS KS 2S 6D",
+    "East": "QS QH 5H 3H",
+    "South": "10H 6H 4H 2H",
+    "West": "9D 8D JC 6C"
+   },
+   "trick": "",
+   "ns_tricks": 3,
+   "nodes": 552690
+  },
+  {
+   "id": "random-4-33",
+   "cards_each": 4,
+   "strain": "H",
+   "leader": "North",
+   "hands": {
+    "North": "AS AD 7C",
+    "East": "KS JS KH 7H",
+    "South": "QD 9D 8D 5D",
+    "West": "8S 9H 8H 6H"
+   },
+   "trick": "4C",
+   "ns_tricks": 0,
+   "nodes": 151557
+  },
+  {
+   "id": "random-4-34",
+   "cards_each": 4,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "6H 5H 4H",
+    "East": "7H AC 10C",
+    "South": "8S 2S 6D 4C",
+    "West": "KH KD QD 8D"
+   },
+   "trick": "3S 7C",
+   "ns_tricks": 4,
+   "nodes": 25136
+  },
+  {
+   "id": "random-4-35",
+   "cards_each": 4,
+   "strain": "C",
+   "leader": "West",
+   "hands": {
+    "North": "5S 9D 3D",
+    "East": "JD 8D 4C",
+    "South": "4S 10H 6D 4D",
+    "West": "10S 10D 7D"
+   },
+   "trick": "JH 6S 3C",
+   "ns_tricks": 0,
+   "nodes": 1422
+  },
+  {
+   "id": "random-4-36",
+   "cards_each": 4,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "7S 6S QH 6H",
+    "East": "KS 10S 2S 8C",
+    "South": "JH 10H 7H 9C",
+    "West": "6D 4D 5C 2C"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 331560
+  },
+  {
+   "id": "random-4-37",
+   "cards_each": 4,
+   "strain": "NT",
+   "leader": "West",
+   "hands": {
+    "North": "AD QC 9C 6C",
+    "East": "JD 10D 8D 3C",
+    "South": "4S 6D KC JC",
+    "West": "3S AH 7C"
+   },
+   "trick": "8C",
+   "ns_tricks": 3,
+   "nodes": 10989
+  },
+  {
+   "id": "random-4-38",
+   "cards_each": 4,
+   "strain": "NT",
+   "leader": "West",
+   "hands": {
+    "North": "7D 3D 5C",
+    "East": "QS 8S 8H 4D",
+    "South": "AD JD 8D 5D",
+    "West": "9S 5H 6C"
+   },
+   "trick": "JS JC",
+   "ns_tricks": 1,
+   "nodes": 15915
+  },
+  {
+   "id": "random-4-39",
+   "cards_each": 4,
+   "strain": "C",
+   "leader": "South",
+   "hands": {
+    "North": "JH 10D 9D",
+    "East": "10H QC JC 4C",
+    "South": "JS 8S 3S",
+    "West": "AD 2D KC"
+   },
+   "trick": "QS 3C 9C",
+   "ns_tricks": 0,
+   "nodes": 12077
+  },
+  {
+   "id": "random-5-00",
+   "cards_each": 5,
+   "strain": "D",
+   "leader": "West",
+   "hands": {
+    "North": "AH 9H AC 7C 6C",
+    "East": "AS 5S 10H 9D 4D",
+    "South": "10S 9S 6S 10C 8C",
+    "West": "7H 6H 2H JD 8D"
+   },
+   "trick": "",
+   "ns_tricks": 1,
+   "nodes": 31770614
+  },
+  {
+   "id": "random-5-01",
+   "cards_each": 5,
+   "strain": "D",
+   "leader": "East",
+   "hands": {
+    "North": "AS 8D JC 7C 4C",
+    "East": "10S AD 10D 4D",
+    "South": "8S 6D 3D 5C 2C",
+    "West": "5D 2D 10C 9C 8C"
+   },
+   "trick": "QD",
+   "ns_tricks": 1,
+   "nodes": 174591
+  },
+  {
+   "id": "random-5-02",
+   "cards_each": 5,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "QH 2H JD 10C 6C",
+    "East": "9S 7S 4S 6H",
+    "South": "JH 9H 4H 2C",
+    "West": "6S KH 8D 7C 5C"
+   },
+   "trick": "8S JS",
+   "ns_tricks": 1,
+   "nodes": 4042039
+  },
+  {
+   "id": "random-5-03",
+   "cards_each": 5,
+   "strain": "C",
+   "leader": "East",
+   "hands": {
+    "North": "8H 5H 2H 2D KC",
+    "East": "JS 10S KD 10D",
+    "South": "4S 2S AD 3D",
+    "West": "9S 8S 10H 6H"
+   },
+   "trick": "6S 5S KS",
+   "ns_tricks": 5,
+   "nodes": 668756
+  },
+  {
+   "id": "random-5-04",
+   "cards_each": 5,
+   "strain": "D",
+   "leader": "West",
+   "hands": {
+    "North": "KS 2S QH JD 5D",
+    "East": "7S 3S AH 5H AC",
+    "South": "9H 9D 6D 3D 2C",
+    "West": "8D 7D 8C 7C 3C"
+   },
+   "trick": "",
+   "ns_tricks": 5,
+   "nodes": 8661569
+  },
+  {
+   "id": "random-5-05",
+   "cards_each": 5,
+   "strain": "S",
+   "leader": "North",
+   "hands": {
+    "North": "AS JS 3S KC",
+    "East": "2H 10D 9D 6C 4C",
+    "South": "6H 9C 8C 7C 2C",
+    "West": "9S 4S 2S QC 5C"
+   },
+   "trick": "KS",
+   "ns_tricks": 1,
+   "nodes": 11683449
+  },
+  {
+   "id": "random-5-06",
+   "cards_each": 5,
+   "strain": "S",
+   "leader": "East",
+   "hands": {
+    "North": "6S 3S AH JD 6C",
+    "East": "7S 7D QC 5C",
+    "South": "JS 10S AD 8C",
+    "West": "KH 5D JC 7C 4C"
+   },
+   "trick": "KC AC",
+   "ns_tricks": 3,
+   "nodes": 65724
+  },
+  {
+   "id": "random-5-07",
+   "cards_each": 5,
+   "strain": "C",
+   "leader": "South",
+   "hands": {
+    "North": "2S 6D QC 2C",
+    "East": "QS 8S 6S 5H 4H",
+    "South": "JS QH JH 3C",
+    "West": "10H 9D JC 8C"
+   },
+   "trick": "3H KH AH",
+   "ns_tricks": 3,
+   "nodes": 107105
+  }
+ ]
+}
