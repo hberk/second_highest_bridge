@@ -1,172 +1,141 @@
-# Hosting on GitHub Pages, and saving games in the browser
+# Hosting, saved games, and the road to multiplayer
 
-Status: **notes, nothing built.** This is a companion to
-[ONLINE_PLAN.md](ONLINE_PLAN.md), which stays the design for accounts, saved
-hands and live tables (Supabase). What's here comes before that plan, or sits
-alongside it:
+Status: **proposed 2026-10-13. Pages hosting and browser saves are built.**
+Pages deploys once the repo is public.
 
-- hosting the Svelte app on GitHub Pages instead of Azure Static Web Apps;
-- what each feature needs from a server;
-- what the browser can save with no server at all.
+| stage | what | where | state |
+|---|---|---|---|
+| Now | Host the Svelte app | **GitHub Pages** (replaces Azure Static Web Apps, which was never deployed) | built: `.github/workflows/pages.yml` |
+| Now | Saved games, no accounts | **The browser** (`localStorage`) | built: `frontend/src/lib/saves.ts` |
+| Later | Live tables with friends | **Cloudflare** Workers + Durable Objects | proposed; see below |
+| Open | Accounts, history across devices | Supabase Auth + Postgres (as in [ONLINE_PLAN.md](ONLINE_PLAN.md)), or Cloudflare-native | undecided |
 
-## Hosting the Svelte app on GitHub Pages
+[ONLINE_PLAN.md](ONLINE_PLAN.md) stays the reference for *what* online play
+means: the rules, trust, alerts, the data model and the phases. This doc changes
+*where* it runs.
 
-The Svelte app is a good fit for GitHub Pages:
+## GitHub Pages
 
-- **Fully static.** `npm run build` writes plain HTML, CSS and JS to
-  `frontend/dist`. Rules, robots, scoring and the challenge library all run in
-  the browser.
-- **No routes yet.** The tabs are component state, not URLs, so Pages' lack
-  of a single-page-app fallback doesn't matter. A hash router (`#/history`, as
-  ONLINE_PLAN Phase 1 proposes) keeps that true. Path-based routes would need
-  the usual `404.html` copy of `index.html`.
-- **Base path.** Pages serves the site at
-  `https://hberk.github.io/second_highest_bridge/`, not at the domain root.
-  Build with `base: './'` (relative asset paths) or
-  `base: '/second_highest_bridge/'` in `vite.config.ts`. A relative base was
-  tested on 2026-10-13: the built site works served from a sub-path.
+The Svelte app is fully static. `npm run build` writes HTML, CSS and JS to
+`frontend/dist`, and rules, robots, scoring and the challenge library all run in
+the browser.
 
-| requirement | detail |
-|---|---|
-| Public repository | Pages from a **private** repo on a personal account needs GitHub Pro. On the free plan, the repo must be public. |
-| The site is public | Pages has no access control for personal accounts. Anyone with the URL can play. |
-| Pages source | Settings → Pages → Source: **GitHub Actions** |
+- **Workflow** (`.github/workflows/pages.yml`):
+  - every push and pull request runs the gate: fixtures from Python 3.12,
+    `npm ci`, `npm run check`, `npm test`, `npm run build`;
+  - only a push to `main` **while the repository is public** uploads and
+    deploys.
+- **To turn it on:**
+  1. make the repo public. Pages from a private personal repo needs GitHub Pro,
+     and the site is public either way;
+  2. go to Settings → Pages → Source: **GitHub Actions**;
+  3. re-run the workflow, or push.
 
-### Workflow
-
-Reuse the Azure workflow's gate: fixtures from Python 3.12, then `npm ci`,
-`npm run check`, `npm test` and `npm run build`. Keep the 3.12 pin, which is
-why the fixtures are exact. Then replace the Azure deploy step with the
-standard Pages actions:
-
-```yaml
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-# ...build job: the existing steps through `npm run build`, then
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: frontend/dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
-```
-
-Deploy only on pushes to `main`. Pages has no per-pull-request preview
-environments the way Azure Static Web Apps does.
-
-### Security headers
-
-GitHub Pages can't set custom response headers, so
-`frontend/public/staticwebapp.config.json` would do nothing there.
-
-- **CSP:** move it into `frontend/index.html` as
-  `<meta http-equiv="Content-Security-Policy" content="...">`.
-  - `frame-ancestors` is ignored in a meta tag, so the site *can* be framed by
-    other pages. That's acceptable for a game with no sign-in. Revisit when
+  The site is then at `https://hberk.github.io/second_highest_bridge/`.
+- **Base path:** `vite.config.ts` sets `base: './'`, so the same build works
+  from Pages' sub-path or any other address. Tested on 2026-10-13: the built
+  site served from `/second_highest_bridge/` played a board, reloaded with the
+  board still in its history, and logged no CSP violations.
+- **No routes:** the tabs are component state, not URLs, so Pages' lack of a
+  single-page-app fallback doesn't matter. A hash router (`#/history`) keeps
+  that true.
+- **Headers:** Pages can't send custom headers.
+  - The CSP is a `<meta>` in `frontend/index.html`, and the referrer policy is
+    `<meta name="referrer">`.
+  - `frame-ancestors`, `X-Content-Type-Options` and `Permissions-Policy` can't
+    be set this way. That's acceptable for a game with no sign-in; revisit when
     accounts arrive.
-  - Once ONLINE_PLAN Phase 1 lands, the Supabase `connect-src` entries go in
-    that meta tag instead of the Azure config.
-- **Referrer policy:** `<meta name="referrer" content="no-referrer">`.
-- **`X-Content-Type-Options`, `Permissions-Policy`:** these have no meta
-  equivalent. Pages already serves correct content types.
+  - Any new `connect-src` (an accounts API, a Cloudflare WebSocket) goes in that
+    meta tag.
 
-## What needs a server
+## Saved games in the browser
 
-| want | server? | route |
-|---|---|---|
-| Saved games and stats on one device | **No** | Browser storage, next section |
-| Accounts; history on every device | Hosted, no code of ours | Supabase Auth + Postgres with RLS (ONLINE_PLAN Phase 1) |
-| Results other people can trust (leaderboards) | Yes, with logic | Server-side replay. Only `trusted=true` rows count, as ONLINE_PLAN already says |
-| Live tables with friends | Yes, real-time | ONLINE_PLAN Phase 2: Edge Function + Realtime |
+**What is saved:** finished boards (`HistoryRecord`), challenge results, the
+passed-out count and the board number.
+- **Key:** `localStorage` key `shb-games-v1`, holding
+  `{version, boardNum, history, challengeLog, passedOut}`.
+- **When:** written after every finished board, every passed-out board and
+  every LIN import.
+- **Loaded:** by `new Game()`.
+- **Not saved:** a board still in progress.
+- **Settings:** stay under `shb-settings`, as before.
 
-**Alternative considered: Cloudflare.** Workers plus Durable Objects (one
-object per table) can serve the static site *and* run live tables on one
-platform.
-- **Free plan** (checked 2026-10-13; confirm on Cloudflare's pricing page):
-  SQLite-backed Durable Objects only, 100,000 requests a day, and 5 GB of
-  storage. Going over a limit fails requests; there are no charges.
-- **Trade-off:** Cloudflare has no hosted login or Postgres RLS, so accounts
-  would have to be built. Supabase stays the better fit for the plan as
-  written. Cloudflare is worth a look only if Edge Function CPU limits bite in
-  Phase 2.
+**How it behaves:**
+- **Never in the way:** a full or blocked storage is ignored, and play carries
+  on with the session in memory.
+- **Never destructive:** an unreadable or unknown-version save is copied to
+  `shb-games-backup` before the game starts empty.
+- **Bounded:** only the newest 500 boards are kept. **Download all boards
+  (.lin)** in Hand History is the archive.
+- **Eviction:** after the first save, `navigator.storage.persist()` asks the
+  browser not to evict the site under disk pressure.
+- **Player control:** Display → **Saved on this device** shows the counts and a
+  **Clear saved games** button.
 
-## Saving games in the browser
+**How long it lasts:** `localStorage` survives closing the browser, restarts
+and reboots. It's lost or separate when:
+- **the player clears site data** or cookies;
+- **a private or incognito window** closes;
+- **Safari on iPhone/iPad goes 7 days without a visit.** Script-written storage
+  is deleted then. A site added to the Home Screen is exempt. This is the one
+  that matters for a phone game;
+- **the device or browser differs.** Nothing syncs; that's what accounts are
+  for;
+- **the origin differs.** Moving the site to a new address starts everyone
+  empty.
 
-### What is saved today
+**Ready for accounts:** the records are the `HistoryRecord` shape ONLINE_PLAN
+stores in `boards.record`. Phase 1's "boards played as a guest stay in memory;
+on sign-in, offer to save them" becomes **"on sign-in, offer to upload the boards
+saved on this device"**. Uploaded boards are client-written, so they get
+`trusted=false`.
 
-- **Saved:** only the **Display settings**, in `localStorage` under
-  `shb-settings` (`frontend/src/lib/settings.svelte.ts`).
-- **Lost on reload:** everything else lives in memory and is gone when the page
-  reloads:
-  - `Game.history` (`HistoryRecord[]`);
-  - `Game.challengeLog`;
-  - the passed-out count;
-  - the session score derived from these.
+## Multiplayer on Cloudflare (proposed, longer term)
 
-  So `dealChallenge()` can re-deal a library board already played in an
-  earlier visit.
+**Why Cloudflare:** a live table is a small, stateful, real-time thing, and that
+is exactly what a Durable Object is: **one object per table**, with
+- WebSockets to the seated players;
+- the deal and the event log in the object's own SQLite storage;
+- the engine running beside them.
 
-### How long browser storage lasts
+ONLINE_PLAN's principles carry over unchanged:
+- the server deals and validates;
+- a client only ever receives its own hand, dummy once it's down, and the
+  public events;
+- state is the deal plus an append-only event log.
 
-`localStorage` (and IndexedDB) survive closing the browser, restarts and
-reboots. They are lost or kept apart when:
+| ONLINE_PLAN (Supabase) | Cloudflare equivalent |
+|---|---|
+| Edge Function `table-action` | The table's Durable Object, which receives intents over its WebSocket |
+| Realtime (Postgres Changes) | The same WebSockets, pushing each seat only what it may see |
+| `table_events`, `table_hands`, `table_alerts` | The object's SQLite tables; per-seat visibility is enforced in code, not RLS |
+| Presence | The object knows who is connected |
+| Engine bundled for Deno | Engine bundled for Workers (plain ES modules; the same esbuild step) |
 
-- **the player clears site data** or cookies for the site;
-- **a private or incognito window** closes; nothing outlives it;
-- **Safari on iPhone/iPad goes 7 days without a visit.** Safari deletes the
-  site's script-written storage. A site added to the Home Screen is exempt. This
-  is the one that matters for a phone game;
-- **the device or browser differs.** Storage is per browser, per device.
-  Nothing syncs; that's what accounts are for;
-- **the origin differs.** Storage belongs to one origin (scheme + host).
-  Moving the site, for example from a preview URL to `hberk.github.io`, starts
-  everyone empty.
+**Hosting:** Workers can also serve the static site, so the game and its tables
+could live on one platform. Pages can stay as the host until then.
 
-**Size is not a concern.** A board's record is about 1 KB and `localStorage`
-allows about 5 MB per origin, so thousands of boards fit.
-`navigator.storage.persist()` asks the browser not to evict the site's data
-under storage pressure.
+**Cost:** the Workers Free plan includes SQLite-backed Durable Objects:
+- 100,000 requests a day;
+- 13,000 GB-seconds of compute a day;
+- 5 GB of storage.
 
-### Proposed: local saves before accounts
+Going over a limit fails the request; there are no charges. That was checked on
+2026-10-13; confirm on Cloudflare's pricing page before relying on it. A
+friends' table is far inside it.
 
-1. **Save after every finished board.** In `Game.finishBoard()` and the
-   passed-out path, write `history`, `challengeLog` and `passedOutCount` to
-   `localStorage`.
-   - Use a versioned key, `shb-games-v1`, holding
-     `{version, history, challengeLog, passedOut}`. A schema change bumps the
-     version and migrates on read, as ONLINE_PLAN's `schema_version` does.
-   - Wrap the write in `try/catch`, as `settings.save()` does. Storage can be
-     full or blocked, and a failed save must never break play.
-2. **Load in the `Game` constructor,** then deal the first board as today. On a
-   failed parse or an unknown version, keep the raw string under a backup key
-   and start empty rather than crash.
-3. **Use the same record shape as the server.** `HistoryRecord` is already what
-   ONLINE_PLAN stores in `boards.record`, so local boards upload unchanged.
-   Phase 1's "boards played as a guest stay in memory; on sign-in, offer to
-   save them" becomes **"on sign-in, offer to upload the boards saved on this
-   device"**.
-4. **Give the player control:**
-   - a **Clear saved games** button;
-   - **Download all boards (.lin)** stays the backup;
-   - **Import LIN** is the way to move boards between devices until there are
-     accounts.
-5. **Cap the list.** Keep the most recent N boards (say 500) so `localStorage`
-   can't fill up silently. The `.lin` export is the archive.
-6. **Ask for persistence once.** Call `navigator.storage.persist()` after the
-   first saved board. Browsers that refuse it lose nothing.
+**Open questions before building:**
+- **Accounts.** Cloudflare has no hosted login or row-level security.
+  - **Option 1:** keep Supabase for Auth and the `boards`/friends tables, with
+    Durable Objects only for live tables. The object verifies the Supabase JWT on
+    connect.
+  - **Option 2:** build accounts on Workers + D1 (email magic links through a
+    mail API).
 
-**Tests:** `game.test.ts` with a stubbed `localStorage` checks:
-- a finished board survives a new `Game()`;
-- a corrupt or old-version payload doesn't throw;
-- a full or throwing storage never blocks `finishBoard()`;
-- `dealChallenge()` skips deals in a restored `challengeLog`.
+  Option 1 reuses most of ONLINE_PLAN Phase 1.
+- **Guest tables.** Could friends play by sharing a table link with no accounts
+  at all? A Durable Object makes that cheap: a seat token per invite. It would
+  let multiplayer ship before accounts.
+- **Trusted results.** A table's object writes results server-side, so they are
+  `trusted=true`. Wherever accounts live has to accept those writes from the
+  object alone.

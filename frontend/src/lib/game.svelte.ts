@@ -12,6 +12,7 @@ import { aiBidExplained, aiPlay, visibleHands } from './engine/ai';
 import { scoreContract, type ScoreResult } from './engine/scoring';
 import * as challenge from './engine/challenge';
 import type { Grade, RobotTable, TrickLog } from './engine/challenge';
+import { askPersistence, browserStorage, clearGames, loadGames, saveGames } from './saves';
 
 export type Phase = 'bidding' | 'auction_done' | 'playing' | 'trick_done' | 'done';
 
@@ -140,8 +141,47 @@ export class Game {
   get trump() { return this.contract?.trump ?? null; }
   get gameOver() { return this.result !== null; }
 
-  constructor() {
+  /** `storage` is where finished boards are kept between visits: the
+   *  browser's localStorage by default, null (nothing kept) in Node. */
+  constructor(private storage: Storage | null = browserStorage()) {
+    const saved = loadGames(storage);
+    if (saved) {
+      this.boardNum = saved.boardNum;
+      this.history = saved.history;
+      this.challengeLog = saved.challengeLog;
+      this.passedOutCount = saved.passedOut;
+    }
     this.newBoard();
+  }
+
+  // ── Saved games ────────────────────────────────────────────────────────────
+
+  /** Remember the finished boards. Called whenever one is added; a failed
+   *  save (storage full or blocked) is ignored, so play never stops for it. */
+  private persist(): void {
+    const ok = saveGames(this.storage, {
+      version: 1,
+      boardNum: this.boardNum,
+      history: $state.snapshot(this.history) as HistoryRecord[],
+      challengeLog: $state.snapshot(this.challengeLog) as ChallengeLogEntry[],
+      passedOut: this.passedOutCount,
+    });
+    if (ok) askPersistence();
+  }
+
+  /** Boards loaded from LIN join the history (outside the session score, as
+   *  `imported`) and are saved with it. */
+  importBoards(boards: HistoryRecord[]): void {
+    this.history.push(...boards);
+    this.persist();
+  }
+
+  /** Forget every saved board on this device. The board in play carries on. */
+  clearSaved(): void {
+    this.history = [];
+    this.challengeLog = [];
+    this.passedOutCount = 0;
+    clearGames(this.storage);
   }
 
   newBoard(dealId: number | null = null): void {
@@ -195,6 +235,7 @@ export class Game {
     if (!auction.isComplete) return;
     if (auction.passedOut) {
       this.passedOutCount += 1;
+      this.persist();
       return;
     }
     const contract = auction.getContract()!;
@@ -332,6 +373,7 @@ export class Game {
       tricks_taken: taken,
       result: this.result,
     });
+    this.persist();
   }
 
   /** Replay this deal with robots in all four seats and compare. Only South's

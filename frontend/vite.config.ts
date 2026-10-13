@@ -7,6 +7,9 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 
 export default defineConfig({
+  // Relative asset paths: GitHub Pages serves the site from a sub-path
+  // (/second_highest_bridge/), and the same build works at any other address.
+  base: './',
   plugins: [svelte()],
   resolve: { alias: { $root: root } },
   server: { fs: { allow: [root] } },

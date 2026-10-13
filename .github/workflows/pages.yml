@@ -1,28 +1,31 @@
-# Builds the Svelte app in frontend/ and deploys it to Azure Static Web Apps.
+# Builds the Svelte app in frontend/ and deploys it to GitHub Pages.
 #
 # The deploy is gated on the TypeScript engine still matching the Python one:
 # fixtures are regenerated from the Python engine on every run, so a change to
 # ai.py that the port does not follow fails here instead of shipping.
 #
-# Setup: create a Static Web App (Free plan is enough) with deployment source
-# "Other", copy its deployment token, and save it in this repository as the
-# secret AZURE_STATIC_WEB_APPS_API_TOKEN.
-name: Azure Static Web Apps
+# Every push and pull request is checked. Only a push to main deploys, and only
+# while the repository is public: Pages on a private personal repo needs GitHub
+# Pro. Setup, once the repo is public: Settings → Pages → Source: "GitHub
+# Actions", then re-run this workflow (or push).
+name: Build and deploy (GitHub Pages)
 
 on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened, closed]
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
-  pull-requests: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build_and_deploy:
-    if: github.event_name == 'push' || github.event.action != 'closed'
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,29 +48,29 @@ jobs:
       - name: Type-check
         working-directory: frontend
         run: npm run check
-      - name: Test (engine parity + table flow)
+      - name: Test (engine parity + table flow + saved games)
         working-directory: frontend
         run: npm test
       - name: Build
         working-directory: frontend
         run: npm run build
 
-      - name: Deploy
-        uses: Azure/static-web-apps-deploy@v1
+      - name: Upload the site
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.visibility == 'public'
+        uses: actions/upload-pages-artifact@v3
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          action: upload
-          app_location: frontend/dist
-          skip_app_build: true
-          skip_api_build: true
+          path: frontend/dist
 
-  close_pull_request:
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.visibility == 'public'
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Close staging environment
-        uses: Azure/static-web-apps-deploy@v1
-        with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-          action: close
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -5,8 +5,19 @@ existing Svelte app in `frontend/`, still deployed to Azure Static Web Apps.
 The Streamlit app stays offline as the research/reference app and gets no
 accounts.
 
-See also [HOSTING_AND_LOCAL_SAVES.md](HOSTING_AND_LOCAL_SAVES.md): GitHub Pages
-as the host, and browser-only saved games before Phase 1.
+> **Proposed change (2026-10-13), see
+> [HOSTING_AND_LOCAL_SAVES.md](HOSTING_AND_LOCAL_SAVES.md):**
+> - **Host:** GitHub Pages replaces Azure Static Web Apps. The Azure workflow
+>   and `staticwebapp.config.json` are gone; the CSP is now a `<meta>` in
+>   `frontend/index.html`. Read "Azure SWA" and that config file below
+>   accordingly.
+> - **Saved games:** they live in the browser already, so Phase 1's guest
+>   boards are saved on the device and can be uploaded at sign-in.
+> - **Live tables (Phase 2):** proposed to run on **Cloudflare Durable Objects**
+>   (one object per table, WebSockets) instead of a Supabase Edge Function plus
+>   Realtime.
+> - **Unchanged:** the rules, the trust model, alerts and the event log.
+>   Accounts are undecided between Supabase Auth and Cloudflare-native.
 
 ## What "play with friends" means
 
