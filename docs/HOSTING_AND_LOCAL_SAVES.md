@@ -21,10 +21,13 @@ The Svelte app is fully static. `npm run build` writes HTML, CSS and JS to
 the browser.
 
 - **Workflow** (`.github/workflows/pages.yml`):
-  - every push and pull request runs the gate: fixtures from Python 3.12,
-    `npm ci`, `npm run check`, `npm test`, `npm run build`;
-  - only a push to `main` **while the repository is public** uploads and
-    deploys.
+  - **while the repository is private, nothing runs.** Actions minutes on
+    private repos are metered, so every job is skipped (a skipped job starts no
+    runner). A manual "Run workflow" still runs the checks on demand;
+  - once public, every push and pull request runs the gate: fixtures from
+    Python 3.12, `npm ci`, `npm run check`, `npm test`, `npm run build`. Public
+    repos' Actions are free;
+  - only a push to `main` uploads and deploys.
 - **To turn it on:**
   1. make the repo public. Pages from a private personal repo needs GitHub Pro,
      and the site is public either way;

@@ -157,9 +157,11 @@ reference.
   shape `docs/ONLINE_PLAN.md` stores server-side. `new Game(null)` keeps
   nothing (the default in Node, so tests start clean).
 - Deployment: `.github/workflows/pages.yml` exports fixtures, type-checks,
-  tests and builds on every push and pull request, and deploys `frontend/dist`
-  to GitHub Pages from `main` **only while the repo is public** (Pages on a
-  private personal repo needs GitHub Pro). `vite.config.ts` sets `base: './'`
+  tests and builds, and deploys `frontend/dist` to GitHub Pages from `main`.
+  **Nothing runs while the repo is private** (metered Actions minutes; every
+  job is skipped, except a manual "Run workflow"). Once public, every push and
+  pull request is checked (Pages on a private personal repo would need GitHub
+  Pro anyway). `vite.config.ts` sets `base: './'`
   because Pages serves the site from `/second_highest_bridge/`. Pages can't send
   headers, so the CSP is a `<meta>` in `frontend/index.html` (`script-src
   'self'`; styles need `'unsafe-inline'` for inline style attributes,

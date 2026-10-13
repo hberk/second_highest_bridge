@@ -4,10 +4,12 @@
 # fixtures are regenerated from the Python engine on every run, so a change to
 # ai.py that the port does not follow fails here instead of shipping.
 #
-# Every push and pull request is checked. Only a push to main deploys, and only
-# while the repository is public: Pages on a private personal repo needs GitHub
-# Pro. Setup, once the repo is public: Settings → Pages → Source: "GitHub
-# Actions", then re-run this workflow (or push).
+# Nothing runs while the repository is private: Actions minutes on a private
+# repo are metered, so every job is skipped (a skipped job starts no runner and
+# uses no minutes). A manual "Run workflow" still checks it on demand. Once the
+# repo is public, every push and pull request is checked (free on public repos)
+# and a push to main deploys. Setup then: Settings → Pages → Source: "GitHub
+# Actions", and re-run this workflow (or push).
 name: Build and deploy (GitHub Pages)
 
 on:
@@ -26,6 +28,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event.repository.visibility == 'public' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
