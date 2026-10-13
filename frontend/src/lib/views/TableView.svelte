@@ -152,9 +152,11 @@
         <button class="btn primary full" onclick={() => game.startPlay()}>Start play →</button>
       {/if}
 
-      <div class="section-title">Your hand</div>
-      {#if settings.showStrength}<HandSummary hand={game.hands.South} />{/if}
-      <Hand hand={game.hands.South} />
+      <div class="my-hand">
+        <div class="section-title">Your hand</div>
+        {#if settings.showStrength}<HandSummary hand={game.hands.South} />{/if}
+        <Hand hand={game.hands.South} />
+      </div>
     </div>
     {#each ['West', 'East'] as const as seat}
       <div class={seat.toLowerCase()}>
@@ -204,11 +206,13 @@
         </button>
       {/if}
 
-      <Hand label={c.dummy === 'South' ? 'South (Dummy · North plays this hand)' : `South (${role('South')})`}
-        hand={game.hands.South} trump={displayTrump}
-        isTurn={who === 'South'} legal={who === 'South' ? legalPlays(game.hands.South, led) : []}
-        concealed={!faceUp('South')} onplay={(card) => game.humanPlays('South', card)} />
-      {#if settings.showStrength}<HandSummary hand={game.hands.South} />{/if}
+      <div class="my-hand">
+        <Hand label={c.dummy === 'South' ? 'South (Dummy · North plays this hand)' : `South (${role('South')})`}
+          hand={game.hands.South} trump={displayTrump}
+          isTurn={who === 'South'} legal={who === 'South' ? legalPlays(game.hands.South, led) : []}
+          concealed={!faceUp('South')} onplay={(card) => game.humanPlays('South', card)} />
+        {#if settings.showStrength}<HandSummary hand={game.hands.South} />{/if}
+      </div>
 
       <details class="expander">
         <summary>Auction</summary>
