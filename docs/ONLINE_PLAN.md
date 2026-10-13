@@ -5,6 +5,9 @@ existing Svelte app in `frontend/`, still deployed to Azure Static Web Apps.
 The Streamlit app stays offline as the research/reference app and gets no
 accounts.
 
+See also [HOSTING_AND_LOCAL_SAVES.md](HOSTING_AND_LOCAL_SAVES.md): GitHub Pages
+as the host, and browser-only saved games before Phase 1.
+
 ## What "play with friends" means
 
 Friends sit at **the same table and play the same board live**: as partners,
