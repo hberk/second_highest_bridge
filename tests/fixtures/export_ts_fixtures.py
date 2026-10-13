@@ -31,7 +31,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 import challenge  # noqa: E402
-from ai import ai_bid_explained, ai_play, eval_hand_sh, hcp  # noqa: E402
+from ai import ai_bid_explained, ai_play, eval_hand_sh, hcp, visible_hands  # noqa: E402
+from bridge import lin  # noqa: E402
 from bridge.scoring import score_contract  # noqa: E402
 from card import Card, SUITS, RANKS, STRAINS  # noqa: E402
 from game import (AuctionState, DEALER_ROTATION, VUL_ROTATION,  # noqa: E402
@@ -96,6 +97,7 @@ def play_game(hands, dealer, vul, rng: random.Random | None):
     trump, dummy = contract['trump'], contract['dummy']
     leader = contract['leader']
     played: list[Card] = []
+    history: list = []
     taken = {'N/S': 0, 'E/W': 0}
     for _ in range(13):
         trick = []
@@ -105,13 +107,15 @@ def play_game(hands, dealer, vul, rng: random.Random | None):
                 card = rng.choice(legal_plays(hands[seat], led))
             else:
                 card = ai_play(seat, hands[seat], trick, trump, played,
-                               visible={dummy: hands[dummy]})
+                               visible=visible_hands(seat, contract, hands),
+                               history=history)
             hands[seat].remove(card)
             trick.append((seat, card))
             record['plays'].append([seat, tok(card)])
         winner = resolve_trick(trick, trump)
         taken['N/S' if winner in ('North', 'South') else 'E/W'] += 1
         played.extend(c for _, c in trick)
+        history.append(list(trick))
         leader = winner
     record['tricks'] = taken
     record['result'] = score_contract(contract, taken)
@@ -188,6 +192,42 @@ def export_challenge() -> list[dict]:
     return out
 
 
+def history_record(game: dict, board_num: int) -> dict:
+    """A games.json record in the hand-history shape app.py keeps, so
+    bridge.lin can write it."""
+    hands = {p: [Card(t[-1], t[:-1]) for t in text.split()] for p, text in game['hands'].items()}
+    contract = game['contract']
+    tricks_log = []
+    flat = [(p, Card(t[-1], t[:-1])) for p, t in game['plays']]
+    for i in range(0, len(flat), 4):
+        plays = flat[i:i + 4]
+        winner = resolve_trick(plays, contract['trump'])
+        tricks_log.append({'trick_num': i // 4 + 1, 'leader': plays[0][0], 'plays': plays,
+                           'winner': winner, 'winning_card': dict(plays)[winner]})
+    return {
+        'board_num': board_num, 'dealer': game['dealer'], 'vulnerability': game['vul'],
+        'initial_hands': hands,
+        'auction_calls': [(c[0], c[1]) for c in game['calls']],
+        'bid_alerts': {i: c[2] for i, c in enumerate(game['calls']) if c[2]},
+        'contract': contract, 'passed_out': contract is None,
+        'tricks_log': tricks_log, 'tricks_taken': game['tricks'] or {'N/S': 0, 'E/W': 0},
+        'result': game['result'],
+    }
+
+
+def export_lin(games: list[dict]) -> list[dict]:
+    """bridge.lin's output for the first 300 boards, which lin.ts must
+    reproduce byte for byte: one hand-record format, two implementations."""
+    out = []
+    for i, g in enumerate(games[:300]):
+        if g['contract'] is None and len(g['calls']) >= GUARD:
+            continue  # an auction the guard cut off: not a real board
+        record = history_record(g, i + 1)
+        out.append({'lin': lin.to_lin(record), 'contract': record['contract'],
+                    'tricks_taken': record['tricks_taken'], 'result': record['result']})
+    return out
+
+
 def write(name: str, data) -> None:
     path = OUT / name
     path.write_text(json.dumps(data, separators=(',', ':'), ensure_ascii=False),
@@ -205,6 +245,7 @@ def main() -> None:
     write('evals.json', export_evals(games))
     write('scoring.json', export_scoring())
     write('challenge.json', export_challenge())
+    write('lin.json', export_lin(games))
 
 
 if __name__ == '__main__':

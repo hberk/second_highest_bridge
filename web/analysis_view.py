@@ -39,7 +39,7 @@ DEFAULT_DEPTH = 'Most of the hand — last 8 tricks (~15s)'
 #: edits, and st.cache_resource outlives a hot reload — so without this, results
 #: (including failures) cached by an older build stick around forever and the
 #: panel keeps reporting them. This is why a stale error can look permanent.
-_CACHE_VERSION = 2
+_CACHE_VERSION = 3
 
 
 @st.cache_resource(show_spinner=False)
@@ -67,7 +67,7 @@ def _human_seats(record: dict) -> List[str]:
     return sorted(set(seats))
 
 
-def render_analysis(record: dict) -> None:
+def render_analysis(record: dict, key: str = 'dd') -> None:
     """Draw the analysis panel for one finished board."""
     if record.get('passed_out'):
         return
@@ -89,11 +89,11 @@ def render_analysis(record: dict) -> None:
             depth_label = st.selectbox(
                 "How far back to analyse", list(DEPTH_CHOICES),
                 index=list(DEPTH_CHOICES).index(DEFAULT_DEPTH),
-                key=f"dd_depth_{record['board_num']}",
+                key=f"{key}_depth_{record['board_num']}",
                 help="Earlier tricks cost dramatically more. Times are for a whole board.",
             )
         with controls[1]:
-            running = st.toggle("Analyse", key=f"dd_on_{record['board_num']}")
+            running = st.toggle("Analyse", key=f"{key}_on_{record['board_num']}")
 
         max_cards = DEPTH_CHOICES[depth_label]
         decisions = replay.decisions(record, seats=seats, max_cards=max_cards)
@@ -148,7 +148,7 @@ def render_analysis(record: dict) -> None:
                 f"{broken[0].get('seat')}: {broken[0]['error']}"
             )
             if st.button("Clear results and retry",
-                         key=f"dd_retry_{record['board_num']}"):
+                         key=f"{key}_retry_{record['board_num']}"):
                 for decision in decisions:
                     cache.pop(_key(record, decision), None)
                 st.rerun()

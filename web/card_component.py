@@ -69,10 +69,9 @@ def deck_style_block() -> str:
     return '<style>:root{' + ''.join(decls) + '}</style>'
 
 
-# One card unit per card, plus a narrow gutter between suit groups. Column widths
-# are padded to this constant so card width never shifts as cards are played.
+# One card unit per card, plus a narrow gutter between suit groups. The real
+# widths are fixed in styles.css, so card width never shifts as cards are played.
 _SPACER = 0.3
-_TOTAL_UNITS = 13 + 3 * _SPACER
 
 # Spades, hearts, diamonds, clubs — the order every bridge client displays a
 # hand in, and the order printed hand records use.
@@ -284,16 +283,18 @@ def show_interactive_hand(label: str, hand: list[Card], trump: str | None,
             widths.append(1.0)
             slots.append(card)
 
-    filler = _TOTAL_UNITS - sum(widths)
-    if filler > 0.05:
-        widths.append(filler)
-        slots.append(None)
-
+    # The ratios only order the slots: styles.css gives every card a fixed
+    # width and lets the row WRAP, so a hand wider than its column moves its
+    # last cards onto a second line instead of clipping them. Ratios alone
+    # clipped: with dummy in a side seat the centre column is too narrow for
+    # thirteen cards, and Streamlit columns shrink rather than wrap.
     trick_len = len(st.session_state.get('trick', []))
     with st.container(key=f"handrow_{who}"):
         cols = st.columns(widths, gap="small")
         for col, card in zip(cols, slots):
             if card is None:
+                with col:
+                    st.markdown('<div class="hand-suit-gap"></div>', unsafe_allow_html=True)
                 continue
             with col:
                 # No Streamlit colour markup on the label: the suit ink comes

@@ -19,6 +19,8 @@ python tests/test_sim.py        # smoke test: one seeded AI vs AI game with inva
 python tests/test_app_flow.py   # drives app.py headlessly via streamlit AppTest
 python tests/test_bidding_calibration.py  # interim threshold calibration guards
 python tests/test_bidding_rebids.py       # agreed-suit rebids, minor-suit game
+python tests/test_gib.py                  # GIB 2/1 conventions, call by call
+python tests/test_lin.py                  # LIN hand records: round trips, BBO variants, refusals
 
 # Double dummy solver
 python tests/test_solver_core.py    # packed-int core vs bridge/trick.py, the rules oracle
@@ -47,7 +49,7 @@ python research/dd_dataset.py --deals 300 --engine rust --workers 6  # ~67x fast
 python research/hand_value.py
 ```
 
-Python 3.9 or newer. Developed on 3.9.13, and the full suite (155 tests,
+Python 3.9 or newer. Developed on 3.9.13, and the full suite (217 tests,
 including `tests/test_app_flow.py`, which executes `app.py` headlessly) passes
 unchanged on **3.12.10** — no source edits were needed, because every file
 already starts with `from __future__ import annotations`. `.python-version`
@@ -86,7 +88,7 @@ reference.
   `tests/fixtures/export_ts_fixtures.py`: every legal-call list, call, alert and
   card over 1,200 games (half with a random human South, to reach states an
   all-robot table never does), every scoring case, 1,600 hand evaluations, and
-  the robot table, grade and par of all 289 library deals. Exact equality,
+  the robot table, grade and par of all 400 library deals. Exact equality,
   floats included. **Change `ai.py` and the port fails until it follows** --
   CI regenerates the fixtures on every run. Port details that matter: Python's
   `max`/`min` keep the first of tied items (`maxBy`/`minBy`), and 3.12's
@@ -99,6 +101,50 @@ reference.
   selectors dropped; `app-shell.css` replaces them). Svelte escapes all text,
   so the `unsafe_allow_html` audit above has no equivalent here: no `{@html}`
   is used anywhere.
+- **Self-alerts** (both apps): the bidding box has an alert field; the
+  text goes with the next call (`Game.humanBids(call, alert)`, `human_bids` in
+  `app.py`), is cleaned by `cleanAlert` / `clean_alert` (one line, at most 70
+  characters), and is shown live even on a pass, while robot pass reasons stay
+  hidden. The robots don't read it. Streamlit can't clear a text box from the
+  run that read it, so its key includes the auction's length
+  (`self_alert_<board>_<calls>`): each call gets a fresh box. Because the
+  Svelte app takes free text, `lin.test.ts` fails if `{@html}` appears in any
+  component; for Streamlit see the `unsafe_allow_html` review below.
+- **LIN** (`bridge/lin.py` and `frontend/src/lib/lin.ts`, both apps): BBO's
+  hand-record format, exported and imported in the History tab. **The two
+  write byte-identical LIN**: `export_ts_fixtures.py` writes Python's LIN for
+  300 boards to `lin.json`, and `lin.test.ts` must parse each to Python's
+  score and write it back unchanged. Exported
+  and imported in the History tab. `toLin` writes only what LIN holds (deal,
+  dealer, vulnerability, calls, alerts as `mb|1S!|an|...|`, cards); `fromLin`
+  rebuilds contract, trick winners and score by **replaying under
+  second-highest rules**, which doubles as validation: out-of-turn cards,
+  revokes, illegal calls and duplicate cards are refused, so most LINs from
+  ordinary bridge are rejected, and so is a board that stops early (an
+  unfinished auction, or play that ends without an `mc` claim): there is
+  nothing to score. It reads BBO's variants (a missing fourth hand,
+  `mc` claims, lower case, `!S` suit symbols). `|` in an alert becomes `/`,
+  the one lossy step. BBO's own viewer applies ordinary rules, so it shows our
+  tricks going to the wrong hands. In Streamlit, a board that ended in a claim
+  skips the double dummy panel, which needs all 13 tricks.
+- **Table conveniences** (both apps; `qol.test.ts`, `tests/test_app_flow.py`;
+  Streamlit: sidebar checkboxes and `web/session_view.py`): **Last trick** on the
+  felt from trick 2 on (the peek is keyed to the moment it was asked for, so
+  any card played drops it); **auto-play forced cards** (`settings.autoPlay`,
+  on by default in the app, but `Game.autoPlayForced` defaults to false so the
+  state machine and its tests behave as before unless asked) and **fast
+  play** (`settings.fastPlay`, next trick after 1.2 s); a **session
+  scoreboard** (`SessionScore.svelte`) on the Table tab: N/S total, made and
+  set counts, a board-by-board running total, and the margin against the
+  robots on challenge boards. Passed-out boards count (`Game.passedOutCount`,
+  `passed_out_count`); boards imported from LIN don't (`imported`). Auto-play
+  is on by default in both apps, so `test_app_flow`'s `_start_play_as` switches
+  it off: those tests click every card themselves. Fast play in Streamlit
+  sleeps 1.2 s after the trick is drawn, then reruns.
+- **The challenge review renders the history view a second time in the same
+  run**, so `render_history_tab(..., key=)` prefixes every widget key (`hist`
+  for the History tab, `chal` for the review), including the double dummy
+  panel's (`hist_dd_on_<board>`). Before this, both used `hist_board_sel`.
 - **Not ported: the double dummy analysis panel** (`web/analysis_view.py`). The
   route for it is `research/solver-rs` compiled to WebAssembly, not a port of
   `bridge/solver`.
@@ -112,7 +158,7 @@ reference.
 **Deployment.** The app's only third-party dependency is `streamlit`
 (`requirements.txt`); it writes nothing to disk, keeps all game state in
 `st.session_state`, and holds no mutable module-level state, so concurrent
-players cannot interfere. The deployable footprint is 388 KB — `research/` is
+players cannot interfere. The deployable footprint is about 420 KB (the deal library grew from 96 to 130 KB at 400 deals) — `research/` is
 not imported by the app and `research/solver-rs/target/` (49 MB) is gitignored.
 The one deployment hazard is `web/analysis_view.py`: it runs the double dummy
 solver interactively, offers a depth costed at ~5 minutes, and caches results in
@@ -156,7 +202,39 @@ The codebase is cleanly layered into pure domain engine, web presentation, style
 
 **`game.py`** — high-level domain facade re-exporting `bridge` engine components for backwards compatibility.
 
-**`ai.py`** — AI decision making (`eval_hand_sh` hand valuation, `ai_bid` auction strategy, `ai_play` trick strategy).
+**`gib.py`** — **the robots' bidding system: GIB 2/1 game force**, from BBO's
+[GIB system notes](https://www.bridgebase.com/doc/gib_system_notes.php), adopted
+in full at the user's request because it is the system players know. 5-card
+majors, 15-17 1NT, 20-21 2NT, strong 2♣, weak twos, 2/1 game forcing, 1NT
+forcing, Jacoby 2NT, splinters, inverted minors, Soloway jump shifts, two-way
+game tries, Reverse Drury, new minor and fourth suit forcing; Stayman, Jacoby and
+Texas transfers, minor-suit Stayman, minor transfers, shortness bids, Gerber and
+quantitative 4NT over notrump; RKCB 0314 with queen and king asks, DOPI;
+negative (through 3♠), support (through 2♥), responsive and takeout (through
+4♥) doubles, weak jump overcalls, 1NT overcall, Michaels, Unusual 2NT,
+unusual-vs-unusual, leaping minors over weak twos, Cappelletti, Lebensohl,
+Jordan 2NT. `ai.ai_bid_explained` asks `gib.gib_bid` first; it returns None only
+for contested auctions the notes leave to judgment, where `ai.py`'s previous
+logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
+- **Measured against the previous system and adopted anyway, by choice.** Over
+  400 deals x 4 dealers, head to head: **-6.6 per board, t = -2.99**. Self-play
+  declaring-side +33.3 against +65.5; contracts made 45% against 67%; 32%
+  notrump, 38% game or higher and 8 slams, against 0%, 5% and 0; passed out 11
+  boards in 1,600 against 126; auction loss against par 174.6 against 145.6.
+  It loses for the reasons recorded below -- game and notrump are rarely right
+  in this variant -- and the user chose familiarity over score. **Do not "fix"
+  GIB toward the measured system.** The previous system is intact behind
+  `ai.USE_GIB = False` (`settingsAi.useGib` in the port) for comparisons.
+- `gib.ILLEGAL` records any call a branch produced that was not legal; the
+  guard in `gib_bid` substitutes a legal one, and `tests/test_gib.py` asserts
+  the list stays empty over 600 auctions.
+- Alerts quote **HCP** ("15-17 HCP") where GIB does, and "points" (the guide
+  count) only where the branch enforces it. An artificial call's alert says
+  "Artificial" and is exempt from naming its own suit; `_name_the_suit`
+  appends the suit to any other suit bid's alert, so the text still depends on
+  the call alone.
+
+**`ai.py`** — AI decision making (`eval_hand_sh` hand valuation, `ai_play` trick strategy, and `ai_bid`: GIB first, then the previous system's logic as the fallback for contested auctions).
 
 **`web/`** — Streamlit presentation components:
 - Robot bids are **alerted**: `ai.ai_bid_explained` returns `(call, explanation)`
@@ -182,15 +260,34 @@ The codebase is cleanly layered into pure domain engine, web presentation, style
     call cannot distinguish two of the card's tiers (12-15 against 16-17 for a
     rebid), the alert quotes the floor — saying "16+" would leak strength the bid
     itself never showed.
+  - **A bid's alert depends only on the auction and the call, never on the
+    hand.** `test_a_bid_alert_depends_only_on_the_auction_and_the_call` plays
+    1,500 auctions and fails if the same call in the same auction ever reads
+    two ways. It found five leaks at once: a rebid alerted "6+" or "12+" by
+    branch, 1m alerted "3+/4+/5+" by the real minor lengths, a contested
+    two-level bid "Forcing" or "Free bid", and an answer to a takeout double
+    quoting the actual length and band. Each now quotes the floor every hand
+    making that call shares.
+  - **Pass reasons are hidden while the board is live** (`live_alerts` in
+    `web/auction_view.py`, `Game.liveAlerts` in the port). "Fewer than 6
+    points" versus "Fewer than 3 ♠ and no five-card suit" reads a robot's cards
+    out, and a real table never alerts a natural pass. They stay in
+    `bid_alerts` and appear on the result screen and in history.
   - Alerts stay under 70 characters so they fit a tooltip.
 - **`unsafe_allow_html` and why it is currently safe** (`tests/test_web_escaping.py`).
   The app renders its own markup: 33 `unsafe_allow_html` sites and 1,187 lines of
   hand-written CSS. Seven sites are static literals; 26 build HTML from data.
   **No current vulnerability exists, and the reason is structural, not careful
-  coding:** the app has no `text_input`, `text_area`, `file_uploader` and reads no
-  query parameters, so a visitor can only click buttons and cards. Everything
-  interpolated is a seat name from a fixed list, a `Card` from a fixed deck, an
-  integer, or alert text that `ai.py` generates.
+  coding.** Until self-alerts and LIN import, the app had no text input at all.
+  It now has exactly three, each reviewed (`REVIEWED_INPUTS`): the self-alert
+  `text_input`, and LIN import's `text_area` and `file_uploader`. Both features
+  deliver only **alert text** to the page, and only through `call_badge`,
+  which escapes it. `from_lin` rebuilds every other field from a fixed
+  vocabulary (seats, the 52 cards, legal calls, vulnerabilities) or an
+  integer, and reads past LIN player names and board titles. LIN parse errors
+  can quote the input, so they are shown with `st.code`. Everything else
+  interpolated is still a seat name from a fixed list, a `Card` from a fixed
+  deck, an integer, or alert text that `ai.py` generates.
   That is a snapshot, not a guarantee, so it is now enforced:
   - Every caller-supplied string that reaches markup is escaped with
     `html.escape(value, quote=True)`. Writing the test found **two genuinely
@@ -200,9 +297,11 @@ The codebase is cleanly layered into pure domain engine, web presentation, style
     reachable with hostile data; all are escaped now.
   - Values from a dict lookup keyed by suit (colours, pips, suit names) are
     deliberately NOT escaped: an unknown suit raises `KeyError`, which fails closed.
-  - `test_the_app_still_has_no_free_text_input` fails the moment an input widget
-    appears, because that is when the 26 data-driven sites stop being safe by
-    construction and need real review.
+  - `test_every_free_text_input_has_been_reviewed` fails the moment an input
+    widget appears that is not in `REVIEWED_INPUTS`: each new one needs its own
+    trace through the 26 data-driven sites. Two end-to-end tests type hostile
+    payloads into the self-alert box and into an imported LIN (as alerts and as
+    player names) in the running app, and check the page.
   - The escaping test asserts on **tag openings** (`<script`, `<img`, …), not on
     keywords. An earlier version banned `onerror=` and failed on correctly-escaped
     output — once `<` and `"` are entities, `onerror=alert(1)` is inert text. An
@@ -222,7 +321,7 @@ The codebase is cleanly layered into pure domain engine, web presentation, style
 **`challenge.py`** — head-to-head mode: the same deal played by the human and by
 an all-robot table, then graded. Pure domain logic, no Streamlit. It runs on
 `data/solved_deals.json` (written by `research/export_challenge_deals.py`): the
-**289 of 300 deals solved in all five strains for both declaring sides**. That
+**400 deals, every one solved in all five strains for both declaring sides**. That
 completeness is the whole point — whatever contract an auction reaches, its
 double-dummy trick count is a lookup, so a board can be scored as if it had been
 played perfectly without solving anything at run time. From that comes the split
@@ -234,17 +333,64 @@ the mode exists for:
 `play_loss` is that value minus what was actually scored. The identity is exact
 and `tests/test_challenge.py` asserts it on every deal in the library. It makes
 "how good is the robot at **bidding**" and "at **declaring**" separable questions,
-which a single score cannot answer. Measured over the 267 library boards the
+which a single score cannot answer. Measured over the 372 library boards the
 robots reach a contract on:
 
 | | mean per board | median |
 |---|---|---|
-| lost in the auction | **149.1** | 130.0 |
-| lost in the card play | **28.1** | **0.0** |
+| lost in the auction | **143.7** | 130.0 |
+| lost in the card play | **31.8** | **0.0** |
 
-**The robot declares well and bids badly.** Card play is perfect on 141 of 267
-boards; the auction is perfect on 94. The worst single auction gave away 1,270
-(deal 163: 1H reached, 7C available). Note the caveat baked into `par()`: it is
+**Declarer sees its own two hands, defenders see dummy** (`ai.visible_hands`;
+nobody sees a defender's cards). Before this, the robot played dummy blind to
+declarer's own hand -- on a user's board dummy overtook declarer's winning J♥
+with the K♥, fearing a queen declarer held -- and the robots' challenge table
+passed no visible hands at all. Fixing both took the robot declarer from 0.471
+to **0.310 tricks below double dummy per board** (47.2 to 27.8 points of play
+loss, GIB auctions, 397 library boards). **The last three tricks are then
+searched, single dummy** (`ai.ENDGAME_CARDS = 3`, `_endgame_totals`): every
+layout of the unseen cards consistent with what the robot has seen -- its hand,
+dummy, cards played, who has shown out -- is solved exactly (at most 20), and
+the card with the most tricks summed over them is played. Never the real
+layout: that would be double dummy. Enumerated, not sampled, so still
+deterministic and still ported exactly. Down to **0.199 tricks below double
+dummy per board (22.0 points)**, the whole library in ~15 s. Four cards measured
+over 15 minutes for the library -- too slow for the table -- and was dropped.
+**Second hand covers to promote a visible partner** (`_cover_for_partner`):
+when partner plays last and partner's hand is in view (declarer and dummy),
+each card is scored by how many of the third player's possible cards -- drawn
+only from cards the robot cannot see -- leave partner a winning reply. On a
+user's 3NT East ducked the 8C holding K64 with dummy's 9C to come; covering
+makes the nine win. Library: **0.199 -> 0.025 tricks below double dummy per
+board (22.0 -> 6.2 points)**; "below double dummy" also credits weak robot
+defence, so treat it as a ceiling on the gain. The table below predates all
+four changes.
+
+**Fourth hand plays for the partnership** (`_play_last`): it used to take a
+trick only if it could win it ITSELF, never by promoting partner's card. On a
+user's 3H dummy played low under North's 7H where the king makes East's 8H
+second-highest. Measured one side at a time over the library: declarer
+**+0.43 tricks per board (t = +7.2)**, defence **+0.21 (t = +5.2)**.
+
+**A cuebid raise that forces the three level needs four trumps or 12+
+judgement points** (`gib.CUE_LIMIT_AT_3`), a small tightening of GIB's "limit
+raise or better"; weaker hands with three trumps raise to the two level. The
+same user board: 1H-(2C)-3C on three trumps and 10 HCP drove 28 HCP to 3H,
+where seven tricks were the most available (and N/S could make ten in clubs).
+Head to head **+0.1 per board, t = +2.24** -- rare, but positive.
+
+**GIB judges level on this game's card values** (`gib.Hand.judge`): K=Q=3,
+A=10=9=1, scaled to 40 a deck, from the fitted trick values. What a bid SHOWS
+stays HCP (its alert quotes HCP); whether to stop, invite, bid game or try for
+slam uses judgement points. Head to head against HCP judgement: **+2.7 per
+board, t = +2.90**; self-play +32.7 -> +39.7, games 39% -> 36%, made 44% ->
+46%. `gib.JUDGE_BY_VARIANT = False` (`settingsGib.judgeByVariant`) restores HCP.
+
+**The robot declares well and bids badly.** Card play is perfect (at or above
+double dummy) on 197 of 372 boards; the auction on 137. The worst single auction
+gave away 1,260 (deal 346: E/W stopped in 2S with 7NT available). At 289 deals
+the same table read 149.1 / 28.1 over 267 boards — the extra 100 deals moved
+neither column materially. Note the caveat baked into `par()`: it is
 the best contract available to ONE side ignoring whether the opponents would
 compete, so it is a ceiling and overstates the true bidding gap — but the ratio
 between the two columns is what matters and is robust.
@@ -267,6 +413,12 @@ into noise.
 - All files start with `from __future__ import annotations` for Python 3.9 union type compatibility.
 - `deal()` returns hands already sorted high-to-low within each suit — don't re-sort in display code.
 - The `played` list passed to `ai_play` is cumulative across the full game; it grows after each completed trick in `next_trick()` / `main.py`'s game loop.
+- **Everything from here to "Solver invariants" about `ai_bid` describes the
+  PREVIOUS system** (`ai.USE_GIB = False`), which still answers the contested
+  situations GIB's notes do not cover. Its rules -- never bid notrump, never
+  cuebid, 2/1 forcing one round, game only in a major -- are NOT the robots'
+  default any more; GIB's are (see `gib.py` above). The measurements below
+  remain true, and are why GIB scores worse here.
 - `ai.py`'s hand evaluation and bidding thresholds are **fitted, not hand-written**.
   `eval_hand_sh` returns EXPECTED TRICKS (trump card +1.025, K or Q +0.281, A/10/9
   +0.117, J/8/7/6/5 -0.094, 4/3/2 -0.199, plus `LENGTH_BONUS` 0.25 for each trump
@@ -407,6 +559,10 @@ into noise.
     changed** — no-ops that make the alerts true); and a 10+ floor on the jump
     raise (also **0 of 299**, because the trick threshold beside it already
     implied 10+).
+  - **No pre-empt in fourth seat** (a user caught a weak 2♠ after three
+    passes). There a two-level opening shows 11-15 points and six cards, as in
+    standard bridge. Head to head over 289 deals x 4 dealers: +0.22 per board,
+    t = +1.07, 13 contracts moved — rare, so not detectable, but never worse.
   - **The takeout double is the biggest single win in the file: +2.2 per board
     head to head, t = +1.75** (+9.8 on the inflated declaring-side metric).
     The card's conditions exactly — 12+ points (14+ over a two-level
@@ -528,14 +684,16 @@ into noise.
 
 ### Hand evaluation and bidding
 
-Fitted from `research/data/dd_pilot.jsonl`, now **complete at 300 deals / 1489 solve
-pairs / 2978 declarer-solves**, with 289 deals carrying all five strains. Regenerate with
+Fitted from `research/data/dd_pilot.jsonl`, now **complete at 400 deals / 2000 solve
+pairs / 4000 declarer-solves**, every deal carrying all five strains (deals 301-400
+were added with `--extra-fits 3 --engine rust` in 46 minutes, which also filled the
+11 older deals that had been missing strains). Regenerate with
 `python research/hand_value.py`. Figures were first taken at 100 deals x 3 strains;
 where the larger sample moved them, both are given, because the movement is the lesson.
 
 **Read this before tuning any constant.** Paired across identical deals, the per-deal
 score difference has SD 45, so the smallest detectable effect is about 5.2 points per
-board at 300 deals, 4.1 at 500, 2.9 at 1000. A power calculation made at 153 deals
+board at 300 deals, 4.5 at 400, 4.1 at 500, 2.9 at 1000. A power calculation made at 153 deals
 predicted `GAME_TRICKS` would need ~306 deals to resolve and the coefficient choice
 ~492; at 300 deals both predictions held exactly. Current state:
 
@@ -581,7 +739,7 @@ Do not "improve" these constants against an unpaired mean; that is fitting noise
   population attached.
 - **Notrump is almost never right — but "never" was a small-sample artifact.** At 100
   deals the suit won 91%, tied 9% and lost **0 of 172**. At 300 deals it wins 89%, ties
-  10% and **loses 7 of 600 (1%)** — so 1% is the stable rate, and the original zero was
+  10% and **loses 7 of 600 (1%)**, and at 400 deals 9 of 800 (1%) — so 1% is the stable rate, and the original zero was
   an artifact. The conclusion (do not bid it) is untouched; the
   absolute claim was wrong, and is just the kind of zero a larger sample kills. Mean gap -2.65
   tricks, widening to -3.62 on 9+ card fits. NT tricks are also near-unpredictable
@@ -688,11 +846,17 @@ Known-thin evidence, worst first — treat these as provisional:
   policy analysis, which sees the true combined count rather than the auction's
   estimate, puts game clearly ahead at count >= 9.5 (n=55, +182.5 against +157.8) and
   clearly behind at >= 9.0 (+142.4 against +150.4). 9.5 is the right edge.
+  **At 400 deals the 9.0 row flipped**: +154.1 against +150.8 (n=131), a 3.3-point
+  game lead, while 9.5 kept its lead but narrowed to +170.4 against +154.7 (n=81).
+  A 3-point swing on ~130 boards is well inside the noise floor, so this is "the
+  edge sits somewhere in 9.0-9.5", not evidence to move it — and `GAME_TRICKS`
+  is 10.0 in the live auction anyway because of `LENGTH_BONUS`.
 - The **ace's estimate has wandered with sample size** — +0.186 (t=1.69, not
-  significant) at 100 deals, +0.221 (t=3.51) at 153, **+0.097 (t=2.47) at 300**. At the
-  full sample it is significantly positive but the *smallest* of the top six ranks,
+  significant) at 100 deals, +0.221 (t=3.51) at 153, +0.097 (t=2.47) at 300, **+0.080 (t=2.32) at 400**.
+  At 300 deals it is significantly positive but the *smallest* of the top six ranks,
   sitting below the ten (+0.210), the jack (+0.184) and the nine (+0.172) — a stronger
   form of the original finding, not a weaker one. K (+0.418) and Q (+0.398) carry the
-  hand. This wandering is why `hand_value.py` prints live t-statistics rather than a
+  hand. At 400 the ordering holds: K +0.438, Q +0.365, J +0.225, 10 +0.203,
+  9 +0.202, and the 8 (+0.123, t=3.37) has now also overtaken the ace. This wandering is why `hand_value.py` prints live t-statistics rather than a
   hard-coded verdict.
 - Deals with 12+ tricks remain rare (4 of 153).

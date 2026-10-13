@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Game } from './lib/game.svelte';
+  import { untrack } from 'svelte';
+  import { Game, type HistoryRecord } from './lib/game.svelte';
   import { settings, DECK_HELP, DECK_LABELS, type DeckName } from './lib/settings.svelte';
   import TableView from './lib/views/TableView.svelte';
   import ChallengeView from './lib/views/ChallengeView.svelte';
@@ -11,6 +12,15 @@
   $effect(() => {
     settings.applyDeck();
     settings.save();
+  });
+  // Reacts to the setting only; switching it on mid-trick plays a card that
+  // is already forced.
+  $effect(() => {
+    const on = settings.autoPlay;
+    untrack(() => {
+      game.autoPlayForced = on;
+      if (on) game.resumeAutoPlay();
+    });
   });
 
   const n = $derived(game.history.length);
@@ -45,6 +55,12 @@
           <input type="checkbox" bind:checked={settings.showStrength} /> Show hand strength
         </label>
         <label><input type="checkbox" bind:checked={settings.showAll} /> Show all hands (X-ray)</label>
+        <label title="When you have only one legal card, it is played for you, as on BBO.">
+          <input type="checkbox" bind:checked={settings.autoPlay} /> Auto-play forced cards
+        </label>
+        <label title="Each finished trick stays on the table for a moment, then the next one starts by itself.">
+          <input type="checkbox" bind:checked={settings.fastPlay} /> Fast play (next trick automatically)
+        </label>
       </div>
     </details>
   </div>
@@ -61,7 +77,7 @@
     {:else if tab === 'challenge'}
       <ChallengeView {game} ondealt={() => (tab = 'table')} />
     {:else}
-      <HistoryView records={game.history} />
+      <HistoryView records={game.history} onimport={(boards: HistoryRecord[]) => game.history.push(...boards)} />
     {/if}
   </div>
 </div>

@@ -6,9 +6,9 @@ cannot tell you: how much of the gap was the AUCTION and how much was the CARD
 PLAY.
 
 That split is what makes "is the robot good at bidding" and "is it good at
-declaring" separate questions. Measured over the 267 library boards the robots
+declaring" separate questions. Measured over the 372 library boards the robots
 can reach a contract on, they are very different questions: the auction gives
-away a mean of 149 points a board, the card play 28, and the median play loss is
+away a mean of 144 points a board, the card play 32, and the median play loss is
 ZERO -- more than half of all boards are played perfectly. The robot declares
 well and bids badly, and this panel is where a player can see that for
 themselves rather than take it on trust.

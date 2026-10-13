@@ -36,6 +36,8 @@ interface Stored {
   trumpFirst: boolean;
   showStrength: boolean;
   showAll: boolean;
+  autoPlay: boolean;
+  fastPlay: boolean;
 }
 
 function load(): Partial<Stored> {
@@ -51,6 +53,10 @@ class Settings {
   trumpFirst = $state(false);
   showStrength = $state(true);
   showAll = $state(false);
+  /** Play a card for you when it's the only legal one. */
+  autoPlay = $state(true);
+  /** Move on to the next trick by itself after a short pause. */
+  fastPlay = $state(false);
 
   constructor() {
     const s = load();
@@ -58,6 +64,8 @@ class Settings {
     if (typeof s.trumpFirst === 'boolean') this.trumpFirst = s.trumpFirst;
     if (typeof s.showStrength === 'boolean') this.showStrength = s.showStrength;
     if (typeof s.showAll === 'boolean') this.showAll = s.showAll;
+    if (typeof s.autoPlay === 'boolean') this.autoPlay = s.autoPlay;
+    if (typeof s.fastPlay === 'boolean') this.fastPlay = s.fastPlay;
   }
 
   save(): void {
@@ -65,6 +73,7 @@ class Settings {
       localStorage.setItem(KEY, JSON.stringify({
         deck: this.deck, trumpFirst: this.trumpFirst,
         showStrength: this.showStrength, showAll: this.showAll,
+        autoPlay: this.autoPlay, fastPlay: this.fastPlay,
       }));
     } catch {
       // Not remembered; the page still works.

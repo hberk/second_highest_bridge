@@ -30,6 +30,7 @@ if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
 import ai
+import gib
 from card import Card, deal, parse_bid
 from game import AuctionState, PARTNERS, PLAYERS
 
@@ -99,29 +100,49 @@ def test_the_evaluation_is_on_the_trick_scale():
     assert long_strong['total_pts'] > flat_weak['total_pts'] + 3
 
 
-def test_the_ai_never_bids_notrump():
-    """The single sharpest finding: notrump lost 172 of 172 solved comparisons."""
-    for auction in _auctions(120, seed=4):
-        for who, call in auction.calls:
-            parsed = parse_bid(call)
-            assert not (parsed and parsed[1] == 'NT'), \
-                f"{who} bid {call}; notrump is never the right strain here"
+def test_notrump_openings_are_gibs():
+    """GIB opens 1NT on 15-17 and 2NT on 20-21, balanced. (The old system
+    never bid notrump, on a measurement; GIB is the system now by choice.)"""
+    random.seed(4)
+    seen = Counter()
+    for index in range(400):
+        hands = deal()
+        auction = AuctionState(dealer=PLAYERS[index % 4], vulnerability='None')
+        while not auction.is_complete and len(auction.calls) < 60:
+            who = auction.current_player()
+            call = ai.ai_bid(who, hands[who], auction)
+            if call in ('1NT', '2NT') and all(c == 'Pass' for _, c in auction.calls):
+                h = gib.Hand(hands[who])
+                low, high = gib.NT1 if call == '1NT' else gib.NT2
+                assert h.balanced and low <= h.hcp <= high, (
+                    f"opened {call} on {h.hcp} HCP, shape {h.shape}")
+                seen[call] += 1
+            auction.apply_call(who, call)
+    assert seen['1NT'] > 10, f"only {seen['1NT']} 1NT openings"
 
 
-def test_contracts_settle_at_a_makeable_level():
-    """Underbidding is nearly free, so contracts belong low."""
-    levels = Counter()
-    for auction in _auctions(120, seed=5):
+def test_slams_are_bid_only_on_slam_values():
+    """GIB bids slams, so the regression to guard is a runaway: a six- or
+    seven-level contract on values nowhere near it."""
+    random.seed(5)
+    contracts = 0
+    for index in range(300):
+        hands = deal()
+        auction = AuctionState(dealer=PLAYERS[index % 4], vulnerability='None')
+        while not auction.is_complete and len(auction.calls) < 60:
+            who = auction.current_player()
+            auction.apply_call(who, ai.ai_bid(who, hands[who], auction))
         contract = auction.get_contract()
-        if contract:
-            levels[contract['level']] += 1
-
-    assert levels, "no contracts were reached at all"
-    total = sum(levels.values())
-    assert max(levels) <= 5, f"reached the {max(levels)}-level; raises are running away"
-    low = sum(count for level, count in levels.items() if level <= 2)
-    assert low / total >= 0.5, \
-        f"only {low / total:.0%} of contracts at the 1- or 2-level"
+        if not contract:
+            continue
+        contracts += 1
+        if contract['level'] >= 6:
+            seats = [contract['declarer'], PARTNERS[contract['declarer']]]
+            combined = sum(gib.Hand(hands[s]).hcp for s in seats)
+            assert combined >= 27, (
+                f"{contract['level']}{contract['strain']} on {combined} HCP: "
+                f"{[c for _, c in auction.calls]}")
+    assert contracts > 250
 
 
 def test_all_ai_boards_are_not_passive():
@@ -157,8 +178,9 @@ def test_every_robot_bid_can_explain_itself():
             assert why.endswith('.'), f"alert should be a complete phrase: {why!r}"
 
             parsed = parse_bid(call)
-            if parsed and parsed[1] != 'NT':
-                # alerts are written like a system card, in suit symbols
+            if parsed and parsed[1] != 'NT' and 'Artificial' not in why:
+                # alerts are written like a system card, in suit symbols; an
+                # artificial call is about something else, and says so
                 assert ai.SUIT_SYM[parsed[1]] in why, (
                     f"{call} explained without naming the suit: {why!r}")
             # an alert says what the bid SHOWS, never what the hand holds
@@ -203,26 +225,23 @@ def test_bids_that_name_a_strength_actually_have_it():
     """
     random.seed(9)
     seen = Counter()
-    for index in range(60):
+    for index in range(200):
         hands = deal()
         auction = AuctionState(dealer=PLAYERS[index % 4], vulnerability='None')
         guard = 0
         while not auction.is_complete and guard < 60:
             who = auction.current_player()
             call, why = ai.ai_bid_explained(who, hands[who], auction)
-            points = ai._points(ai.eval_hand_sh(hands[who])['groups'])
-            if 'Forcing' in why:
+            hcp = gib.Hand(hands[who]).hcp
+            if '12+ HCP. Game forcing' in why:
                 seen['2/1'] += 1
-                assert points >= ai.TWO_OVER_ONE_POINTS, (
-                    f"two-over-one on {points} points: {why}")
+                assert hcp >= gib.TWO_OVER_ONE, f"two-over-one on {hcp} HCP: {why}"
             if 'Overcall' in why:
                 seen['overcall'] += 1
-                assert points >= ai.OVERCALL_POINTS, (
-                    f"overcall on {points} points: {why}")
+                assert hcp >= gib.OVERCALL_1[0], f"overcall on {hcp} HCP: {why}"
             if 'Takeout' in why:
                 seen['double'] += 1
-                assert points >= ai.TAKEOUT_POINTS_1, (
-                    f"takeout double on {points} points: {why}")
+                assert hcp >= gib.TAKEOUT_MIN, f"takeout double on {hcp} HCP: {why}"
             auction.apply_call(who, call)
             guard += 1
     for label in ('2/1', 'overcall', 'double'):
@@ -271,28 +290,27 @@ def test_the_takeout_double_shows_the_shape_it_claims():
     """
     random.seed(11)
     doubles = 0
-    for index in range(80):
+    for index in range(200):
         hands = deal()
         auction = AuctionState(dealer=PLAYERS[index % 4], vulnerability='None')
         guard = 0
         while not auction.is_complete and guard < 60:
             who = auction.current_player()
             call, why = ai.ai_bid_explained(who, hands[who], auction)
-            if call == 'X':
+            if call == 'X' and why.startswith('Takeout'):
                 doubles += 1
                 groups = ai.eval_hand_sh(hands[who])['groups']
                 theirs = ai._their_suit(who, auction)
                 assert theirs is not None, "doubled with no opponent bid to double"
-                assert len(groups[theirs]) <= ai.TAKEOUT_MAX_THEIRS, (
-                    f"doubled holding {len(groups[theirs])} of their suit: {why}")
-                for suit in 'SHDC':
-                    if suit != theirs:
-                        assert len(groups[suit]) >= ai.TAKEOUT_MIN_ELSEWHERE, (
-                            f"doubled with only {len(groups[suit])} {suit}: {why}")
-                assert ai._points(groups) >= ai.TAKEOUT_POINTS_1
+                h = gib.Hand(hands[who])
+                shaped = (len(groups[theirs]) <= 2 and all(
+                    len(groups[s]) >= 3 for s in 'SHDC' if s != theirs))
+                # GIB: the shape, or any 18+ hand too strong to overcall
+                assert shaped or h.hcp >= 18, f"doubled without the shape: {why}"
+                assert h.hcp >= gib.TAKEOUT_MIN
             auction.apply_call(who, call)
             guard += 1
-    assert doubles >= 5, f"only {doubles} doubles in 80 deals -- branch unreachable?"
+    assert doubles >= 5, f"only {doubles} takeout doubles -- branch unreachable?"
 
 
 def test_a_takeout_double_is_answered_not_passed_out():
@@ -309,29 +327,29 @@ def test_a_takeout_double_is_answered_not_passed_out():
     assert parse_bid(call)[1] != 'H', "answered a takeout double in THEIR suit"
 
 
-def test_the_ai_never_cuebids_but_still_understands_one():
-    """Advancer bidding the opponents' suit on 11+ points with support was
-    implemented and measured: -16.4 points per board (t = -3.34), pushing
-    contracts at the 3-level or higher from 17 to 25. It loses for the reason
-    game-forcing 2/1 loses here -- showing extra values buys height, and an
-    undoubled overtrick scores exactly what a contracted trick scores.
-
-    The READING stays, so a human South who cuebids is understood by robot North.
+def test_a_cuebid_is_alerted_as_one_and_still_understood():
+    """GIB cuebids -- Michaels, cuebid raises, unusual-vs-unusual. (The old
+    system did not, on a measurement of -4.1 per board head to head; GIB is
+    the system now by choice.) A bid in the opponents' suit must say what it
+    is, never pass itself off as length there.
     """
     random.seed(13)
-    for index in range(60):
+    seen = 0
+    for index in range(300):
         hands = deal()
         auction = AuctionState(dealer=PLAYERS[index % 4], vulnerability='None')
-        guard = 0
-        while not auction.is_complete and guard < 60:
+        while not auction.is_complete and len(auction.calls) < 60:
             who = auction.current_player()
-            call = ai.ai_bid(who, hands[who], auction)
+            call, why = ai.ai_bid_explained(who, hands[who], auction)
             parsed = parse_bid(call)
-            if parsed and parsed[1] != 'NT':
-                assert not ai._is_cuebid(who, auction, parsed[1]), (
-                    f"{who} cuebid {call}; measured at -16.4 points per board")
+            if parsed and parsed[1] != 'NT' and ai._is_cuebid(who, auction, parsed[1]):
+                seen += 1
+                assert any(word in why for word in (
+                    'Cuebid', 'Michaels', 'Artificial', 'Both minors',
+                    "partner's two suits")), (
+                    f"{who} bid their suit {call} without saying why: {why}")
             auction.apply_call(who, call)
-            guard += 1
+    assert seen, "no cuebid exercised"
 
     # ... but partner's cuebid is read as support, never as length in their suit.
     cued = AuctionState(dealer='North', vulnerability='None')
@@ -393,6 +411,10 @@ def test_no_alert_denies_a_suit_the_hand_is_holding():
             call, why = ai.ai_bid_explained(who, hands[who], auction)
             groups = ai.eval_hand_sh(hands[who])['groups']
 
+            if 'No 4-card major' in why or 'no 4-card major' in why:
+                assert len(groups['H']) < 4 and len(groups['S']) < 4, (
+                    f"alert denies a 4-card major the hand holds: {why!r}")
+                checked += 1
             if 'no five-card suit' in why and 'outside theirs' not in why:
                 longest = max(len(cards) for cards in groups.values())
                 assert longest < ai.OPEN_SUIT_LENGTH, (
@@ -411,7 +433,7 @@ def test_no_alert_denies_a_suit_the_hand_is_holding():
                 checked += 1
             auction.apply_call(who, call)
             guard += 1
-    assert checked > 50, f"only checked {checked} such alerts"
+    assert checked > 3, f"only checked {checked} such alerts"
 
 
 def test_every_number_an_alert_quotes_is_true_of_the_hand():
@@ -435,6 +457,10 @@ def test_every_number_an_alert_quotes_is_true_of_the_hand():
     re_under = re.compile(r'under (\d+) points')
     re_fewer = re.compile(r'Fewer than (\d+) points')
     re_fewer_suit = re.compile(r'Fewer than (\d+) (' + suits + ')')
+    re_hcp_min = re.compile(r'(\d+)\+ HCP')
+    re_hcp_range = re.compile(r'(\d+)-(\d+) HCP')
+    re_hcp_under = re.compile(r'(?:under|Fewer than) (\d+) HCP')
+    re_exact = re.compile(r'exactly (\d+) (' + suits + ')')
 
     random.seed(23)
     checked = 0
@@ -447,7 +473,22 @@ def test_every_number_an_alert_quotes_is_true_of_the_hand():
             call, why = ai.ai_bid_explained(who, hands[who], auction)
             groups = ai.eval_hand_sh(hands[who])['groups']
             points = ai._points(groups)
+            hcp = gib.Hand(hands[who]).hcp
             held = {s: len(c) for s, c in groups.items()}
+            for num in re_hcp_min.findall(why):
+                assert hcp >= int(num), f"claimed {num}+ HCP holding {hcp}: {why!r}"
+                checked += 1
+            for low, high in re_hcp_range.findall(why):
+                assert int(low) <= hcp <= int(high), (
+                    f"claimed {low}-{high} HCP holding {hcp}: {why!r}")
+                checked += 1
+            for num in re_hcp_under.findall(why):
+                assert hcp < int(num), f"claimed under {num} HCP holding {hcp}: {why!r}"
+                checked += 1
+            for num, sym in re_exact.findall(why):
+                assert held[sym_to_suit[sym]] == int(num), (
+                    f"claimed exactly {num} {sym}: {why!r}")
+                checked += 1
 
             for num, sym in re_len.findall(why):
                 assert held[sym_to_suit[sym]] >= int(num), (
@@ -482,6 +523,44 @@ def test_every_number_an_alert_quotes_is_true_of_the_hand():
             auction.apply_call(who, call)
             guard += 1
     assert checked > 300, f"only checked {checked} claims"
+
+
+def test_a_bid_alert_depends_only_on_the_auction_and_the_call():
+    """An alert says what a call SHOWS, so it may depend on the auction so far
+    and the call -- never on the cards. The same bid in the same auction must
+    read the same whoever holds it; otherwise the wording itself is a leak.
+
+    It was, five ways at once: a rebid alerted "6+" or "12+ points" by which
+    branch fired, 1m "3+", "4+" or "5+" by the actual minor lengths, a contested
+    two-level bid "Forcing" or "Free bid", and an answer to a takeout double
+    quoted the suit's real length and point band. Passes are exempt here: their
+    reasons are hand-dependent by nature and are hidden from the live table by
+    `web.auction_view.live_alerts` (see the test below).
+    """
+    random.seed(21)
+    seen: dict = {}
+    for index in range(1500):
+        hands = deal()
+        auction = AuctionState(dealer=PLAYERS[index % 4], vulnerability='None')
+        while not auction.is_complete and len(auction.calls) < 60:
+            who = auction.current_player()
+            call, why = ai.ai_bid_explained(who, hands[who], auction)
+            if call != 'Pass':
+                key = (tuple(c for _, c in auction.calls), call)
+                first = seen.setdefault(key, why)
+                assert first == why, (
+                    f"same call, same auction, different alert -- it reads the "
+                    f"hand out: {key}: {first!r} vs {why!r}")
+            auction.apply_call(who, call)
+    assert len(seen) > 1000, "too few bids exercised to mean anything"
+
+
+def test_the_live_table_hides_why_a_robot_passed():
+    from web.auction_view import live_alerts
+    calls = [('North', '1S'), ('East', 'Pass'), ('South', '2S'), ('West', 'Pass')]
+    alerts = {0: "5+ S", 1: "Fewer than 8 points.", 2: "3+ S support", 3: "No suit."}
+    assert live_alerts(calls, alerts) == {0: "5+ S", 2: "3+ S support"}
+    assert live_alerts(calls, None) == {}
 
 
 if __name__ == '__main__':

@@ -6,6 +6,7 @@ from web.card_component import seat_box_html
 from web.auction_view import render_auction_grid
 from web.felt_table import render_felt_table
 from web.analysis_view import render_analysis
+from bridge.lin import LinError, from_lin_file, to_lin, to_lin_file
 
 
 def _role(contract: dict, seat: str) -> str:
@@ -16,8 +17,71 @@ def _role(contract: dict, seat: str) -> str:
     return 'Defender'
 
 
-def render_history_tab(hand_history: list[dict]) -> None:
-    """Renders the entire Hand History & Card-by-Card Replayer view."""
+def _render_lin_import(hand_history: list[dict], key: str) -> None:
+    """Paste LIN or open a .lin file; boards are appended to the history.
+
+    Free text enters the app here. `from_lin` rebuilds every field from fixed
+    vocabularies (seats, cards, legal calls, vulnerabilities) or integers, so
+    the only text that survives into a record is alert text, which reaches the
+    page only through `call_badge` (escaped). Error messages can quote the
+    input, so they are shown with `st.code`, as plain text.
+    """
+    with st.expander("📥 Import LIN", expanded=False):
+        st.caption("Paste LIN text or open a .lin file. Each board is replayed under "
+                   "second-highest rules; one played under ordinary rules will usually "
+                   "be refused, because its tricks go to different hands.")
+        text = st.text_area("LIN text", key=f"{key}_lin_text", height=100,
+                            placeholder="pn|...|md|3SAKQ...|sv|o|mb|1S|...")
+        upload = st.file_uploader("…or a .lin file", type=['lin', 'txt'], key=f"{key}_lin_file")
+        if st.button("Import", key=f"{key}_lin_import", disabled=not (text.strip() or upload)):
+            source = upload.getvalue().decode('utf-8', errors='replace') if upload else text
+            try:
+                boards = from_lin_file(source)
+            except LinError as e:
+                st.session_state[f"{key}_lin_msg"] = ('error', str(e))
+            except Exception:  # anything the parser didn't anticipate: refuse, don't crash
+                st.session_state[f"{key}_lin_msg"] = ('error', 'This is not readable LIN.')
+            else:
+                for b in boards:
+                    b['label'] = f"Imported #{b['board_num']}"
+                    b['imported'] = True
+                hand_history.extend(boards)
+                n = len(boards)
+                st.session_state[f"{key}_lin_msg"] = ('ok', f"Imported {n} board{'s' if n != 1 else ''}.")
+            st.rerun()
+        msg = st.session_state.get(f"{key}_lin_msg")
+        if msg and msg[0] == 'error':
+            st.error("Not imported:")
+            st.code(msg[1], language=None, wrap_lines=True)
+        elif msg:
+            st.success(msg[1])
+
+
+def _render_lin_record(hb: dict, key: str, sel_idx: int) -> None:
+    """This board as LIN: shown (st.code has a copy button) and downloadable."""
+    lin = to_lin(hb)
+    with st.expander("📄 LIN record", expanded=False):
+        st.code(lin, language=None, wrap_lines=True)
+        st.download_button("⬇ Download .lin", to_lin_file([hb]), file_name=f"board-{hb['board_num']}.lin",
+                           mime="text/plain", key=f"{key}_lin_dl_{sel_idx}")
+        st.caption("BBO's format. BBO's own hand viewer plays by ordinary rules, so it "
+                   "would show these tricks going to the wrong hands.")
+
+
+def render_history_tab(hand_history: list[dict], allow_import: bool = False,
+                       key: str = 'hist') -> None:
+    """Renders the entire Hand History & Card-by-Card Replayer view.
+
+    `key` prefixes every widget key: the challenge review renders this view a
+    second time in the same run, and Streamlit refuses duplicate keys.
+    `allow_import` adds LIN import and download-all (the History tab only).
+    """
+    if allow_import:
+        _render_lin_import(hand_history, key)
+        if hand_history:
+            st.download_button("⬇ Download all boards (.lin)", to_lin_file(hand_history),
+                               file_name="second-highest-session.lin", mime="text/plain",
+                               key=f"{key}_lin_dl_all")
     if not hand_history:
         st.info("📭 No completed hands yet. Play a board and then return here to review it!")
         return
@@ -39,12 +103,13 @@ def render_history_tab(hand_history: list[dict]) -> None:
 
     board_options = [board_label(h) for h in reversed(hand_history)]
     board_indices = list(reversed(range(len(hand_history))))
-    selected_label = st.selectbox("📋 Select a board to review:", board_options, key="hist_board_sel")
+    selected_label = st.selectbox("📋 Select a board to review:", board_options, key=f"{key}_board_sel")
     sel_idx = board_indices[board_options.index(selected_label)]
     hb = hand_history[sel_idx]
 
     if hb['passed_out']:
         st.warning(f"🛑 **Board #{hb['board_num']}** — Passed Out (4 passes, no contract)")
+        _render_lin_record(hb, key, sel_idx)
         return
 
     h_contract = hb['contract']
@@ -80,7 +145,11 @@ def render_history_tab(hand_history: list[dict]) -> None:
     st.divider()
 
     # ── Double Dummy Post-Mortem ──────────────────────────────────────────────
-    render_analysis(hb)
+    if len(h_tricks) == 13:
+        render_analysis(hb, key=f"{key}_dd")
+    else:
+        st.caption("Double dummy analysis needs a board played to the last trick; "
+                   "this one ended in a claim.")
 
     st.divider()
 
@@ -105,7 +174,7 @@ def render_history_tab(hand_history: list[dict]) -> None:
 
     total_steps = len(flat_plays)
 
-    rep_key = f"rep_step_{sel_idx}"
+    rep_key = f"{key}_rep_step_{sel_idx}"
     if rep_key not in st.session_state:
         st.session_state[rep_key] = 0
     rep_step = st.session_state[rep_key]
@@ -113,19 +182,19 @@ def render_history_tab(hand_history: list[dict]) -> None:
     # Controls
     ctrl_cols = st.columns([1, 1, 1, 1, 4])
     with ctrl_cols[0]:
-        if st.button("⏮ Start", key=f"rep_start_{sel_idx}", use_container_width=True):
+        if st.button("⏮ Start", key=f"{key}_rep_start_{sel_idx}", use_container_width=True):
             st.session_state[rep_key] = 0
             st.rerun()
     with ctrl_cols[1]:
-        if st.button("◀ Prev", key=f"rep_prev_{sel_idx}", disabled=(rep_step == 0), use_container_width=True):
+        if st.button("◀ Prev", key=f"{key}_rep_prev_{sel_idx}", disabled=(rep_step == 0), use_container_width=True):
             st.session_state[rep_key] = max(0, rep_step - 1)
             st.rerun()
     with ctrl_cols[2]:
-        if st.button("Next ▶", key=f"rep_next_{sel_idx}", disabled=(rep_step >= total_steps), use_container_width=True):
+        if st.button("Next ▶", key=f"{key}_rep_next_{sel_idx}", disabled=(rep_step >= total_steps), use_container_width=True):
             st.session_state[rep_key] = min(total_steps, rep_step + 1)
             st.rerun()
     with ctrl_cols[3]:
-        if st.button("⏭ End", key=f"rep_end_{sel_idx}", use_container_width=True):
+        if st.button("⏭ End", key=f"{key}_rep_end_{sel_idx}", use_container_width=True):
             st.session_state[rep_key] = total_steps
             st.rerun()
 
@@ -133,7 +202,7 @@ def render_history_tab(hand_history: list[dict]) -> None:
         "Step through cards played:",
         min_value=0, max_value=total_steps, value=rep_step,
         format="Card %d / " + str(total_steps),
-        key=f"rep_slider_{sel_idx}"
+        key=f"{key}_rep_slider_{sel_idx}"
     )
     if new_step != rep_step:
         st.session_state[rep_key] = new_step
@@ -145,7 +214,7 @@ def render_history_tab(hand_history: list[dict]) -> None:
         with trick_jump_cols[tj - 1]:
             trick_start_step = (tj - 1) * 4
             if trick_start_step <= total_steps:
-                if st.button(f"T{tj}", key=f"rep_tj_{sel_idx}_{tj}", use_container_width=True):
+                if st.button(f"T{tj}", key=f"{key}_rep_tj_{sel_idx}_{tj}", use_container_width=True):
                     st.session_state[rep_key] = trick_start_step
                     st.rerun()
 
@@ -243,3 +312,5 @@ def render_history_tab(hand_history: list[dict]) -> None:
                         card_str('East'), card_str('South'), tlog['winner']]
             for col_obj, val in zip(row_cols, row_data):
                 col_obj.markdown(val)
+
+    _render_lin_record(hb, key, sel_idx)

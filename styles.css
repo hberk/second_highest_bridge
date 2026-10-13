@@ -837,9 +837,31 @@ button[data-testid="stBaseButton-primary"]:hover {
 }
 
 /* Tight gaps inside the interactive hand rows */
+/* A clickable hand is a row of Streamlit columns. Columns shrink rather than
+   wrap, so thirteen cards in a narrow centre column were CLIPPED. Fixed-width
+   slots that wrap, exactly like a static .pcard-row, show every card at any
+   width. Suit gaps are the columns holding a .hand-suit-gap marker. */
 [class*="st-key-handrow_"] div[data-testid="stHorizontalBlock"] {
     gap: 0.3rem !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+    overflow: visible !important;
+    row-gap: 6px !important;
 }
+
+[class*="st-key-handrow_"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+    flex: 0 0 42px !important;
+    width: 42px !important;
+    min-width: 42px !important;
+}
+
+[class*="st-key-handrow_"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:has(.hand-suit-gap) {
+    flex: 0 0 6px !important;
+    width: 6px !important;
+    min-width: 6px !important;
+}
+
+.hand-suit-gap { width: 6px; }
 
 [class*="st-key-handrow_"] div[data-testid="stVerticalBlock"] { gap: 0 !important; }
 
@@ -1061,7 +1083,11 @@ div[data-testid="stTabs"] button:focus-visible {
    laid out horizontally and let them scroll instead. */
 
 @media (max-width: 640px) {
-    [class*="st-key-handrow_"] div[data-testid="stHorizontalBlock"],
+    /* Hands wrap at every width (see .st-key-handrow_ above) -- never scroll. */
+    [class*="st-key-handrow_"] div[data-testid="stHorizontalBlock"] {
+        flex-direction: row !important;
+    }
+
     [class*="st-key-bidgrid"] div[data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
         overflow-x: auto !important;
@@ -1069,7 +1095,6 @@ div[data-testid="stTabs"] button:focus-visible {
         -webkit-overflow-scrolling: touch;
     }
 
-    [class*="st-key-handrow_"] div[data-testid="stHorizontalBlock"] > div,
     [class*="st-key-bidgrid"] div[data-testid="stHorizontalBlock"] > div {
         min-width: 42px !important;
         flex: 0 0 auto !important;

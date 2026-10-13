@@ -10,6 +10,8 @@ import TableView from './views/TableView.svelte';
 import HistoryView from './views/HistoryView.svelte';
 import ChallengeView from './views/ChallengeView.svelte';
 
+let openingLeads = 0;
+
 function renderAll(game: Game): string {
   const html = render(TableView, { props: { game } }).body;
   render(HistoryView, { props: { records: game.history } });
@@ -37,6 +39,12 @@ function playBoard(game: Game): void {
       expect(who, 'playing phase must wait on the human').not.toBeNull();
       const led = game.trick.length ? game.trick[0][1].suit : null;
       expect(html).toContain('Your turn');
+      if (!game.played.length && !game.trick.length) {
+        // South is on opening lead, and leads blind: dummy is not down yet.
+        // South's own hand is buttons, so no face-up card row may appear.
+        expect(html, 'dummy face-up before the opening lead').not.toContain('pcard-row');
+        openingLeads++;
+      }
       game.humanPlays(who!, legalPlays(game.hands[who!], led)[0]);
     } else if (game.phase === 'trick_done') {
       expect(html).toContain('second-highest');
@@ -65,6 +73,7 @@ describe('table flow', () => {
       game.newBoard();
     }
     expect(finished).toBeGreaterThan(10);
+    expect(openingLeads, 'no blind opening lead was exercised').toBeGreaterThan(0);
     expect(game.history.length).toBe(finished);
     expect(game.history.every((h) => h.tricks_log.length === 13)).toBe(true);
   });

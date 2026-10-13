@@ -8,7 +8,7 @@ import {
   AuctionState, DEALER_ROTATION, PARTNERSHIP, VUL_ROTATION, clockwiseFrom, legalPlays, resolveTrick,
   type CallRecord, type Contract, type Play,
 } from './engine/auction';
-import { aiBidExplained, aiPlay } from './engine/ai';
+import { aiBidExplained, aiPlay, visibleHands } from './engine/ai';
 import { scoreContract, type ScoreResult } from './engine/scoring';
 import * as challenge from './engine/challenge';
 import type { Grade, RobotTable, TrickLog } from './engine/challenge';
@@ -18,6 +18,8 @@ export type Phase = 'bidding' | 'auction_done' | 'playing' | 'trick_done' | 'don
 export interface HistoryRecord {
   board_num: number;
   label?: string;
+  /** Loaded from LIN rather than played here: not part of the session score. */
+  imported?: boolean;
   dealer: Seat;
   vulnerability: Vulnerability;
   initial_hands: Record<Seat, Card[]>;
@@ -43,6 +45,7 @@ export interface ChallengeResult {
 
 export interface ChallengeLogEntry {
   deal_id: number;
+  board_num: number;
   you: number;
   robot: number;
   margin: number;
@@ -53,6 +56,15 @@ export interface ChallengeLogEntry {
 }
 
 const HUMAN: Seat = 'South';
+
+/** The longest alert, the robots' own limit: it has to fit a tooltip. */
+export const ALERT_MAX = 70;
+
+/** One line of plain text. Svelte escapes it on the page; LIN export handles
+ *  the `|` separator itself. */
+export function cleanAlert(text: string): string {
+  return text.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, ALERT_MAX);
+}
 
 const copyHands = (h: Record<Seat, Card[]>) =>
   Object.fromEntries(Object.entries(h).map(([s, cs]) => [s, [...cs]])) as Record<Seat, Card[]>;
@@ -96,6 +108,28 @@ export class Game {
   challenge = $state.raw<ChallengeResult | null>(null);
   history = $state<HistoryRecord[]>([]);
   challengeLog = $state<ChallengeLogEntry[]>([]);
+  /** Boards that passed out: not in `history` (there's nothing to replay),
+   *  but they were played, so the session scoreboard counts them. */
+  passedOutCount = $state(0);
+  /** Play the human's card for them when it's the only legal one. A display
+   *  preference, set from settings by the app; off by default so tests and
+   *  the Python port's behaviour are unchanged unless asked. */
+  autoPlayForced = false;
+
+  /** The alerts the table may see while the board is live: robot passes say
+   *  WHY they passed, which reads the robot's cards out, and a real table never
+   *  alerts a natural pass. The reasons stay in `alerts` for the post-mortem.
+   *  Port of `web.auction_view.live_alerts`, plus the human's own alerts, which
+   *  the Streamlit app has no way to make: a pass the player chose to alert
+   *  (a forcing pass, say) is shown like any other alerted call. */
+  liveAlerts = $derived.by(() => {
+    const out: Record<number, string> = {};
+    for (const [i, why] of Object.entries(this.alerts)) {
+      const call = this.calls[Number(i)];
+      if (call && (call[1] !== 'Pass' || call[0] === HUMAN)) out[Number(i)] = why;
+    }
+    return out;
+  });
 
   auction = $derived.by(() => {
     const a = new AuctionState(this.dealer, this.vulnerability);
@@ -158,17 +192,25 @@ export class Game {
       auction.applyCall(who, call);
       this.calls.push([who, call]);
     }
-    if (!auction.isComplete || auction.passedOut) return;
+    if (!auction.isComplete) return;
+    if (auction.passedOut) {
+      this.passedOutCount += 1;
+      return;
+    }
     const contract = auction.getContract()!;
     this.contract = contract;
     this.order = clockwiseFrom(contract.leader);
     this.phase = 'auction_done';
   }
 
-  humanBids(call: string): void {
+  /** `alert` is the player's own explanation of the call, as a self-alert on
+   *  BBO. The robots don't read it; it goes into the record and the LIN. */
+  humanBids(call: string, alert = ''): void {
     const auction = this.auction;
     if (auction.isComplete || auction.currentPlayer() !== HUMAN) return;
     if (!auction.legalCalls().includes(call)) return;
+    const why = cleanAlert(alert);
+    if (why) this.alerts[this.calls.length] = why;
     this.calls.push([HUMAN, call]);
     this.advanceAuction();
   }
@@ -206,16 +248,36 @@ export class Game {
     this.advancePlay();
   }
 
+  /** The human's only legal card, when auto-play is on; otherwise null. */
+  private forcedCard(player: Seat): Card | null {
+    if (!this.autoPlayForced) return null;
+    const led = this.trick.length ? this.trick[0][1].suit : null;
+    const legal = legalPlays(this.hands[player], led);
+    return legal.length === 1 ? legal[0] : null;
+  }
+
+  /** Pick up auto-play after the setting is switched on mid-trick. */
+  resumeAutoPlay(): void {
+    if (this.phase === 'playing' && this.whoseTurn() !== null) this.advancePlay();
+  }
+
   private advancePlay(): void {
     const contract = this.contract!;
     const done = new Set(this.trick.map(([p]) => p));
     for (const player of this.order) {
       if (done.has(player)) continue;
-      if (this.isHumanSeat(player)) return;
-      const dummy = contract.dummy;
+      if (this.isHumanSeat(player)) {
+        const forced = this.forcedCard(player);
+        if (!forced) return;
+        removeCard(this.hands[player], forced);
+        this.trick.push([player, forced]);
+        done.add(player);
+        continue;
+      }
       const hands = $state.snapshot(this.hands) as Record<Seat, Card[]>;
       const c = aiPlay(player, hands[player], $state.snapshot(this.trick) as Play[],
-        contract.trump, this.played, { [dummy]: hands[dummy] });
+        contract.trump, this.played, visibleHands(player, contract, hands),
+        ($state.snapshot(this.tricksLog) as TrickLog[]).map((e) => e.plays));
       removeCard(this.hands[player], c);
       this.trick.push([player, c]);
       done.add(player);
@@ -294,6 +356,7 @@ export class Game {
     };
     this.challengeLog.push({
       deal_id: dealId,
+      board_num: this.boardNum,
       you: mine.actual,
       robot: theirs.actual,
       margin: mine.actual - theirs.actual,

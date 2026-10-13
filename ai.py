@@ -1,6 +1,8 @@
 from __future__ import annotations
 from card import Card, SUITS, STRAINS, RANKS, RANK_VALUE, parse_bid, bid_index
+from itertools import combinations
 from game import legal_plays, resolve_trick, AuctionState, PARTNERSHIP, PARTNERS, PLAYERS
+import gib
 
 _AI_TAG = '__ai__'
 
@@ -493,6 +495,18 @@ def _place(strain: str, combined: float, legal: list[str], held: int) -> tuple:
     return 'Pass', "No extra values."
 
 
+def _one_level_opening_alert(suit: str) -> str:
+    """What a one-level opening SHOWS, which must not depend on the hand.
+
+    A major promises five. A minor is opened on five cards or as the better
+    minor on three or four, and the alert used to say which ("5+", "4+" or
+    "3+ ... No five-card major") -- telling the table the hand's exact minor
+    lengths. Every 1m opening shows the same thing: 3+.
+    """
+    shown = OPEN_SUIT_LENGTH if suit in ('H', 'S') else 3
+    return f"{shown}+ {SUIT_SYM[suit]}, {OPEN_POINTS}+ points."
+
+
 def _opening_bid(ev: dict, groups: dict, best_suit: str, best_len: int,
                  legal: list[str], fourth_seat: bool = False) -> tuple:
     """Open by showing length. Finding the fit is the whole job of the auction."""
@@ -507,9 +521,7 @@ def _opening_bid(ev: dict, groups: dict, best_suit: str, best_len: int,
             f"Fourth seat.")
     if strong and best_len >= OPEN_SUIT_LENGTH:
         if f"1{best_suit}" in legal:
-            return f"1{best_suit}", (
-                f"{OPEN_SUIT_LENGTH}+ {SUIT_SYM[best_suit]}, "
-                f"{OPEN_POINTS}+ points.")
+            return f"1{best_suit}", _one_level_opening_alert(best_suit)
 
     # Pre-empts, at the card's lengths: six cards at the two level, seven at the
     # three. Too weak to open at the one level; bidding anyway steals their room.
@@ -528,14 +540,9 @@ def _opening_bid(ev: dict, groups: dict, best_suit: str, best_len: int,
     if strong:
         clubs, diamonds = len(groups['C']), len(groups['D'])
         if clubs >= 3 or diamonds >= 3:
-            if clubs > diamonds or (clubs == diamonds == 3):
-                suit, shown = 'C', 3
-            else:
-                suit, shown = 'D', max(3, min(clubs, diamonds))
+            suit = 'C' if clubs > diamonds or (clubs == diamonds == 3) else 'D'
             if f"1{suit}" in legal:
-                return f"1{suit}", (
-                    f"{shown}+ {SUIT_SYM[suit]}, {OPEN_POINTS}+ points. "
-                    f"No five-card major.")
+                return f"1{suit}", _one_level_opening_alert(suit)
     if pts < OPEN_POINTS:
         return 'Pass', f"Fewer than {OPEN_POINTS} points."
     return 'Pass', "No suit worth opening."
@@ -585,22 +592,30 @@ def _advance_double(player: str, partner: str, auction: AuctionState, ev: dict,
     combined = ev['suit_pts'][best] + PROMISE_DOUBLED
     ceiling = max(1, int(combined) - 6)
     start = 1 + (1 if pts >= ADVANCE_JUMP_POINTS else 0)
-    band = (f"{ADVANCE_JUMP_POINTS}+" if pts >= ADVANCE_JUMP_POINTS
-            else f"0-{ADVANCE_JUMP_POINTS - 1}")
+    cheapest = _cheapest(best, 1, legal)
+
+    def answer(call: str) -> str:
+        # What the answer SHOWS: the longest suit other than theirs, and 8+ only
+        # when it jumps. A non-jump is made on any strength (over 1S, 2H is the
+        # cheapest heart bid for 3 points and for 12), and the suit may be
+        # three cards long. This alert used to quote the hand's actual length
+        # and point band, i.e. read the advancer's cards out to the table.
+        sym = SUIT_SYM[parse_bid(call)[1]]
+        if call != cheapest:
+            return f"{ADVANCE_JUMP_POINTS}+ points, longest suit, {sym}. Answering the double."
+        return f"Longest suit other than theirs, {sym}. Answering the double."
 
     call = _cheapest(best, start, legal)
     if call and parse_bid(call)[0] <= max(ceiling, PARTSCORE_LEVEL):
-        return call, (f"{len(groups[best])}+ {SUIT_SYM[best]}, {band} points. "
-                      f"Answering the double.")
+        return call, answer(call)
 
     # The cheapest answer may sit above the usual ceiling -- over a weak two, the
     # only reply is at the three level. Answer anyway: partner ASKED, and leaving
     # a takeout double in converts it to a penalty double, a different call
     # entirely. Only a hand with nothing at all passes it out.
-    call = _cheapest(best, 1, legal)
+    call = cheapest
     if call and pts >= ADVANCE_JUMP_POINTS:
-        return call, (f"{len(groups[best])}+ {SUIT_SYM[best]}, {band} points. "
-                      f"Answering the double.")
+        return call, answer(call)
     # Answer it whatever the level. Passing a takeout double converts it to a
     # PENALTY double, which is a different call and a disaster when partner
     # meant takeout: on deal 212 it handed the opponents 2S doubled and making,
@@ -608,8 +623,7 @@ def _advance_double(player: str, partner: str, auction: AuctionState, ev: dict,
     # declaring-side metric scored it -3.3, because a board where the OPPONENTS
     # blunder into a made doubled contract counts as a win for that metric.
     if call:
-        return call, (f"{len(groups[best])}+ {SUIT_SYM[best]}, "
-                      f"0-{ADVANCE_JUMP_POINTS - 1} points. Answering the double.")
+        return call, answer(call)
     return 'Pass', "No legal suit to answer the double."
 
 
@@ -644,17 +658,12 @@ def _rebid_alone(player: str, auction: AuctionState, ev: dict, groups: dict,
         # Capping at 3 as well measured identically (the ceiling never exceeds
         # 3 in practice), so the clamp buys nothing and is left out.
         if call and parse_bid(call)[0] <= ceiling:
-            if held >= REBID_LENGTH:
-                # This branch fires on LENGTH, so length is what it may claim.
-                why = (f"{REBID_LENGTH}+ {SUIT_SYM[my_first]}. "
-                       f"Rebidding my own suit.")
-            else:
-                # 12-15 is the card's minimum tier, but 16+ makes the same
-                # call here (the level is capped either way), so the alert quotes
-                # the FLOOR. "16+" would leak strength the bid never showed.
-                why = (f"{OPEN_SUIT_LENGTH}+ {SUIT_SYM[my_first]}, "
-                       f"{REBID_MINIMUM}+ points. Rebidding my own suit.")
-            return call, why
+            # ONE text for both reasons the rebid fires (six cards on any
+            # strength, or five with 12+). Quoting whichever applied told the
+            # table which it was -- "6+" or "12+ points" -- for the same call in
+            # the same auction. Only the floor common to both may be quoted.
+            return call, (f"{OPEN_SUIT_LENGTH}+ {SUIT_SYM[my_first]}. "
+                          f"Rebidding my own suit.")
     return 'Pass', "Partner has passed; not enough to bid again alone."
 
 
@@ -713,7 +722,10 @@ def _response(player: str, partner: str, auction: AuctionState, ev: dict,
         if (ev['total_pts'] >= JUMP_RAISE_TRICKS and pts >= JUMP_RAISE_POINTS
                 and ceiling >= PARTSCORE_LEVEL + 1):
             jump = _cheapest(p_strain, PARTSCORE_LEVEL + 1, legal)
-            if jump and parse_bid(jump)[0] <= ceiling:
+            # Only a JUMP is a jump raise: where the cheapest raise is already
+            # at the three level, the same call would carry two alerts.
+            if (jump and parse_bid(jump)[0] <= ceiling
+                    and jump != _cheapest(p_strain, PARTSCORE_LEVEL, legal)):
                 return jump, (
                     f"{SUPPORT_LENGTH}+ {SUIT_SYM[p_strain]} support, "
                     f"{JUMP_RAISE_POINTS}+ points. Invitational.")
@@ -745,12 +757,21 @@ def _response(player: str, partner: str, auction: AuctionState, ev: dict,
         # Only a lower-ranking suit is a genuine two-over-one -- that is exactly
         # why it cannot be bid at the one level. Over 1C there is none, since
         # every other suit is available cheaper.
+        # In competition a two-over-one and a free bid can be the SAME call in
+        # the same auction, and an alert naming whichever fired would tell the
+        # table "12+" or "6+ cards". There the alert quotes what both share.
+        contested = any(who not in (player, partner) and parse_bid(call)
+                        for who, call in auction.calls)
+        ambiguous = contested and _is_two_over_one(best_suit, p_strain)
+        either = (f"{OPEN_SUIT_LENGTH}+ {SUIT_SYM[best_suit]}, "
+                  f"{FREE_BID_POINTS}+ points.")
+
         if (_is_two_over_one(best_suit, p_strain)
                 and ev['total_pts'] >= TWO_OVER_ONE_TRICKS
                 and pts >= TWO_OVER_ONE_POINTS):
             two = _cheapest(best_suit, 2, legal)
             if two and parse_bid(two)[0] == 2:
-                return two, (
+                return two, either if ambiguous else (
                     f"{OPEN_SUIT_LENGTH}+ {SUIT_SYM[best_suit]}, "
                     f"{TWO_OVER_ONE_POINTS}+ points. Forcing.")
 
@@ -758,14 +779,13 @@ def _response(player: str, partner: str, auction: AuctionState, ev: dict,
         # long suit has no cheap home and the two-over-one's 12 points are the
         # wrong test -- this is not a game force, it is "I have a suit". Without
         # this branch the hand simply passed on six, eight, even nine cards.
-        contested = any(who not in (player, partner) and parse_bid(call)
-                        for who, call in auction.calls)
         if contested and best_len >= FREE_BID_LENGTH and pts >= FREE_BID_POINTS:
             call, _ = _place(best_suit, ev['suit_pts'][best_suit] + PROMISE_OPENED,
                              legal, best_len)
             if call != 'Pass':
-                return call, (f"{FREE_BID_LENGTH}+ {SUIT_SYM[best_suit]}, "
-                              f"{FREE_BID_POINTS}+ points. Free bid.")
+                return call, either if ambiguous else (
+                    f"{FREE_BID_LENGTH}+ {SUIT_SYM[best_suit]}, "
+                    f"{FREE_BID_POINTS}+ points. Free bid.")
 
     # Say which of the two reasons actually applies. Claiming "no five-card
     # suit" on a hand holding one was false 141 times across 300 deals.
@@ -824,6 +844,11 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
     return 'Pass', "No fit, nothing more to show."
 
 
+#: GIB 2/1 is the default system (gib.py). False plays the previous system,
+#: kept intact so the two can be measured head to head.
+USE_GIB = True
+
+
 def ai_bid_explained(player: str, hand: list[Card], auction: AuctionState) -> tuple:
     """The bid this hand would make, together with a plain-words alert saying what
     it shows. `ai_bid` returns only the call, for callers that do not want the
@@ -831,6 +856,14 @@ def ai_bid_explained(player: str, hand: list[Card], auction: AuctionState) -> tu
     legal = auction.legal_calls()
     if not legal:
         return 'Pass', "Pass. No legal call available."
+
+    # GIB 2/1 is the system. The logic below answers only the contested
+    # situations GIB's notes leave to judgment. `USE_GIB = False` restores the
+    # previous, measured system whole, for comparisons.
+    if USE_GIB:
+        decision = gib.gib_bid(player, hand, auction)
+        if decision:
+            return decision
 
     ev = eval_hand_sh(hand)
     groups = ev['groups']
@@ -1002,24 +1035,220 @@ def _outlook(player: str, card: Card, trick: list[tuple[str, Card]],
 
 # ── Main Play Entry Point ────────────────────────────────────────────────────
 
+def visible_hands(seat: str, contract: dict, hands: dict[str, list[Card]]) -> dict:
+    """What `seat` sees besides its own cards, once dummy is down: dummy, and
+    for the declaring side declarer's hand as well -- declarer plays both.
+
+    Passing only dummy made the robot declarer play dummy blind to its OWN
+    hand: on a user's board dummy overtook declarer's winning jack of hearts
+    with the king, fearing a queen that declarer was holding.
+    """
+    dummy, declarer = contract['dummy'], contract['declarer']
+    view = {dummy: hands[dummy]}
+    if seat in (dummy, declarer):
+        view[declarer] = hands[declarer]
+    return view
+
+
+
 def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
             trump: str | None, played: list[Card],
-            visible: dict[str, list[Card]] | None = None) -> Card:
+            visible: dict[str, list[Card]] | None = None,
+            history: list[list[tuple[str, Card]]] | None = None) -> Card:
     """
     played:  all cards from completed previous tricks (card memory).
     visible: hands every seat can see, keyed by seat (dummy, once exposed).
+    history: the completed tricks with their seats, which is what shows who
+             has run out of a suit. Given it, the last tricks are searched.
     """
     led_suit = trick[0][1].suit if trick else None
     legal    = legal_plays(hand, led_suit)
 
     if not trick:
-        return _lead(hand, trump, played)
+        choice = _lead(hand, trump, played)
+    elif len(trick) == 3:
+        choice = _play_last(legal, trick, trump)
+    else:
+        later = _later_holdings(player, hand, trick, played, visible or {})
+        choice = _middle_play(player, legal, trick, trump, later)
 
-    if len(trick) == 3:
-        return _play_last(legal, trick, trump)
+    partner = PARTNERS[player]
+    if len(trick) == 1 and visible and partner in visible and len(legal) > 1:
+        choice = _cover_for_partner(player, legal, trick, trump, played,
+                                    visible, choice)
 
-    later = _later_holdings(player, hand, trick, played, visible or {})
-    return _middle_play(player, legal, trick, trump, later)
+    if (history is not None and visible and len(legal) > 1
+            and len(hand) <= ENDGAME_CARDS):
+        totals = _endgame_totals(player, hand, trick, trump, played, visible,
+                                 history, legal)
+        if totals:
+            best = max(totals.values())
+            tied = [c for c in legal if totals[c] == best]
+            if choice not in tied:
+                choice = min(tied, key=lambda c: c.value())
+    return choice
+
+
+# ── Second hand, partner last and in view ────────────────────────────────────
+#
+# `_middle_play` judges a card as if nobody after the next opponent mattered.
+# With partner fourth and partner's hand VISIBLE (declarer and dummy see each
+# other), that misses the play this game turns on: covering high so that
+# partner's middle card becomes second-highest. On a user's 3NT North led the
+# 8C, East held K64 with dummy's 9C to come; the king makes the nine win, and
+# low lets the eight hold. Scored over the layouts declarer could see, low
+# cost 1.5 tricks. So each card is scored by how many of the third player's
+# possible cards still leave partner a winning reply -- partner's cards are
+# known, the third player's are only the ones declarer cannot see.
+
+def _cover_for_partner(player: str, legal: list[Card], trick: list[tuple[str, Card]],
+                       trump: str | None, played: list[Card],
+                       visible: dict[str, list[Card]], choice: Card) -> Card:
+    partner = PARTNERS[player]
+    third = PLAYERS[(PLAYERS.index(player) + 1) % 4]
+    led = trick[0][1].suit
+    if third in visible:
+        candidates = list(visible[third])
+    else:
+        seen = set(played) | {c for _, c in trick} | set(legal)
+        for cards in visible.values():
+            seen |= set(cards)
+        candidates = [c for c in _FULL_DECK if c not in seen]
+    follows = [c for c in candidates if c.suit == led]
+    # A follow if they can; otherwise one ruff (if trump is live) and one discard.
+    options = follows[:]
+    if not follows or third not in visible:
+        if trump in SUITS and trump != led:
+            ruffs = [c for c in candidates if c.suit == trump]
+            if ruffs:
+                options.append(min(ruffs, key=lambda c: c.value()))
+        discards = [c for c in candidates if c.suit not in (led, trump)]
+        if discards:
+            options.append(min(discards, key=_card_order))
+    if not options:
+        return choice
+    ours = (player, partner)
+
+    def score(card: Card) -> int:
+        wins = 0
+        for opp in options:
+            plays = trick + [(player, card), (third, opp)]
+            if any(resolve_trick(plays + [(partner, reply)], trump) in ours
+                   for reply in legal_plays(visible[partner], led)):
+                wins += 1
+        return wins
+
+    scores = {c: score(c) for c in legal}
+    best = max(scores.values())
+    if scores[choice] >= best:
+        return choice
+    return min((c for c in legal if scores[c] == best), key=lambda c: c.value())
+
+
+# ── Endgame: single dummy search ─────────────────────────────────────────────
+#
+# One trick of look-ahead cannot plan an ending. On a user's board East ruffed
+# with the J♦ because every ruff lost that trick, and kept A♦ K♦ -- where
+# keeping J♦ A♦ wins the next trick, since a middle card under partner's or an
+# opponent's high one is what wins in this game. So once every hand is this
+# short, the robot searches instead: every layout of the unseen cards that fits
+# what it has SEEN (its own hand, dummy, cards played, and who has shown out of
+# which suit) is solved exactly, and the card with the most tricks summed over
+# those layouts is played. It never looks at the real layout -- that would be
+# double dummy, which no player at the table can do. Layouts are enumerated in
+# a fixed order, never sampled, so play stays deterministic.
+
+#: Search the play once every hand holds at most this many cards.
+ENDGAME_CARDS = 3
+
+
+def _card_order(c: Card) -> tuple:
+    return (SUITS.index(c.suit), c.value())
+
+
+def _shown_out(history: list, trick: list) -> dict[str, set[str]]:
+    """Suits each seat has failed to follow, so cannot hold."""
+    out: dict[str, set[str]] = {p: set() for p in PLAYERS}
+    for plays in list(history) + [trick]:
+        if not plays:
+            continue
+        led = plays[0][1].suit
+        for seat, card in plays[1:]:
+            if card.suit != led:
+                out[seat].add(led)
+    return out
+
+
+def _search(hands: dict[str, list[Card]], trick: list[tuple[str, Card]],
+            leader: str, trump: str | None, side: str, memo: dict) -> int:
+    """Tricks `side` takes from here on, both sides perfect on THIS layout."""
+    if len(trick) == 4:
+        winner = resolve_trick(trick, trump)
+        won = 1 if PARTNERSHIP[winner] == side else 0
+        if not hands[winner]:
+            return won
+        return won + _search(hands, [], winner, trump, side, memo)
+    key = None
+    if not trick:
+        key = (leader,) + tuple(tuple(sorted(_card_order(c) for c in hands[p]))
+                                for p in PLAYERS)
+        if key in memo:
+            return memo[key]
+    seat = PLAYERS[(PLAYERS.index(leader) + len(trick)) % 4]
+    led = trick[0][1].suit if trick else None
+    ours = PARTNERSHIP[seat] == side
+    best = -1 if ours else 99
+    for card in legal_plays(hands[seat], led):
+        at = hands[seat].index(card)
+        hands[seat].pop(at)
+        value = _search(hands, trick + [(seat, card)], leader, trump, side, memo)
+        hands[seat].insert(at, card)
+        best = max(best, value) if ours else min(best, value)
+    if key is not None:
+        memo[key] = best
+    return best
+
+
+def _endgame_totals(player: str, hand: list[Card], trick: list[tuple[str, Card]],
+                    trump: str | None, played: list[Card],
+                    visible: dict[str, list[Card]], history: list,
+                    legal: list[Card]) -> dict | None:
+    """Tricks for each legal card, summed over every layout that fits."""
+    known = {player: list(hand)}
+    seen = set(played) | {c for _, c in trick} | set(hand)
+    for seat, cards in visible.items():
+        if seat != player:
+            known[seat] = list(cards)
+            seen |= set(cards)
+    hidden = [p for p in PLAYERS if p not in known]
+    already = {seat for seat, _ in trick}
+    size = {p: len(hand) - (1 if p in already else 0) for p in PLAYERS}
+    unseen = sorted((c for c in _FULL_DECK if c not in seen), key=_card_order)
+    if len(hidden) != 2 or len(unseen) != size[hidden[0]] + size[hidden[1]]:
+        return None
+    first, second = hidden
+    out = _shown_out(history, trick)
+    leader = trick[0][0] if trick else player
+    side = PARTNERSHIP[player]
+    totals = {c: 0 for c in legal}
+    layouts = 0
+    for picked in combinations(range(len(unseen)), size[first]):
+        chosen = set(picked)
+        a = [unseen[i] for i in range(len(unseen)) if i in chosen]
+        b = [unseen[i] for i in range(len(unseen)) if i not in chosen]
+        if any(c.suit in out[first] for c in a) or any(c.suit in out[second] for c in b):
+            continue
+        layouts += 1
+        hands = {seat: list(cards) for seat, cards in known.items()}
+        hands[first], hands[second] = a, b
+        memo: dict = {}
+        for card in legal:
+            at = hands[player].index(card)
+            hands[player].pop(at)
+            totals[card] += _search(hands, trick + [(player, card)], leader,
+                                    trump, side, memo)
+            hands[player].insert(at, card)
+    return totals if layouts else None
 
 
 # ── Lead ──────────────────────────────────────────────────────────────────────
@@ -1074,11 +1303,24 @@ def _middle_play(player: str, legal: list[Card], trick: list[tuple[str, Card]],
 
 # ── Last to play ──────────────────────────────────────────────────────────────
 
+#: Fourth hand counts partner's winning as its own (measurement switch).
+LAST_HAND_FOR_PARTNER = True
+
+
 def _play_last(legal: list[Card], trick: list[tuple[str, Card]], trump: str | None) -> Card:
-    """Simulate each legal card; pick the smallest that wins, else dump lowest."""
+    """Simulate each legal card; pick the smallest that keeps the trick for the
+    PARTNERSHIP, else dump the lowest.
+
+    It used to ask only whether this hand itself won. Fourth hand's card often
+    decides which of the others is second-highest: on a user's 3H, North led
+    the 7H, East played the 8H, and dummy's 4H let the seven win, where the
+    king pushes the eight into second place. Partner taking the trick is
+    exactly as good as taking it."""
+    partner = trick[1][0]                     # fourth hand's partner played second
+    ours = (_AI_TAG, partner) if LAST_HAND_FOR_PARTNER else (_AI_TAG,)
     winning = [
         c for c in legal
-        if resolve_trick(trick + [(_AI_TAG, c)], trump) == _AI_TAG
+        if resolve_trick(trick + [(_AI_TAG, c)], trump) in ours
     ]
     return min(winning, key=lambda c: c.value()) if winning else min(legal, key=lambda c: c.value())
 

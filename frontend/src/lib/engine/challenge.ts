@@ -11,7 +11,7 @@ import {
   AuctionState, PLAYERS, clockwiseFrom, otherSide, resolveTrick,
   type CallRecord, type Contract, type Play,
 } from './auction';
-import { aiBidExplained, aiPlay } from './ai';
+import { aiBidExplained, aiPlay, visibleHands } from './ai';
 import { scoreContract, type ScoredContract, type ScoreResult } from './scoring';
 
 interface LibraryDeal {
@@ -121,7 +121,8 @@ export function robotTable(dealId: number, dealer: Seat, vulnerability: Vulnerab
     const trick: Play[] = [];
     const trickLeader = leader;
     for (const seat of clockwiseFrom(leader)) {
-      const c = aiPlay(seat, hands[seat], trick, trump, played);
+      const c = aiPlay(seat, hands[seat], trick, trump, played, visibleHands(seat, contract, hands),
+        log.map((e) => e.plays));
       removeCard(hands[seat], c);
       trick.push([seat, c]);
     }

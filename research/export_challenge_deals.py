@@ -1,6 +1,6 @@
 """Extract the app-facing slice of the solved dataset.
 
-`research/data/dd_pilot.jsonl` is research tooling: 1,489 records carrying node
+`research/data/dd_pilot.jsonl` is research tooling: 2,000 records carrying node
 counts, timings and which engine solved them. The app needs none of that — only
 the cards and the trick count for every (strain, declaring side), so that a
 contract a player reaches can be scored double dummy by lookup instead of by a

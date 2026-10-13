@@ -162,13 +162,14 @@ hr, .divider { border: none; border-top: 1px solid var(--line); margin: 18px 0; 
     box-shadow: 0 8px 22px rgba(201,169,97,0.34);
 }
 
-/* Playing-card buttons: a card face you can click. */
+/* Playing-card buttons: a card face you can click. The row WRAPS, like a
+   static .pcard-row: every card stays visible at any width, never scrolled. */
 .card-btn-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: stretch;
-    gap: 4px;
+    gap: 6px 4px;
     margin: 2px 0 6px 0;
-    overflow-x: auto;
     padding: 8px 2px 2px;
 }
 .card-btn-gap { flex: 0 0 8px; }
@@ -252,6 +253,34 @@ hr, .divider { border: none; border-top: 1px solid var(--line); margin: 18px 0; 
 .bid-btn.dbl:not(:disabled)  { border-color: rgba(220,70,80,0.55);  color: #f0919a; }
 .bid-btn.rdbl:not(:disabled) { border-color: rgba(90,140,235,0.55); color: #9dbdf5; }
 .bidding-box-container { padding-bottom: 13px; }
+/* Self-alert: typed before the call, sent with it. */
+.bid-alert-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+.bid-alert-row label {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--gold-hi);
+}
+.bid-alert-row input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--line-2);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 6px 10px;
+}
+.bid-alert-row input:focus { outline: 2px solid var(--gold); outline-offset: 1px; border-color: var(--gold); }
+.bid-alert-hint { margin: -0.2rem 0 0.5rem; font-size: 12px; color: var(--gold-hi); }
+.bid-btn.alerting:not(:disabled) { box-shadow: inset 0 0 0 1px rgba(201, 169, 97, 0.55); }
 
 /* ── Auction grid ────────────────────────────────────────────────────────── */
 
@@ -373,3 +402,35 @@ input[type="range"] { width: 100%; accent-color: var(--gold); }
 @media (prefers-reduced-motion: reduce) {
     .card-btn:hover:not(:disabled), .card-btn:focus-visible:not(:disabled) { transform: none; }
 }
+
+/* ── LIN import / export ─────────────────────────────────────────────────── */
+.lin-box textarea {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--line-2);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 8px 10px;
+    resize: vertical;
+    word-break: break-all;
+}
+.lin-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.5rem 0; }
+.lin-actions label.btn { cursor: pointer; }
+
+/* ── Session scoreboard ──────────────────────────────────────────────────── */
+.session-score summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 1rem; }
+.ss-title { font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: var(--gold-hi); font-size: 12px; }
+.ss-item { color: var(--dim); }
+.ss-item strong { color: var(--text); }
+.ss-plus { color: #7fce9f !important; }
+.ss-minus { color: #f0919a !important; }
+.ss-unit { font-size: 0.8rem; font-weight: 700; color: var(--dim); }
+.session-table td, .session-table th { text-align: center; }
+.ss-contract { white-space: nowrap; }
+
+/* ── Last trick ──────────────────────────────────────────────────────────── */
+.last-trick-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.4rem 0; }
+.last-trick-row .btn[aria-pressed="true"] { border-color: var(--gold); color: var(--gold-hi); }

@@ -5,16 +5,18 @@ from game import (
     clockwise_from, legal_plays, resolve_trick, score_contract,
     AuctionState, PARTNERSHIP, DEALER_ROTATION, VUL_ROTATION
 )
-from ai import ai_play, ai_bid, ai_bid_explained, eval_hand_sh, hcp
+from ai import ai_play, ai_bid, ai_bid_explained, eval_hand_sh, hcp, visible_hands
 
 from web.card_component import (
     DECKS, DECK_LABELS, DECK_HELP, deck_style_block, suit_colors, suit_colors_light,
     hand_html_static, show_interactive_hand, card_backs_html, hand_summary_html
 )
-from web.auction_view import render_auction_grid, render_bidding_box
+from web.auction_view import clean_alert, live_alerts, render_auction_grid, render_bidding_box
 from web.felt_table import render_felt_table
 from web.replayer_view import render_history_tab
 from web.challenge_view import render_breakdown, render_match_total, render_scoreline
+from web.session_view import render_session_score
+import time
 
 HUMAN = {'South'}
 
@@ -93,6 +95,9 @@ def _finalize_auction() -> None:
 
     if auction.passed_out:
         s['phase'] = 'bidding'
+        # Not in hand_history (nothing to replay), but played: the session
+        # scoreboard counts it.
+        s['passed_out_count'] = s.get('passed_out_count', 0) + 1
         return
 
     contract = auction.get_contract()
@@ -104,10 +109,15 @@ def _finalize_auction() -> None:
         s['phase'] = 'auction_done'   # Pause here — show summary + "Start Play" button
 
 
-def human_bids(player: str, call: str) -> None:
+def human_bids(player: str, call: str, alert: str = '') -> None:
+    """`alert` is the player's own explanation of the call, as a self-alert on
+    BBO. The robots don't read it; it goes into the record and the LIN."""
     s = st.session_state
     auction: AuctionState = s['auction']
     if auction.current_player() == player and not auction.is_complete:
+        why = clean_alert(alert)
+        if why:
+            s.setdefault('bid_alerts', {})[len(auction.calls)] = why
         auction.apply_call(player, call)
         _advance_auction_ai()
 
@@ -129,6 +139,16 @@ def _start_play() -> None:
     _advance_ai()
 
 
+def _forced_card(player: str) -> Card | None:
+    """The human's only legal card when auto-play is on; otherwise None."""
+    s = st.session_state
+    if not s.get('auto_play'):
+        return None
+    led = s['trick'][0][1].suit if s['trick'] else None
+    legal = legal_plays(s['hands'][player], led)
+    return legal[0] if len(legal) == 1 else None
+
+
 def _advance_ai() -> None:
     s = st.session_state
     if s['phase'] not in ('playing',):
@@ -138,10 +158,18 @@ def _advance_ai() -> None:
         if player in already_played:
             continue
         if _is_human_turn(player):
-            return  # Human turn (either South or North when N/S declared)
-        dummy = s['contract']['dummy']
+            # Human turn (either South or North when N/S declared), unless
+            # auto-play takes a card that is the only legal one.
+            forced = _forced_card(player)
+            if forced is None:
+                return
+            s['hands'][player].remove(forced)
+            s['trick'].append((player, forced))
+            already_played.add(player)
+            continue
         card = ai_play(player, s['hands'][player], s['trick'], s['trump'], s['played'],
-                       visible={dummy: s['hands'][dummy]})
+                       visible=visible_hands(player, s['contract'], s['hands']),
+                       history=[e['plays'] for e in s['tricks_log']])
         s['hands'][player].remove(card)
         s['trick'].append((player, card))
         already_played.add(player)
@@ -224,6 +252,7 @@ def _grade_challenge() -> None:
     }
     s['challenge_log'] = s.get('challenge_log', []) + [{
         'deal_id': deal_id,
+        'board_num': s['board_num'],
         'you':     mine['actual'],
         'robot':   theirs['actual'],
         'margin':  mine['actual'] - theirs['actual'],
@@ -302,6 +331,22 @@ show_hand_strength = st.sidebar.checkbox(
     help="High-card points, this variant's own valuation, and your shape.",
 )
 
+st.session_state['auto_play'] = st.sidebar.checkbox(
+    "Auto-play forced cards",
+    value=True,
+    key="auto_play_choice",
+    help="When you have only one legal card, it is played for you, as on BBO.",
+)
+fast_play = st.sidebar.checkbox(
+    "Fast play (next trick automatically)",
+    value=False,
+    key="fast_play_choice",
+    help="Each finished trick stays on the table for a moment, then the next "
+         "one starts by itself.",
+)
+#: How long a finished trick stays on the table under fast play.
+FAST_PLAY_SECONDS = 1.2
+
 st.sidebar.markdown("---")
 show_all = st.sidebar.checkbox("Show all hands (Debug / X-Ray)", value=False)
 
@@ -313,6 +358,11 @@ st.markdown(deck_style_block(), unsafe_allow_html=True)
 
 if 'hands' not in st.session_state:
     init_game()
+
+# Auto-play switched on while a forced card is waiting: play it now. Harmless
+# otherwise -- _advance_ai stops at the first human choice.
+if st.session_state.get('auto_play') and st.session_state['phase'] == 'playing':
+    _advance_ai()
 
 s = st.session_state
 auction: AuctionState = s['auction']
@@ -405,13 +455,13 @@ tab_game, tab_challenge, tab_history = st.tabs(
 
 # Rendered before the game tab because the game tab calls st.stop() on its end screens.
 with tab_history:
-    render_history_tab(hand_history)
+    render_history_tab(hand_history, allow_import=True)
 
 with tab_challenge:
     st.markdown("### Challenge the robots")
     st.markdown(
-        "A challenge board is dealt from the **289 deals this project has "
-        "solved exactly**, so whatever contract you reach, the number of tricks "
+        f"A challenge board is dealt from the **{len(challenge.deal_ids())} "
+        "deals this project has solved exactly**, so whatever contract you reach, the number of tricks "
         "it takes with perfect play on both sides is already known. You play "
         "South; the same deal is then played out by an all-robot table, and the "
         "two results are compared.\n\n"
@@ -457,7 +507,7 @@ with tab_challenge:
         if yours is not None:
             records.append({**yours, 'label': "🧑 Your board"})
         records.append(last['robot_record'])
-        render_history_tab(records)
+        render_history_tab(records, key='chal')
 
     render_match_total(challenge_log)
 
@@ -467,6 +517,8 @@ with tab_challenge:
 # ══════════════════════════════════════════════════════════════════════════════
 
 with tab_game:
+
+    render_session_score(hand_history, challenge_log, s.get('passed_out_count', 0))
 
     # ── Status Banner Metrics ─────────────────────────────────────────────────
     display_num = s['trick_num'] - 1 if s['phase'] == 'trick_done' else s['trick_num']
@@ -572,13 +624,16 @@ with tab_game:
 
             # 2. Auction History Board
             st.markdown('<div class="section-title">Auction</div>', unsafe_allow_html=True)
-            render_auction_grid(dealer, auction.calls, alerts=st.session_state.get('bid_alerts'))
+            render_auction_grid(dealer, auction.calls,
+                            alerts=live_alerts(auction.calls, st.session_state.get('bid_alerts')))
 
             # 3. Bidding box for the human (South)
             if auction.current_player() in HUMAN and not auction.is_complete:
                 render_bidding_box(
                     auction.legal_calls(),
-                    lambda call: human_bids('South', call),
+                    lambda call, alert: human_bids('South', call, alert),
+                    # A fresh box for every call: see render_bidding_box.
+                    alert_key=f"self_alert_{board_num}_{len(auction.calls)}",
                 )
 
             # 3b. Auction finished — contract summary and the way into play
@@ -631,10 +686,14 @@ with tab_game:
                 return 'Dummy'
             return 'Defender'
 
+        # Dummy goes down only AFTER the opening lead: the leader chooses blind.
+        dummy_down = bool(s['played'] or s['trick'])
+
         def face_up(p: str) -> bool:
-            """South is the human's own hand and the dummy is public to the table;
-            every other hand stays concealed unless X-ray is on."""
-            return show_all or p == 'South' or c['dummy'] == p
+            """South is the human's own hand and the dummy is public to the table
+            once the opening lead is made; every other hand stays concealed
+            unless X-ray is on."""
+            return show_all or p == 'South' or (c['dummy'] == p and dummy_down)
 
         # An exposed dummy in a side seat needs more width than a card count does.
         col_widths = {'West': [2.1, 2.8, 1.1], 'East': [1.1, 2.8, 2.1]}.get(
@@ -655,15 +714,43 @@ with tab_game:
                 concealed=not face_up('North'),
             )
 
-            winner_name = s['trick_winner'][0] if (s['phase'] == 'trick_done' and s['trick_winner']) else None
-            render_felt_table(
-                trick=s['trick'],
-                trump=trump,
-                winner=winner_name,
-                display_num=display_num,
-                contract=c,
-                tricks_taken=s['tricks_taken'],
-            )
+            # Last trick: a peek belongs to the moment it was asked for. Any
+            # card played or trick finished changes the key, so the felt goes
+            # back to the live trick with nothing to reset.
+            last_trick = s['tricks_log'][-1] if s['phase'] == 'playing' and s['tricks_log'] else None
+            moment = (board_num, s['trick_num'], len(s['trick']))
+            peeking = last_trick is not None and s.get('peek_key') == moment
+
+            if peeking:
+                render_felt_table(
+                    trick=last_trick['plays'],
+                    trump=trump,
+                    winner=last_trick['winner'],
+                    display_num=last_trick['trick_num'],
+                    contract=c,
+                    tricks_taken=s['tricks_taken'],
+                )
+            else:
+                winner_name = s['trick_winner'][0] if (s['phase'] == 'trick_done' and s['trick_winner']) else None
+                render_felt_table(
+                    trick=s['trick'],
+                    trump=trump,
+                    winner=winner_name,
+                    display_num=display_num,
+                    contract=c,
+                    tricks_taken=s['tricks_taken'],
+                )
+            if last_trick is not None:
+                lt_btn, lt_text = st.columns([1, 3], vertical_alignment="center")
+                with lt_btn:
+                    if st.button("↩ Back to this trick" if peeking else "👁 Last trick",
+                                 key="last_trick_btn", use_container_width=True):
+                        s['peek_key'] = None if peeking else moment
+                        st.rerun()
+                if peeking:
+                    w = last_trick['winning_card']
+                    lt_text.caption(f"Trick {last_trick['trick_num']}: **{last_trick['winner']}** "
+                                    f"won with {w.rank}{SUIT_SYMBOLS[w.suit]}")
 
             if s['phase'] == 'trick_done' and s['trick_winner']:
                 winner, side = s['trick_winner']
@@ -680,6 +767,8 @@ with tab_game:
                     unsafe_allow_html=True
                 )
                 btn_label = "See final score →" if s['game_over'] else "Next trick →"
+                if fast_play:
+                    btn_label += " (automatic)"
                 if st.button(btn_label, type="primary", use_container_width=True):
                     if s['game_over']:
                         s['phase'] = 'playing'
@@ -709,7 +798,8 @@ with tab_game:
                     f' · {c["declarer"]} declares</div>',
                     unsafe_allow_html=True
                 )
-                render_auction_grid(dealer, auction.calls, alerts=st.session_state.get('bid_alerts'))
+                render_auction_grid(dealer, auction.calls,
+                                    alerts=live_alerts(auction.calls, st.session_state.get('bid_alerts')))
 
         for col, seat in ((west_col, 'West'), (east_col, 'East')):
             with col:
@@ -721,3 +811,14 @@ with tab_game:
                 if seat_face_up:
                     st.markdown(hand_html_static(s['hands'][seat], display_trump),
                                 unsafe_allow_html=True)
+
+        # Fast play: the finished trick is on the page by now (Streamlit sends
+        # elements as the script runs), so pause, then do what "Next trick"
+        # does. A click during the pause interrupts this run, as it should.
+        if fast_play and s['phase'] == 'trick_done':
+            time.sleep(FAST_PLAY_SECONDS)
+            if s['game_over']:
+                s['phase'] = 'playing'
+            else:
+                next_trick()
+            st.rerun()

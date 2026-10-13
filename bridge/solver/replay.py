@@ -128,5 +128,15 @@ def analyse(decision: Decision) -> dict:
 
 
 def key_of(record: dict, decision: Decision) -> tuple:
-    """Stable cache key for one decision of one board."""
-    return (record['board_num'], decision.trick_num, decision.seat)
+    """Stable cache key for one decision of one board.
+
+    The cache is shared by every session, so the board NUMBER alone collided:
+    two players' board 1 (or a reloaded page's), and in challenge mode your
+    board and the robots' board on the same deal. The deal and the play
+    themselves are the identity.
+    """
+    deal = tuple(sorted((seat, tuple(str(c) for c in cards))
+                        for seat, cards in record['initial_hands'].items()))
+    play = tuple((seat, str(card)) for entry in record['tricks_log']
+                 for seat, card in entry['plays'])
+    return (hash((deal, play)), decision.trick_num, decision.seat)

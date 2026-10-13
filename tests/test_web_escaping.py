@@ -4,17 +4,19 @@ The app renders its own markup: 33 `unsafe_allow_html` call sites and 1,187
 lines of hand-written CSS. Seven of those sites are static literals and cannot
 inject anything; the other 26 build HTML from data.
 
-**Today none of that data is attacker-controlled.** The app has no `text_input`,
-no `text_area`, no `file_uploader` and reads no query parameters, so a visitor
-can only click buttons and cards. Everything interpolated is a seat name from a
-fixed list, a `Card` from a fixed 52-card deck, an integer, or alert text that
-`ai.py` generates and `call_badge` escapes. There is no current vulnerability.
+**The app now takes free text in two places, both reviewed** (see
+`REVIEWED_INPUTS` below): the self-alert box and LIN import. Both deliver only
+alert text to the page, through `call_badge`, which escapes it; everything else
+interpolated is still a seat name from a fixed list, a `Card` from a fixed
+52-card deck, an integer, or alert text `ai.py` generates. There is no current
+vulnerability, and the end-to-end tests here push hostile text through both
+inputs in the running app to keep it that way.
 
-The risk is the NEXT change. The moment anyone adds a player name, a saved-board
-label, a shareable URL parameter or a chat line, those 26 sites become injection
-points — and only one of them escapes anything today. This file is the guardrail
-for that day: it pushes a hostile payload through every public function in
-`web/` that returns or renders HTML, and fails if the payload survives raw.
+The risk is the NEXT change. A player name, a saved-board label, a shareable
+URL parameter or a chat line would reach those 26 sites by a new path. This
+file is the guardrail for that day: it pushes a hostile payload through every
+public function in `web/` that returns or renders HTML, fails if the payload
+survives raw, and fails on any input widget not in `REVIEWED_INPUTS`.
 
 A function that REFUSES hostile input (raises) passes too: failing closed is a
 valid defence. What must not happen is the payload arriving on the page intact.
@@ -124,27 +126,86 @@ def test_a_hostile_card_cannot_inject_markup():
             _assert_clean(html, payload, 'card_face_html(...)')
 
 
-def test_the_app_still_has_no_free_text_input():
-    """The audit above rests on there being no way for a visitor to supply text.
+#: Every free-text input the app has, each reviewed. The review, in full:
+#:
+#: - The self-alert box (`web/auction_view.py`, text_input) yields alert text.
+#:   It is stored in `bid_alerts` and reaches markup in exactly one place,
+#:   `call_badge`, which escapes it.
+#: - LIN import (`web/replayer_view.py`, text_area and file_uploader) yields a
+#:   record rebuilt by `bridge.lin.from_lin`, where every field comes from a
+#:   fixed vocabulary (seats, the 52 cards, legal calls, vulnerabilities) or is
+#:   an integer -- player names and board titles in the LIN are read past, not
+#:   kept. The one free-text field that survives is alert text: `call_badge`
+#:   again. Parse errors can quote the input, so they are shown with `st.code`.
+#:
+#: So the 26 data-driven `unsafe_allow_html` sites still only ever see fixed
+#: values, plus alert text through the one escaping function. The tests below
+#: check that end to end in the running app.
+REVIEWED_INPUTS = {
+    ('auction_view.py', 'text_input'),
+    ('replayer_view.py', 'text_area'),
+    ('replayer_view.py', 'file_uploader'),
+}
 
-    If that changes, the 26 data-driven `unsafe_allow_html` sites need a real
-    escaping pass rather than the incidental safety they have now -- so this
-    fails loudly the moment an input widget appears, rather than letting the
-    assumption rot silently.
-    """
+
+def test_every_free_text_input_has_been_reviewed():
+    """Fails the moment an input appears that the review above doesn't cover:
+    each new one needs its own trace through the `unsafe_allow_html` sites."""
     watched = ['text_input', 'text_area', 'chat_input', 'file_uploader',
                'query_params', 'experimental_get_query_params']
     sources = [root_dir / 'app.py'] + sorted((root_dir / 'web').glob('*.py'))
-    found = []
+    found = set()
     for path in sources:
         text = path.read_text(encoding='utf-8')
         for widget in watched:
             if f'.{widget}' in text:
-                found.append(f"{path.name} uses st.{widget}")
-    assert not found, (
-        "The app now accepts free text: " + "; ".join(found) + ". Every "
-        "unsafe_allow_html site that can reach this value must escape it "
-        "(html.escape(value, quote=True)) -- see this file's docstring.")
+                found.add((path.name, widget))
+    unreviewed = found - REVIEWED_INPUTS
+    assert not unreviewed, (
+        "New free-text input: " + "; ".join(f"{f} uses st.{w}" for f, w in sorted(unreviewed))
+        + ". Trace where its value can reach unsafe_allow_html, escape it there "
+        "(html.escape(value, quote=True)), then add it to REVIEWED_INPUTS.")
+
+
+def _page(at) -> str:
+    return "\n".join(m.value for m in at.markdown)
+
+
+def test_a_hostile_self_alert_is_escaped_on_the_live_page():
+    from streamlit.testing.v1 import AppTest
+    for payload in PAYLOADS:
+        at = AppTest.from_file(str(root_dir / 'app.py'), default_timeout=30)
+        at.run()
+        auction = at.session_state['auction']
+        n = len(auction.calls)
+        at.text_input(key=f"self_alert_{at.session_state['board_num']}_{n}").input(payload).run()
+        at.button(key='bidact_pass').click().run()
+        assert not at.exception, at.exception
+        stored = at.session_state['bid_alerts'][n]
+        html = _page(at)
+        assert 'bid-alert-tip' in html, "the alert was not rendered at all"
+        _assert_clean(html, stored, 'self-alert on the live page')
+
+
+def test_a_hostile_alert_in_imported_lin_is_escaped():
+    from streamlit.testing.v1 import AppTest
+    from tests.test_lin import _boards
+    from bridge.lin import to_lin
+    board = next(b for b in _boards() if len(b['tricks_log']) == 13)
+    for payload in PAYLOADS:
+        lin = to_lin({**board, 'bid_alerts': {0: payload}},
+                     names={'South': payload, 'North': payload})   # names are read past
+        at = AppTest.from_file(str(root_dir / 'app.py'), default_timeout=30)
+        at.run()
+        at.text_area(key='hist_lin_text').input(lin).run()
+        at.button(key='hist_lin_import').click().run()
+        assert not at.exception, at.exception
+        imported = at.session_state['hand_history'][-1]
+        assert imported.get('imported'), "the board was not imported"
+        html = _page(at)
+        assert 'bid-alert-tip' in html, "the imported alert was not rendered"
+        _assert_clean(html, imported['bid_alerts'][0], 'imported LIN alert')
+        _assert_clean(html, payload, 'imported LIN player name')
 
 
 if __name__ == '__main__':

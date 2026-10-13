@@ -8,7 +8,7 @@ import scoring from './__fixtures__/scoring.json';
 import challengeFx from './__fixtures__/challenge.json';
 import { parseCard, parseHand, removeCard, cardKey, type Card, type Seat, type Suit } from './card';
 import { AuctionState, clockwiseFrom, legalPlays, resolveTrick, type Play } from './auction';
-import { aiBidExplained, aiPlay, evalHandSh, hcp } from './ai';
+import { aiBidExplained, aiPlay, evalHandSh, hcp, visibleHands } from './ai';
 import { scoreContract } from './scoring';
 import { grade, par, robotTable } from './challenge';
 
@@ -68,6 +68,7 @@ describe('games', () => {
       const human = gi % 2 === 1;
       const { trump, dummy } = g.contract;
       const played: Card[] = [];
+      const history: Play[][] = [];
       const taken = { 'N/S': 0, 'E/W': 0 };
       let leader: Seat = g.contract.leader;
       let k = 0;
@@ -81,7 +82,8 @@ describe('games', () => {
             const legal = legalPlays(hands[seat], trick.length ? trick[0][1].suit as Suit : null);
             expect(legal.map(cardKey), where).toContain(cardKey(expected));
           } else {
-            const got = aiPlay(seat, hands[seat], trick, trump, played, { [dummy]: hands[dummy as Seat] });
+            const got = aiPlay(seat, hands[seat], trick, trump, played,
+              visibleHands(seat, g.contract, hands), history);
             expect(cardKey(got), `${where} trick ${t + 1} ${seat}`).toBe(fxCard);
           }
           removeCard(hands[seat], expected);
@@ -90,6 +92,7 @@ describe('games', () => {
         const winner = resolveTrick(trick, trump);
         taken[winner === 'North' || winner === 'South' ? 'N/S' : 'E/W']++;
         played.push(...trick.map(([, c]) => c));
+        history.push([...trick]);
         leader = winner;
       }
       expect(taken, where).toEqual(g.tricks);

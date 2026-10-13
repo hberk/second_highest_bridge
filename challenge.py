@@ -6,7 +6,7 @@ is played twice: once by the human sitting South with a robot North, and once by
 an all-robot table on the same deal. Comparing the two scores asks exactly the
 question "is the robot better than me with these cards".
 
-It runs on `data/solved_deals.json` -- the 289 deals solved in all five strains
+It runs on `data/solved_deals.json` -- the 400 deals solved in all five strains
 for both declaring sides -- which is what makes the interesting part affordable.
 Because every trick count is already known, a contract can be scored as if it
 had been played perfectly, and that splits a board's result in two:
@@ -28,7 +28,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from ai import ai_bid_explained, ai_play
+from ai import ai_bid_explained, ai_play, visible_hands
 from bridge.scoring import score_contract
 from card import Card
 from game import AuctionState, clockwise_from, resolve_trick
@@ -169,7 +169,9 @@ def robot_table(deal_id: int, dealer: str, vulnerability: str = 'None') -> dict:
         trick: list[tuple[str, Card]] = []
         trick_leader = leader
         for seat in clockwise_from(leader):
-            card = ai_play(seat, remaining[seat], trick, trump, played)
+            card = ai_play(seat, remaining[seat], trick, trump, played,
+                           visible=visible_hands(seat, contract, remaining),
+                           history=[e['plays'] for e in tricks_log])
             remaining[seat].remove(card)
             trick.append((seat, card))
         winner = resolve_trick(trick, trump)

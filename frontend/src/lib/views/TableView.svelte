@@ -15,6 +15,7 @@
   import VulPills from '../components/VulPills.svelte';
   import Scoreline from '../components/Scoreline.svelte';
   import Breakdown from '../components/Breakdown.svelte';
+  import SessionScore from '../components/SessionScore.svelte';
 
   let { game }: { game: Game } = $props();
 
@@ -32,12 +33,35 @@
     if (c?.dummy === p) return 'Dummy';
     return 'Defender';
   }
-  /** South is the player's own hand and the dummy is public to the table. */
-  const faceUp = (p: Seat) => settings.showAll || p === 'South' || c?.dummy === p;
+  /** South is the player's own hand and the dummy is public to the table once
+   *  the opening lead is made -- the leader chooses blind. */
+  // Reactive fields only: `game.played` is a plain array, so a derived that
+  // read it would stay true into the next board and expose dummy before the lead.
+  const dummyDown = $derived(game.trickNum > 1 || game.trick.length > 0);
+  const faceUp = (p: Seat) => settings.showAll || p === 'South' || (c?.dummy === p && dummyDown);
   const layout = $derived(c?.dummy === 'West' ? 'wide-west' : c?.dummy === 'East' ? 'wide-east' : '');
   const winnerCard = $derived(
     game.trickWinner ? game.trick.find(([p]) => p === game.trickWinner)?.[1] ?? null : null);
+
+  // ── Last trick ─────────────────────────────────────────────────────────────
+  // A peek belongs to the moment it was asked for: as soon as a card is played
+  // or the trick moves on, the key changes and the felt shows the live trick
+  // again, with no effect needed to reset it.
+  const lastTrick = $derived(game.phase === 'playing' ? game.tricksLog.at(-1) ?? null : null);
+  const momentKey = $derived(`${game.boardNum}:${game.trickNum}:${game.trick.length}`);
+  let peekKey = $state<string | null>(null);
+  const peeking = $derived(lastTrick !== null && peekKey === momentKey);
+
+  // ── Fast play ──────────────────────────────────────────────────────────────
+  const FAST_PLAY_MS = 1200;
+  $effect(() => {
+    if (game.phase !== 'trick_done' || !settings.fastPlay) return;
+    const timer = setTimeout(() => game.nextTrick(), FAST_PLAY_MS);
+    return () => clearTimeout(timer);
+  });
 </script>
+
+<SessionScore history={game.history} challengeLog={game.challengeLog} passedOut={game.passedOutCount} />
 
 <!-- ── Scoreboard ─────────────────────────────────────────────────────────── -->
 <div class="scoreboard">
@@ -113,10 +137,10 @@
       {/if}
 
       <div class="section-title">Auction</div>
-      <AuctionGrid dealer={game.dealer} calls={game.calls} alerts={game.alerts} />
+      <AuctionGrid dealer={game.dealer} calls={game.calls} alerts={game.liveAlerts} />
 
       {#if !auction.isComplete && auction.currentPlayer() === 'South'}
-        <BiddingBox legal={auction.legalCalls()} oncall={(call) => game.humanBids(call)} />
+        <BiddingBox legal={auction.legalCalls()} oncall={(call, alert) => game.humanBids(call, alert)} />
       {/if}
 
       {#if game.phase === 'auction_done' && c}
@@ -148,8 +172,25 @@
         isTurn={who === 'North'} legal={who === 'North' ? legalPlays(game.hands.North, led) : []}
         concealed={!faceUp('North')} onplay={(card) => game.humanPlays('North', card)} />
 
-      <FeltTable trick={game.trick} winner={game.phase === 'trick_done' ? game.trickWinner : null}
-        displayNum={displayNum} contract={c} tricksTaken={game.tricksTaken} />
+      {#if peeking && lastTrick}
+        <FeltTable trick={lastTrick.plays} winner={lastTrick.winner}
+          displayNum={lastTrick.trick_num} contract={c} tricksTaken={game.tricksTaken} />
+      {:else}
+        <FeltTable trick={game.trick} winner={game.phase === 'trick_done' ? game.trickWinner : null}
+          displayNum={displayNum} contract={c} tricksTaken={game.tricksTaken} />
+      {/if}
+      {#if lastTrick}
+        <div class="last-trick-row">
+          <button class="btn" aria-pressed={peeking} onclick={() => (peekKey = peeking ? null : momentKey)}>
+            {peeking ? '↩ Back to this trick' : '👁 Last trick'}
+          </button>
+          {#if peeking}
+            {@const w = lastTrick.winning_card}
+            <span class="caption">Trick {lastTrick.trick_num}: <strong>{lastTrick.winner}</strong> won with
+              <span style:color="var(--suit-{w.suit.toLowerCase()}-lt)">{w.rank}{SUIT_SYMBOLS[w.suit]}</span></span>
+          {/if}
+        </div>
+      {/if}
 
       {#if game.phase === 'trick_done' && game.trickWinner && winnerCard}
         <div class="trick-result">
@@ -159,7 +200,7 @@
           <span class="tr-text">— second-highest</span>
         </div>
         <button class="btn primary full" onclick={() => game.nextTrick()}>
-          {game.gameOver ? 'See final score →' : 'Next trick →'}
+          {game.gameOver ? 'See final score →' : 'Next trick →'}{settings.fastPlay ? ' (automatic)' : ''}
         </button>
       {/if}
 
@@ -173,7 +214,7 @@
         <summary>Auction</summary>
         <div class="expander-body">
           <div class="auction-recap-note">Board #{game.boardNum} · dealer {game.dealer} · {c.declarer} declares</div>
-          <AuctionGrid dealer={game.dealer} calls={game.calls} alerts={game.alerts} />
+          <AuctionGrid dealer={game.dealer} calls={game.calls} alerts={game.liveAlerts} />
         </div>
       </details>
     </div>

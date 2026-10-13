@@ -214,11 +214,14 @@ def test_a_board_is_zero_sum_between_the_two_sides():
 def test_par_is_never_beaten_by_perfect_play_in_a_reached_contract():
     """Par is the best this side can do, so no contract played double dummy may
     score more FOR THE SIDE THAT CHOSE IT. (The defending side can exceed its
-    own par, which is why this only checks the declaring side.)"""
+    own par, which is why this only checks the declaring side.) Par is priced
+    over UNDOUBLED contracts, so a doubled contract that makes -- the
+    defenders' mistake, which GIB's penalty and negative doubles now
+    produce -- can score above it and is not checked."""
     for i, deal_id in enumerate(challenge.deal_ids()[:80]):
         table = challenge.robot_table(deal_id, DEALER_ROTATION[i % 4])
         contract = table['contract']
-        if contract is None:
+        if contract is None or contract['doubled'] != 'None':
             continue
         side = contract['side']
         g = challenge.grade(deal_id, side, contract, table['declarer_tricks'])

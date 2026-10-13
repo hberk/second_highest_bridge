@@ -8,14 +8,61 @@
   import AuctionGrid from '../components/AuctionGrid.svelte';
   import FeltTable from '../components/FeltTable.svelte';
   import SeatBox from '../components/SeatBox.svelte';
+  import { fromLinFile, toLin, toLinFile } from '../lin';
 
-  let { records }: { records: HistoryRecord[] } = $props();
+  let { records, onimport }: { records: HistoryRecord[]; onimport?: (boards: HistoryRecord[]) => void } = $props();
+
+  // ── LIN in and out ──────────────────────────────────────────────────────────
+  let linText = $state('');
+  let linError = $state('');
+  let linNote = $state('');
+  let copied = $state(false);
+
+  function download(name: string, text: string): void {
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
+  async function copy(text: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      copied = true;
+      setTimeout(() => (copied = false), 1500);
+    } catch {
+      // Clipboard blocked: the text is still selectable in the box.
+    }
+  }
+
+  function importLin(text: string): void {
+    linError = '';
+    linNote = '';
+    try {
+      const boards = fromLinFile(text).map((b) => ({ ...b, label: `Imported #${b.board_num}`, imported: true }));
+      onimport?.(boards);
+      linNote = `Imported ${boards.length} board${boards.length === 1 ? '' : 's'}.`;
+      linText = '';
+      selected = null;
+    } catch (e) {
+      linError = (e as Error).message;
+    }
+  }
+
+  async function importFile(e: Event & { currentTarget: HTMLInputElement }): Promise<void> {
+    const file = e.currentTarget.files?.[0];
+    e.currentTarget.value = '';
+    if (file) importLin(await file.text());
+  }
 
   // Newest first, as the Streamlit selector lists them.
   const options = $derived([...records.keys()].reverse());
   let selected = $state<number | null>(null);
   const sel = $derived(selected !== null && selected < records.length ? selected : records.length - 1);
   const hb = $derived(records[sel]);
+  const lin = $derived(hb ? toLin(hb) : '');
   let step = $state(0);
   $effect(() => {
     sel; // a different board starts from the opening lead
@@ -73,6 +120,26 @@
     return c ? `${c.rank}${SUIT_SYMBOLS[c.suit]}${p === winner ? ' ⭐' : ''}` : '—';
   }
 </script>
+
+{#if onimport}
+  <details class="expander">
+    <summary>📥 Import LIN</summary>
+    <div class="expander-body lin-box">
+      <p class="caption">Paste LIN text or open a .lin file. Each board is replayed under second-highest rules; one played under ordinary rules will usually be refused, because its tricks go to different hands.</p>
+      <textarea rows="4" spellcheck="false" placeholder="pn|...|md|3SAKQ...|sv|o|mb|1S|..." bind:value={linText}></textarea>
+      <div class="lin-actions">
+        <button class="btn" disabled={!linText.trim()} onclick={() => importLin(linText)}>Import</button>
+        <label class="btn">Open .lin file<input class="sr-only" type="file" accept=".lin,.txt,text/plain" onchange={importFile} /></label>
+      </div>
+      {#if linError}<div class="notice error">Not imported: {linError}</div>{/if}
+      {#if linNote}<div class="notice success">{linNote}</div>{/if}
+    </div>
+  </details>
+{/if}
+
+{#if records.length}
+  <button class="btn" onclick={() => download('second-highest-session.lin', toLinFile(records))}>⬇ Download all boards (.lin)</button>
+{/if}
 
 {#if !records.length}
   <div class="notice info">📭 No completed hands yet. Play a board and then return here to review it!</div>
@@ -157,4 +224,15 @@
       </div>
     </details>
   {/if}
+  <details class="expander">
+    <summary>📄 LIN record</summary>
+    <div class="expander-body lin-box">
+      <textarea rows="4" readonly spellcheck="false" value={lin}></textarea>
+      <div class="lin-actions">
+        <button class="btn" onclick={() => copy(lin)}>{copied ? 'Copied ✓' : 'Copy'}</button>
+        <button class="btn" onclick={() => download(`board-${hb.board_num}.lin`, toLinFile([hb]))}>⬇ Download .lin</button>
+      </div>
+      <p class="caption">BBO's format. BBO's own hand viewer plays by ordinary rules, so it would show these tricks going to the wrong hands.</p>
+    </div>
+  </details>
 {/if}

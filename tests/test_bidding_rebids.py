@@ -27,6 +27,7 @@ if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
 import ai
+import gib
 from card import Card, deal, parse_bid
 from game import AuctionState, PARTNERS, PLAYERS
 
@@ -85,15 +86,24 @@ def test_a_major_fit_worth_game_reaches_four():
     assert ai.ai_bid('South', BIG_SPADE_SUPPORT, auction) == '4S'
 
 
-def test_a_minor_fit_settles_at_the_partscore_and_goes_no_further():
-    """A minor fit has no game to reach, so support raises to 2 and stops."""
-    combined = ai.eval_hand_sh(CLUB_SUPPORT)['suit_pts']['C'] + ai.PROMISE_OPENED
-    assert ai.PARTSCORE_LEVEL + 6 <= combined < ai.GAME_TRICKS, (
-        f"hand must be worth the partscore but not game ({combined:.2f})")
+def test_inverted_minors():
+    """GIB plays inverted minors: 1m-2m is the STRONG raise (10+, forcing) and
+    1m-3m the weak one. A four-card major is shown first."""
+    strong = hand('KS 7S 3S QH 10H 7H JD 10D KC QC JC 10C 4C')
+    assert gib.Hand(strong).hcp >= gib.INVERTED_MIN
+    call, why = ai.ai_bid_explained('South', strong, auction_after('1C', 'Pass'))
+    assert call == '2C' and 'Inverted' in why, (call, why)
 
-    auction = auction_after('1C', 'Pass')
-    assert auction.current_player() == 'South'
-    assert ai.ai_bid('South', CLUB_SUPPORT, auction) == '2C'
+    weak = hand('8S 6S 4S 9H 7H 3D 2D QC 9C 8C 7C 5C 2C')
+    call, why = ai.ai_bid_explained('South', weak, auction_after('1C', 'Pass'))
+    assert gib.Hand(weak).hcp < gib.RESPONSE_MIN and call == 'Pass', (call, why)
+
+    shaped = hand('8S 6S 4S 9H 7H 3D AD QC 9C 8C 7C 5C 2C')
+    call, why = ai.ai_bid_explained('South', shaped, auction_after('1C', 'Pass'))
+    assert call == '3C' and 'Weak' in why, (call, why)
+
+    # The four-card heart suit comes first, whatever the club support.
+    assert ai.ai_bid('South', CLUB_SUPPORT, auction_after('1C', 'Pass')) == '1H'
 
 
 def test_a_weak_hand_leaves_partner_at_the_one_level():
@@ -121,9 +131,11 @@ def test_a_raise_never_climbs_past_what_the_fit_can_make():
 
 
 def test_no_runaway_levels_over_many_boards():
-    """The same guard, swept over real deals rather than one built position."""
+    """The same guard, swept over real deals rather than one built position:
+    GIB bids games and slams, but a five-level contract still needs the
+    values for one."""
     random.seed(11)
-    for index in range(80):
+    for index in range(200):
         hands = deal()
         auction = AuctionState(dealer=PLAYERS[index % 4], vulnerability='None')
         guard = 0
@@ -132,10 +144,12 @@ def test_no_runaway_levels_over_many_boards():
             auction.apply_call(who, ai.ai_bid(who, hands[who], auction))
             guard += 1
         contract = auction.get_contract()
-        if contract:
-            assert contract['level'] <= 5, f"reached {contract['level']}{contract['strain']}"
-            assert not (contract['level'] >= 5 and contract['strain'] in ('C', 'D')), \
-                "five of a minor needs eleven tricks and is makeable 11% of the time"
+        if contract and contract['level'] >= 5 and contract['doubled'] == 'None':
+            seats = [contract['declarer'], PARTNERS[contract['declarer']]]
+            combined = sum(gib.Hand(hands[s]).hcp for s in seats)
+            assert combined >= 22, (
+                f"reached {contract['level']}{contract['strain']} on {combined} HCP: "
+                f"{[c for _, c in auction.calls]}")
 
 
 def test_two_over_one_shows_values_and_a_weak_hand_does_not():
@@ -175,12 +189,16 @@ def test_a_two_over_one_is_only_a_lower_ranking_suit():
         assert not ai._is_two_over_one(responder, opener), \
             f"1{opener} - 2{responder} is a jump shift, not a two-over-one"
 
-    # A strong hand with spades answers 1D at the ONE level, not the two.
-    # Note the doubleton diamond: with three-card support it would (correctly)
-    # raise partner instead, and never reach the new-suit branch at all.
+    # In GIB a jump to 2S over 1D IS a call -- the strong (Soloway) jump
+    # shift, 17+ points, 4+ controls, a good suit -- and it says so.
     strong_spades = hand('AS KS QS 10S 2S KH QH 3H AD 5D 4C 3C 2C')
-    call = ai.ai_bid('South', strong_spades, auction_after('1D', 'Pass'))
-    assert call == '1S', f"answered 1D with {call}; 2S would be a jump shift"
+    call, why = ai.ai_bid_explained('South', strong_spades, auction_after('1D', 'Pass'))
+    assert call == '2S' and 'Strong jump shift' in why, (call, why)
+
+    # Without the strength, spades are shown at the one level.
+    modest_spades = hand('AS KS 9S 10S 2S 8H 7H 3H 6D 5D 4C 3C 2C')
+    call = ai.ai_bid('South', modest_spades, auction_after('1D', 'Pass'))
+    assert call == '1S', f"answered 1D with {call}"
 
     # The same strength in a LOWER-ranking suit is a genuine two-over-one.
     strong_hearts = hand('QS 2S KH QH JH 10H 9H AD 10D 8D 7D AC 5C')
@@ -188,32 +206,39 @@ def test_a_two_over_one_is_only_a_lower_ranking_suit():
 
 
 def test_no_bid_alerted_forcing_is_actually_a_jump_shift():
-    """Whole-auction guard: every call the AI alerts as a two-over-one has to be
-    one. The alert says "Forcing", which a partner reads as a specific promise."""
+    """Whole-auction guard: every two-level new suit in answer to an
+    uncontested one-level opening is either a genuine two-over-one (a
+    lower-ranking suit, or 1D-2C), alerted game forcing, or a higher-ranking
+    suit alerted as GIB's strong jump shift -- never one passed off as the
+    other."""
     import random
     from card import deal
     from game import PLAYERS
     random.seed(29)
     seen = 0
-    for index in range(60):
+    # Enough boards to reach UNCONTESTED two-over-ones: in competition the
+    # alert no longer says "Forcing" (it may be a free bid), so those
+    # are not this test's subject any more.
+    for index in range(300):
         hands = deal()
         auction = AuctionState(dealer=PLAYERS[index % 4], vulnerability='None')
         guard = 0
         while not auction.is_complete and guard < 60:
             who = auction.current_player()
             call, why = ai.ai_bid_explained(who, hands[who], auction)
-            if 'Forcing' in why:
-                seen += 1
-                partner = PARTNERS[who]
-                theirs = [parse_bid(c) for w, c in auction.calls
-                          if w == partner and parse_bid(c)]
-                assert theirs, "alerted a two-over-one with partner silent"
-                opener = theirs[-1][1]
-                mine = parse_bid(call)
-                assert mine[0] == 2, f"two-over-one at the {mine[0]} level"
-                assert ai._is_two_over_one(mine[1], opener), (
-                    f"1{opener} - {call} alerted as forcing, but it is a "
-                    f"jump shift")
+            bids = [(w, c) for w, c in auction.calls if c != 'Pass']
+            mine = parse_bid(call)
+            if (len(bids) == 1 and bids[0][0] == PARTNERS[who] and mine
+                    and mine[0] == 2 and mine[1] in 'CDHS'
+                    and parse_bid(bids[0][1])[0] == 1):
+                opener = parse_bid(bids[0][1])[1]
+                if mine[1] != opener and opener in 'CDHS':
+                    seen += 1
+                    if ai._is_two_over_one(mine[1], opener):
+                        assert 'Game forcing' in why or 'Drury' in why, (call, why)
+                    else:
+                        assert 'Strong jump shift' in why, (
+                            f"1{opener} - {call} is a jump shift: {why}")
             auction.apply_call(who, call)
             guard += 1
     assert seen, "no two-over-one exercised -- the alert vocabulary moved"

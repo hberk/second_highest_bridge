@@ -171,6 +171,28 @@ def test_cache_key_is_stable_and_distinct():
     assert len(keys) == len(set(keys)), "keys must identify a decision uniquely"
     assert keys[0] == replay.key_of(board, found[0]), "keys must be stable"
 
+    # The same board NUMBER with a different play is a different key: the
+    # cache is shared by every session, and board 1 recurs in each.
+    other = dict(board, tricks_log=[dict(e) for e in board['tricks_log']])
+    first = other['tricks_log'][0]
+    first['plays'] = list(reversed(first['plays']))
+    assert replay.key_of(other, found[0]) != keys[0]
+
+
+def test_cards_dealt_before_a_module_reload_still_compare_equal():
+    """Streamlit re-imports every project module when a source file changes.
+    A board dealt before that holds the OLD Card class; with an isinstance
+    test it equalled no new Card, and the analysis panel rejected all seven
+    of a user's decisions as "not legal"."""
+    import importlib
+    import card
+    old = card.Card('H', '2')
+    importlib.reload(card)
+    new = card.Card('H', '2')
+    assert type(old) is not type(new)
+    assert old == new and new == old and hash(old) == hash(new)
+    assert new in {old: 1}
+
 
 if __name__ == '__main__':
     if hasattr(sys.stdout, 'reconfigure'):

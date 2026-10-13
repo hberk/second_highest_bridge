@@ -7,8 +7,9 @@ import {
   type Card, type Seat, type Suit,
 } from './card';
 import {
-  AuctionState, PARTNERS, PLAYERS, legalPlays, resolveTrick, type Play,
+  AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
+import { gibBid } from './gib';
 
 const AI_TAG = '__ai__';
 type AnyPlay = Play<string>;
@@ -234,6 +235,13 @@ function place(strain: string, combined: number, legal: string[]): Decision {
   return ['Pass', 'No extra values.'];
 }
 
+/** What a one-level opening SHOWS: a major five, a minor three -- the same
+ *  for every hand, so the alert cannot read the minor lengths out. */
+function oneLevelOpeningAlert(suit: Suit): string {
+  const shown = suit === 'H' || suit === 'S' ? OPEN_SUIT_LENGTH : 3;
+  return `${shown}+ ${SUIT_SYM[suit]}, ${OPEN_POINTS}+ points.`;
+}
+
 function openingBid(ev: HandEval, groups: Groups, bestSuit: Suit, bestLen: number, legal: string[],
   fourthSeat = false): Decision {
   const pts = points(groups);
@@ -244,7 +252,7 @@ function openingBid(ev: HandEval, groups: Groups, bestSuit: Suit, bestLen: numbe
       `${PREEMPT_LENGTH}+ ${SUIT_SYM[bestSuit]}, ${FOURTH_TWO_POINTS_LOW}-${FOURTH_TWO_POINTS_HIGH - 1} points. Fourth seat.`];
   }
   if (strong && bestLen >= OPEN_SUIT_LENGTH && legal.includes(`1${bestSuit}`)) {
-    return [`1${bestSuit}`, `${OPEN_SUIT_LENGTH}+ ${SUIT_SYM[bestSuit]}, ${OPEN_POINTS}+ points.`];
+    return [`1${bestSuit}`, oneLevelOpeningAlert(bestSuit)];
   }
   if (PREEMPT_POINTS_LOW <= pts && pts < PREEMPT_POINTS_HIGH && !fourthSeat) {
     if (bestLen >= PREEMPT_LENGTH_3 && legal.includes(`3${bestSuit}`)) {
@@ -260,19 +268,8 @@ function openingBid(ev: HandEval, groups: Groups, bestSuit: Suit, bestLen: numbe
     const clubs = groups.C.length;
     const diamonds = groups.D.length;
     if (clubs >= 3 || diamonds >= 3) {
-      let suit: Suit;
-      let shown: number;
-      if (clubs > diamonds || (clubs === 3 && diamonds === 3)) {
-        suit = 'C';
-        shown = 3;
-      } else {
-        suit = 'D';
-        shown = Math.max(3, Math.min(clubs, diamonds));
-      }
-      if (legal.includes(`1${suit}`)) {
-        return [`1${suit}`,
-          `${shown}+ ${SUIT_SYM[suit]}, ${OPEN_POINTS}+ points. No five-card major.`];
-      }
+      const suit: Suit = clubs > diamonds || (clubs === 3 && diamonds === 3) ? 'C' : 'D';
+      if (legal.includes(`1${suit}`)) return [`1${suit}`, oneLevelOpeningAlert(suit)];
     }
   }
   if (pts < OPEN_POINTS) return ['Pass', `Fewer than ${OPEN_POINTS} points.`];
@@ -310,20 +307,20 @@ function advanceDouble(player: Seat, auction: AuctionState, ev: HandEval, groups
   const ceiling = Math.max(1, trunc(combined) - 6);
   const strong = pts >= ADVANCE_JUMP_POINTS;
   const start = 1 + (strong ? 1 : 0);
-  const band = strong ? `${ADVANCE_JUMP_POINTS}+` : `0-${ADVANCE_JUMP_POINTS - 1}`;
-  const len = groups[best].length;
+  const lowest = cheapest(best, 1, legal);
+  // What the answer SHOWS, never what the hand holds: 8+ only when it jumps.
+  const answer = (c: string): string => {
+    const sym = SUIT_SYM[parseBid(c)![1] as Suit];
+    return c !== lowest
+      ? `${ADVANCE_JUMP_POINTS}+ points, longest suit, ${sym}. Answering the double.`
+      : `Longest suit other than theirs, ${sym}. Answering the double.`;
+  };
 
   let call = cheapest(best, start, legal);
-  if (call && levelOf(call) <= Math.max(ceiling, PARTSCORE_LEVEL)) {
-    return [call, `${len}+ ${SUIT_SYM[best]}, ${band} points. Answering the double.`];
-  }
-  call = cheapest(best, 1, legal);
-  if (call && strong) {
-    return [call, `${len}+ ${SUIT_SYM[best]}, ${band} points. Answering the double.`];
-  }
-  if (call) {
-    return [call, `${len}+ ${SUIT_SYM[best]}, 0-${ADVANCE_JUMP_POINTS - 1} points. Answering the double.`];
-  }
+  if (call && levelOf(call) <= Math.max(ceiling, PARTSCORE_LEVEL)) return [call, answer(call)];
+  call = lowest;
+  if (call && strong) return [call, answer(call)];
+  if (call) return [call, answer(call)];
   return ['Pass', 'No legal suit to answer the double.'];
 }
 
@@ -337,10 +334,8 @@ function rebidAlone(player: Seat, auction: AuctionState, ev: HandEval, groups: G
     const ceiling = Math.max(1, trunc(combined) - 6);
     const call = cheapest(myFirst, PARTSCORE_LEVEL, legal);
     if (call && levelOf(call) <= ceiling) {
-      const why = held >= REBID_LENGTH
-        ? `${REBID_LENGTH}+ ${SUIT_SYM[myFirst]}. Rebidding my own suit.`
-        : `${OPEN_SUIT_LENGTH}+ ${SUIT_SYM[myFirst]}, ${REBID_MINIMUM}+ points. Rebidding my own suit.`;
-      return [call, why];
+      // One text for both reasons it fires; only their common floor is quoted.
+      return [call, `${OPEN_SUIT_LENGTH}+ ${SUIT_SYM[myFirst]}. Rebidding my own suit.`];
     }
   }
   return ['Pass', 'Partner has passed; not enough to bid again alone.'];
@@ -384,7 +379,8 @@ function response(player: Seat, partner: Seat, auction: AuctionState, ev: HandEv
     if (ev.total_pts >= JUMP_RAISE_TRICKS && pts >= JUMP_RAISE_POINTS
       && ceiling >= PARTSCORE_LEVEL + 1) {
       const jump = cheapest(pStrain, PARTSCORE_LEVEL + 1, legal);
-      if (jump && levelOf(jump) <= ceiling) {
+      // Only a JUMP is a jump raise (see ai.py).
+      if (jump && levelOf(jump) <= ceiling && jump !== cheapest(pStrain, PARTSCORE_LEVEL, legal)) {
         return [jump, `${SUPPORT_LENGTH}+ ${SUIT_SYM[pStrain]} support, ${JUMP_RAISE_POINTS}+ points. Invitational.`];
       }
     }
@@ -401,19 +397,24 @@ function response(player: Seat, partner: Seat, auction: AuctionState, ev: HandEv
     if (one && levelOf(one) === 1 && pts >= RESPONSE_POINTS_SHOWN) {
       return [one, `${OPEN_SUIT_LENGTH}+ ${SUIT_SYM[bestSuit]}, ${RESPONSE_POINTS_SHOWN}+ points.`];
     }
+    // In competition a 2/1 and a free bid can be the same call: quote what both share.
+    const contested = auction.calls.some(
+      ([who, c]) => who !== player && who !== partner && parseBid(c) !== null);
+    const ambiguous = contested && isTwoOverOne(bestSuit, pStrain);
+    const either = `${OPEN_SUIT_LENGTH}+ ${SUIT_SYM[bestSuit]}, ${FREE_BID_POINTS}+ points.`;
     if (isTwoOverOne(bestSuit, pStrain) && ev.total_pts >= TWO_OVER_ONE_TRICKS
       && pts >= TWO_OVER_ONE_POINTS) {
       const two = cheapest(bestSuit, 2, legal);
       if (two && levelOf(two) === 2) {
-        return [two, `${OPEN_SUIT_LENGTH}+ ${SUIT_SYM[bestSuit]}, ${TWO_OVER_ONE_POINTS}+ points. Forcing.`];
+        return [two, ambiguous ? either
+          : `${OPEN_SUIT_LENGTH}+ ${SUIT_SYM[bestSuit]}, ${TWO_OVER_ONE_POINTS}+ points. Forcing.`];
       }
     }
-    const contested = auction.calls.some(
-      ([who, c]) => who !== player && who !== partner && parseBid(c) !== null);
     if (contested && bestLen >= FREE_BID_LENGTH && pts >= FREE_BID_POINTS) {
       const [call] = place(bestSuit, ev.suit_pts[bestSuit] + PROMISE_OPENED, legal);
       if (call !== 'Pass') {
-        return [call, `${FREE_BID_LENGTH}+ ${SUIT_SYM[bestSuit]}, ${FREE_BID_POINTS}+ points. Free bid.`];
+        return [call, ambiguous ? either
+          : `${FREE_BID_LENGTH}+ ${SUIT_SYM[bestSuit]}, ${FREE_BID_POINTS}+ points. Free bid.`];
       }
     }
   }
@@ -461,9 +462,19 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
 }
 
 /** The call this hand makes, and an alert saying what it shows. */
+/** GIB 2/1 is the default system (gib.ts); false plays the previous one. */
+export const settingsAi = { useGib: true };
+
 export function aiBidExplained(player: Seat, hand: Card[], auction: AuctionState): Decision {
   const legal = auction.legalCalls();
   if (!legal.length) return ['Pass', 'Pass. No legal call available.'];
+
+  // GIB 2/1 is the system; the logic below answers only the contested
+  // situations GIB's notes leave to judgment.
+  if (settingsAi.useGib) {
+    const decision = gibBid(player, hand, auction);
+    if (decision) return decision;
+  }
 
   const ev = evalHandSh(hand);
   const groups = ev.groups;
@@ -584,15 +595,187 @@ function outlook(player: Seat, c: Card, trick: AnyPlay[], trump: string | null,
   return [holder, exposed];
 }
 
+/** Port of ai.visible_hands: dummy, and declarer's hand for the declaring side. */
+export function visibleHands(seat: Seat, contract: { dummy: Seat; declarer: Seat },
+  hands: Record<Seat, Card[]>): Partial<Record<Seat, Card[]>> {
+  const view: Partial<Record<Seat, Card[]>> = { [contract.dummy]: hands[contract.dummy] };
+  if (seat === contract.dummy || seat === contract.declarer) view[contract.declarer] = hands[contract.declarer];
+  return view;
+}
+
 /** `played`: every card from completed tricks. `visible`: hands every seat
  *  can see (the dummy, once exposed). */
 export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: string | null,
-  played: Card[], visible: Partial<Record<Seat, Card[]>> = {}): Card {
+  played: Card[], visible: Partial<Record<Seat, Card[]>> = {},
+  history: AnyPlay[][] | null = null): Card {
   const led = trick.length ? trick[0][1].suit : null;
   const legal = legalPlays(hand, led);
-  if (!trick.length) return lead(hand, trump, played);
-  if (trick.length === 3) return playLast(legal, trick, trump);
-  return middlePlay(player, legal, trick, trump, laterHoldings(player, hand, trick, played, visible));
+  let choice: Card;
+  if (!trick.length) choice = lead(hand, trump, played);
+  else if (trick.length === 3) choice = playLast(legal, trick, trump);
+  else choice = middlePlay(player, legal, trick, trump, laterHoldings(player, hand, trick, played, visible));
+
+  const partner = PARTNERS[player];
+  if (trick.length === 1 && Object.keys(visible).length && partner in visible && legal.length > 1) {
+    choice = coverForPartner(player, legal, trick, trump, played, visible, choice);
+  }
+
+  if (history !== null && Object.keys(visible).length && legal.length > 1 && hand.length <= ENDGAME_CARDS) {
+    const totals = endgameTotals(player, hand, trick, trump, played, visible, history, legal);
+    if (totals) {
+      const best = Math.max(...totals.values());
+      const tied = legal.filter((c) => totals.get(cardKey(c)) === best);
+      if (!tied.some((c) => cardKey(c) === cardKey(choice))) choice = minBy(tied, (c) => [value(c)]);
+    }
+  }
+  return choice;
+}
+
+// ── Second hand, partner last and in view (see ai.py) ────────────────────────
+
+function coverForPartner(player: Seat, legal: Card[], trick: AnyPlay[], trump: string | null,
+  played: Card[], visible: Partial<Record<Seat, Card[]>>, choice: Card): Card {
+  const partner = PARTNERS[player];
+  const third = PLAYERS[(PLAYERS.indexOf(player) + 1) % 4];
+  const ledSuit = trick[0][1].suit;
+  let candidates: Card[];
+  if (third in visible) {
+    candidates = [...visible[third]!];
+  } else {
+    const seen = new Set([...played, ...trick.map(([, c]) => c), ...legal].map(cardKey));
+    for (const cards of Object.values(visible)) for (const c of cards!) seen.add(cardKey(c));
+    candidates = FULL_DECK.filter((c) => !seen.has(cardKey(c)));
+  }
+  const follows = candidates.filter((c) => c.suit === ledSuit);
+  const options = [...follows];
+  if (!follows.length || !(third in visible)) {
+    if (isSuit(trump) && trump !== ledSuit) {
+      const ruffs = candidates.filter((c) => c.suit === trump);
+      if (ruffs.length) options.push(minBy(ruffs, (c) => [value(c)]));
+    }
+    const discards = candidates.filter((c) => c.suit !== ledSuit && c.suit !== trump);
+    if (discards.length) options.push(minBy(discards, cardOrder));
+  }
+  if (!options.length) return choice;
+  const ours = new Set<string>([player, partner]);
+  const score = (c: Card): number => {
+    let wins = 0;
+    for (const opp of options) {
+      const plays: AnyPlay[] = [...trick, [player, c], [third, opp]];
+      if (legalPlays(visible[partner]!, ledSuit).some(
+        (reply) => ours.has(resolveTrick([...plays, [partner, reply]], trump)))) wins++;
+    }
+    return wins;
+  };
+  const scores = new Map(legal.map((c) => [cardKey(c), score(c)]));
+  const best = Math.max(...scores.values());
+  if (scores.get(cardKey(choice))! >= best) return choice;
+  return minBy(legal.filter((c) => scores.get(cardKey(c)) === best), (c) => [value(c)]);
+}
+
+// ── Endgame: single dummy search (see ai.py) ─────────────────────────────────
+
+export const ENDGAME_CARDS = 3;
+
+const cardOrder = (c: Card): number[] => [suitIndex(c.suit), value(c)];
+
+function shownOut(history: AnyPlay[][], trick: AnyPlay[]): Record<string, Set<string>> {
+  const out: Record<string, Set<string>> = {};
+  for (const p of PLAYERS) out[p] = new Set();
+  for (const plays of [...history, trick]) {
+    if (!plays.length) continue;
+    const ledSuit = plays[0][1].suit;
+    for (const [seat, c] of plays.slice(1)) if (c.suit !== ledSuit) out[seat].add(ledSuit);
+  }
+  return out;
+}
+
+function search(hands: Record<string, Card[]>, trick: AnyPlay[], leader: Seat,
+  trump: string | null, side: string, memo: Map<string, number>): number {
+  if (trick.length === 4) {
+    const winner = resolveTrick(trick, trump) as Seat;
+    const won = PARTNERSHIP[winner] === side ? 1 : 0;
+    if (!hands[winner].length) return won;
+    return won + search(hands, [], winner, trump, side, memo);
+  }
+  let key: string | null = null;
+  if (!trick.length) {
+    key = leader + '|' + PLAYERS.map((p) => hands[p].map(cardOrder)
+      .sort((a, b) => a[0] - b[0] || a[1] - b[1]).map((o) => o.join('.')).join(',')).join('|');
+    const hit = memo.get(key);
+    if (hit !== undefined) return hit;
+  }
+  const seat = PLAYERS[(PLAYERS.indexOf(leader) + trick.length) % 4];
+  const ledSuit = trick.length ? trick[0][1].suit : null;
+  const ours = PARTNERSHIP[seat] === side;
+  let best = ours ? -1 : 99;
+  for (const c of legalPlays(hands[seat], ledSuit)) {
+    const at = hands[seat].findIndex((x) => cardKey(x) === cardKey(c));
+    hands[seat].splice(at, 1);
+    const v = search(hands, [...trick, [seat, c]], leader, trump, side, memo);
+    hands[seat].splice(at, 0, c);
+    best = ours ? Math.max(best, v) : Math.min(best, v);
+  }
+  if (key !== null) memo.set(key, best);
+  return best;
+}
+
+function* combinations(n: number, k: number): Generator<number[]> {
+  const idx = Array.from({ length: k }, (_, i) => i);
+  if (k > n) return;
+  while (true) {
+    yield [...idx];
+    let i = k - 1;
+    while (i >= 0 && idx[i] === i + n - k) i--;
+    if (i < 0) return;
+    idx[i]++;
+    for (let j = i + 1; j < k; j++) idx[j] = idx[j - 1] + 1;
+  }
+}
+
+function endgameTotals(player: Seat, hand: Card[], trick: AnyPlay[], trump: string | null,
+  played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][],
+  legal: Card[]): Map<string, number> | null {
+  const known: Record<string, Card[]> = { [player]: [...hand] };
+  const seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
+  for (const [seat, cards] of Object.entries(visible) as [Seat, Card[]][]) {
+    if (seat !== player) {
+      known[seat] = [...cards];
+      for (const c of cards) seen.add(cardKey(c));
+    }
+  }
+  const hidden = PLAYERS.filter((p) => !(p in known));
+  const already = new Set(trick.map(([seat]) => seat));
+  const size: Record<string, number> = {};
+  for (const p of PLAYERS) size[p] = hand.length - (already.has(p) ? 1 : 0);
+  const unseen = FULL_DECK.filter((c) => !seen.has(cardKey(c)))
+    .sort((a, b) => suitIndex(a.suit) - suitIndex(b.suit) || value(a) - value(b));
+  if (hidden.length !== 2 || unseen.length !== size[hidden[0]] + size[hidden[1]]) return null;
+  const [first, second] = hidden;
+  const out = shownOut(history, trick);
+  const leader = (trick.length ? trick[0][0] : player) as Seat;
+  const side = PARTNERSHIP[player];
+  const totals = new Map<string, number>(legal.map((c) => [cardKey(c), 0]));
+  let layouts = 0;
+  for (const picked of combinations(unseen.length, size[first])) {
+    const chosen = new Set(picked);
+    const a = unseen.filter((_, i) => chosen.has(i));
+    const b = unseen.filter((_, i) => !chosen.has(i));
+    if (a.some((c) => out[first].has(c.suit)) || b.some((c) => out[second].has(c.suit))) continue;
+    layouts++;
+    const hands: Record<string, Card[]> = {};
+    for (const [seat, cards] of Object.entries(known)) hands[seat] = [...cards];
+    hands[first] = a;
+    hands[second] = b;
+    const memo = new Map<string, number>();
+    for (const c of legal) {
+      const at = hands[player].findIndex((x) => cardKey(x) === cardKey(c));
+      hands[player].splice(at, 1);
+      totals.set(cardKey(c), totals.get(cardKey(c))! + search(hands, [...trick, [player, c]], leader, trump, side, memo));
+      hands[player].splice(at, 0, c);
+    }
+  }
+  return layouts ? totals : null;
 }
 
 function lead(hand: Card[], trump: string | null, played: Card[]): Card {
@@ -624,7 +807,12 @@ function middlePlay(player: Seat, legal: Card[], trick: AnyPlay[], trump: string
   return minBy(legal, (c) => [value(c)]);
 }
 
+/** Fourth hand counts partner's winning as its own (see ai.py). */
+export const settingsPlay = { lastHandForPartner: true };
+
 function playLast(legal: Card[], trick: AnyPlay[], trump: string | null): Card {
-  const winning = legal.filter((c) => resolveTrick([...trick, [AI_TAG, c]], trump) === AI_TAG);
-  return minBy(winning.length ? winning : legal, (c) => [value(c)]);
+  const partner = trick[1][0];
+  const ours = settingsPlay.lastHandForPartner ? [AI_TAG, partner] : [AI_TAG];
+  const winning = legal.filter((c) => ours.includes(resolveTrick([...trick, [AI_TAG, c]], trump)));
+  return winning.length ? minBy(winning, (c) => [value(c)]) : minBy(legal, (c) => [value(c)]);
 }

@@ -5,6 +5,7 @@ replayer_view.py). They live here so the live table, the post-auction recap and
 the hand-history replayer all render an auction the same way.
 """
 from __future__ import annotations
+import re
 import streamlit as st
 from card import LEVELS, STRAINS, STRAIN_SYMBOLS, STRAIN_NAMES
 from game import PLAYERS
@@ -12,6 +13,38 @@ from web.card_component import call_badge
 
 # The four columns of a written auction, in the order hand records print them.
 _AUCTION_COLUMNS = ['West', 'North', 'East', 'South']
+
+#: The longest alert, the robots' own limit: it has to fit a tooltip.
+ALERT_MAX = 70
+
+
+def clean_alert(text: str | None) -> str:
+    """A self-alert as one line of plain text, at most ALERT_MAX characters.
+
+    This is NOT the XSS defence -- `call_badge` escapes every alert it renders,
+    and that is the only place alert text reaches markup. It only keeps the
+    tooltip one tidy line. Port: `cleanAlert` in frontend/src/lib/game.svelte.ts.
+    """
+    text = re.sub(r'[\x00-\x1f\x7f]+', ' ', text or '')
+    return re.sub(r'\s+', ' ', text).strip()[:ALERT_MAX]
+
+
+def live_alerts(calls: list[tuple[str, str]], alerts: dict | None,
+                humans: tuple[str, ...] = ('South',)) -> dict:
+    """The alerts the table may see while the board is still being played.
+
+    A robot's pass explains WHY it passed ("Fewer than 6 points", "Fewer than
+    3 spades and no five-card suit"), and the reason differs from hand to hand
+    for the same pass in the same auction, so it reads the robot's cards out.
+    A real table never alerts a natural pass. Those reasons are kept in the
+    record and shown once the board is over; bids keep their alerts, which
+    depend only on the auction and the call (tests/test_bidding_calibration.py).
+
+    A human's own alert is shown even on a pass: it is a self-alert the player
+    chose to make (a forcing pass, say), not a robot's reasoning.
+    """
+    return {i: why for i, why in (alerts or {}).items()
+            if i < len(calls) and (calls[i][1] != 'Pass' or calls[i][0] in humans)}
 
 
 def render_auction_grid(dealer: str, calls: list[tuple[str, str]],
@@ -46,7 +79,7 @@ def render_auction_grid(dealer: str, calls: list[tuple[str, str]],
                 row_cols[i].markdown(call_badge(call, alert), unsafe_allow_html=True)
 
 
-def render_bidding_box(legal_calls: list[str], on_call) -> None:
+def render_bidding_box(legal_calls: list[str], on_call, alert_key: str = 'self_alert') -> None:
     """The bidding box: every bid from 1C to 7NT laid out as seven level rows by
     five strain columns, with Pass / Double / Redouble above it.
 
@@ -54,12 +87,26 @@ def render_bidding_box(legal_calls: list[str], on_call) -> None:
     whole ladder stays on screen with bids that are no longer available greyed
     out, so a player can see at a glance how much bidding room is left — which
     is the point of a bidding box, and what a level-then-strain picker hides.
+
+    The alert box is a self-alert, as on BBO: type the explanation, then make
+    the call, and `on_call(call, alert)` gets both. Pass an `alert_key` that
+    changes with every call (app.py uses the auction's length), so the box is
+    empty again for the next call: Streamlit can't clear a widget from the
+    same run that read it.
     """
     st.markdown(
         '<div class="bidding-box-container">'
         '<div class="bidding-box-title">Your call</div>',
         unsafe_allow_html=True
     )
+
+    alert = st.text_input(
+        "Alert", key=alert_key, max_chars=ALERT_MAX,
+        placeholder="Optional: explain your next call",
+        help="Shown with your call as an alert. The robots don't read it.",
+    )
+    if alert.strip():
+        st.caption("Your next call will be alerted.")
 
     with st.container(key="bidgrid"):
         # Pass / Double / Redouble first: Pass is the most-used call in any
@@ -71,7 +118,7 @@ def render_bidding_box(legal_calls: list[str], on_call) -> None:
                 if st.button(label, key=f"bidact_{key_part}",
                              disabled=(call not in legal_calls),
                              use_container_width=True):
-                    on_call(call)
+                    on_call(call, alert)
                     st.rerun()
 
         st.markdown(
@@ -96,7 +143,7 @@ def render_bidding_box(legal_calls: list[str], on_call) -> None:
                     if st.button(label, key=f"bid_btn_{strain}{level}",
                                  disabled=(call not in legal_calls),
                                  use_container_width=True):
-                        on_call(call)
+                        on_call(call, alert)
                         st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
