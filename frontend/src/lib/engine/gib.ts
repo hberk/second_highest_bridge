@@ -154,6 +154,7 @@ export class Ctx {
   seq: string[];
   weOpened: boolean;
   opener: Seat | null;
+  ntOvercall: boolean;
 
   constructor(player: Seat, cards: Card[], readonly auction: AuctionState) {
     this.me = player;
@@ -168,6 +169,14 @@ export class Ctx {
     const first = this.calls.find(([, c]) => c !== 'Pass');
     this.weOpened = first !== undefined && us(first[0]);
     this.opener = this.ours.length ? this.ours[0][0] : null;
+    // Our 1NT overcall of a one-level opening, and they have only passed
+    // since: systems on, the 1NT opening's whole structure, every round.
+    this.ntOvercall = false;
+    if (!this.weOpened && this.seq.length && this.seq[0] === '1NT'
+      && levelOf(first![1]) === 1) {
+      const at = this.calls.findIndex(([w, c]) => us(w) && c === '1NT');
+      this.ntOvercall = this.calls.slice(at + 1).every(([w, c]) => us(w) || c === 'Pass');
+    }
   }
 
   ok(call: string | null | undefined): boolean {
@@ -979,7 +988,7 @@ function notrump(ctx: Ctx, start: number): Decision {
   const seq = ctx.seq.slice(start);
   const n = seq.length;
   const base = levelOf(seq[0]);
-  const [lo, hi] = ntRange(ctx.seq, start);
+  const [lo, hi] = ctx.ntOvercall ? NT_OVERCALL : ntRange(ctx.seq, start);
   if (n === 1) return ntResponse(ctx, base, lo, hi);
   if (n === 2) return ntOpenerAnswer(ctx, base, seq[1], lo, hi);
   if (n === 3) return ntResponderSecond(ctx, base, seq, lo, hi);
@@ -1291,7 +1300,7 @@ function answerAsk(ctx: Ctx): Decision | null {
       return [`6${trump}`, 'No side king to show.'];
     }
   }
-  if (last === '4C' && isGerber(prior) && ctx.weOpened && !ctx.theirs.length) return gerberAnswer(ctx);
+  if (last === '4C' && isGerber(prior) && (ctx.weOpened && !ctx.theirs.length || ctx.ntOvercall)) return gerberAnswer(ctx);
   return null;
 }
 
@@ -1377,7 +1386,7 @@ function afterMyAsk(ctx: Ctx): Decision | null {
       return [`6${trump}`, TO_PLAY];
     }
   }
-  if (myAsk === '4C' && isGerber(prior.slice(0, -1)) && ctx.weOpened && !ctx.theirs.length) {
+  if (myAsk === '4C' && isGerber(prior.slice(0, -1)) && (ctx.weOpened && !ctx.theirs.length || ctx.ntOvercall)) {
     let theirs = ({ '4D': 0, '4H': 1, '4S': 2, '4NT': 3 } as Record<string, number>)[last];
     if (theirs === undefined) return null;
     const mine = h.aces();
@@ -1545,6 +1554,8 @@ function contested(ctx: Ctx): Decision | null {
     && ctx.theirs.every(([, c]) => c === 'X')) {
     return uncontested(ctx);
   }
+  // (1x)-1NT and they pass: systems on, as over our 1NT opening.
+  if (ctx.ntOvercall) return notrump(ctx, 0);
   if (ctx.weOpened) return weOpenedContested(ctx);
   return theyOpened(ctx);
 }
@@ -2016,10 +2027,8 @@ function advance(ctx: Ctx): Decision | null {
   const openingRec = ctx.calls.find(([, c]) => c !== 'Pass');
   const opening = openingRec ? openingRec[1] : null;
   if (p === '1NT' && levelOf(opening ?? '') === 1) {
-    const at = ctx.calls.findIndex(([w, c]) => w === ctx.pd && c === '1NT');
-    if (ctx.calls.slice(at + 1).every(([, c]) => c === 'Pass')) {
-      return ntResponse(ctx, 1, NT_OVERCALL[0], NT_OVERCALL[1]);
-    }
+    // They have bid again over our 1NT overcall (systems on, when they
+    // haven't, is `contested`'s): ai.py answers it.
     return null;
   }
   if (p === 'X' && opening === '1NT') return ['Pass', 'Penalty double: passing.'];

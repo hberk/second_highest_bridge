@@ -155,6 +155,14 @@ class Ctx:
         first = next(((w, c) for w, c in self.calls if c != 'Pass'), None)
         self.we_opened = first is not None and first[0] in (self.me, self.pd)
         self.opener = self.ours[0][0] if self.ours else None
+        # Our 1NT overcall of a one-level opening, and they have only passed
+        # since: systems on, the 1NT opening's whole structure, every round.
+        self.nt_overcall = False
+        if not self.we_opened and self.seq and self.seq[0] == '1NT'                 and level_of(first[1]) == 1:
+            at = next(i for i, (w, c) in enumerate(self.calls)
+                      if w in (self.me, self.pd) and c == '1NT')
+            self.nt_overcall = all(c == 'Pass' for w, c in self.calls[at + 1:]
+                                   if w not in (self.me, self.pd))
 
     def ok(self, call: str | None) -> bool:
         return call is not None and call in self.legal
@@ -1029,7 +1037,7 @@ def notrump(ctx: Ctx, start: int) -> tuple:
     seq = ctx.seq[start:]
     n = len(seq)
     base = level_of(seq[0])
-    lo, hi = _nt_range(ctx.seq, start)
+    lo, hi = NT_OVERCALL if ctx.nt_overcall else _nt_range(ctx.seq, start)
     if n == 1:
         return _nt_response(ctx, base, lo, hi)
     if n == 2:
@@ -1350,7 +1358,7 @@ def answer_ask(ctx: Ctx) -> tuple | None:
                         and rank_of(call) < rank_of(f"6{trump}")):
                     return call, f"King of {SYM[s]}."
             return f"6{trump}", "No side king to show."
-    if last == '4C' and _is_gerber(prior) and ctx.we_opened and not ctx.theirs:
+    if last == '4C' and _is_gerber(prior) and (ctx.we_opened and not ctx.theirs or ctx.nt_overcall):
         return _gerber_answer(ctx)
     return None
 
@@ -1438,7 +1446,7 @@ def after_my_ask(ctx: Ctx) -> tuple | None:
             if strain_of(last) == trump:
                 return 'Pass', TO_PLAY
             return f"6{trump}", TO_PLAY
-    if my_ask == '4C' and _is_gerber(prior[:-1]) and ctx.we_opened and not ctx.theirs:
+    if my_ask == '4C' and _is_gerber(prior[:-1]) and (ctx.we_opened and not ctx.theirs or ctx.nt_overcall):
         theirs = {'4D': 0, '4H': 1, '4S': 2, '4NT': 3}.get(last)
         if theirs is None:
             return None
@@ -1626,6 +1634,9 @@ def contested(ctx: Ctx) -> tuple | None:
     if ctx.we_opened and seq and seq[0] in ('1NT', '2NT', '2C') \
             and all(c == 'X' for _, c in ctx.theirs):
         return uncontested(ctx)
+    # (1x)-1NT and they pass: systems on, as over our 1NT opening.
+    if ctx.nt_overcall:
+        return notrump(ctx, 0)
     if ctx.we_opened:
         return we_opened_contested(ctx)
     return they_opened(ctx)
@@ -2140,10 +2151,8 @@ def _advance(ctx: Ctx) -> tuple | None:
     their = theirs[0] if theirs else None
     opening = next((c for w, c in ctx.calls if c != 'Pass'), None)
     if p == '1NT' and level_of(opening or '') == 1:
-        # Systems on over our 1NT overcall, unless they have bid again.
-        at = next(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.pd and c == '1NT')
-        if all(c == 'Pass' for _, c in ctx.calls[at + 1:]):
-            return _nt_response(ctx, 1, NT_OVERCALL[0], NT_OVERCALL[1])
+        # They have bid again over our 1NT overcall (systems on, when they
+        # haven't, is `contested`'s): ai.py answers it.
         return None
     if p == 'X' and opening == '1NT':
         return 'Pass', "Penalty double: passing."

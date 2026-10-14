@@ -85,6 +85,30 @@ def test_jacoby_and_texas_transfers():
                '1NT', 'Pass', '4H', 'Pass')[0] == '4S'
 
 
+def test_systems_on_over_our_1nt_overcall():
+    """(1x)-1NT is played like a 1NT opening, every round, while they pass:
+    the overcaller answers Stayman and completes transfers. It used to read
+    partner's transfer as natural and pass it, leaving us in their suit."""
+    overcall = ('1D', '1NT', 'Pass')
+    nt = 'AS KS 4S QH JH 3H KD 9D 4D 2D AC 7C 3C'                 # no 4-card major
+    call, why = bid(nt, *overcall, '2D', 'Pass')
+    assert call == '2H' and 'transfer' in why, (call, why)
+    call, why = bid(nt, *overcall, '2H', 'Pass')
+    assert call == '2S' and 'transfer' in why, (call, why)
+    call, why = bid(nt, *overcall, '2C', 'Pass')
+    assert call == '2D' and 'No 4-card major' in why, (call, why)
+    weak5 = 'KS 7S 3S QH 10H 9H 7H 2H 9D 6D JC 5C 3C'
+    assert bid(weak5, *overcall)[0] == '2D'
+    # Every call matches the same seat's call after a 1NT opening.
+    for cards, tail in ((weak5, ('2D', 'Pass', '2H', 'Pass')),
+                        ('KS 7S 3S AH 10H 7H 2H QD 9D 6D JC 5C 3C',
+                         ('2C', 'Pass', '2H', 'Pass'))):
+        assert bid(cards, *overcall, *tail)[0] == bid(cards, '1NT', 'Pass', *tail)[0]
+    # Once they bid again, systems are off.
+    a = after('1D', '1NT', 'Pass', '2D', '2S')
+    assert not gib.Ctx(a.current_player(), hand(nt), a).nt_overcall
+
+
 def test_gerber_answers_aces():
     call, why = bid('AS JS 4S QH JH 3H KD 9D 4D 2D AC 7C 3C', '1NT', 'Pass', '4C', 'Pass')
     assert call == '4S' and '2 aces' in why
