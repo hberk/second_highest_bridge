@@ -32,7 +32,9 @@ the browser.
   1. make the repo public. Pages from a private personal repo needs GitHub Pro,
      and the site is public either way;
   2. go to Settings → Pages → Source: **GitHub Actions**;
-  3. re-run the workflow, or push.
+  3. push, or start a new run with **Run workflow**. Not "Re-run jobs": a
+     re-run replays the original event, including the visibility it saw, so
+     a run from while the repo was private skips again.
 
   The site is then at `https://hberk.github.io/second_highest_bridge/`.
 - **Base path:** `vite.config.ts` sets `base: './'`, so the same build works

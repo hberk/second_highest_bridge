@@ -9,7 +9,9 @@
 # uses no minutes). A manual "Run workflow" still checks it on demand. Once the
 # repo is public, every push and pull request is checked (free on public repos)
 # and a push to main deploys. Setup then: Settings → Pages → Source: "GitHub
-# Actions", and re-run this workflow (or push).
+# Actions", then push or use "Run workflow". Not "Re-run": a re-run replays
+# the original event, visibility included, so a run from while the repo was
+# private skips again.
 name: Build and deploy (GitHub Pages)
 
 on:
