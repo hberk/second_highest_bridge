@@ -112,6 +112,16 @@ def card_face_html(card: Card) -> str:
     )
 
 
+def card_text_html(card: Card) -> str:
+    """A card as inline text ("Q♥") in its suit's ink for a dark surface, for
+    tables such as the trick log. Rank escaped as in `card_face_html`."""
+    color = suit_colors_light()[card.suit]
+    return (f'<span style="color:{color}">'
+            f'{html.escape(str(card.rank), quote=True)}'
+            f'<span aria-hidden="true">{SUIT_SYMBOLS[card.suit]}</span>'
+            f'<span class="sr-only"> of {suit_label(card.suit)}</span></span>')
+
+
 def call_badge(call: str, alert: str | None = None) -> str:
     """Renders a colored badge for an auction call (e.g. 1S, Pass, Dbl, Redbl).
 

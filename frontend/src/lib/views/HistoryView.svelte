@@ -2,7 +2,7 @@
      card by card. Port of web/replayer_view.py. Renders any record of the
      history shape, which is how challenge mode shows the robots' board too. -->
 <script lang="ts">
-  import { STRAIN_SYMBOLS, SUIT_SYMBOLS, sameCard, type Card, type Seat } from '../engine/card';
+  import { STRAIN_SYMBOLS, SUIT_NAMES, SUIT_SYMBOLS, sameCard, type Card, type Seat } from '../engine/card';
   import { PARTNERSHIP, PLAYERS, type Contract, type Play } from '../engine/auction';
   import type { HistoryRecord } from '../game.svelte';
   import AuctionGrid from '../components/AuctionGrid.svelte';
@@ -115,9 +115,8 @@
     return { remaining, trickNum, trick, winner, tally, text };
   });
 
-  function cardStr(plays: Play[], p: Seat, winner: Seat): string {
-    const c = plays.find(([s]) => s === p)?.[1];
-    return c ? `${c.rank}${SUIT_SYMBOLS[c.suit]}${p === winner ? ' ⭐' : ''}` : '—';
+  function cardOf(plays: Play[], p: Seat) {
+    return plays.find(([s]) => s === p)?.[1];
   }
 </script>
 
@@ -215,7 +214,10 @@
             {#each hb.tricks_log as t}
               <tr>
                 <td>{t.trick_num}</td><td>{t.leader}</td>
-                {#each ['West', 'North', 'East', 'South'] as const as p}<td>{cardStr(t.plays, p, t.winner)}</td>{/each}
+                {#each ['West', 'North', 'East', 'South'] as const as p}
+                  {@const c = cardOf(t.plays, p)}
+                  <td>{#if c}<span style:color="var(--suit-{c.suit.toLowerCase()}-lt)">{c.rank}<span aria-hidden="true">{SUIT_SYMBOLS[c.suit]}</span><span class="sr-only"> of {SUIT_NAMES[c.suit]}</span></span>{p === t.winner ? ' ⭐' : ''}{:else}—{/if}</td>
+                {/each}
                 <td>{t.winner}</td>
               </tr>
             {/each}

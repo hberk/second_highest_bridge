@@ -1,8 +1,9 @@
 from __future__ import annotations
+import html
 import streamlit as st
 from card import Card, SUIT_SYMBOLS, STRAIN_SYMBOLS
 from game import PLAYERS, PARTNERSHIP
-from web.card_component import seat_box_html
+from web.card_component import card_text_html, seat_box_html
 from web.auction_view import render_auction_grid
 from web.felt_table import render_felt_table
 from web.analysis_view import render_analysis
@@ -304,13 +305,17 @@ def render_history_tab(hand_history: list[dict], allow_import: bool = False,
                 if p in trick_dict:
                     c2 = trick_dict[p]
                     star = " ⭐" if p == tlog['winner'] else ""
-                    return f"{c2.rank}{SUIT_SYMBOLS[c2.suit]}{star}"
+                    return f"{card_text_html(c2)}{star}"
                 return "—"
             row_cols = st.columns([0.5, 1, 1, 1, 1, 1, 1])
-            row_data = [str(tlog['trick_num']), tlog['leader'],
+            # Rendered as HTML for the suit inks: the cards come through
+            # `card_text_html`, and the seat names are escaped like every other
+            # interpolated string (see tests/test_web_escaping.py).
+            row_data = [str(int(tlog['trick_num'])), html.escape(tlog['leader'], quote=True),
                         card_str('West'), card_str('North'),
-                        card_str('East'), card_str('South'), tlog['winner']]
+                        card_str('East'), card_str('South'),
+                        html.escape(tlog['winner'], quote=True)]
             for col_obj, val in zip(row_cols, row_data):
-                col_obj.markdown(val)
+                col_obj.markdown(val, unsafe_allow_html=True)
 
     _render_lin_record(hb, key, sel_idx)
