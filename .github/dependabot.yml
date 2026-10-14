@@ -1,0 +1,44 @@
+# Monthly dependency update pull requests, one grouped PR per ecosystem.
+#
+# Security fixes don't wait for this schedule: with Dependabot security
+# updates turned on (Settings -> Advanced Security), a known vulnerability
+# gets its own PR as soon as it's published. Every PR runs the Pages workflow,
+# so the Python tests and the TS engine's parity with Python check it first.
+version: 2
+updates:
+  # The Svelte site: Vite, Svelte, TypeScript, vitest, svelte-check.
+  # TypeScript is pinned below 7 on purpose: svelte-check doesn't support 7.
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: monthly
+    groups:
+      frontend:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: typescript
+        versions: [">=7"]
+
+  # The Streamlit app's only dependency.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+
+  # research/solver-rs: serde, serde_json, rustc-hash. Never shipped.
+  - package-ecosystem: cargo
+    directory: /research/solver-rs
+    schedule:
+      interval: monthly
+    groups:
+      solver-rs:
+        patterns: ["*"]
+
+  # The actions in .github/workflows.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

@@ -2,7 +2,10 @@
 #
 # The deploy is gated on the TypeScript engine still matching the Python one:
 # fixtures are regenerated from the Python engine on every run, so a change to
-# ai.py that the port does not follow fails here instead of shipping.
+# ai.py that the port does not follow fails here instead of shipping. It is
+# also gated on the Python suite (tests/run_all.py, ~3 minutes), which runs as
+# its own job beside the build. The Rust solver test skips cleanly: the
+# solver-rs binary isn't built here.
 #
 # Nothing runs while the repository is private: Actions minutes on a private
 # repo are metered, so every job is skipped (a skipped job starts no runner and
@@ -29,6 +32,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  python-tests:
+    if: github.event.repository.visibility == 'public' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # 3.12 is the reference: 3.12's sum() can move a hand's value in the
+      # last bit (see CLAUDE.md, "Commands").
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Test (rules, scoring, bidding, solver, app flow, escaping)
+        run: python tests/run_all.py
+
   build:
     if: github.event.repository.visibility == 'public' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -67,7 +86,7 @@ jobs:
           path: frontend/dist
 
   deploy:
-    needs: build
+    needs: [build, python-tests]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.visibility == 'public'
     runs-on: ubuntu-latest
     permissions:
