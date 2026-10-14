@@ -37,6 +37,36 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   "Artificial" and is exempt from naming its own suit; `_name_the_suit`
   appends the suit to any other suit bid's alert, so the text still depends on
   the call alone.
+- **Where GIB hands off** (surveyed 2026-10-14, 4,000 random boards, all four
+  seats robots): **14.9% of calls, on 48% of boards**, are made by `ai.py`'s
+  fallback. 97% of those are second-round-or-later calls in contested
+  auctions -- opener's 2nd (22%), responder's 2nd (22%), opener's 3rd+ (17%),
+  overcaller's 2nd (14%) -- where the fallback passes 63-96% of the time and
+  **never doubles**. First calls are covered; the one deliberate exception is
+  advancing a takeout double. Each fix below came from this survey; the
+  remaining candidates are `1x (1y) X (2y) ?`, `1x (P) 1y (2z) ?` and
+  `1x (2y) 3x (P) ?`.
+- **Systems on over our 1NT overcall** (`Ctx.nt_overcall`): after (1x)-1NT,
+  both partners play the 1NT opening's whole structure, every round, at the
+  overcall's 15-18, while the opponents pass. Before, only advancer's first
+  call was systems on: the overcaller then read a transfer as natural and
+  passed it, in (1D)-1NT-(P)-2D in their own suit.
+- **Reopening double** (`_reopening`, `_answer_reopening`): after
+  1x (y) P (P), with y a natural one- or two-level overcall, opener doubles on
+  0-1 cards in their suit, or 2 with 15+ HCP (`REOPEN_DOUBLETON_HCP`); a
+  six-card suit on less rebids instead, and 18+ doubles on any length. Before,
+  opener with a singleton or void never doubled (36 of 116 reopening seats in
+  the survey: 11 passes, 25 rebids). Responder passes for penalty with 4+ in
+  their suit, two of the top five honours and 6+ HCP, else bids: a 4-card
+  major, notrump with a stopper and 6+, partner's suit, the longest unbid suit.
+  Head to head over the library: **+1.64 per board, t = +2.06, 28 of 1,600
+  auctions changed** -- most of it responder answering at all, where the old
+  18+ double was left in by accident (deal 7: 2S doubled made, now 3H scores).
+  The penalty pass is kept **by choice**: without it measured +1.74
+  (t = +2.36), a difference of one deal. That deal, 303, is worth knowing:
+  South's QJ1065 of hearts behind declarer's suit is a textbook trap pass,
+  yet E/W take 9 tricks in hearts -- under second-highest rules a trump stack
+  of honours is not the penalty it is in ordinary bridge.
 
 ## The previous system (`ai.USE_GIB = False`)
 

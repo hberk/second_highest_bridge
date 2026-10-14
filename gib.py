@@ -1668,6 +1668,9 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
         return _nt_interference(ctx)
     if ctx.i_am_opener() and level_of(first) >= 2 and not ctx.partners():
         return 'Pass', "Pre-empted already."
+    reopen = _reopening(ctx) or _answer_reopening(ctx)
+    if reopen:
+        return reopen
     support = _after_support_double(ctx)
     if support:
         return support
@@ -1699,6 +1702,78 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
                 and h.len[y] == 3 and ctx.ok('X')
                 and ctx.calls[-1][1] == lb):
             return 'X', f"Support double: exactly 3 {SYM[y]}."
+    return None
+
+
+#: A reopening double on a doubleton in their suit needs extra values.
+REOPEN_DOUBLETON_HCP = 15
+REOPEN = "Reopening double: takeout. Partner may pass for penalty."
+
+
+def _reopen_suit(ctx: Ctx, extra: int) -> str | None:
+    """Their suit, when the auction began 1x (y) P (P) -- our one-level
+    opening, their natural overcall at the one or two level, two passes --
+    and `extra` more calls have followed."""
+    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None or len(ctx.calls) != i + 4 + extra:
+        return None
+    (w0, c0), (_, c1), (_, c2), (_, c3) = ctx.calls[i:i + 4]
+    x, y = strain_of(c0), strain_of(c1)
+    if (w0 != ctx.opener or level_of(c0) != 1 or x not in SUITS or y not in SUITS
+            or y == x or level_of(c1) > 2 or c2 != 'Pass' or c3 != 'Pass'):
+        return None
+    return y
+
+
+def _reopening(ctx: Ctx) -> tuple | None:
+    """1x (y) P (P): partner's pass may be a penalty double that a
+    negative-doubling responder could not make, so opener short in their
+    suit reopens with a double -- on 0-1 cards, or 2 with 15+ HCP. A
+    six-card suit on less rebids it instead. 18+ HCP doubles on any length."""
+    y = _reopen_suit(ctx, 0)
+    if y is None or not ctx.i_am_opener() or not ctx.ok('X'):
+        return None
+    h = ctx.h
+    x = strain_of(ctx.seq[0])
+    if h.hcp >= 18:
+        return 'X', REOPEN
+    if h.len[x] >= 6 and h.hcp < REOPEN_DOUBLETON_HCP:
+        return None
+    if h.len[y] <= 1 or (h.len[y] == 2 and h.hcp >= REOPEN_DOUBLETON_HCP):
+        return 'X', REOPEN
+    return None
+
+
+def _answer_reopening(ctx: Ctx) -> tuple | None:
+    """1x (y) P (P) X (P): pass for penalty with length and honours in their
+    suit; otherwise answer the takeout -- a four-card major, notrump with a
+    stopper, partner's suit, or the longest unbid suit."""
+    y = _reopen_suit(ctx, 2)
+    if (y is None or ctx.i_am_opener() or len(ctx.seq) != 2 or ctx.seq[1] != 'X'
+            or ctx.ours[1][0] != ctx.pd or ctx.calls[-1][1] != 'Pass'):
+        return None
+    h = ctx.h
+    x = strain_of(ctx.seq[0])
+    if h.len[y] >= 4 and h.top(y, ('A', 'K', 'Q', 'J', '10')) >= 2 and h.hcp >= 6:
+        return 'Pass', f"Penalty: converting partner's double, length in {SYM[y]}."
+    answer = "Natural, answering the reopening double."
+    for z in sorted(MAJORS, key=lambda s: h.len[s], reverse=True):
+        if z not in (x, y) and h.len[z] >= 4:
+            call = ctx.cheapest(z, 1)
+            if call:
+                return call, answer
+    if h.hcp >= 6 and h.stopper(y):
+        call = ctx.cheapest('NT', 1)
+        if call and level_of(call) <= 2:
+            return call, f"{SYM[y]} stopper, 6+ HCP."
+    preference = "Preference to partner's suit."
+    if h.len[x] >= (2 if x in MAJORS else 3):
+        call = ctx.cheapest(x, 1)
+        if call:
+            return call, preference
+    call = ctx.cheapest(h.longest([z for z in SUITS if z not in (x, y)]), 1)
+    if call:
+        return call, answer
     return None
 
 
@@ -1825,6 +1900,15 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
             call = ctx.cheapest(x, 2)
             if call and level_of(call) == 2:
                 return call, f"3+ {SYM[x]}, 6-9 HCP."
+        # Over the double a jump in a new suit is weak, like a weak jump overcall.
+        long = [s for s in SUITS if s != x and h.len[s] >= 6]
+        if long and WJO[0] <= hcp <= WJO[1]:
+            s = max(long, key=lambda s: (h.len[s], SUITS.index(s)))
+            cheap = ctx.cheapest(s, 1)
+            if cheap:
+                jump = f"{level_of(cheap) + 1}{s}"
+                if level_of(jump) <= 3 and ctx.ok(jump):
+                    return jump, f"6+ {SYM[s]}, 3-9 HCP. Weak jump shift."
         for s in SUITS:
             if s != x and h.len[s] >= 4 and hcp >= 6 and ctx.ok(f"1{s}"):
                 return f"1{s}", f"4+ {SYM[s]}, 6+ HCP."

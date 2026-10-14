@@ -109,6 +109,28 @@ def test_systems_on_over_our_1nt_overcall():
     assert not gib.Ctx(a.current_player(), hand(nt), a).nt_overcall
 
 
+def test_opener_reopens_with_a_double_when_short_in_their_suit():
+    """1x (y) P (P): responder may be sitting with a penalty double, so opener
+    reopens with a double on 0-1 cards in their suit, or 2 with 15+ HCP. Every
+    hand here is one the robots used to rebid or pass on."""
+    for cards, auction in (
+            ('AS KS 9S 8S AH KH QH 7H 5H 9D 10C 6C 2C', ('1H', '2D')),   # 16, singleton
+            ('AS JS 10S 3S AH KH 9H 7H 2H 3D JC 7C 2C', ('1H', '2D')),   # 13: it passed
+            ('AH QH 8H 6H AD 8D 4D AC QC JC 8C 5C 3C', ('1C', '1S')),    # void
+            ('KS 8S AH 9H 7H AD KD QD 4D 3D 9C 5C 3C', ('1D', '1S'))):   # 2 cards, 16
+        call, why = bid(cards, *auction, 'Pass', 'Pass')
+        assert call == 'X' and 'Reopening' in why, (cards, call, why)
+    # Not with a doubleton and a minimum, nor a long suit on a minimum.
+    assert bid('KS 8S QH 9H 7H AD KD 8D 4D 3D 9C 5C 3C', '1D', '1S', 'Pass', 'Pass')[0] != 'X'
+    assert bid('10S AH 3H AD KD JD 6D 5D 4D 3D 9C 5C 3C', '1D', '1S', 'Pass', 'Pass')[0] == '2D'
+    # Responder converts with length and honours in their suit, else answers.
+    after_x = ('1H', '2D', 'Pass', 'Pass', 'X', 'Pass')
+    call, why = bid('QS 7S 3S 9H 4H KD QD 10D 8D 5D 9C 8C 2C', *after_x)
+    assert call == 'Pass' and 'Penalty' in why
+    assert bid('QS 10S 7S 3S 4H 9D 8D 5D KC 9C 8C 7C 2C', *after_x)[0] == '2S'
+    assert bid('9S 7S 3S QH 4H 9D 8D 5D 6C 10C 8C 7C 2C', *after_x)[0] == '2H'
+
+
 def test_gerber_answers_aces():
     call, why = bid('AS JS 4S QH JH 3H KD 9D 4D 2D AC 7C 3C', '1NT', 'Pass', '4C', 'Pass')
     assert call == '4S' and '2 aces' in why
@@ -178,6 +200,12 @@ def test_michaels_and_unusual():
 def test_weak_jump_overcall():
     call, why = bid('KS QS 10S 9S 8S 3S 4H 2H 7D 6D 9C 5C 3C', '1H')
     assert call == '2S' and 'Weak jump overcall' in why
+
+
+def test_weak_jump_shift_over_their_takeout_double():
+    """1C (X): a jump in a new suit is weak. A user's West passed this hand."""
+    call, why = bid('KS JS 9S 8S 7S 3S 2S 10H 4H 5D 4D 3D 5C', '1C', 'X')
+    assert call == '2S' and 'Weak jump shift' in why
 
 
 def test_lebensohl_sign_off_is_passed():

@@ -1584,6 +1584,8 @@ function weOpenedContested(ctx: Ctx): Decision | null {
 
   if (['1NT', '2NT', '2C'].includes(first)) return ntInterference(ctx);
   if (ctx.iAmOpener() && levelOf(first) >= 2 && !ctx.partners().length) return ['Pass', 'Pre-empted already.'];
+  const reopen = reopening(ctx) ?? answerReopening(ctx);
+  if (reopen) return reopen;
   const support = afterSupportDouble(ctx);
   if (support) return support;
   const forced = openerOverForcingResponse(ctx);
@@ -1611,6 +1613,75 @@ function weOpenedContested(ctx: Ctx): Decision | null {
       return ['X', `Support double: exactly 3 ${SYM[y]}.`];
     }
   }
+  return null;
+}
+
+/** A reopening double on a doubleton in their suit needs extra values. */
+export const REOPEN_DOUBLETON_HCP = 15;
+const REOPEN = 'Reopening double: takeout. Partner may pass for penalty.';
+
+/** Their suit, when the auction began 1x (y) P (P) -- our one-level
+ *  opening, their natural overcall at the one or two level, two passes --
+ *  and `extra` more calls have followed. */
+function reopenSuit(ctx: Ctx, extra: number): Suit | null {
+  const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
+  if (i < 0 || ctx.calls.length !== i + 4 + extra) return null;
+  const [[w0, c0], [, c1], [, c2], [, c3]] = ctx.calls.slice(i, i + 4);
+  const x = strainOf(c0), y = strainOf(c1);
+  if (w0 !== ctx.opener || levelOf(c0) !== 1 || !isSuit(x) || !isSuit(y)
+    || y === x || levelOf(c1) > 2 || c2 !== 'Pass' || c3 !== 'Pass') {
+    return null;
+  }
+  return y;
+}
+
+/** 1x (y) P (P): partner's pass may be a penalty double that a
+ *  negative-doubling responder could not make, so opener short in their
+ *  suit reopens with a double -- on 0-1 cards, or 2 with 15+ HCP. A
+ *  six-card suit on less rebids it instead. 18+ HCP doubles on any length. */
+function reopening(ctx: Ctx): Decision | null {
+  const y = reopenSuit(ctx, 0);
+  if (y === null || !ctx.iAmOpener() || !ctx.ok('X')) return null;
+  const h = ctx.h;
+  const x = strainOf(ctx.seq[0]) as Suit;
+  if (h.hcp >= 18) return ['X', REOPEN];
+  if (h.len[x] >= 6 && h.hcp < REOPEN_DOUBLETON_HCP) return null;
+  if (h.len[y] <= 1 || (h.len[y] === 2 && h.hcp >= REOPEN_DOUBLETON_HCP)) return ['X', REOPEN];
+  return null;
+}
+
+/** 1x (y) P (P) X (P): pass for penalty with length and honours in their
+ *  suit; otherwise answer the takeout -- a four-card major, notrump with a
+ *  stopper, partner's suit, or the longest unbid suit. */
+function answerReopening(ctx: Ctx): Decision | null {
+  const y = reopenSuit(ctx, 2);
+  if (y === null || ctx.iAmOpener() || ctx.seq.length !== 2 || ctx.seq[1] !== 'X'
+    || ctx.ours[1][0] !== ctx.pd || ctx.calls[ctx.calls.length - 1][1] !== 'Pass') {
+    return null;
+  }
+  const h = ctx.h;
+  const x = strainOf(ctx.seq[0]) as Suit;
+  if (h.len[y] >= 4 && h.top(y, ['A', 'K', 'Q', 'J', '10']) >= 2 && h.hcp >= 6) {
+    return ['Pass', `Penalty: converting partner's double, length in ${SYM[y]}.`];
+  }
+  const answer = 'Natural, answering the reopening double.';
+  for (const z of [...MAJORS].sort((a, b) => h.len[b] - h.len[a])) {
+    if (z !== x && z !== y && h.len[z] >= 4) {
+      const call = ctx.cheapest(z, 1);
+      if (call) return [call, answer];
+    }
+  }
+  if (h.hcp >= 6 && h.stopper(y)) {
+    const call = ctx.cheapest('NT', 1);
+    if (call && levelOf(call) <= 2) return [call, `${SYM[y]} stopper, 6+ HCP.`];
+  }
+  const preference = "Preference to partner's suit.";
+  if (h.len[x] >= (isMajor(x) ? 2 : 3)) {
+    const call = ctx.cheapest(x, 1);
+    if (call) return [call, preference];
+  }
+  const call = ctx.cheapest(h.longest(SUITS.filter((z) => z !== x && z !== y)), 1);
+  if (call) return [call, answer];
   return null;
 }
 
@@ -1719,6 +1790,16 @@ function respondOverInterference(ctx: Ctx, x: Suit): Decision {
     if (sup >= 3 && hcp >= 6) {
       const call = ctx.cheapest(x, 2);
       if (call && levelOf(call) === 2) return [call, `3+ ${SYM[x]}, 6-9 HCP.`];
+    }
+    // Over the double a jump in a new suit is weak, like a weak jump overcall.
+    const long = SUITS.filter((s) => s !== x && h.len[s] >= 6);
+    if (long.length && WJO[0] <= hcp && hcp <= WJO[1]) {
+      const s = maxBy(long, (t) => [h.len[t], idx(t)]);
+      const cheap = ctx.cheapest(s, 1);
+      if (cheap) {
+        const jump = `${levelOf(cheap) + 1}${s}`;
+        if (levelOf(jump) <= 3 && ctx.ok(jump)) return [jump, `6+ ${SYM[s]}, 3-9 HCP. Weak jump shift.`];
+      }
     }
     for (const s of SUITS) {
       if (s !== x && h.len[s] >= 4 && hcp >= 6 && ctx.ok(`1${s}`)) return [`1${s}`, `4+ ${SYM[s]}, 6+ HCP.`];
