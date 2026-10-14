@@ -75,10 +75,10 @@ npm run fixtures   # export the Python engine's behaviour (needs Python 3.12+)
 npm test           # TS engine parity with Python + headless table flow
 npm run check      # svelte-check
 npm run dev        # local dev server
-npm run build      # static site in frontend/dist, deployable to Azure Static Web Apps
+npm run build      # static site in frontend/dist, deployed to GitHub Pages
 ```
 
-A static Svelte 5 + Vite port of the Streamlit app, for Azure Static Web Apps:
+A static Svelte 5 + Vite port of the Streamlit app, hosted on GitHub Pages:
 no server, everything runs in the browser, ~62 KB gzipped including the deal
 library. `app.py` and the Python engine stay as they are and remain the
 reference.
@@ -148,12 +148,26 @@ reference.
 - **Not ported: the double dummy analysis panel** (`web/analysis_view.py`). The
   route for it is `research/solver-rs` compiled to WebAssembly, not a port of
   `bridge/solver`.
-- Deployment: `.github/workflows/azure-static-web-apps.yml` exports fixtures,
-  type-checks, tests, builds, and deploys `frontend/dist`; it needs the secret
-  `AZURE_STATIC_WEB_APPS_API_TOKEN`. `frontend/public/staticwebapp.config.json`
-  sets a CSP (`script-src 'self'`; styles need `'unsafe-inline'` for inline
-  style attributes, measured). TypeScript is pinned to 6 because svelte-check
-  does not yet support 7 on its own.
+- **Saved games** (`frontend/src/lib/saves.ts`, `saves.test.ts`): finished
+  boards, challenge results and the passed-out count are kept in `localStorage`
+  under `shb-games-v1` (newest 500 boards) and restored by `new Game()`, which
+  also carries the board number on. Every access is guarded: a full or blocked
+  storage never stops play, and an unreadable save is copied to
+  `shb-games-backup` rather than overwritten. Records are `HistoryRecord`, the
+  shape `docs/ONLINE_PLAN.md` stores server-side. `new Game(null)` keeps
+  nothing (the default in Node, so tests start clean).
+- Deployment: `.github/workflows/pages.yml` exports fixtures, type-checks,
+  tests and builds, and deploys `frontend/dist` to GitHub Pages from `main`.
+  **Nothing runs while the repo is private** (metered Actions minutes; every
+  job is skipped, except a manual "Run workflow"). Once public, every push and
+  pull request is checked (Pages on a private personal repo would need GitHub
+  Pro anyway). `vite.config.ts` sets `base: './'`
+  because Pages serves the site from `/second_highest_bridge/`. Pages can't send
+  headers, so the CSP is a `<meta>` in `frontend/index.html` (`script-src
+  'self'`; styles need `'unsafe-inline'` for inline style attributes,
+  measured; `frame-ancestors` can't be set this way). See
+  `docs/HOSTING_AND_LOCAL_SAVES.md`. TypeScript is pinned to 6 because
+  svelte-check does not yet support 7 on its own.
 
 **Deployment.** The app's only third-party dependency is `streamlit`
 (`requirements.txt`); it writes nothing to disk, keeps all game state in

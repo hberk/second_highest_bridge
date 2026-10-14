@@ -30,6 +30,10 @@
     ['history', `📜 Hand History (${n} board${n === 1 ? '' : 's'})`],
   ] as const);
   const decks: DeckName[] = ['four', 'classic'];
+
+  function clearSaved() {
+    if (confirm('Delete every saved board and challenge result in this browser? This cannot be undone.')) game.clearSaved();
+  }
 </script>
 
 <div class="page">
@@ -61,6 +65,14 @@
         <label title="Each finished trick stays on the table for a moment, then the next one starts by itself.">
           <input type="checkbox" bind:checked={settings.fastPlay} /> Fast play (next trick automatically)
         </label>
+        <fieldset>
+          <legend>Saved on this device</legend>
+          <p class="caption">
+            {n} board{n === 1 ? '' : 's'}{game.challengeLog.length ? `, ${game.challengeLog.length} challenge${game.challengeLog.length === 1 ? '' : 's'}` : ''}.
+            Kept in this browser only; download them from Hand History as a backup.
+          </p>
+          <button class="btn" disabled={!n && !game.challengeLog.length && !game.passedOutCount} onclick={clearSaved}>Clear saved games</button>
+        </fieldset>
       </div>
     </details>
   </div>
@@ -77,7 +89,7 @@
     {:else if tab === 'challenge'}
       <ChallengeView {game} ondealt={() => (tab = 'table')} />
     {:else}
-      <HistoryView records={game.history} onimport={(boards: HistoryRecord[]) => game.history.push(...boards)} />
+      <HistoryView records={game.history} onimport={(boards: HistoryRecord[]) => game.importBoards(boards)} />
     {/if}
   </div>
 </div>

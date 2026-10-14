@@ -1,0 +1,79 @@
+# Builds the Svelte app in frontend/ and deploys it to GitHub Pages.
+#
+# The deploy is gated on the TypeScript engine still matching the Python one:
+# fixtures are regenerated from the Python engine on every run, so a change to
+# ai.py that the port does not follow fails here instead of shipping.
+#
+# Nothing runs while the repository is private: Actions minutes on a private
+# repo are metered, so every job is skipped (a skipped job starts no runner and
+# uses no minutes). A manual "Run workflow" still checks it on demand. Once the
+# repo is public, every push and pull request is checked (free on public repos)
+# and a push to main deploys. Setup then: Settings → Pages → Source: "GitHub
+# Actions", and re-run this workflow (or push).
+name: Build and deploy (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.event.repository.visibility == 'public' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 3.12 exactly: sum() over floats changed in 3.12 and the port follows it.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Export engine fixtures from Python
+        run: python tests/fixtures/export_ts_fixtures.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+      - name: Type-check
+        working-directory: frontend
+        run: npm run check
+      - name: Test (engine parity + table flow + saved games)
+        working-directory: frontend
+        run: npm test
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Upload the site
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.visibility == 'public'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.visibility == 'public'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
