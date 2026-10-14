@@ -60,8 +60,8 @@ cd frontend && npm test     # the web app, held to the Python engine call for ca
 ```
 
 The web app's engine is a line-for-line TypeScript port of the Python one. Its
-tests check it reproduces the Python engine exactly over 1,200 full games (every call, alert and card) and
-plays and all 400 library deals.
+tests check that it reproduces the Python engine exactly: every call, alert
+and card over 1,200 full games, and all 400 library deals.
 
 Design notes and measurements live in [`docs/`](docs/), with
 [`CLAUDE.md`](CLAUDE.md) as the overview.
