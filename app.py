@@ -1,4 +1,5 @@
 from __future__ import annotations
+import html
 import streamlit as st
 from card import Card, SUIT_SYMBOLS, STRAIN_SYMBOLS, STRAIN_NAMES, deal
 from game import (
@@ -9,7 +10,8 @@ from ai import ai_play, ai_bid, ai_bid_explained, eval_hand_sh, hcp, visible_han
 
 from web.card_component import (
     DECKS, DECK_LABELS, DECK_HELP, deck_style_block, suit_colors, suit_colors_light,
-    hand_html_static, show_interactive_hand, card_backs_html, hand_summary_html
+    hand_html_static, show_interactive_hand, card_backs_html, hand_summary_html,
+    doubled_suffix, strain_html,
 )
 from web.auction_view import clean_alert, live_alerts, render_auction_grid, render_bidding_box
 from web.felt_table import render_felt_table
@@ -382,22 +384,12 @@ st.markdown(
 
 def scoreboard(cells: list[tuple[str, str]]) -> None:
     """Renders the header strip: a row of label/value cells."""
-    html = ''.join(
+    cells_html = ''.join(
         f'<div class="score-cell"><div class="score-label">{label}</div>'
         f'<div class="score-value">{value}</div></div>'
         for label, value in cells
     )
-    st.markdown(f'<div class="scoreboard">{html}</div>', unsafe_allow_html=True)
-
-
-def strain_html(level: int, strain: str) -> str:
-    """Contract text with the suit symbol in that suit's ink for the active deck.
-    These sit on dark panels, so they use the light inks."""
-    sym = STRAIN_SYMBOLS[strain]
-    color = suit_colors_light().get(strain, 'inherit')
-    name = STRAIN_NAMES.get(strain, strain)
-    return (f'{level}<span style="color:{color}" aria-hidden="true">{sym}</span>'
-            f'<span class="sr-only"> {name}</span>')
+    st.markdown(f'<div class="scoreboard">{cells_html}</div>', unsafe_allow_html=True)
 
 
 def vul_pills_html(vulnerability: str) -> str:
@@ -555,14 +547,16 @@ with tab_game:
     if s['game_over']:
         r = s['result']
         contract_c = s['contract']
-        c_str = f"{contract_c['level']}{STRAIN_SYMBOLS[contract_c['strain']]} by {contract_c['declarer']} ({contract_c['doubled']})"
+        c_str = (f"{strain_html(contract_c['level'], contract_c['strain'])}{doubled_suffix(contract_c['doubled'])}"
+                 f" by {html.escape(contract_c['declarer'], quote=True)}")
         tricks_str = f"N/S {s['tricks_taken']['N/S']} — E/W {s['tricks_taken']['E/W']}"
 
         # Two-column result layout
         res_left, res_right = st.columns([2, 1])
         with res_left:
             st.subheader("🏁 Hand Complete!")
-            st.write(f"**Contract:** {c_str} | **Vul:** {contract_c['vulnerability']}")
+            st.markdown(f"**Contract:** {c_str} | **Vul:** {html.escape(contract_c['vulnerability'], quote=True)}",
+                        unsafe_allow_html=True)
             st.write(f"**Tricks Won:** {tricks_str} (Target: {r['tricks_needed']})")
             msg = ("✅ Contract Made! " if r['made'] else "❌ Contract Down. ") + r['detail']
             (st.success if r['made'] else st.error)(msg)

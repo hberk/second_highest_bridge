@@ -3,7 +3,7 @@ import html
 import streamlit as st
 from card import Card, SUIT_SYMBOLS, STRAIN_SYMBOLS
 from game import PLAYERS, PARTNERSHIP
-from web.card_component import card_text_html, seat_box_html
+from web.card_component import card_text_html, doubled_suffix, seat_box_html, strain_html
 from web.auction_view import render_auction_grid
 from web.felt_table import render_felt_table
 from web.analysis_view import render_analysis
@@ -99,8 +99,8 @@ def render_history_tab(hand_history: list[dict], allow_import: bool = False,
         strain_sym = STRAIN_SYMBOLS[c['strain']]
         made_str = "Made" if r['made'] else "Down"
         pts_str = f"+{r['points']}" if r['winner'] == c['side'] else f"-{r['points']}"
-        return (f"{prefix}: {c['level']}{strain_sym} by {c['declarer']} "
-                f"({c['doubled']}) — {made_str} {pts_str}pts")
+        return (f"{prefix}: {c['level']}{strain_sym}{doubled_suffix(c['doubled'])} "
+                f"by {c['declarer']} — {made_str} {pts_str}pts")
 
     board_options = [board_label(h) for h in reversed(hand_history)]
     board_indices = list(reversed(range(len(hand_history))))
@@ -126,9 +126,11 @@ def render_history_tab(hand_history: list[dict], allow_import: bool = False,
     with r_cols[0]:
         st.subheader(f"Board #{hb['board_num']}  |  Dealer: {hb['dealer']}  |  Vul: {hb['vulnerability']}")
         st.markdown(
-            f"**Contract:** {h_contract['level']}{c_sym} by {h_contract['declarer']} ({h_contract['doubled']}) &nbsp;|&nbsp; "
+            f"**Contract:** {strain_html(h_contract['level'], h_contract['strain'])}"
+            f"{doubled_suffix(h_contract['doubled'])} by {html.escape(h_contract['declarer'], quote=True)} &nbsp;|&nbsp; "
             f"**Target:** {h_contract['tricks_needed']} tricks &nbsp;|&nbsp; "
-            f"**Tricks Won:** N/S {hb['tricks_taken']['N/S']} — E/W {hb['tricks_taken']['E/W']}"
+            f"**Tricks Won:** N/S {hb['tricks_taken']['N/S']} — E/W {hb['tricks_taken']['E/W']}",
+            unsafe_allow_html=True,
         )
         msg = ("✅ Made! " if h_result['made'] else "❌ Down. ") + h_result['detail']
         (st.success if h_result['made'] else st.error)(msg)

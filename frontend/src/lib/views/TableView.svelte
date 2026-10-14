@@ -96,7 +96,7 @@
   <div class="split">
     <div>
       <h2>🏁 Hand Complete!</h2>
-      <p><strong>Contract:</strong> {c.level}{STRAIN_SYMBOLS[c.strain]} by {c.declarer} ({c.doubled}) | <strong>Vul:</strong> {c.vulnerability}</p>
+      <p><strong>Contract:</strong> <Strain level={c.level} strain={c.strain} />{c.doubled === 'None' ? '' : c.doubled} by {c.declarer} | <strong>Vul:</strong> {c.vulnerability}</p>
       <p><strong>Tricks Won:</strong> N/S {game.tricksTaken['N/S']} — E/W {game.tricksTaken['E/W']} (Target: {r.tricks_needed})</p>
       <div class="notice {r.made ? 'success' : 'error'}">{r.made ? '✅ Contract Made! ' : '❌ Contract Down. '}{r.detail}</div>
       <button class="btn primary" onclick={() => game.newBoard()}>Deal Next Board ➔</button>

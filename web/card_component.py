@@ -112,6 +112,22 @@ def card_face_html(card: Card) -> str:
     )
 
 
+def strain_html(level: int, strain: str) -> str:
+    """Contract text with the suit symbol in that suit's ink for the active deck.
+    These sit on dark panels, so they use the light inks."""
+    sym = STRAIN_SYMBOLS[strain]
+    color = suit_colors_light().get(strain, 'inherit')
+    name = STRAIN_NAMES.get(strain, strain)
+    return (f'{level}<span style="color:{color}" aria-hidden="true">{sym}</span>'
+            f'<span class="sr-only"> {name}</span>')
+
+
+def doubled_suffix(doubled: str) -> str:
+    """'X' or 'XX' to append to a contract, as in "3♦X"; nothing when undoubled
+    (the contract stores that as the string 'None')."""
+    return '' if doubled == 'None' else doubled
+
+
 def card_text_html(card: Card) -> str:
     """A card as inline text ("Q♥") in its suit's ink for a dark surface, for
     tables such as the trick log. Rank escaped as in `card_face_html`."""

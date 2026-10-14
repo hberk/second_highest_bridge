@@ -8,6 +8,7 @@
   import AuctionGrid from '../components/AuctionGrid.svelte';
   import FeltTable from '../components/FeltTable.svelte';
   import SeatBox from '../components/SeatBox.svelte';
+  import Strain from '../components/Strain.svelte';
   import { fromLinFile, toLin, toLinFile } from '../lin';
 
   let { records, onimport }: { records: HistoryRecord[]; onimport?: (boards: HistoryRecord[]) => void } = $props();
@@ -69,12 +70,15 @@
     step = 0;
   });
 
+  /** 'X' or 'XX' after the contract, as in 3♦X; nothing when undoubled. */
+  const dbl = (d: string) => (d === 'None' ? '' : d);
+
   function label(h: HistoryRecord): string {
     const prefix = h.label || `Board #${h.board_num}`;
     if (h.passed_out || !h.contract || !h.result) return `${prefix} — Passed Out`;
     const c = h.contract, r = h.result;
     const pts = r.winner === c.side ? `+${r.points}` : `-${r.points}`;
-    return `${prefix}: ${c.level}${STRAIN_SYMBOLS[c.strain]} by ${c.declarer} (${c.doubled}) — ${r.made ? 'Made' : 'Down'} ${pts}pts`;
+    return `${prefix}: ${c.level}${STRAIN_SYMBOLS[c.strain]}${dbl(c.doubled)} by ${c.declarer} — ${r.made ? 'Made' : 'Down'} ${pts}pts`;
   }
 
   const role = (c: Contract, s: Seat) =>
@@ -157,7 +161,7 @@
     <div class="split">
       <div>
         <h3>Board #{hb.board_num}  |  Dealer: {hb.dealer}  |  Vul: {hb.vulnerability}</h3>
-        <p><strong>Contract:</strong> {c.level}{STRAIN_SYMBOLS[c.strain]} by {c.declarer} ({c.doubled}) &nbsp;|&nbsp;
+        <p><strong>Contract:</strong> <Strain level={c.level} strain={c.strain} />{dbl(c.doubled)} by {c.declarer} &nbsp;|&nbsp;
           <strong>Target:</strong> {c.tricks_needed} tricks &nbsp;|&nbsp;
           <strong>Tricks Won:</strong> N/S {hb.tricks_taken['N/S']} — E/W {hb.tricks_taken['E/W']}</p>
         <div class="notice {r.made ? 'success' : 'error'}">{r.made ? '✅ Made! ' : '❌ Down. '}{r.detail}</div>
