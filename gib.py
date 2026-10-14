@@ -1907,7 +1907,7 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
             cheap = ctx.cheapest(s, 1)
             if cheap:
                 jump = f"{level_of(cheap) + 1}{s}"
-                if level_of(jump) <= 3 and ctx.ok(jump):
+                if level_of(jump) == 2 and ctx.ok(jump):
                     return jump, f"6+ {SYM[s]}, 3-9 HCP. Weak jump shift."
         for s in SUITS:
             if s != x and h.len[s] >= 4 and hcp >= 6 and ctx.ok(f"1{s}"):

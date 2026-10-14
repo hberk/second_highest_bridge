@@ -206,6 +206,9 @@ def test_weak_jump_shift_over_their_takeout_double():
     """1C (X): a jump in a new suit is weak. A user's West passed this hand."""
     call, why = bid('KS JS 9S 8S 7S 3S 2S 10H 4H 5D 4D 3D 5C', '1C', 'X')
     assert call == '2S' and 'Weak jump shift' in why
+    # Only at the two level: six clubs over 1D would jump to 3C, so no.
+    call, why = bid('9S 3S 10H 4H 2H 5D 4D KC JC 9C 8C 7C 3C', '1D', 'X')
+    assert call != '3C', (call, why)
 
 
 def test_lebensohl_sign_off_is_passed():

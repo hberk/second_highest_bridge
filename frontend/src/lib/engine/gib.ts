@@ -1798,7 +1798,7 @@ function respondOverInterference(ctx: Ctx, x: Suit): Decision {
       const cheap = ctx.cheapest(s, 1);
       if (cheap) {
         const jump = `${levelOf(cheap) + 1}${s}`;
-        if (levelOf(jump) <= 3 && ctx.ok(jump)) return [jump, `6+ ${SYM[s]}, 3-9 HCP. Weak jump shift.`];
+        if (levelOf(jump) === 2 && ctx.ok(jump)) return [jump, `6+ ${SYM[s]}, 3-9 HCP. Weak jump shift.`];
       }
     }
     for (const s of SUITS) {
