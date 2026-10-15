@@ -9,12 +9,15 @@ reply as soon as I can, and credit you in the fix if you'd like.
 ## What's in scope
 
 - **The web app** (`frontend/`, served from GitHub Pages). It is a static
-  site: no server, no accounts, no network calls after the page loads. Saved
-  games stay in your browser's `localStorage`. The likeliest problem is
+  site: no server and no accounts. Its one network call after loading is
+  Cloudflare Web Analytics, which counts page views without cookies; the
+  page's Content Security Policy allows that and nothing else. Saved games
+  stay in your browser's `localStorage`. The likeliest problem is
   markup injection through the two places it accepts text: the alert box in
   the bidding box, and LIN import in the History tab. No component renders
   raw HTML (`{@html}` is banned by a test), and the page's Content Security
-  Policy allows scripts only from the site itself.
+  Policy allows scripts only from the site itself and Cloudflare's analytics
+  script.
 - **The Streamlit app** (`app.py`, `web/`). It renders some of its own HTML,
   and every string that reaches it is escaped; `tests/test_web_escaping.py`
   enforces that and lists each text input that has been reviewed.

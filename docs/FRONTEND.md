@@ -99,8 +99,10 @@ reference.
   pull request is checked (Pages on a private personal repo would need GitHub
   Pro anyway). `vite.config.ts` sets `base: './'`
   because Pages serves the site from `/second_highest_bridge/`. Pages can't send
-  headers, so the CSP is a `<meta>` in `frontend/index.html` (`script-src
-  'self'`; styles need `'unsafe-inline'` for inline style attributes,
-  measured; `frame-ancestors` can't be set this way). See
+  headers, so the CSP is a `<meta>` in `frontend/index.html`: scripts from
+  `'self'` only, plus exactly two outside origins for Cloudflare Web Analytics
+  (cookieless page views, added 2026-10-14): the beacon script and its
+  endpoint. Styles need `'unsafe-inline'` for inline style attributes,
+  measured; `frame-ancestors` can't be set this way. See
   `docs/HOSTING_AND_LOCAL_SAVES.md`. TypeScript is pinned to 6 because
   svelte-check does not yet support 7 on its own.

@@ -6,7 +6,8 @@ suit takes the trick**, not the highest.
 **Play it in your browser: https://hberk.github.io/second_highest_bridge/**
 
 Nothing to install, no account. It runs entirely in the page, and your
-finished boards are saved in your browser.
+finished boards are saved in your browser. Visits are counted with Cloudflare
+Web Analytics, which uses no cookies and doesn't track you between sites.
 
 ## The rules
 
