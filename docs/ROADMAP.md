@@ -120,14 +120,14 @@ changes only where the user asks.
 
 ## 3. Housekeeping (small)
 
-- [ ] **3.1** `docs/ONLINE_PLAN.md` still says the app is "deployed to Azure
+- [x] **3.1** `docs/ONLINE_PLAN.md` still says the app is "deployed to Azure
   Static Web Apps" (status line) and draws "Azure SWA" in its diagram;
   `staticwebapp.config.json` no longer exists. Update to GitHub Pages and the
   `<meta>` CSP in `frontend/index.html`.
-- [ ] **3.2** `requirements.txt`'s comment quotes "155 tests" and old
+- [x] **3.2** `requirements.txt`'s comment quotes "155 tests" and old
   Streamlit versions; the suite has 220 tests and Dependabot now raises the
   floor (PR #6). Refresh the comment.
-- [ ] **3.3** CLAUDE.md quotes "217 tests" under Commands; now 220.
+- [x] **3.3** CLAUDE.md quotes "217 tests" under Commands; now 220.
 
 ## 4. Bigger projects (only when the user asks)
 

@@ -40,7 +40,7 @@ npm run build      # static site in frontend/dist, deployed to GitHub Pages
 
 ## Environment
 
-Python 3.9 or newer. Developed on 3.9.13, and the full suite (217 tests,
+Python 3.9 or newer. Developed on 3.9.13, and the full suite (220 tests,
 including `tests/test_app_flow.py`, which executes `app.py` headlessly) passes
 unchanged on **3.12.10** — no source edits were needed, because every file
 already starts with `from __future__ import annotations`. `.python-version`

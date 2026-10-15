@@ -1,16 +1,15 @@
 # Going online: accounts, saved hands, friends, live tables
 
 Status: **agreed design, nothing built yet.** Backend: Supabase. Front end: the
-existing Svelte app in `frontend/`, still deployed to Azure Static Web Apps.
+existing Svelte app in `frontend/`, deployed to GitHub Pages.
 The Streamlit app stays offline as the research/reference app and gets no
 accounts.
 
-> **Proposed change (2026-10-13), see
+> **Changes since this plan (2026-10-13), see
 > [HOSTING_AND_LOCAL_SAVES.md](HOSTING_AND_LOCAL_SAVES.md):**
-> - **Host:** GitHub Pages replaces Azure Static Web Apps. The Azure workflow
->   and `staticwebapp.config.json` are gone; the CSP is now a `<meta>` in
->   `frontend/index.html`. Read "Azure SWA" and that config file below
->   accordingly.
+> - **Host (done):** GitHub Pages replaced Azure Static Web Apps, which was
+>   never deployed. The CSP is a `<meta>` in `frontend/index.html`; it also
+>   admits Cloudflare Web Analytics (cookieless page views), added 2026-10-14.
 > - **Saved games:** they live in the browser already, so Phase 1's guest
 >   boards are saved on the device and can be uploaded at sign-in.
 > - **Live tables (Phase 2):** proposed to run on **Cloudflare Durable Objects**
@@ -66,7 +65,7 @@ leaderboard) reads only `trusted=true` rows.
 ## Architecture
 
 ```
-Browser (Svelte, Azure SWA)                       Supabase
+Browser (Svelte, GitHub Pages)                    Supabase
 ┌──────────────────────────────┐                  ┌──────────────────────────────┐
 │ Solo / library challenge:     │                  │ Auth (email magic link)      │
 │ engine runs locally, as today │                  │                              │
@@ -215,11 +214,13 @@ that.
 
 ## Security notes
 
-- **Free-text input arrives** (username, display name, alerts). CLAUDE.md
-  records that the Streamlit app is XSS-safe *because* it has no text input.
-  The Svelte app has no `{@html}`, so Svelte's escaping covers it. Keep it that
-  way; add a test that fails if `{@html}` appears under `frontend/src`.
-- **CSP** (`frontend/public/staticwebapp.config.json`): `connect-src` adds
+- **More free-text input arrives** (username, display name). The apps
+  already take some: self-alerts and LIN import. The Streamlit app escapes
+  every string it renders and reviews each input (`REVIEWED_INPUTS` in
+  `tests/test_web_escaping.py`); the Svelte app has no `{@html}`, so Svelte's
+  escaping covers it, and `lin.test.ts` fails if `{@html}` appears in any
+  component. Keep both that way.
+- **CSP** (the `<meta>` in `frontend/index.html`): `connect-src` adds
   `https://<project>.supabase.co` and `wss://<project>.supabase.co`. Magic
   links are plain navigation, so nothing else changes.
 - **The anon key is public by design.** Everything rests on RLS, so every table
