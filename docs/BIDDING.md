@@ -44,8 +44,9 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   overcaller's 2nd (14%) -- where the fallback passes 63-96% of the time and
   **never doubles**. First calls are covered; the one deliberate exception is
   advancing a takeout double. Each fix below came from this survey; the
-  remaining candidates are `1x (1y) X (2y) ?`, `1x (P) 1y (2z) ?` and
-  `1x (2y) 3x (P) ?`.
+  open candidates are listed in [ROADMAP.md](ROADMAP.md). Tools:
+  `research/gib_handoffs.py` (the survey) and `research/gib_h2h.py` (head to
+  head for a new branch).
 - **Systems on over our 1NT overcall** (`Ctx.nt_overcall`): after (1x)-1NT,
   both partners play the 1NT opening's whole structure, every round, at the
   overcall's 15-18, while the opponents pass. Before, only advancer's first
@@ -67,6 +68,20 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   South's QJ1065 of hearts behind declarer's suit is a textbook trap pass,
   yet E/W take 9 tricks in hearts -- under second-highest rules a trump stack
   of honours is not the penalty it is in ordinary bridge.
+- **Opener after they bid over partner's negative double**
+  (`_negative_double_competed`, `_answer_extras_double`): `1x (1y) X (2y) ?`.
+  The fallback read partner as having **passed** ("Partner has passed; not
+  enough to bid again alone") and bid the promised fit **0 times in 27**
+  survey hands that held it. Now: four in a suit the double promised bids
+  it, cheapest with a minimum, a jump with 15+ (`NEG_COMPETED_JUMP_HCP`),
+  game in a major with 18+; else a six-card suit rebids; else 17+ doubles
+  for extra values, **only over a two-level bid**; else pass. Responder
+  passes opener's double for penalty with four of their suit and two of the
+  top five honours, else bids. Head to head: **+0.40 per board, t = +1.58,
+  18 of 1,600 auctions changed** -- positive, below detection, because the
+  auction is rare. The first version doubled at any level and measured
+  +0.09: on deal 334 opener doubled 3S, responder had no answer below the
+  four level, and 3S doubled made.
 
 ## The previous system (`ai.USE_GIB = False`)
 

@@ -1668,7 +1668,7 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
         return _nt_interference(ctx)
     if ctx.i_am_opener() and level_of(first) >= 2 and not ctx.partners():
         return 'Pass', "Pre-empted already."
-    reopen = _reopening(ctx) or _answer_reopening(ctx)
+    reopen = _reopening(ctx) or _answer_reopening(ctx) or _answer_extras_double(ctx)
     if reopen:
         return reopen
     support = _after_support_double(ctx)
@@ -2004,7 +2004,7 @@ def _negative_double(ctx: Ctx, x: str, lvl: int) -> tuple | None:
 def _answer_negative(ctx: Ctx, x: str) -> tuple | None:
     h = ctx.h
     if ctx.calls[-1][0] not in (ctx.me, ctx.pd) and parse_bid(ctx.calls[-1][1]):
-        return None
+        return _negative_double_competed(ctx, x)
     # Only a double of a SUIT overcall is negative; over 1NT it is penalty.
     x_at = next(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.pd and c == 'X')
     before = [c for w, c in ctx.calls[:x_at] if w not in (ctx.me, ctx.pd) and parse_bid(c)]
@@ -2033,6 +2033,109 @@ def _answer_negative(ctx: Ctx, x: str) -> tuple | None:
     if call and level_of(call) <= 2:
         return call, f"Fewer than 4 {denied}, fewer than 5 {SYM[x]}."
     return 'Pass', "Nothing to show."
+
+
+#: Opener after 1x (1y) X (2y): jump in partner's suit, bid game in it, or
+#: double with extra values and no fit.
+NEG_COMPETED_JUMP_HCP = 15
+NEG_COMPETED_GAME_HCP = 18
+NEG_COMPETED_DOUBLE_HCP = 17
+
+
+def _negative_promise(ctx: Ctx, x: str) -> tuple[list[str], str] | None:
+    """(suits partner's negative double promised four of, their suit), or
+    None if partner's double was not a negative double of a suit overcall."""
+    x_at = next(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.pd and c == 'X')
+    before = [c for w, c in ctx.calls[:x_at] if w not in (ctx.me, ctx.pd) and parse_bid(c)]
+    if not before or strain_of(before[-1]) not in SUITS:
+        return None
+    unbid = [s for s in SUITS if s != x and s not in [strain_of(c) for c in before]]
+    return [s for s in unbid if s in MAJORS] or unbid, strain_of(before[-1])
+
+
+def _negative_double_competed(ctx: Ctx, x: str) -> tuple | None:
+    """1x (1y) X (2y): they bid over partner's negative double. With four in
+    a suit the double promised, bid it -- cheapest with a minimum, a jump with
+    15-17, game in a major with 18+; else rebid a six-card suit; else double
+    with 17+ (extra values, no fit); else pass. The fallback used to read
+    partner here as having passed, and never once bid the fit."""
+    promise = _negative_promise(ctx, x)
+    x_at = next(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.pd and c == 'X')
+    if promise is None or len(ctx.calls) != x_at + 2:
+        return None
+    shown, _ = promise
+    h = ctx.h
+    theirs = _their_suits(ctx)
+    fits = [s for s in shown if s not in theirs and h.len[s] >= 4]
+    if fits:
+        s = max(fits, key=lambda s: (h.len[s], -SUITS.index(s)))   # ties: cheaper
+        cheap = ctx.cheapest(s, 2)
+        if cheap and (level_of(cheap) <= 3 or h.hcp >= NEG_COMPETED_JUMP_HCP):
+            lvl = level_of(cheap)
+            if h.hcp >= NEG_COMPETED_GAME_HCP and s in MAJORS:
+                lvl = max(lvl, 4)
+            elif h.hcp >= NEG_COMPETED_JUMP_HCP:
+                lvl = min(lvl + 1, 4)
+            call = f"{lvl}{s}"
+            if call == cheap:
+                return call, f"4+ {SYM[s]}, partner's suit."
+            if ctx.ok(call):
+                return call, f"4+ {SYM[s]}, partner's suit, {NEG_COMPETED_JUMP_HCP}+ HCP."
+            return cheap, f"4+ {SYM[s]}, partner's suit."
+    if h.len[x] >= 6:
+        call = ctx.cheapest(x, 2)
+        if call and level_of(call) <= 3:
+            return call, f"6+ {SYM[x]}."
+    # Only over a two-level bid: higher, partner has no cheap answer, and a
+    # forced pass leaves the double in for penalty (deal 334: 3S doubled made).
+    if h.hcp >= NEG_COMPETED_DOUBLE_HCP and level_of(ctx.calls[-1][1]) <= 2 and ctx.ok('X'):
+        return 'X', f"{NEG_COMPETED_DOUBLE_HCP}+ HCP, extra values. Partner may pass for penalty."
+    return 'Pass', "Minimum, nothing more to show."
+
+
+def _answer_extras_double(ctx: Ctx) -> tuple | None:
+    """1x (1y) X (2y) X (P): opener's double shows extra values without a fit
+    for my suit. Pass for penalty with length and honours in their suit,
+    else bid: a five-card suit I promised, partner's suit, my promised suit."""
+    seq = ctx.seq
+    if (ctx.i_am_opener() or len(seq) != 3 or seq[1:] != ['X', 'X']
+            or ctx.ours[1][0] != ctx.me or ctx.ours[2][0] != ctx.pd
+            or level_of(seq[0]) != 1 or strain_of(seq[0]) not in SUITS
+            or ctx.calls[-1][1] != 'Pass'):
+        return None
+    x = strain_of(seq[0])
+    i = next(k for k, (w, c) in enumerate(ctx.calls) if w == ctx.me and c == 'X')
+    after = ctx.calls[i + 1:]
+    if len(after) != 3 or not parse_bid(after[0][1]) or after[1][0] != ctx.pd:
+        return None
+    before = [c for w, c in ctx.calls[:i] if w not in (ctx.me, ctx.pd) and parse_bid(c)]
+    if not before or strain_of(before[-1]) not in SUITS:
+        return None
+    y = strain_of(after[0][1])
+    h = ctx.h
+    if y in SUITS and h.len[y] >= 4 and h.top(y, ('A', 'K', 'Q', 'J', '10')) >= 2:
+        return 'Pass', f"Penalty: converting partner's double, length in {SYM[y]}."
+    unbid = [s for s in SUITS if s != x and s not in [strain_of(c) for c in before]]
+    shown = [s for s in unbid if s in MAJORS] or unbid
+    mine = [s for s in shown if s != y]
+    answer = "Natural, answering partner's double."
+    for s in sorted(mine, key=lambda s: h.len[s], reverse=True):
+        if h.len[s] >= 5:
+            call = ctx.cheapest(s, 2)
+            if call and level_of(call) <= 3:
+                return call, answer
+    if h.len[x] >= 3:
+        call = ctx.cheapest(x, 2)
+        if call and level_of(call) <= 3:
+            return call, "Preference to partner's suit."
+    for s in sorted(mine, key=lambda s: h.len[s], reverse=True):
+        call = ctx.cheapest(s, 2)
+        if call and level_of(call) <= 3:
+            return call, answer
+    call = ctx.cheapest(x, 2)
+    if call and level_of(call) <= 3:
+        return call, "Preference to partner's suit."
+    return 'Pass', "Nothing better than defending."
 
 
 def _nt_interference(ctx: Ctx) -> tuple | None:

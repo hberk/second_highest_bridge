@@ -50,7 +50,7 @@ worked example to copy):
 
 **The gaps, in order** (counts from the 4,000-board survey):
 
-- [ ] **1.1 `1x (1y) X (2y) ?`: opener after partner's negative double and
+- [x] **1.1 `1x (1y) X (2y) ?`: opener after partner's negative double and
   their raise** (69 handoffs; 47 passes). Confirmed bug: the fallback reads
   partner as having **passed**. Its alert says "Partner has passed; not
   enough to bid again alone" after a negative double. Opener holding

@@ -55,7 +55,8 @@ def family(pat: str) -> str:
         lvl, s = m.group(1), m.group(2)
         if s == 'NT':
             return lvl + 'NT'
-        names.setdefault(s, 'xyzw'[len(names)])
+        if s not in names:
+            names[s] = 'xyzw'[len(names)]
         return lvl + names[s]
     return re.sub(r'(\d)(NT|[CDHS])', sub, pat).replace('Pass', 'P')
 

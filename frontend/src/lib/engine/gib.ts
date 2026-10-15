@@ -1584,7 +1584,7 @@ function weOpenedContested(ctx: Ctx): Decision | null {
 
   if (['1NT', '2NT', '2C'].includes(first)) return ntInterference(ctx);
   if (ctx.iAmOpener() && levelOf(first) >= 2 && !ctx.partners().length) return ['Pass', 'Pre-empted already.'];
-  const reopen = reopening(ctx) ?? answerReopening(ctx);
+  const reopen = reopening(ctx) ?? answerReopening(ctx) ?? answerExtrasDouble(ctx);
   if (reopen) return reopen;
   const support = afterSupportDouble(ctx);
   if (support) return support;
@@ -1882,7 +1882,7 @@ function negativeDouble(ctx: Ctx, x: Suit, lvl: number): Decision | null {
 function answerNegative(ctx: Ctx, x: Suit): Decision | null {
   const h = ctx.h;
   const lastCall = ctx.calls[ctx.calls.length - 1];
-  if (lastCall[0] !== ctx.me && lastCall[0] !== ctx.pd && parseBid(lastCall[1])) return null;
+  if (lastCall[0] !== ctx.me && lastCall[0] !== ctx.pd && parseBid(lastCall[1])) return negativeDoubleCompeted(ctx, x);
   const xAt = ctx.calls.findIndex(([w, c]) => w === ctx.pd && c === 'X');
   const before = ctx.calls.slice(0, xAt)
     .filter(([w, c]) => w !== ctx.me && w !== ctx.pd && parseBid(c)).map(([, c]) => c);
@@ -1907,6 +1907,112 @@ function answerNegative(ctx: Ctx, x: Suit): Decision | null {
   const call = ctx.cheapest('NT', 1);
   if (call && levelOf(call) <= 2) return [call, `Fewer than 4 ${denied}, fewer than 5 ${SYM[x]}.`];
   return ['Pass', 'Nothing to show.'];
+}
+
+/** Opener after 1x (1y) X (2y): jump in partner's suit, bid game in it, or
+ *  double with extra values and no fit. */
+export const NEG_COMPETED_JUMP_HCP = 15;
+export const NEG_COMPETED_GAME_HCP = 18;
+export const NEG_COMPETED_DOUBLE_HCP = 17;
+
+/** [suits partner's negative double promised four of, their suit], or null
+ *  if partner's double was not a negative double of a suit overcall. */
+function negativePromise(ctx: Ctx, x: Suit): [Suit[], Suit] | null {
+  const xAt = ctx.calls.findIndex(([w, c]) => w === ctx.pd && c === 'X');
+  const before = ctx.calls.slice(0, xAt)
+    .filter(([w, c]) => w !== ctx.me && w !== ctx.pd && parseBid(c)).map(([, c]) => c);
+  if (!before.length || !isSuit(strainOf(before[before.length - 1]))) return null;
+  const bid = before.map((c) => strainOf(c));
+  const unbid = SUITS.filter((s) => s !== x && !bid.includes(s));
+  const majors = unbid.filter((s) => isMajor(s));
+  return [majors.length ? majors : unbid, strainOf(before[before.length - 1]) as Suit];
+}
+
+/** 1x (1y) X (2y): they bid over partner's negative double. With four in
+ *  a suit the double promised, bid it -- cheapest with a minimum, a jump with
+ *  15-17, game in a major with 18+; else rebid a six-card suit; else double
+ *  with 17+ (extra values, no fit); else pass. The fallback used to read
+ *  partner here as having passed, and never once bid the fit. */
+function negativeDoubleCompeted(ctx: Ctx, x: Suit): Decision | null {
+  const promise = negativePromise(ctx, x);
+  const xAt = ctx.calls.findIndex(([w, c]) => w === ctx.pd && c === 'X');
+  if (promise === null || ctx.calls.length !== xAt + 2) return null;
+  const [shown] = promise;
+  const h = ctx.h;
+  const theirs = theirSuits(ctx);
+  const fits = shown.filter((s) => !theirs.includes(s) && h.len[s] >= 4);
+  if (fits.length) {
+    const s = maxBy(fits, (t) => [h.len[t], -idx(t)]);   // ties: cheaper
+    const cheap = ctx.cheapest(s, 2);
+    if (cheap && (levelOf(cheap) <= 3 || h.hcp >= NEG_COMPETED_JUMP_HCP)) {
+      let lvl = levelOf(cheap);
+      if (h.hcp >= NEG_COMPETED_GAME_HCP && isMajor(s)) lvl = Math.max(lvl, 4);
+      else if (h.hcp >= NEG_COMPETED_JUMP_HCP) lvl = Math.min(lvl + 1, 4);
+      const call = `${lvl}${s}`;
+      if (call === cheap) return [call, `4+ ${SYM[s]}, partner's suit.`];
+      if (ctx.ok(call)) return [call, `4+ ${SYM[s]}, partner's suit, ${NEG_COMPETED_JUMP_HCP}+ HCP.`];
+      return [cheap, `4+ ${SYM[s]}, partner's suit.`];
+    }
+  }
+  if (h.len[x] >= 6) {
+    const call = ctx.cheapest(x, 2);
+    if (call && levelOf(call) <= 3) return [call, `6+ ${SYM[x]}.`];
+  }
+  // Only over a two-level bid: higher, partner has no cheap answer, and a
+  // forced pass leaves the double in for penalty (deal 334: 3S doubled made).
+  if (h.hcp >= NEG_COMPETED_DOUBLE_HCP && levelOf(ctx.calls[ctx.calls.length - 1][1]) <= 2 && ctx.ok('X')) {
+    return ['X', `${NEG_COMPETED_DOUBLE_HCP}+ HCP, extra values. Partner may pass for penalty.`];
+  }
+  return ['Pass', 'Minimum, nothing more to show.'];
+}
+
+/** 1x (1y) X (2y) X (P): opener's double shows extra values without a fit
+ *  for my suit. Pass for penalty with length and honours in their suit,
+ *  else bid: a five-card suit I promised, partner's suit, my promised suit. */
+function answerExtrasDouble(ctx: Ctx): Decision | null {
+  const seq = ctx.seq;
+  if (ctx.iAmOpener() || seq.length !== 3 || seq[1] !== 'X' || seq[2] !== 'X'
+    || ctx.ours[1][0] !== ctx.me || ctx.ours[2][0] !== ctx.pd
+    || levelOf(seq[0]) !== 1 || !isSuit(strainOf(seq[0]))
+    || ctx.calls[ctx.calls.length - 1][1] !== 'Pass') {
+    return null;
+  }
+  const x = strainOf(seq[0]) as Suit;
+  const i = ctx.calls.findIndex(([w, c]) => w === ctx.me && c === 'X');
+  const after = ctx.calls.slice(i + 1);
+  if (after.length !== 3 || !parseBid(after[0][1]) || after[1][0] !== ctx.pd) return null;
+  const before = ctx.calls.slice(0, i)
+    .filter(([w, c]) => w !== ctx.me && w !== ctx.pd && parseBid(c)).map(([, c]) => c);
+  if (!before.length || !isSuit(strainOf(before[before.length - 1]))) return null;
+  const y = strainOf(after[0][1]);
+  const h = ctx.h;
+  if (isSuit(y) && h.len[y] >= 4 && h.top(y, ['A', 'K', 'Q', 'J', '10']) >= 2) {
+    return ['Pass', `Penalty: converting partner's double, length in ${SYM[y]}.`];
+  }
+  const bid = before.map((c) => strainOf(c));
+  const unbid = SUITS.filter((s) => s !== x && !bid.includes(s));
+  const majors = unbid.filter((s) => isMajor(s));
+  const shown = majors.length ? majors : unbid;
+  const mine = shown.filter((s) => s !== y);
+  const answer = "Natural, answering partner's double.";
+  const byLength = [...mine].sort((a, b) => h.len[b] - h.len[a]);
+  for (const s of byLength) {
+    if (h.len[s] >= 5) {
+      const call = ctx.cheapest(s, 2);
+      if (call && levelOf(call) <= 3) return [call, answer];
+    }
+  }
+  if (h.len[x] >= 3) {
+    const call = ctx.cheapest(x, 2);
+    if (call && levelOf(call) <= 3) return [call, "Preference to partner's suit."];
+  }
+  for (const s of byLength) {
+    const call = ctx.cheapest(s, 2);
+    if (call && levelOf(call) <= 3) return [call, answer];
+  }
+  const call = ctx.cheapest(x, 2);
+  if (call && levelOf(call) <= 3) return [call, "Preference to partner's suit."];
+  return ['Pass', 'Nothing better than defending.'];
 }
 
 function ntInterference(ctx: Ctx): Decision | null {

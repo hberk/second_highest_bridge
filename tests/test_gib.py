@@ -131,6 +131,32 @@ def test_opener_reopens_with_a_double_when_short_in_their_suit():
     assert bid('9S 7S 3S QH 4H 9D 8D 5D 6C 10C 8C 7C 2C', *after_x)[0] == '2H'
 
 
+def test_opener_bids_the_fit_after_they_raise_over_a_negative_double():
+    """1x (1y) X (2y): the negative double promised four in the unbid major.
+    The fallback read partner as having passed and bid that fit 0 times in
+    27 survey hands; these are some of them."""
+    # Minimum: the cheapest bid in partner's suit.
+    call, why = bid('KS 9S 8S 5S QH 9H 8H 7D 4D 2D AC KC 7C', '1C', '1H', 'X', '2H')
+    assert call == '2S' and "partner's suit" in why, (call, why)
+    assert bid('AS KS 8S 3S 8H 6H AD QD 9D 3D 9C 7C 2C', '1D', '1H', 'X', '2H')[0] == '2S'
+    assert bid('8S 4S AH KH 7H 5H AD KD 10D 9D 3D 2D 3C', '1D', '1S', 'X', '2S')[0] == '3H'
+    # 15-17 jumps; both majors promised, four of each: hearts, the cheaper.
+    call, why = bid('AS 8S 5S 4S AH KH 6H 3H 4D KC QC 9C 6C', '1C', '1D', 'X', '2D')
+    assert call == '3H' and '15+ HCP' in why, (call, why)
+    # A jump that is already game reads the same as 18+ bidding game.
+    assert bid('AH QH 7H 5H AD QD 9D 7D 3D AC 8C 4C 3C', '1D', '1S', 'X', '2S')[0] == '4H'
+    # No fit: a six-card suit rebids; 17+ doubles; a minimum passes.
+    assert bid('AS 4S AH KH 7H 8D 5D AC JC 10C 9C 8C 2C', '1C', '1S', 'X', '2S')[0] == '3C'
+    call, why = bid('QS 7S 5S AH 7H 6H KD 6D AC KC QC JC 2C', '1C', '1H', 'X', '2H')
+    assert call == 'X' and 'extra values' in why, (call, why)
+    assert bid('QS 7S 5S AH 7H 6H 8D 6D AC JC 9C 4C 2C', '1C', '1H', 'X', '2H')[0] == 'Pass'
+    # Responder answers opener's double: penalty with their suit, else bids.
+    after_x = ('1C', '1H', 'X', '2H', 'X', 'Pass')
+    call, why = bid('KS 9S 8S 5S QH JH 10H 8H 7D 4D 2D 7C 3C', *after_x)
+    assert call == 'Pass' and 'Penalty' in why
+    assert bid('KS 9S 8S 5S 3S 9H 8H 7D 4D 2D 7C 3C 4C', *after_x)[0] == '2S'
+
+
 def test_gerber_answers_aces():
     call, why = bid('AS JS 4S QH JH 3H KD 9D 4D 2D AC 7C 3C', '1NT', 'Pass', '4C', 'Pass')
     assert call == '4S' and '2 aces' in why
