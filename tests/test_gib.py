@@ -157,6 +157,25 @@ def test_opener_bids_the_fit_after_they_raise_over_a_negative_double():
     assert bid('KS 9S 8S 5S 3S 9H 8H 7D 4D 2D 7C 3C 4C', *after_x)[0] == '2S'
 
 
+def test_opener_shows_strength_after_they_overcall_the_response():
+    """1x (P) 1y (2z): the fallback raised every four-card fit to the two
+    level, 12 HCP or 18, and passed 18-19 balanced hands."""
+    def call(cards, *auction):
+        return bid(cards, *auction)[0]
+    # Four-card support: 12-14 raises, 15-17 jumps, 18+ bids game.
+    assert call('9S 6S KH 9H 8H 4H AD 4D AC KC 7C 6C 2C', '1C', 'Pass', '1H', '2D') == '2H'
+    assert call('AS QS JS 6S AH QH 10H 8H 6H 3H QC 10C 4C', '1H', 'Pass', '1S', '2C') == '3S'
+    assert call('AS KS 8S 7S AH JH 8H 6H AD 4D 3D QC 3C', '1D', 'Pass', '1H', '2C') == '4H'
+    # No fit: 2NT is 18-19 balanced with a stopper; 16+ shows a new four-card
+    # suit; a six-card suit jumps with 15+; a minimum passes.
+    assert call('AS 6S AH 7H 6H AD 8D 5D KC QC JC 6C 3C', '1C', 'Pass', '1S', '2D') == '2NT'
+    assert call('AS QS 10S 7S AH JD 5D 3D KC QC 8C 4C 2C', '1C', 'Pass', '1H', '2D') == '2S'
+    assert call('9S KH QH JH 10H 9H 8H KD QD JD 10D KC JC', '1H', 'Pass', '1S', '2C') == '3H'
+    assert call('AS 5S 3S 9H 3H AD JD 6D KC QC 10C 8C 5C', '1C', 'Pass', '1H', '2D') == 'Pass'
+    # Exactly three is still the support double.
+    assert call('KS 5S 3S 9H 3H 4H AD JD 6D KC QC 10C 8C', '1C', 'Pass', '1S', '2D') == 'X'
+
+
 def test_gerber_answers_aces():
     call, why = bid('AS JS 4S QH JH 3H KD 9D 4D 2D AC 7C 3C', '1NT', 'Pass', '4C', 'Pass')
     assert call == '4S' and '2 aces' in why

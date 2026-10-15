@@ -82,6 +82,18 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   auction is rare. The first version doubled at any level and measured
   +0.09: on deal 334 opener doubled 3S, responder had no answer below the
   four level, and 3S doubled made.
+- **Opener after they overcall the response** (`_rebid_over_their_overcall`):
+  `1x (P) 1y (2z) ?`. The fallback raised every four-card fit to the two
+  level, 12 HCP or 18, and passed 18-19 balanced. Now: four-card support
+  raises cheapest with 12-14, jumps with 15+, bids game in a major with 18+;
+  else 2NT on 18-19 balanced with their suit stopped (`REBID_2NT`); else a
+  six-card suit rebids, jumping with 15+; else a new four-card suit at the
+  two level with 16+ (`REBID_NEW_SUIT_HCP`); else pass. Exactly three is
+  still the support double. Head to head: **-0.07 per board, t = -1.22, 4 of
+  1,600 auctions changed** -- the library barely reaches this auction. The
+  changed boards show the variant's usual cost of showing strength (deal
+  234: 4S with 18 failed where 2S made; deal 228: 2NT went down where 2S
+  made). **Kept by the user's choice**, as GIB-standard bidding.
 
 ## The previous system (`ai.USE_GIB = False`)
 

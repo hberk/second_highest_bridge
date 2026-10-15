@@ -1613,7 +1613,66 @@ function weOpenedContested(ctx: Ctx): Decision | null {
       return ['X', `Support double: exactly 3 ${SYM[y]}.`];
     }
   }
-  return null;
+  return rebidOverTheirOvercall(ctx);
+}
+
+/** Opener after 1x (P) 1y (2z): a new suit shows extras; 2NT is 18-19. */
+export const REBID_NEW_SUIT_HCP = 16;
+export const REBID_2NT: [number, number] = [18, 19];
+
+/** 1x (P) 1y (2z): they overcalled partner's one-level response. Raise
+ *  with four -- cheapest with 12-14, a jump with 15-17, game in a major with
+ *  18+; else 2NT on 18-19 balanced with z stopped; else rebid a six-card
+ *  suit, jumping with 15+; else a new four-card suit at the two level with
+ *  16+; else pass. Exactly three of partner's suit is the support double's.
+ *  The fallback raised every fit to the two level, 12 HCP or 18. */
+function rebidOverTheirOvercall(ctx: Ctx): Decision | null {
+  const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
+  if (i < 0 || ctx.calls.length !== i + 4 || !ctx.iAmOpener()) return null;
+  const [[, c0], [, c1], [w2, c2], [, c3]] = ctx.calls.slice(i);
+  const x = strainOf(c0), y = strainOf(c2), z = strainOf(c3);
+  if (levelOf(c0) !== 1 || !isSuit(x) || c1 !== 'Pass' || w2 !== ctx.pd
+    || levelOf(c2) !== 1 || !isSuit(y) || y === x
+    || levelOf(c3) !== 2 || !isSuit(z) || z === x || z === y) {
+    return null;
+  }
+  const h = ctx.h;
+  if (h.len[y] === 3) return null;
+  if (h.len[y] >= 4) {
+    const cheap = ctx.cheapest(y, 2);
+    if (cheap && (levelOf(cheap) <= 3 || h.hcp >= NEG_COMPETED_JUMP_HCP)) {
+      let lvl = levelOf(cheap);
+      if (h.hcp >= NEG_COMPETED_GAME_HCP && isMajor(y)) lvl = Math.max(lvl, 4);
+      else if (h.hcp >= NEG_COMPETED_JUMP_HCP) lvl = Math.min(lvl + 1, 4);
+      const call = `${lvl}${y}`;
+      if (call === cheap) return [call, `4+ ${SYM[y]} support.`];
+      if (ctx.ok(call)) return [call, `4+ ${SYM[y]} support, ${NEG_COMPETED_JUMP_HCP}+ HCP.`];
+      return [cheap, `4+ ${SYM[y]} support.`];
+    }
+  }
+  if (h.balanced && REBID_2NT[0] <= h.hcp && h.hcp <= REBID_2NT[1] && h.stopper(z)
+    && ctx.ok('2NT')) {
+    return ['2NT', `${REBID_2NT[0]}-${REBID_2NT[1]} HCP, balanced, ${SYM[z]} stopper.`];
+  }
+  if (h.len[x] >= 6) {
+    const cheap = ctx.cheapest(x, 2);
+    if (cheap && levelOf(cheap) <= 3) {
+      const call = `${levelOf(cheap) + 1}${x}`;
+      if (h.hcp >= NEG_COMPETED_JUMP_HCP && levelOf(cheap) <= 3 && ctx.ok(call)) {
+        return [call, `6+ ${SYM[x]}, ${NEG_COMPETED_JUMP_HCP}+ HCP.`];
+      }
+      return [cheap, `6+ ${SYM[x]}.`];
+    }
+  }
+  if (h.hcp >= REBID_NEW_SUIT_HCP) {
+    const fresh = SUITS.filter((s) => s !== x && s !== y && s !== z && h.len[s] >= 4);
+    if (fresh.length) {
+      const s = maxBy(fresh, (t) => [h.len[t], -idx(t)]);
+      const call = ctx.cheapest(s, 2);
+      if (call && levelOf(call) === 2) return [call, `4+ ${SYM[s]}, ${REBID_NEW_SUIT_HCP}+ HCP.`];
+    }
+  }
+  return ['Pass', 'No fit, nothing more to show.'];
 }
 
 /** A reopening double on a doubleton in their suit needs extra values. */

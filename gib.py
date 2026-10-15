@@ -1702,7 +1702,65 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
                 and h.len[y] == 3 and ctx.ok('X')
                 and ctx.calls[-1][1] == lb):
             return 'X', f"Support double: exactly 3 {SYM[y]}."
-    return None
+    return _rebid_over_their_overcall(ctx)
+
+
+#: Opener after 1x (P) 1y (2z): a new suit shows extras; 2NT is 18-19.
+REBID_NEW_SUIT_HCP = 16
+REBID_2NT = (18, 19)
+
+
+def _rebid_over_their_overcall(ctx: Ctx) -> tuple | None:
+    """1x (P) 1y (2z): they overcalled partner's one-level response. Raise
+    with four -- cheapest with 12-14, a jump with 15-17, game in a major with
+    18+; else 2NT on 18-19 balanced with z stopped; else rebid a six-card
+    suit, jumping with 15+; else a new four-card suit at the two level with
+    16+; else pass. Exactly three of partner's suit is the support double's.
+    The fallback raised every fit to the two level, 12 HCP or 18."""
+    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None or len(ctx.calls) != i + 4 or not ctx.i_am_opener():
+        return None
+    (_, c0), (_, c1), (w2, c2), (_, c3) = ctx.calls[i:]
+    x, y, z = strain_of(c0), strain_of(c2), strain_of(c3)
+    if (level_of(c0) != 1 or x not in SUITS or c1 != 'Pass' or w2 != ctx.pd
+            or level_of(c2) != 1 or y not in SUITS or y == x
+            or level_of(c3) != 2 or z not in SUITS or z in (x, y)):
+        return None
+    h = ctx.h
+    if h.len[y] == 3:
+        return None
+    if h.len[y] >= 4:
+        cheap = ctx.cheapest(y, 2)
+        if cheap and (level_of(cheap) <= 3 or h.hcp >= NEG_COMPETED_JUMP_HCP):
+            lvl = level_of(cheap)
+            if h.hcp >= NEG_COMPETED_GAME_HCP and y in MAJORS:
+                lvl = max(lvl, 4)
+            elif h.hcp >= NEG_COMPETED_JUMP_HCP:
+                lvl = min(lvl + 1, 4)
+            call = f"{lvl}{y}"
+            if call == cheap:
+                return call, f"4+ {SYM[y]} support."
+            if ctx.ok(call):
+                return call, f"4+ {SYM[y]} support, {NEG_COMPETED_JUMP_HCP}+ HCP."
+            return cheap, f"4+ {SYM[y]} support."
+    if (h.balanced and REBID_2NT[0] <= h.hcp <= REBID_2NT[1] and h.stopper(z)
+            and ctx.ok('2NT')):
+        return '2NT', f"{REBID_2NT[0]}-{REBID_2NT[1]} HCP, balanced, {SYM[z]} stopper."
+    if h.len[x] >= 6:
+        cheap = ctx.cheapest(x, 2)
+        if cheap and level_of(cheap) <= 3:
+            call = f"{level_of(cheap) + 1}{x}"
+            if h.hcp >= NEG_COMPETED_JUMP_HCP and level_of(cheap) <= 3 and ctx.ok(call):
+                return call, f"6+ {SYM[x]}, {NEG_COMPETED_JUMP_HCP}+ HCP."
+            return cheap, f"6+ {SYM[x]}."
+    if h.hcp >= REBID_NEW_SUIT_HCP:
+        new = [s for s in SUITS if s not in (x, y, z) and h.len[s] >= 4]
+        if new:
+            s = max(new, key=lambda s: (h.len[s], -SUITS.index(s)))
+            call = ctx.cheapest(s, 2)
+            if call and level_of(call) == 2:
+                return call, f"4+ {SYM[s]}, {REBID_NEW_SUIT_HCP}+ HCP."
+    return 'Pass', "No fit, nothing more to show."
 
 
 #: A reopening double on a doubleton in their suit needs extra values.

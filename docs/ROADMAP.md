@@ -58,7 +58,7 @@ worked example to copy):
   spades. Likely rule: opener bids the promised major with four (jumping
   with extras), otherwise rebids a long suit or passes. Check the related
   families too: `1x (1y) X (2y) P (P) ?` (45) and `1x (1y) X (2x) ?` (21).
-- [ ] **1.2 `1x (P) 1y (2z) ?`: opener's rebid after the overcall cuts in
+- [x] **1.2 `1x (P) 1y (2z) ?`: opener's rebid after the overcall cuts in
   above responder's suit** (64; fallback bids 42 times, passes 22). Check
   support doubles here: GIB plays them through 2♥, so a support double may
   already apply to some of these.
