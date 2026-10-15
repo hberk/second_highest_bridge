@@ -140,6 +140,11 @@ def to_lin(record: dict, names: dict[str, str] | None = None) -> str:
         for _, c in t['plays']:
             add('pc', f"{c.suit}{_lin_rank(c.rank)}")
         add('pg')
+    # A board that ended in a claim: write the claim back, or the LIN reads as
+    # play that just stops, which from_lin (rightly) refuses.
+    contract = record.get('contract')
+    if contract and len(record['tricks_log']) < 13:
+        add('mc', record['tricks_taken'][contract['side']])
     return ''.join(parts)
 
 

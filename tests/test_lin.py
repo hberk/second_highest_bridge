@@ -83,6 +83,12 @@ def test_reads_a_bbo_style_record_with_a_claim():
     assert back['result'] == r['result']
     assert len(back['tricks_log']) == 8
     assert back['initial_hands'] == r['initial_hands']
+    # ...and writes the claim back out, so the board round-trips. It used to
+    # export as play that just stops, which import refuses.
+    again = to_lin(back)
+    assert re.search(r'mc\|\d+\|$', again), again[-40:]
+    assert from_lin(again)['tricks_taken'] == r['tricks_taken']
+    assert to_lin(r).count('mc|') == 0, "a fully played board has no claim"
 
 
 def test_refuses_a_card_out_of_turn():

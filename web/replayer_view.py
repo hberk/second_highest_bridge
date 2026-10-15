@@ -257,7 +257,9 @@ def render_history_tab(hand_history: list[dict], allow_import: bool = False,
     if rep_step == 0:
         step_label = "Before opening lead — showing all original hands"
     elif rep_step == total_steps:
-        step_label = "Hand complete — all 13 tricks played"
+        played = len(h_tricks)
+        step_label = ("Hand complete — all 13 tricks played" if played == 13 else
+                      f"Hand complete — {played} tricks played, the rest claimed")
     elif trick_just_completed:
         step_label = f"Trick {current_trick_num} complete — winner: {trick_winner_at_step}"
     else:

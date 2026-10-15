@@ -129,6 +129,24 @@ changes only where the user asks.
   floor (PR #6). Refresh the comment.
 - [x] **3.3** CLAUDE.md quotes "217 tests" under Commands; now 220.
 
+## 3b. Minor issues from the 2026-10-14 code review
+
+The review's four real bugs are fixed (passed-out challenge boards, LIN
+imports evicting played boards, tabs overwriting saves, claims lost on LIN
+export). These were left, each small:
+
+- [ ] **3.4** The challenge review finds "your board" by `board_num`
+  (`ChallengeView.svelte`, the Challenge tab in `app.py`). An imported LIN
+  board with the same number, added later, would be shown in its place.
+  Match on the deal too, as `saves.boardKey` does.
+- [ ] **3.5** `gib.ILLEGAL` (and the port's) is module-level mutable state
+  that grows when a branch produces an illegal call. CLAUDE.md says the
+  Streamlit app holds none, so concurrent players can't interfere. Harmless
+  (tests keep it empty), but either cap it or correct the claim.
+- [ ] **3.6** `loadGames` checks a save's shape only at the top level. One
+  malformed board inside would load, then break the History view, without
+  being copied to `shb-games-backup`. Validate each record, or skip bad ones.
+
 ## 4. Bigger projects (only when the user asks)
 
 - **Double dummy panel in the web app.** Compile `research/solver-rs` to

@@ -115,7 +115,9 @@
     for (const t of hb.tricks_log.slice(0, Math.floor(step / 4))) tally[PARTNERSHIP[t.winner]]++;
     let text: string;
     if (step === 0) text = 'Before opening lead — showing all original hands';
-    else if (step === total) text = 'Hand complete — all 13 tricks played';
+    else if (step === total) text = hb.tricks_log.length < 13
+      ? `Hand complete — ${hb.tricks_log.length} tricks played, the rest claimed`
+      : 'Hand complete — all 13 tricks played';
     else if (justCompleted) text = `Trick ${trickNum} complete — winner: ${winner}`;
     else {
       const last = flat[step - 1];

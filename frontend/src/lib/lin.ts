@@ -101,6 +101,11 @@ export function toLin(record: HistoryRecord, names?: Partial<Record<Seat, string
     for (const [, c] of t.plays) add('pc', linCard(c));
     add('pg');
   }
+  // A board that ended in a claim: write the claim back, or the LIN reads as
+  // play that just stops, which fromLin (rightly) refuses.
+  if (record.contract && record.tricks_log.length < 13) {
+    add('mc', record.tricks_taken[record.contract.side]);
+  }
   return parts.join('');
 }
 

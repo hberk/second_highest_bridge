@@ -92,6 +92,12 @@ describe('LIN', () => {
     expect(back.result).toEqual(r.result);
     expect(back.tricks_log.length).toBe(8);
     expect(back.initial_hands).toEqual(r.initial_hands);
+    // ...and writes the claim back out, so the board round-trips. It used to
+    // export as play that just stops, which import refuses.
+    const again = toLin(back);
+    expect(again).toMatch(/mc\|\d+\|$/);
+    expect(fromLin(again).tricks_taken).toEqual(r.tricks_taken);
+    expect(toLin(r)).not.toContain('mc|');
   });
 
   it('refuses a card played out of turn', () => {
