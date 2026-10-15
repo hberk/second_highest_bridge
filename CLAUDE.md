@@ -127,6 +127,7 @@ it before going against one.
 
 | doc | read it when |
 |---|---|
+| [ROADMAP.md](docs/ROADMAP.md) | starting work without a specific request: the ordered list of next updates |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | changing the Python modules, the Streamlit app, alerts or escaping, or deploying Streamlit |
 | [BIDDING.md](docs/BIDDING.md) | touching `gib.py`, `ai_bid`, hand evaluation or any bidding constant |
 | [CHALLENGE.md](docs/CHALLENGE.md) | touching challenge mode, grading or robot card play |
