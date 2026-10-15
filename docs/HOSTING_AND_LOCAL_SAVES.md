@@ -70,7 +70,8 @@ passed-out count and the board number.
   on with the session in memory.
 - **Never destructive:** an unreadable or unknown-version save is copied to
   `shb-games-backup` before the game starts empty.
-- **Bounded:** only the newest 500 boards are kept. **Download all boards
+- **Bounded:** at most 500 boards are kept, oldest imported boards dropped
+  first, so a LIN import never pushes out boards you played. **Download all boards
   (.lin)** in Hand History is the archive.
 - **Eviction:** after the first save, `navigator.storage.persist()` asks the
   browser not to evict the site under disk pressure.

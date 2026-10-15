@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { Game, type HistoryRecord } from './game.svelte';
 import { legalPlays } from './engine/auction';
-import { BACKUP_KEY, MAX_SAVED_BOARDS, SAVE_KEY, loadGames, saveGames } from './saves';
+import { BACKUP_KEY, MAX_SAVED_BOARDS, SAVE_KEY, boardKey, loadGames, saveGames, trimHistory } from './saves';
 
 /** localStorage's interface over a Map; `failWrites` makes every write throw,
  *  as a full or blocked storage does. */
@@ -138,5 +138,79 @@ describe('saved games', () => {
     expect(game.challengeLog).toEqual([]);
     expect(storage.getItem(SAVE_KEY)).toBeNull();
     expect(new Game(storage).history).toEqual([]);
+  });
+
+  it('a big LIN import never pushes out boards you played', () => {
+    const storage = new MemoryStorage();
+    const game = new Game(storage);
+    finishBoards(game, 2);
+    const mine = game.history.length;
+    const imports = Array.from({ length: MAX_SAVED_BOARDS }, (_, i) => (
+      { ...game.history[0], board_num: 1000 + i, label: `Imported #${i}`, imported: true }));
+    game.importBoards(imports);
+    const back = new Game(storage).history;
+    expect(back.length).toBe(MAX_SAVED_BOARDS);
+    expect(back.filter((r) => !r.imported).length, 'a played board was dropped for an import').toBe(mine);
+  });
+
+  it('trims imported boards first, oldest first, then played ones', () => {
+    const rec = (n: number, imported: boolean) => ({ board_num: n, imported }) as unknown as HistoryRecord;
+    const h = [rec(1, false), rec(2, true), rec(3, false), rec(4, true), rec(5, false)];
+    expect(trimHistory(h, 4).map((r) => r.board_num)).toEqual([1, 3, 4, 5]);
+    expect(trimHistory(h, 3).map((r) => r.board_num)).toEqual([1, 3, 5]);
+    expect(trimHistory(h, 2).map((r) => r.board_num)).toEqual([3, 5]);
+    expect(trimHistory(h, 9)).toBe(h);
+  });
+
+  it("two tabs never overwrite each other's boards", () => {
+    const storage = new MemoryStorage();
+    const a = new Game(storage);
+    const b = new Game(storage);          // both loaded the same, empty save
+    /** Play until this tab finishes a board of its own; returns that board's
+     *  key and how many boards it passed out on the way. */
+    const finishOne = (g: Game): [string, number] => {
+      let passedOut = 0;
+      for (let i = 0; i < 200; i++) {
+        playOut(g);
+        if (g.result) {
+          const mine = g.history.find((r) => r.board_num === g.boardNum
+            && JSON.stringify(r.initial_hands) === JSON.stringify(g.initialHands))!;
+          g.newBoard();
+          return [boardKey(mine), passedOut];
+        }
+        if (g.auction.passedOut) passedOut++;
+        g.newBoard();
+      }
+      throw new Error('no board finished');
+    };
+    const [fromA, outA] = finishOne(a);
+    const [fromB, outB] = finishOne(b);   // b never saw a's board; its saves must keep it
+    const reloaded = new Game(storage);
+    const saved = reloaded.history.map(boardKey);
+    expect(saved, "b's save dropped a's board").toContain(fromA);
+    expect(saved).toContain(fromB);
+    expect(reloaded.passedOutCount).toBe(outA + outB);
+  });
+
+  it('a tab takes on what another tab saves, or clears, as it happens', () => {
+    // Node has no window: stand one in, and fire the browser's storage event
+    // the way it reaches every OTHER tab after a write.
+    const g = globalThis as { window?: unknown };
+    const target = new EventTarget();
+    g.window = target;
+    try {
+      const storage = new MemoryStorage();
+      const a = new Game(storage);
+      const b = new Game(storage);
+      const fire = () => target.dispatchEvent(Object.assign(new Event('storage'), { key: SAVE_KEY, storageArea: storage }));
+      finishBoards(a, 1);
+      fire();
+      expect(b.history.map(boardKey), 'b did not pick up a’s board').toEqual(a.history.map(boardKey));
+      a.clearSaved();
+      fire();
+      expect(b.history, 'a cleared, b kept its copy').toEqual([]);
+    } finally {
+      delete g.window;
+    }
   });
 });

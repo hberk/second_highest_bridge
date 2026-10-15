@@ -92,6 +92,13 @@ reference.
   `shb-games-backup` rather than overwritten. Records are `HistoryRecord`, the
   shape `docs/ONLINE_PLAN.md` stores server-side. `new Game(null)` keeps
   nothing (the default in Node, so tests start clean).
+  - **At most 500 boards, imported ones dropped first** (`trimHistory`): a
+    big LIN import used to push out every board the player had played.
+  - **Tabs don't overwrite each other.** Each save re-reads storage and
+    merges (`mergeGames`; a board's identity is `boardKey`: number, dealer,
+    hands and calls, since two tabs can each deal "board 11"), and each tab
+    takes on another tab's save or clear through the `storage` event.
+    Before, a tab wrote its own copy over whatever another tab had saved.
 - Deployment: `.github/workflows/pages.yml` exports fixtures, type-checks,
   tests and builds, and deploys `frontend/dist` to GitHub Pages from `main`.
   **Nothing runs while the repo is private** (metered Actions minutes; every

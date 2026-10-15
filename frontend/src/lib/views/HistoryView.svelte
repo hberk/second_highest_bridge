@@ -10,6 +10,7 @@
   import SeatBox from '../components/SeatBox.svelte';
   import Strain from '../components/Strain.svelte';
   import { fromLinFile, toLin, toLinFile } from '../lin';
+  import { MAX_SAVED_BOARDS } from '../saves';
 
   let { records, onimport }: { records: HistoryRecord[]; onimport?: (boards: HistoryRecord[]) => void } = $props();
 
@@ -43,8 +44,12 @@
     linNote = '';
     try {
       const boards = fromLinFile(text).map((b) => ({ ...b, label: `Imported #${b.board_num}`, imported: true }));
+      const total = records.length + boards.length;
       onimport?.(boards);
       linNote = `Imported ${boards.length} board${boards.length === 1 ? '' : 's'}.`;
+      if (total > MAX_SAVED_BOARDS) {
+        linNote += ` This device keeps ${MAX_SAVED_BOARDS} boards, so the oldest imported ones won't be kept after a reload; your own boards are kept first.`;
+      }
       linText = '';
       selected = null;
     } catch (e) {

@@ -12,7 +12,7 @@ import { aiBidExplained, aiPlay, visibleHands } from './engine/ai';
 import { scoreContract, type ScoreResult } from './engine/scoring';
 import * as challenge from './engine/challenge';
 import type { Grade, RobotTable, TrickLog } from './engine/challenge';
-import { askPersistence, browserStorage, clearGames, loadGames, saveGames } from './saves';
+import { SAVE_KEY, askPersistence, browserStorage, clearGames, loadGames, mergeGames, saveGames } from './saves';
 
 export type Phase = 'bidding' | 'auction_done' | 'playing' | 'trick_done' | 'done';
 
@@ -115,6 +115,9 @@ export class Game {
   /** Boards that passed out: not in `history` (there's nothing to replay),
    *  but they were played, so the session scoreboard counts them. */
   passedOutCount = $state(0);
+  /** passedOutCount as last read from or written to storage, so a save adds
+   *  only this tab's new pass-outs to what another tab may have counted. */
+  private passedOutSynced = 0;
   /** Play the human's card for them when it's the only legal one. A display
    *  preference, set from settings by the app; off by default so tests and
    *  the Python port's behaviour are unchanged unless asked. */
@@ -152,11 +155,26 @@ export class Game {
     const saved = loadGames(storage);
     if (saved) {
       this.boardNum = saved.boardNum;
-      this.history = saved.history;
-      this.challengeLog = saved.challengeLog;
-      this.passedOutCount = saved.passedOut;
+      this.adopt(saved);
+    }
+    // Another tab saved (or cleared) the games: take its copy, so this tab
+    // never writes back a stale one over it. Browsers only; tests pass null.
+    if (storage && typeof window !== 'undefined') {
+      window.addEventListener('storage', (e) => {
+        if (e.storageArea !== storage || (e.key !== SAVE_KEY && e.key !== null)) return;
+        const now = loadGames(storage);
+        this.adopt(now ?? { history: [], challengeLog: [], passedOut: 0 });
+      });
     }
     this.newBoard();
+  }
+
+  /** Take saved games as this tab's own. The board in play is untouched. */
+  private adopt(saved: { history: HistoryRecord[]; challengeLog: ChallengeLogEntry[]; passedOut: number }): void {
+    this.history = saved.history;
+    this.challengeLog = saved.challengeLog;
+    this.passedOutCount = saved.passedOut;
+    this.passedOutSynced = saved.passedOut;
   }
 
   // ── Saved games ────────────────────────────────────────────────────────────
@@ -164,14 +182,18 @@ export class Game {
   /** Remember the finished boards. Called whenever one is added; a failed
    *  save (storage full or blocked) is ignored, so play never stops for it. */
   private persist(): void {
-    const ok = saveGames(this.storage, {
+    if (!this.storage) return;
+    // Merge with what's stored first: another tab may have saved boards
+    // since this one last looked, and writing our copy alone would drop them.
+    const merged = mergeGames(loadGames(this.storage), {
       version: 1,
       boardNum: this.boardNum,
       history: $state.snapshot(this.history) as HistoryRecord[],
       challengeLog: $state.snapshot(this.challengeLog) as ChallengeLogEntry[],
       passedOut: this.passedOutCount,
-    });
-    if (ok) askPersistence();
+    }, this.passedOutCount - this.passedOutSynced);
+    this.adopt(merged);
+    if (saveGames(this.storage, merged)) askPersistence();
   }
 
   /** Boards loaded from LIN join the history (outside the session score, as
@@ -183,9 +205,7 @@ export class Game {
 
   /** Forget every saved board on this device. The board in play carries on. */
   clearSaved(): void {
-    this.history = [];
-    this.challengeLog = [];
-    this.passedOutCount = 0;
+    this.adopt({ history: [], challengeLog: [], passedOut: 0 });
     clearGames(this.storage);
   }
 

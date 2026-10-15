@@ -68,11 +68,52 @@ export function loadGames(storage: Storage | null): SavedGames | null {
   return null;
 }
 
-/** Saves the newest MAX_SAVED_BOARDS boards. Returns false when the browser
- *  wouldn't store them. */
+/** At most `max` boards, dropping the oldest IMPORTED ones first: a big LIN
+ *  import must never push out boards the player actually played. */
+export function trimHistory(history: HistoryRecord[], max = MAX_SAVED_BOARDS): HistoryRecord[] {
+  let excess = history.length - max;
+  if (excess <= 0) return history;
+  const drop = new Set<number>();
+  for (const pass of [true, false]) {          // imported first, then played
+    for (let i = 0; i < history.length && excess > 0; i++) {
+      if (!drop.has(i) && !!history[i].imported === pass) {
+        drop.add(i);
+        excess--;
+      }
+    }
+  }
+  return history.filter((_, i) => !drop.has(i));
+}
+
+/** Two copies of a board are the same board. Board numbers alone can't say:
+ *  two tabs can each deal "board 11", with different cards. */
+export function boardKey(r: HistoryRecord): string {
+  return JSON.stringify([r.board_num, r.dealer, r.imported ?? false, r.initial_hands, r.auction_calls]);
+}
+
+/** This tab's games plus whatever another tab saved that this one hasn't
+ *  seen. This tab's list leads: it's in order, and it still holds boards the
+ *  500 cap trimmed out of storage, which must stay oldest, not reappear as
+ *  new. `passedOutDelta` is how many boards this tab passed out since it last
+ *  read or wrote the save. */
+export function mergeGames(stored: SavedGames | null, mine: SavedGames, passedOutDelta: number): SavedGames {
+  if (!stored) return mine;
+  const have = new Set(mine.history.map(boardKey));
+  const logged = new Set(mine.challengeLog.map((e) => JSON.stringify(e)));
+  return {
+    version: 1,
+    boardNum: Math.max(stored.boardNum, mine.boardNum),
+    history: [...mine.history, ...stored.history.filter((r) => !have.has(boardKey(r)))],
+    challengeLog: [...mine.challengeLog, ...stored.challengeLog.filter((e) => !logged.has(JSON.stringify(e)))],
+    passedOut: stored.passedOut + Math.max(0, passedOutDelta),
+  };
+}
+
+/** Saves at most MAX_SAVED_BOARDS boards (see trimHistory). Returns false
+ *  when the browser wouldn't store them. */
 export function saveGames(storage: Storage | null, games: SavedGames): boolean {
   if (!storage) return false;
-  const kept: SavedGames = { ...games, history: games.history.slice(-MAX_SAVED_BOARDS) };
+  const kept: SavedGames = { ...games, history: trimHistory(games.history) };
   try {
     storage.setItem(SAVE_KEY, JSON.stringify(kept));
     return true;
