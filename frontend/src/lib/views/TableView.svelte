@@ -124,6 +124,11 @@
 {:else if bidding && auction.passedOut}
   <div class="notice warning">🛑 <strong>Auction Passed Out (4 Passes)</strong> — No contract reached (0 points).</div>
   <button class="btn primary" onclick={() => game.newBoard()}>Deal Next Board ➔</button>
+  {#if game.challenge}
+    <hr />
+    <Scoreline result={game.challenge} />
+    <Breakdown result={game.challenge} />
+  {/if}
 
 {:else if bidding}
   <!-- ── Auction ─────────────────────────────────────────────────────────── -->

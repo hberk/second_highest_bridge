@@ -13,7 +13,7 @@
   const last = $derived(game.challenge);
   const records = $derived.by((): HistoryRecord[] => {
     if (!last) return [];
-    const yours = game.history.findLast((h) => h.board_num === last.board_num);
+    const yours = game.history.findLast((h) => h.board_num === last.board_num) ?? last.your_record;
     return [...(yours ? [{ ...yours, label: '🧑 Your board' }] : []), last.robot_record];
   });
 
@@ -31,7 +31,7 @@
   <span class="caption">{remaining} of {ids.length} solved boards unplayed. Finish the board on the Bridge Table tab, then come back here for the comparison.</span>
 </div>
 
-{#if game.challengeId !== null && !game.gameOver}
+{#if game.challengeId !== null && !game.boardOver}
   <div class="notice info">Challenge board in play on the <strong>Bridge Table</strong> tab. Finish it to see how the robots did with the same cards.</div>
 {/if}
 

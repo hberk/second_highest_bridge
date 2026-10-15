@@ -98,8 +98,35 @@ describe('table flow', () => {
       expect(render(TableView, { props: { game } }).body).toContain('Where the points went');
     }
     expect(graded).toBeGreaterThan(5);
-    expect(game.challengeLog.length).toBe(graded);
-    expect(new Set(game.challengeLog.map((r) => r.deal_id)).size).toBe(graded);
+    // Every board is logged, passed-out ones included, each deal once.
+    expect(game.challengeLog.length).toBe(25);
+    expect(new Set(game.challengeLog.map((r) => r.deal_id)).size).toBe(25);
+  });
+
+  it('grades a challenge board that passes out', () => {
+    // Find a library deal the robots pass out when South passes too.
+    const game = new Game();
+    let found = false;
+    for (let id = 0; id < 400 && !found; id++) {
+      game.newBoard(id);
+      while (!game.auction.isComplete) game.humanBids('Pass');
+      found = game.auction.passedOut;
+    }
+    expect(found, 'no library deal passes out').toBe(true);
+    const ch = game.challenge!;
+    expect(ch, 'a passed-out challenge board was not graded').not.toBeNull();
+    expect(ch.you.passed_out).toBe(true);
+    expect(ch.you.actual).toBe(0);
+    expect(ch.margin).toBe(-ch.robot.actual);
+    expect(game.challengeLog.at(-1)!.deal_id).toBe(ch.deal_id);
+    expect(game.boardOver).toBe(true);
+    const table = render(TableView, { props: { game } }).body;
+    expect(table).toContain('Passed Out');
+    expect(table).toContain('Where the points went');
+    const review = render(ChallengeView, { props: { game, ondealt: () => {} } }).body;
+    expect(review, 'still claims the board is in play').not.toContain('Finish it');
+    expect(review).toContain('Your board');
+    expect(review).toContain("Robots' board");
   });
 
   it('refuses illegal or out-of-turn actions', () => {

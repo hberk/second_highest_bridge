@@ -368,9 +368,58 @@ def test_a_finished_challenge_board_renders_both_reviews():
     for _ in range(10):
         next(b for b in at.button if b.label.startswith('Deal a challenge board')).click().run()
         _drive(at)
-        if at.session_state.get('challenge'):
+        # A passed-out board is graded too, but has no history to review.
+        if at.session_state.get('challenge') and at.session_state['hand_history']:
             break
     assert at.session_state.get('challenge'), "no challenge board reached play"
     assert not at.exception, at.exception
     assert at.selectbox(key='chal_board_sel').options
     assert at.selectbox(key='hist_board_sel').options
+
+
+def _deal_passed_out_by_everyone(board_num: int) -> int:
+    """A library deal the robots pass out when South passes too, for the
+    dealer and vulnerability board `board_num` gets."""
+    import ai
+    import challenge
+    from game import AuctionState, DEALER_ROTATION, VUL_ROTATION
+    for deal_id in challenge.deal_ids():
+        hands = challenge.hands_for(deal_id)
+        a = AuctionState(dealer=DEALER_ROTATION[(board_num - 1) % 4],
+                         vulnerability=VUL_ROTATION[(board_num - 1) % 16])
+        while not a.is_complete:
+            p = a.current_player()
+            a.apply_call(p, 'Pass' if p == 'South' else ai.ai_bid(p, hands[p], a))
+        if a.passed_out:
+            return deal_id
+    raise AssertionError("no library deal passes out")
+
+
+def test_a_passed_out_challenge_board_is_graded():
+    """Passing out scores 0 against whatever the robots made of the cards.
+    It used to skip grading: no comparison, the deal could be dealt again,
+    and the Challenge tab said the board was still in play."""
+    import random
+    at = AppTest.from_file(APP, default_timeout=60)
+    at.run()
+    target = _deal_passed_out_by_everyone(at.session_state['board_num'] + 1)
+    choice = random.choice
+    random.choice = lambda seq: target
+    try:
+        next(b for b in at.button if b.label.startswith('Deal a challenge board')).click().run()
+    finally:
+        random.choice = choice
+    assert at.session_state['challenge_id'] == target
+    while _south_to_call(at):
+        at.button(key='bidact_pass').click().run()
+    assert not at.exception, at.exception
+    assert at.session_state['auction'].passed_out
+    ch = at.session_state.get('challenge')
+    assert ch, "a passed-out challenge board was not graded"
+    assert ch['you']['passed_out'] and ch['you']['actual'] == 0
+    assert at.session_state['challenge_log'][-1]['deal_id'] == target
+    page = "\n".join(m.value for m in at.markdown)
+    assert 'Where the points went' in page
+    assert not any('Challenge board in play' in i.value for i in at.info)
+    options = at.selectbox(key='chal_board_sel').options
+    assert any(o.startswith('🧑 Your board') for o in options), options

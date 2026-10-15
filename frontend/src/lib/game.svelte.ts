@@ -41,6 +41,9 @@ export interface ChallengeResult {
   your_contract: Contract | null;
   robot_contract: Contract | null;
   robot_record: HistoryRecord;
+  /** Your board when it passed out: passed-out boards stay out of `history`,
+   *  so the review would otherwise have only the robots' side to show. */
+  your_record?: HistoryRecord;
   margin: number;
 }
 
@@ -140,6 +143,8 @@ export class Game {
 
   get trump() { return this.contract?.trump ?? null; }
   get gameOver() { return this.result !== null; }
+  /** Played out or passed out: nothing more happens on this board. */
+  get boardOver() { return this.gameOver || this.auction.passedOut; }
 
   /** `storage` is where finished boards are kept between visits: the
    *  browser's localStorage by default, null (nothing kept) in Node. */
@@ -235,6 +240,9 @@ export class Game {
     if (!auction.isComplete) return;
     if (auction.passedOut) {
       this.passedOutCount += 1;
+      // A challenge board is graded even so: passing out scores 0 against
+      // whatever the robots made of the same cards.
+      this.gradeChallenge();
       this.persist();
       return;
     }
@@ -381,9 +389,10 @@ export class Game {
   private gradeChallenge(): void {
     const dealId = this.challengeId;
     if (dealId === null) return;
-    const contract = this.contract!;
+    const contract = this.contract;   // null when the board passed out
     const vul = this.vulnerability;
-    const mine = challenge.grade(dealId, 'N/S', contract, this.tricksTaken[contract.side], vul);
+    const mine = challenge.grade(dealId, 'N/S', contract,
+      contract ? this.tricksTaken[contract.side] : 0, vul);
     const table = challenge.robotTable(dealId, this.dealer, vul);
     const theirs = challenge.grade(dealId, 'N/S', table.contract, table.declarer_tricks, vul);
     this.challenge = {
@@ -394,6 +403,19 @@ export class Game {
       your_contract: contract,
       robot_contract: table.contract,
       robot_record: asHistoryRecord(table, this.boardNum, "🤖 Robots' board"),
+      your_record: contract ? undefined : {
+        board_num: this.boardNum,
+        dealer: this.dealer,
+        vulnerability: vul,
+        initial_hands: this.initialHands,
+        auction_calls: $state.snapshot(this.calls) as CallRecord[],
+        bid_alerts: { ...this.alerts },
+        contract: null,
+        passed_out: true,
+        tricks_log: [],
+        tricks_taken: { 'N/S': 0, 'E/W': 0 },
+        result: null,
+      },
       margin: mine.actual - theirs.actual,
     };
     this.challengeLog.push({

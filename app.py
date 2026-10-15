@@ -100,6 +100,9 @@ def _finalize_auction() -> None:
         # Not in hand_history (nothing to replay), but played: the session
         # scoreboard counts it.
         s['passed_out_count'] = s.get('passed_out_count', 0) + 1
+        # A challenge board is graded even so: passing out scores 0 against
+        # whatever the robots made of the same cards.
+        _grade_challenge()
         return
 
     contract = auction.get_contract()
@@ -232,8 +235,9 @@ def _grade_challenge() -> None:
         return
 
     side = 'N/S'
-    mine = challenge.grade(deal_id, side, s['contract'],
-                           s['tricks_taken'][s['contract']['side']],
+    contract = s.get('contract')   # None when the board passed out
+    mine = challenge.grade(deal_id, side, contract,
+                           s['tricks_taken'][contract['side']] if contract else 0,
                            s['vulnerability'])
     table = challenge.robot_table(deal_id, s['dealer'], s['vulnerability'])
     theirs = challenge.grade(deal_id, side, table['contract'],
@@ -250,6 +254,21 @@ def _grade_challenge() -> None:
         # card by card beside your own.
         'robot_record': challenge.as_history_record(
             table, s['board_num'], "🤖 Robots' board"),
+        # Your board when it passed out: passed-out boards stay out of
+        # hand_history, so the review would otherwise show only the robots'.
+        'your_record': None if contract else {
+            'board_num':     s['board_num'],
+            'dealer':        s['dealer'],
+            'vulnerability': s['vulnerability'],
+            'initial_hands': s['initial_hands'],
+            'auction_calls': list(s['auction'].calls),
+            'bid_alerts':    dict(s.get('bid_alerts', {})),
+            'contract':      None,
+            'passed_out':    True,
+            'tricks_log':    [],
+            'tricks_taken':  {'N/S': 0, 'E/W': 0},
+            'result':        None,
+        },
         'margin':    mine['actual'] - theirs['actual'],
     }
     s['challenge_log'] = s.get('challenge_log', []) + [{
@@ -479,7 +498,8 @@ with tab_challenge:
                    f"Finish the board on the Bridge Table tab, then come back "
                    f"here for the comparison.")
 
-    if s.get('challenge_id') is not None and not s.get('game_over'):
+    board_over = s.get('game_over') or s['auction'].passed_out
+    if s.get('challenge_id') is not None and not board_over:
         st.info(f"Challenge board in play on the **Bridge Table** tab. "
                 f"Finish it to see how the robots did with the same cards.")
 
@@ -494,7 +514,8 @@ with tab_challenge:
             "robot call for what it was supposed to show."
         )
         yours = next((h for h in reversed(hand_history)
-                      if h.get('board_num') == last.get('board_num')), None)
+                      if h.get('board_num') == last.get('board_num')),
+                     last.get('your_record'))
         records = []
         if yours is not None:
             records.append({**yours, 'label': "🧑 Your board"})
@@ -599,6 +620,10 @@ with tab_game:
             if st.button("Deal Next Board ➔", type="primary"):
                 init_game(next_board=True)
                 st.rerun()
+            if s.get('challenge'):
+                st.divider()
+                render_scoreline(s['challenge'])
+                render_breakdown(s['challenge'])
             st.stop()
 
         b_col_left, b_col_center, b_col_right = st.columns([1.1, 3.8, 1.1], gap="medium")
