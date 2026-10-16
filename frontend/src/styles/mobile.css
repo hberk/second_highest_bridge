@@ -41,8 +41,35 @@
     .table-layout > .center { order: 0; }
     .table-layout > .west:not(:has(.pcard-row, .card-btn-row)),
     .table-layout > .east:not(:has(.pcard-row, .card-btn-row)) { display: none; }
-    .table-layout.wide-west > .west,
-    .table-layout.wide-east > .east { order: -1; }
+    /* A dummy across the table is North's and sits above the trick already. A
+       dummy at West or East stays on its own side of the trick, so the order of
+       play reads the way it does at the table: a narrow column of suit lines
+       beside the felt, with your hand full width underneath. */
+    .table-layout.wide-west:has(> .west .pcard-row) > .center,
+    .table-layout.wide-east:has(> .east .pcard-row) > .center { display: contents; }
+    .table-layout.wide-west:has(> .west .pcard-row) > .center > :not(.felt-zone),
+    .table-layout.wide-east:has(> .east .pcard-row) > .center > :not(.felt-zone) { grid-column: 1 / -1; }
+    .table-layout.wide-west:has(> .west .pcard-row) > .west { grid-column: 1; grid-row: 1 / span 2; order: 0; }
+    .table-layout.wide-west:has(> .west .pcard-row) .felt-zone { grid-column: 2; grid-row: 1; min-width: 0; }
+    .table-layout.wide-east:has(> .east .pcard-row) > .east { grid-column: 2; grid-row: 1 / span 2; order: 0; }
+    .table-layout.wide-east:has(> .east .pcard-row) .felt-zone { grid-column: 1; grid-row: 1; min-width: 0; }
+    .table-layout.wide-west:has(> .west .pcard-row) { grid-template-columns: minmax(0, 0.62fr) minmax(0, 1.6fr); }
+    .table-layout.wide-east:has(> .east .pcard-row) { grid-template-columns: minmax(0, 1.6fr) minmax(0, 0.62fr); }
+    /* The dummy as plain suit lines (♠ A K 5 2), the way a hand diagram reads. */
+    .table-layout > .west .pcard-row,
+    .table-layout > .east .pcard-row { display: none; }
+    .table-layout > .west .suit-lines,
+    .table-layout > .east .suit-lines {
+        display: grid; gap: 5px; padding: 8px 8px 9px;
+        background: var(--panel, #0f1c2b); border: 1px solid var(--line-2); border-radius: 10px;
+    }
+    .suit-line { display: flex; gap: 5px; align-items: baseline; line-height: 1.25; }
+    .suit-line-sym { font-size: 15px; flex: 0 0 auto; }
+    .suit-line-ranks { font-size: 14px; font-weight: 700; word-spacing: 2px; overflow-wrap: anywhere; }
+    .table-layout.wide-west > .west .ai-player-box,
+    .table-layout.wide-east > .east .ai-player-box { flex-wrap: wrap; gap: 0 6px; margin-bottom: 4px; }
+    .table-layout.wide-west > .west .seat-count,
+    .table-layout.wide-east > .east .seat-count { display: none; }
     .table-layout > .west .ai-player-box,
     .table-layout > .east .ai-player-box {
         display: flex; align-items: baseline; gap: 8px;

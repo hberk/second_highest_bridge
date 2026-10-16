@@ -179,6 +179,7 @@
         isTurn={who === 'North'} legal={who === 'North' ? legalPlays(game.hands.North, led) : []}
         concealed={!faceUp('North')} onplay={(card) => game.humanPlays('North', card)} />
 
+      <div class="felt-zone">
       {#if peeking && lastTrick}
         <FeltTable trick={lastTrick.plays} winner={lastTrick.winner}
           displayNum={lastTrick.trick_num} contract={c} tricksTaken={game.tricksTaken} />
@@ -210,6 +211,7 @@
           {game.gameOver ? 'See final score →' : 'Next trick →'}{settings.fastPlay ? ' (automatic)' : ''}
         </button>
       {/if}
+      </div>
 
       <div class="my-hand">
         <Hand label={c.dummy === 'South' ? 'South (Dummy · North plays this hand)' : `South (${role('South')})`}
@@ -230,7 +232,7 @@
     {#each ['West', 'East'] as const as seat}
       <div class={seat.toLowerCase()}>
         <SeatPanel {seat} role={role(seat)} count={game.hands[seat].length} backs={!faceUp(seat)} />
-        {#if faceUp(seat)}<Hand hand={game.hands[seat]} trump={displayTrump} />{/if}
+        {#if faceUp(seat)}<Hand hand={game.hands[seat]} trump={displayTrump} lines />{/if}
       </div>
     {/each}
   </div>

@@ -54,7 +54,7 @@ class Settings {
   showStrength = $state(true);
   showAll = $state(false);
   /** Play a card for you when it's the only legal one. */
-  autoPlay = $state(true);
+  autoPlay = $state(false);
   /** Move on to the next trick by itself after a short pause. */
   fastPlay = $state(false);
 

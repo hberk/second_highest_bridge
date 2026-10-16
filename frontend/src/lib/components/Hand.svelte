@@ -7,8 +7,9 @@
   import { grouped } from './hand';
 
   let {
-    hand, trump = null, label = null, isTurn = false, legal = [], concealed = false, onplay,
+    hand, trump = null, label = null, isTurn = false, legal = [], concealed = false, lines = false, onplay,
   }: {
+    lines?: boolean;
     hand: Card[];
     trump?: string | null;
     label?: string | null;
@@ -42,6 +43,17 @@
       {#each cards as card (card.rank + card.suit)}<CardFace {card} />{/each}
     {/each}
   </div>
+  {#if lines}
+    <!-- Phone side column: the same cards as plain suit lines, shown by CSS only. -->
+    <div class="suit-lines" aria-hidden="true">
+      {#each groups as [suit, cards] (suit)}
+        <div class="suit-line">
+          <span class="suit-line-sym" style:color="var(--suit-{suit.toLowerCase()}{suit === 'S' || suit === 'C' ? '-lt' : ''})">{SUIT_SYMBOLS[suit]}</span>
+          <span class="suit-line-ranks">{cards.map((c) => c.rank).join(' ')}</span>
+        </div>
+      {/each}
+    </div>
+  {/if}
 {:else}
   <div class="card-btn-row" role="group" aria-label="{label ?? 'Hand'}: choose a card">
     {#each groups as [suit, cards], i (suit)}

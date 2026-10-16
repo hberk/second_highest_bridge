@@ -354,7 +354,7 @@ show_hand_strength = st.sidebar.checkbox(
 
 st.session_state['auto_play'] = st.sidebar.checkbox(
     "Auto-play forced cards",
-    value=True,
+    value=False,
     key="auto_play_choice",
     help="When you have only one legal card, it is played for you, as on BBO.",
 )

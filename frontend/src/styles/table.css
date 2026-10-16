@@ -892,3 +892,6 @@
   border-bottom: none;
   font-weight: 600;
 }
+
+/* Suit-line dummy for the phone side column; mobile.css shows it. */
+.suit-lines { display: none; }
