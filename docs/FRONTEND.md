@@ -59,7 +59,10 @@ reference.
   seat labels, the last-trick peek, fast play), so they can't disagree, and
   `game.test.ts` renders and checks both at every step of every board. Home
   is the same on both. `index.html` and `public/manifest.webmanifest`
-  make it a full-screen app when added to an iPhone's home screen;
+  make it a full-screen app when added to an iPhone's home screen. The icon
+  ("the second spade": an ivory spade with a gold 2, on the felt) is
+  `public/favicon.svg`; `scripts/make_icons.py` draws the home-screen,
+  manifest and `.ico` sizes from it with Pillow, so edit the SVG and rerun it;
   `felt.css` keeps content clear of the notch and home bar with the
   safe-area insets.
 - **Two-tap bidding with meanings** (`BidPad.svelte`, `meanings.ts`). Every
