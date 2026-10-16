@@ -12,6 +12,7 @@ import HistoryView from './views/HistoryView.svelte';
 import ChallengeView from './views/ChallengeView.svelte';
 
 let openingLeads = 0;
+let sideDummies = 0;
 
 /** The table in both layouts, phone and desktop; every check below must hold
  *  for each. */
@@ -53,6 +54,13 @@ function playBoard(game: Game): void {
         for (const html of htmls) expect(html, 'dummy face-up before the opening lead').not.toContain('dummy-zone');
         openingLeads++;
       }
+      // An East or West dummy sits on its own side of the table, not on top.
+      const c = game.contract!;
+      if ((game.trickNum > 1 || game.trick.length > 0) && (c.dummy === 'East' || c.dummy === 'West')) {
+        expect(htmls[0], 'phone: dummy beside the felt').toContain('side-hand');
+        expect(htmls[1], 'desktop: dummy in its seat panel').toContain('dk-side-dummy');
+        sideDummies++;
+      }
       game.humanPlays(who!, legalPlays(game.hands[who!], led)[0]);
     } else if (game.phase === 'trick_done') {
       expectBoth(htmls, 'trick-won');
@@ -82,6 +90,7 @@ describe('table flow', () => {
     }
     expect(finished).toBeGreaterThan(10);
     expect(openingLeads, 'no blind opening lead was exercised').toBeGreaterThan(0);
+    expect(sideDummies, 'no East or West dummy was exercised').toBeGreaterThan(0);
     expect(game.history.length).toBe(finished);
     expect(game.history.every((h) => h.tricks_log.length === 13)).toBe(true);
   });

@@ -15,6 +15,7 @@
   import TrickFelt from '../components/TrickFelt.svelte';
   import Fan from '../components/Fan.svelte';
   import MiniHand from '../components/MiniHand.svelte';
+  import SideHand from '../components/SideHand.svelte';
   import Strain from '../components/Strain.svelte';
   import Scoreline from '../components/Scoreline.svelte';
   import Breakdown from '../components/Breakdown.svelte';
@@ -175,12 +176,27 @@
         </section>
       {/if}
 
+      {#snippet felt()}
+        {#if peeking && lastTrick}
+          <TrickFelt trick={lastTrick.plays} winner={lastTrick.winner} {labels} {counts} />
+        {:else}
+          <TrickFelt trick={game.trick} winner={game.phase === 'trick_done' ? game.trickWinner : null}
+            {labels} {counts} awaiting={who} />
+        {/if}
+      {/snippet}
+      {#if m.sideDummy}
+        <!-- An East or West dummy on its own side; the felt moves over. -->
+        <div class="play-row" class:dummy-east={m.sideDummy === 'East'}>
+          <SideHand cards={game.hands[m.sideDummy]} trump={displayTrump} title={labels[m.sideDummy]} />
+          <div class="play-felt">{@render felt()}</div>
+        </div>
+      {:else}
+        {@render felt()}
+      {/if}
+
       {#if peeking && lastTrick}
-        <TrickFelt trick={lastTrick.plays} winner={lastTrick.winner} {labels} {counts} />
         <p class="trick-line">Previous trick. {trickTaken(lastTrick.plays, game.trump, lastTrick.winner, lastTrick.trick_num)}</p>
       {:else}
-        <TrickFelt trick={game.trick} winner={game.phase === 'trick_done' ? game.trickWinner : null}
-          {labels} {counts} awaiting={who} />
         {#if game.phase === 'trick_done' && game.trickWinner}
           <p class="trick-line trick-won">{trickTaken(game.trick, game.trump, game.trickWinner, displayNum)}</p>
         {:else if game.trick.length}

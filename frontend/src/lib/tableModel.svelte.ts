@@ -43,12 +43,18 @@ export class TableModel {
   // Reactive fields only: `game.played` is a plain array, so a derived that
   // read it would stay true into the next board and expose dummy before the lead.
   dummyDown = $derived(this.game.trickNum > 1 || this.game.trick.length > 0);
-  /** The hand shown face up above the felt: the dummy once it's down, unless
+  /** The dummy, face up once the lead is made; null before then, and when
    *  the dummy is you (your hand is always at the bottom). */
-  topSeat = $derived(this.contract && this.dummyDown && this.contract.dummy !== 'South' ? this.contract.dummy : null);
+  faceDummy = $derived(this.contract && this.dummyDown && this.contract.dummy !== 'South' ? this.contract.dummy : null);
+  /** A North dummy sits above the felt, across from you. */
+  topSeat = $derived(this.faceDummy === 'North' ? 'North' as Seat : null);
+  /** An East or West dummy sits on its own side of the felt, so the table
+   *  reads the way it does in real life. Only ever played by a robot: when
+   *  you declare, the dummy is North. */
+  sideDummy = $derived(this.faceDummy === 'East' || this.faceDummy === 'West' ? this.faceDummy : null);
   /** X-ray: every other hand not already on the table. */
   xray = $derived(settings.showAll
-    ? (['West', 'North', 'East'] as Seat[]).filter((p) => p !== this.topSeat && this.game.hands[p].length)
+    ? (['West', 'North', 'East'] as Seat[]).filter((p) => p !== this.faceDummy && this.game.hands[p].length)
     : []);
 
   labels = $derived(Object.fromEntries(SEATS.map((p) => [p, this.seatLabel(p)])) as Record<Seat, string>);

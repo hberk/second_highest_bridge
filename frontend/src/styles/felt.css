@@ -826,3 +826,27 @@ button { touch-action: manipulation; }
     .dk-hand .fan-lg { --w: 56px; --h: 80px; --rank: 18px; --suit: 17px; }
     .tf-info { display: none; }
 }
+
+/* ── A dummy at East or West ─────────────────────────────────────────────────
+   On a phone the dummy takes a column on its own side, one row per suit, and
+   the felt narrows and moves over (TableView .play-row). On the desktop it
+   fills that side's seat panel. */
+
+.play-row { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 8px; align-items: center; margin-top: 10px; }
+.play-row.dummy-east { grid-template-columns: minmax(0, 1fr) 128px; }
+.play-row.dummy-east .side-hand { order: 2; }
+.play-felt { min-width: 0; }
+.play-row .trick-felt { margin-top: 0; border-radius: 120px; }
+.play-row .tf-card, .play-row .tf-slot { width: 46px; height: 66px; }
+.play-row .tf-rank, .play-row .tf-suit { font-size: 17px; }
+.play-row .tf-west { left: 6px; }
+.play-row .tf-east { right: 6px; }
+.play-row .tf-label { white-space: normal; max-width: 64px; font-size: 10px; }
+
+.side-hand { display: grid; gap: 6px; min-width: 0; }
+.side-hand-title { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); text-align: center; }
+.side-row { display: flex; align-items: center; gap: 4px; min-height: 52px; min-width: 0; }
+.side-sym { width: 14px; flex-shrink: 0; font-size: 14px; text-align: center; }
+.side-row .fan { --w: 38px; --h: 52px; --rank: 14px; --suit: 13px; flex: 1 1 auto; justify-content: flex-start; padding: 0; }
+.side-void { color: var(--dim); font-size: 14px; padding-left: 4px; }
+.dk-side-dummy { padding: 14px 12px; align-items: stretch; }

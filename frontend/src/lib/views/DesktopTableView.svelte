@@ -15,6 +15,7 @@
   import TrickFelt from '../components/TrickFelt.svelte';
   import Fan from '../components/Fan.svelte';
   import SeatCard from '../components/SeatCard.svelte';
+  import SideHand from '../components/SideHand.svelte';
   import Strain from '../components/Strain.svelte';
   import Scoreline from '../components/Scoreline.svelte';
   import Breakdown from '../components/Breakdown.svelte';
@@ -66,11 +67,20 @@
   <div class="dk-cell dk-grow"><span class="dk-lab">Session</span><span class="dk-val dk-soft">{@render body()}</span></div>
 {/snippet}
 
+{#snippet seatPanel(p: Seat)}
+  {#if m.sideDummy === p}
+    <!-- An East or West dummy shows its cards on its own side of the table. -->
+    <div class="seat-card dk-side-dummy"><SideHand cards={game.hands[p]} trump={m.displayTrump} title={m.labels[p]} /></div>
+  {:else}
+    <SeatCard seat={p} role={role(p)} count={m.counts[p]} cards={sideCards(p)} trump={m.displayTrump} />
+  {/if}
+{/snippet}
+
 {#snippet seats(felt: Snippet)}
   <div class="dk-row">
-    <SeatCard seat="West" role={role('West')} count={m.counts.West} cards={sideCards('West')} trump={m.displayTrump} />
+    {@render seatPanel('West')}
     {@render felt()}
-    <SeatCard seat="East" role={role('East')} count={m.counts.East} cards={sideCards('East')} trump={m.displayTrump} />
+    {@render seatPanel('East')}
   </div>
 {/snippet}
 
