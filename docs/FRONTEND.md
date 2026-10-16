@@ -67,7 +67,7 @@ reference.
   Streamlit: sidebar checkboxes and `web/session_view.py`): **Last trick** on the
   felt from trick 2 on (the peek is keyed to the moment it was asked for, so
   any card played drops it); **auto-play forced cards** (`settings.autoPlay`,
-  on by default in the app, but `Game.autoPlayForced` defaults to false so the
+  off by default, and `Game.autoPlayForced` defaults to false so the
   state machine and its tests behave as before unless asked) and **fast
   play** (`settings.fastPlay`, next trick after 1.2 s); a **session
   scoreboard** (`SessionScore.svelte`) on the Table tab: N/S total, made and

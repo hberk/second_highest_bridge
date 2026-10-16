@@ -18,13 +18,13 @@ APP = str(root_dir / 'app.py')
 def _start_play_as(declarer: str, auto_play: bool = False) -> AppTest:
     """A fresh app with a 2♠ contract by `declarer`, just after clicking Start play.
 
-    Auto-play (on by default in the app) is switched off unless asked for:
-    these tests click cards themselves, and a forced card played for them
-    would leave nothing to click."""
+    Auto-play (off by default in the app) is switched on only when asked for:
+    most of these tests click cards themselves, and a forced card played for
+    them would leave nothing to click."""
     at = AppTest.from_file(APP, default_timeout=30)
     at.run()
-    if not auto_play:
-        at.checkbox(key='auto_play_choice').uncheck().run()
+    if auto_play:
+        at.checkbox(key='auto_play_choice').check().run()
     leader = clockwise_from(declarer)[1]
     at.session_state['contract'] = {
         'level': 2, 'strain': 'S', 'declarer': declarer, 'dummy': PARTNERS[declarer],
