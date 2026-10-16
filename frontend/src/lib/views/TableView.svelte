@@ -1,239 +1,231 @@
-<!-- The live table: auction, then play, then the result. Port of the
-     "Bridge Table" tab in app.py. -->
+<!-- The live table, phone first: the auction, then play, then the result. The
+     felt holds what is happening now; your hand sits at the bottom, within
+     reach of your thumb; everything else is a tap away. -->
 <script lang="ts">
-  import { STRAIN_SYMBOLS, SUIT_SYMBOLS, type Seat } from '../engine/card';
-  import { legalPlays } from '../engine/auction';
+  import { STRAIN_SYMBOLS } from '../engine/card';
   import type { Game } from '../game.svelte';
   import { settings } from '../settings.svelte';
+  import { TableModel, VUL_TEXT as VUL, useFastPlay } from '../tableModel.svelte';
+  import { trickTaken, winningSoFar } from '../trickText';
+  import TopBar from '../components/TopBar.svelte';
+  import Sheet from '../components/Sheet.svelte';
+  import AuctionFelt from '../components/AuctionFelt.svelte';
   import AuctionGrid from '../components/AuctionGrid.svelte';
-  import BiddingBox from '../components/BiddingBox.svelte';
-  import FeltTable from '../components/FeltTable.svelte';
-  import Hand from '../components/Hand.svelte';
-  import HandSummary from '../components/HandSummary.svelte';
-  import SeatPanel from '../components/SeatPanel.svelte';
+  import BidPad from '../components/BidPad.svelte';
+  import TrickFelt from '../components/TrickFelt.svelte';
+  import Fan from '../components/Fan.svelte';
+  import MiniHand from '../components/MiniHand.svelte';
   import Strain from '../components/Strain.svelte';
-  import VulPills from '../components/VulPills.svelte';
   import Scoreline from '../components/Scoreline.svelte';
   import Breakdown from '../components/Breakdown.svelte';
-  import SessionScore from '../components/SessionScore.svelte';
 
-  let { game }: { game: Game } = $props();
+  let { game, onhome = () => {}, onsettings = () => {} }:
+    { game: Game; onhome?: () => void; onsettings?: () => void } = $props();
 
-  const auction = $derived(game.auction);
-  const c = $derived(game.contract);
-  const bidding = $derived(game.phase === 'bidding' || game.phase === 'auction_done');
-  const displayNum = $derived(game.phase === 'trick_done' ? game.trickNum - 1 : game.trickNum);
-  const who = $derived(game.whoseTurn());
-  const led = $derived(game.trick.length ? game.trick[0][1].suit : null);
-  // Hands keep the fixed S-H-D-C order unless the player asked for trump first.
-  const displayTrump = $derived(settings.trumpFirst ? game.trump : null);
+  const m = new TableModel(() => game);
+  useFastPlay(() => game);
 
-  function role(p: Seat): string {
-    if (c?.declarer === p) return 'Declarer';
-    if (c?.dummy === p) return 'Dummy';
-    return 'Defender';
-  }
-  /** South is the player's own hand and the dummy is public to the table once
-   *  the opening lead is made -- the leader chooses blind. */
-  // Reactive fields only: `game.played` is a plain array, so a derived that
-  // read it would stay true into the next board and expose dummy before the lead.
-  const dummyDown = $derived(game.trickNum > 1 || game.trick.length > 0);
-  const faceUp = (p: Seat) => settings.showAll || p === 'South' || (c?.dummy === p && dummyDown);
-  const layout = $derived(c?.dummy === 'West' ? 'wide-west' : c?.dummy === 'East' ? 'wide-east' : '');
-  const winnerCard = $derived(
-    game.trickWinner ? game.trick.find(([p]) => p === game.trickWinner)?.[1] ?? null : null);
+  const auction = $derived(m.auction);
+  const c = $derived(m.contract);
+  const bidding = $derived(m.bidding);
+  const displayNum = $derived(m.displayNum);
+  const who = $derived(m.who);
+  const led = $derived(m.led);
+  const displayTrump = $derived(m.displayTrump);
+  const counts = $derived(m.counts);
+  const usVul = $derived(m.usVul);
+  const topSeat = $derived(m.topSeat);
+  const xray = $derived(m.xray);
+  const labels = $derived(m.labels);
+  const lastTrick = $derived(m.lastTrick);
+  const peeking = $derived(m.peeking);
+  const strength = $derived(m.strength ? `${m.strength.hcp} HCP · ${m.strength.shape}` : '');
 
-  // ── Last trick ─────────────────────────────────────────────────────────────
-  // A peek belongs to the moment it was asked for: as soon as a card is played
-  // or the trick moves on, the key changes and the felt shows the live trick
-  // again, with no effect needed to reset it.
-  const lastTrick = $derived(game.phase === 'playing' ? game.tricksLog.at(-1) ?? null : null);
-  const momentKey = $derived(`${game.boardNum}:${game.trickNum}:${game.trick.length}`);
-  let peekKey = $state<string | null>(null);
-  const peeking = $derived(lastTrick !== null && peekKey === momentKey);
+  let auctionOpen = $state(false);
 
-  // ── Fast play ──────────────────────────────────────────────────────────────
-  const FAST_PLAY_MS = 1200;
-  $effect(() => {
-    if (game.phase !== 'trick_done' || !settings.fastPlay) return;
-    const timer = setTimeout(() => game.nextTrick(), FAST_PLAY_MS);
-    return () => clearTimeout(timer);
-  });
+  const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0');
+  const by = (p: Parameters<TableModel['by']>[0]) => m.by(p);
 </script>
 
-<SessionScore history={game.history} challengeLog={game.challengeLog} passedOut={game.passedOutCount} />
+{#snippet contractText()}
+  {#if c}<Strain level={c.level} strain={c.strain} />{#if c.doubled !== 'None'}<span class="accent"> {c.doubled}</span>{/if}{/if}
+{/snippet}
 
-<!-- ── Scoreboard ─────────────────────────────────────────────────────────── -->
-<div class="scoreboard">
-  {#if bidding}
-    <div class="score-cell"><div class="score-label">Board</div><div class="score-value">#{game.boardNum}</div></div>
-    <div class="score-cell"><div class="score-label">Dealer</div><div class="score-value">{game.dealer}</div></div>
-    <div class="score-cell"><div class="score-label">Vulnerable</div><div class="score-value"><VulPills vul={game.vulnerability} /></div></div>
-    <div class="score-cell"><div class="score-label">High bid</div><div class="score-value">
-      {#if auction.highestBid}
-        <Strain level={auction.highestBid[0]} strain={auction.highestBid[1]} />
-        <span class="muted">by {auction.highestBid[2]}</span>
-        {#if auction.doubled !== 'None'}<span class="accent">{auction.doubled}</span>{/if}
-      {:else}<span class="muted">—</span>{/if}
-    </div></div>
+{#snippet gear()}
+  <button class="icon-btn" aria-label="Settings" onclick={onsettings}>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>
+  </button>
+{/snippet}
+
+{#snippet auctionBtn()}
+  <button class="icon-btn" aria-label="Show the whole auction" onclick={() => (auctionOpen = true)}>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"></path></svg>
+  </button>
+{/snippet}
+
+{#snippet challengeResult()}
+  {#if game.challenge}
+    <section class="challenge-result">
+      <Scoreline result={game.challenge} />
+      <Breakdown result={game.challenge} />
+    </section>
+  {/if}
+{/snippet}
+
+<div class="table-screen">
+  {#if game.phase === 'done' && c && game.result}
+    <!-- ── Result ──────────────────────────────────────────────────────────── -->
+    {@const r = game.result}
+    {@const ns = r.winner === 'N/S' ? r.points : -r.points}
+    <TopBar onback={onhome} title="Board {game.boardNum}" sub="Hand complete">
+      {#snippet right()}{@render auctionBtn()}{/snippet}
+    </TopBar>
+    <div class="table-body scroll">
+      <section class="res-card">
+        <div class="res-contract">{@render contractText()} <span class="dim">by {by(c.declarer)}</span></div>
+        <div class="res-verdict" class:made={r.made} class:down={!r.made}>{r.made ? 'Contract made' : 'Contract down'}</div>
+        <div class="res-points" class:plus={ns > 0} class:minus={ns < 0}>{signed(ns)}</div>
+        <div class="res-to">to your side, North-South</div>
+        <p class="res-detail">{r.detail}</p>
+        <p class="res-detail">Tricks: N/S {game.tricksTaken['N/S']}, E/W {game.tricksTaken['E/W']}. {c.declarer === 'South' || c.declarer === 'North' ? 'You' : 'They'} needed {r.tricks_needed}.</p>
+      </section>
+      <button class="btn primary full big" onclick={() => game.newBoard()}>Deal the next board</button>
+      {@render challengeResult()}
+    </div>
+
+  {:else if bidding && auction.passedOut}
+    <TopBar onback={onhome} title="Board {game.boardNum}" sub="Passed out">
+      {#snippet right()}{@render auctionBtn()}{/snippet}
+    </TopBar>
+    <div class="table-body scroll">
+      <AuctionFelt calls={game.calls} alerts={game.liveAlerts} dealer={game.dealer} />
+      <section class="res-card">
+        <div class="res-verdict">Passed out</div>
+        <p class="res-detail">All four players passed: no contract, and no score on this board.</p>
+      </section>
+      <button class="btn primary full big" onclick={() => game.newBoard()}>Deal the next board</button>
+      {@render challengeResult()}
+    </div>
+
+  {:else if bidding}
+    <!-- ── Auction ─────────────────────────────────────────────────────────── -->
+    <TopBar onback={onhome}>
+      {#snippet center()}
+        <div class="topbar-title">Board {game.boardNum}{game.challengeId !== null ? ' · challenge' : ''}</div>
+        <div class="topbar-sub">{game.dealer} deals · <span class:vul={usVul}>{VUL[game.vulnerability]}</span></div>
+      {/snippet}
+      {#snippet right()}{@render gear()}{/snippet}
+    </TopBar>
+    <div class="table-body">
+      <AuctionFelt calls={game.calls} alerts={game.liveAlerts} dealer={game.dealer}
+        turn={auction.isComplete ? null : auction.currentPlayer()} />
+
+      {#if xray.length}
+        <div class="xray">{#each xray as p (p)}<MiniHand seat={p} cards={game.hands[p]} />{/each}</div>
+      {/if}
+
+      <section class="hand-zone">
+        <div class="hand-head">
+          <span class="eyebrow">Your hand</span>
+          <span class="hand-tools">
+            {#if settings.showStrength && strength}<span class="hand-strength">{strength}</span>{/if}
+            {@render auctionBtn()}
+          </span>
+        </div>
+        <Fan cards={game.hands.South} size="md" label="Your hand" />
+      </section>
+
+      {#if game.phase === 'auction_done' && c}
+        <section class="ready-card">
+          <div class="eyebrow">The contract</div>
+          <div class="ready-contract">{@render contractText()} <span class="dim">by {by(c.declarer)}</span></div>
+          <p class="ready-detail">
+            {c.dummy === 'South' ? 'You are dummy' : `${c.dummy} is dummy`} ·
+            {c.leader === 'South' ? 'you lead' : `${c.leader} leads`} ·
+            {c.side === 'N/S' ? 'your side needs' : 'they need'} {c.tricks_needed} tricks
+          </p>
+          <button class="btn primary full big" onclick={() => game.startPlay()}>Start play</button>
+        </section>
+      {:else if !auction.isComplete && auction.currentPlayer() === 'South'}
+        <BidPad {auction} oncall={(call, alert) => game.humanBids(call, alert)} />
+      {/if}
+    </div>
+
   {:else if c}
-    <div class="score-cell"><div class="score-label">Board</div><div class="score-value">#{game.boardNum}</div></div>
-    <div class="score-cell"><div class="score-label">Vulnerable</div><div class="score-value"><VulPills vul={game.vulnerability} /></div></div>
-    <div class="score-cell"><div class="score-label">Contract</div><div class="score-value">
-      <Strain level={c.level} strain={c.strain} /><span class="muted"> by {c.declarer}</span>
-      {#if c.doubled !== 'None'}<span class="accent">{c.doubled}</span>{/if}
-    </div></div>
-    <div class="score-cell"><div class="score-label">Trick</div><div class="score-value">
-      {Math.min(displayNum, 13)} <span class="muted">/ 13 · need {c.tricks_needed}</span></div></div>
-    <div class="score-cell"><div class="score-label">Tricks won</div><div class="score-value">
-      <span class="accent">N/S {game.tricksTaken['N/S']}</span><span class="muted">  ·  E/W {game.tricksTaken['E/W']}</span></div></div>
+    <!-- ── Play ────────────────────────────────────────────────────────────── -->
+    <TopBar onback={onhome}>
+      {#snippet center()}
+        <div class="topbar-title">{@render contractText()} <span class="dim">by {by(c.declarer)}</span></div>
+        <div class="topbar-sub">Trick {Math.min(displayNum, 13)} of 13 · {c.side === 'N/S' ? 'you need' : 'they need'} {c.tricks_needed}</div>
+      {/snippet}
+      {#snippet right()}
+        <div class="tally" role="img" aria-label="Tricks won: your side {game.tricksTaken['N/S']}, theirs {game.tricksTaken['E/W']}">
+          <span><strong class="accent">{game.tricksTaken['N/S']}</strong> us</span>
+          <span><strong>{game.tricksTaken['E/W']}</strong> them</span>
+        </div>
+      {/snippet}
+    </TopBar>
+    <div class="table-body">
+      {#if topSeat}
+        <section class="dummy-zone">
+          <div class="eyebrow" class:accent={who === topSeat}>{labels[topSeat]}{who === topSeat ? ' · your turn' : ''}</div>
+          <Fan cards={game.hands[topSeat]} trump={displayTrump} size={who === topSeat ? 'md' : 'sm'}
+            playable={who === topSeat} legal={m.legalFor(topSeat)}
+            label="{topSeat}'s hand" onplay={(card) => game.humanPlays(topSeat, card)} />
+        </section>
+      {/if}
+
+      {#if peeking && lastTrick}
+        <TrickFelt trick={lastTrick.plays} winner={lastTrick.winner} {labels} {counts} />
+        <p class="trick-line">Previous trick. {trickTaken(lastTrick.plays, game.trump, lastTrick.winner, lastTrick.trick_num)}</p>
+      {:else}
+        <TrickFelt trick={game.trick} winner={game.phase === 'trick_done' ? game.trickWinner : null}
+          {labels} {counts} awaiting={who} />
+        {#if game.phase === 'trick_done' && game.trickWinner}
+          <p class="trick-line trick-won">{trickTaken(game.trick, game.trump, game.trickWinner, displayNum)}</p>
+        {:else if game.trick.length}
+          <p class="trick-line">{winningSoFar(game.trick, game.trump)}</p>
+        {:else}
+          <p class="trick-line dim">{who === 'South' ? 'Your lead.' : who ? `Lead from ${who}'s hand.` : ''}</p>
+        {/if}
+      {/if}
+
+      {#if xray.length}
+        <div class="xray">{#each xray as p (p)}<MiniHand seat={p} cards={game.hands[p]} trump={displayTrump} />{/each}</div>
+      {/if}
+
+      <section class="hand-zone">
+        {#if game.phase === 'trick_done'}
+          <button class="btn primary full big" onclick={() => game.nextTrick()}>
+            {game.gameOver ? 'See the result' : 'Next trick'}{settings.fastPlay ? ' (automatic)' : ''}
+          </button>
+        {:else}
+          <div class="hand-head">
+            <span class="eyebrow" class:accent={who !== null}>
+              {#if who === 'South'}Your turn{led && game.hands.South.some((x) => x.suit === led) ? ` · follow in ${STRAIN_SYMBOLS[led]}` : ''}
+              {:else if who}Your turn · play from {who}'s hand
+              {:else}{labels.South}{/if}
+            </span>
+            <span class="hand-tools">
+              {#if lastTrick}
+                <button class="chip-btn" aria-pressed={peeking} onclick={() => m.togglePeek()}>
+                  {peeking ? 'Back to this trick' : 'Last trick'}
+                </button>
+              {/if}
+              {@render auctionBtn()}
+              {@render gear()}
+            </span>
+          </div>
+        {/if}
+        <Fan cards={game.hands.South} trump={displayTrump} size="lg"
+          playable={who === 'South'} legal={m.legalFor('South')}
+          label="Your hand" onplay={(card) => game.humanPlays('South', card)} />
+      </section>
+    </div>
   {/if}
 </div>
 
-{#if game.phase === 'done' && c && game.result}
-  <!-- ── Result ──────────────────────────────────────────────────────────── -->
-  {@const r = game.result}
-  <div class="split">
-    <div>
-      <h2>🏁 Hand Complete!</h2>
-      <p><strong>Contract:</strong> <Strain level={c.level} strain={c.strain} />{c.doubled === 'None' ? '' : c.doubled} by {c.declarer} | <strong>Vul:</strong> {c.vulnerability}</p>
-      <p><strong>Tricks Won:</strong> N/S {game.tricksTaken['N/S']} — E/W {game.tricksTaken['E/W']} (Target: {r.tricks_needed})</p>
-      <div class="notice {r.made ? 'success' : 'error'}">{r.made ? '✅ Contract Made! ' : '❌ Contract Down. '}{r.detail}</div>
-      <button class="btn primary" onclick={() => game.newBoard()}>Deal Next Board ➔</button>
-      {#if game.challenge}
-        <hr />
-        <Scoreline result={game.challenge} />
-        <Breakdown result={game.challenge} />
-      {/if}
-    </div>
-    <div>
-      <div class="result-panel">
-        <div class="result-eyebrow">Board #{game.boardNum} result</div>
-        <div class="result-contract"><Strain level={c.level} strain={c.strain} /> by {c.declarer}</div>
-        <div class="result-verdict {r.made ? 'made' : 'down'}">{r.made ? 'Contract made' : 'Contract down'}</div>
-        <div class="result-points">{r.winner === c.side ? '+' : '−'}{r.points}</div>
-        <div class="result-to">points to {r.winner}</div>
-      </div>
-    </div>
-  </div>
-  <details class="expander">
-    <summary>Auction</summary>
-    <div class="expander-body"><AuctionGrid dealer={game.dealer} calls={game.calls} alerts={game.alerts} /></div>
-  </details>
-
-{:else if bidding && auction.passedOut}
-  <div class="notice warning">🛑 <strong>Auction Passed Out (4 Passes)</strong> — No contract reached (0 points).</div>
-  <button class="btn primary" onclick={() => game.newBoard()}>Deal Next Board ➔</button>
-  {#if game.challenge}
-    <hr />
-    <Scoreline result={game.challenge} />
-    <Breakdown result={game.challenge} />
-  {/if}
-
-{:else if bidding}
-  <!-- ── Auction ─────────────────────────────────────────────────────────── -->
-  <div class="table-layout">
-    <div class="center">
-      {#if settings.showAll}
-        <div class="hand-header"><strong>North (Partner)</strong></div>
-        <Hand hand={game.hands.North} />
-      {:else}
-        <SeatPanel seat="North" role="Partner · AI" count={game.hands.North.length} note=" · concealed until play starts" />
-      {/if}
-
-      <div class="section-title">Auction</div>
-      <AuctionGrid dealer={game.dealer} calls={game.calls} alerts={game.liveAlerts} />
-
-      {#if !auction.isComplete && auction.currentPlayer() === 'South'}
-        <BiddingBox legal={auction.legalCalls()} oncall={(call, alert) => game.humanBids(call, alert)} />
-      {/if}
-
-      {#if game.phase === 'auction_done' && c}
-        <div class="contract-ready">
-          <span class="cr-label">Contract</span>
-          <span class="cr-contract"><Strain level={c.level} strain={c.strain} />{#if c.doubled !== 'None'} <span class="cr-gold">{c.doubled}</span>{/if}</span>
-          <span class="cr-detail">by <strong>{c.declarer}</strong> · dummy {c.dummy} · <span class="cr-gold">{c.leader}</span> leads · needs {c.tricks_needed} tricks</span>
-        </div>
-        <button class="btn primary full" onclick={() => game.startPlay()}>Start play →</button>
-      {/if}
-
-      <div class="my-hand">
-        <div class="section-title">Your hand</div>
-        {#if settings.showStrength}<HandSummary hand={game.hands.South} />{/if}
-        <Hand hand={game.hands.South} />
-      </div>
-    </div>
-    {#each ['West', 'East'] as const as seat}
-      <div class={seat.toLowerCase()}>
-        <SeatPanel {seat} role="Opponent · AI" count={game.hands[seat].length} />
-        {#if settings.showAll}<Hand hand={game.hands[seat]} />{/if}
-      </div>
-    {/each}
-  </div>
-
-{:else if c}
-  <!-- ── Play ────────────────────────────────────────────────────────────── -->
-  <div class="table-layout centered {layout}">
-    <div class="center">
-      <Hand label="North ({role('North')})" hand={game.hands.North} trump={displayTrump}
-        isTurn={who === 'North'} legal={who === 'North' ? legalPlays(game.hands.North, led) : []}
-        concealed={!faceUp('North')} onplay={(card) => game.humanPlays('North', card)} />
-
-      <div class="felt-zone">
-      {#if peeking && lastTrick}
-        <FeltTable trick={lastTrick.plays} winner={lastTrick.winner}
-          displayNum={lastTrick.trick_num} contract={c} tricksTaken={game.tricksTaken} />
-      {:else}
-        <FeltTable trick={game.trick} winner={game.phase === 'trick_done' ? game.trickWinner : null}
-          displayNum={displayNum} contract={c} tricksTaken={game.tricksTaken} />
-      {/if}
-      {#if lastTrick}
-        <div class="last-trick-row">
-          <button class="btn" aria-pressed={peeking} onclick={() => (peekKey = peeking ? null : momentKey)}>
-            {peeking ? '↩ Back to this trick' : '👁 Last trick'}
-          </button>
-          {#if peeking}
-            {@const w = lastTrick.winning_card}
-            <span class="caption">Trick {lastTrick.trick_num}: <strong>{lastTrick.winner}</strong> won with
-              <span style:color="var(--suit-{w.suit.toLowerCase()}-lt)">{w.rank}{SUIT_SYMBOLS[w.suit]}</span></span>
-          {/if}
-        </div>
-      {/if}
-
-      {#if game.phase === 'trick_done' && game.trickWinner && winnerCard}
-        <div class="trick-result">
-          <span class="tr-winner">{game.trickWinner}</span>
-          <span class="tr-text">({game.trickWinner === 'North' || game.trickWinner === 'South' ? 'N/S' : 'E/W'}) takes trick {displayNum} with</span>
-          <span class="tr-card" style:color="var(--suit-{winnerCard.suit.toLowerCase()})">{winnerCard.rank}{SUIT_SYMBOLS[winnerCard.suit]}</span>
-          <span class="tr-text">— second-highest</span>
-        </div>
-        <button class="btn primary full" onclick={() => game.nextTrick()}>
-          {game.gameOver ? 'See final score →' : 'Next trick →'}{settings.fastPlay ? ' (automatic)' : ''}
-        </button>
-      {/if}
-      </div>
-
-      <div class="my-hand">
-        <Hand label={c.dummy === 'South' ? 'South (Dummy · North plays this hand)' : `South (${role('South')})`}
-          hand={game.hands.South} trump={displayTrump}
-          isTurn={who === 'South'} legal={who === 'South' ? legalPlays(game.hands.South, led) : []}
-          concealed={!faceUp('South')} onplay={(card) => game.humanPlays('South', card)} />
-        {#if settings.showStrength}<HandSummary hand={game.hands.South} />{/if}
-      </div>
-
-      <details class="expander">
-        <summary>Auction</summary>
-        <div class="expander-body">
-          <div class="auction-recap-note">Board #{game.boardNum} · dealer {game.dealer} · {c.declarer} declares</div>
-          <AuctionGrid dealer={game.dealer} calls={game.calls} alerts={game.liveAlerts} />
-        </div>
-      </details>
-    </div>
-    {#each ['West', 'East'] as const as seat}
-      <div class={seat.toLowerCase()}>
-        <SeatPanel {seat} role={role(seat)} count={game.hands[seat].length} backs={!faceUp(seat)} />
-        {#if faceUp(seat)}<Hand hand={game.hands[seat]} trump={displayTrump} lines />{/if}
-      </div>
-    {/each}
-  </div>
-{/if}
+<Sheet open={auctionOpen} title="Auction · board {game.boardNum}" onclose={() => (auctionOpen = false)}>
+  <p class="caption">{game.dealer} dealt · {VUL[game.vulnerability]}. Calls marked ! were alerted: tap one to read it.</p>
+  <AuctionGrid dealer={game.dealer} calls={game.calls} alerts={game.boardOver ? game.alerts : game.liveAlerts} />
+</Sheet>

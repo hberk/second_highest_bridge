@@ -81,17 +81,44 @@ chose GIB knowing it scores worse here (see BIDDING.md).
 
 ## 2. Web app UI
 
-From screenshots of the built site (desktop 1400x1000, phone 390x844). Only
-the **bidding screen** has been reviewed so far.
+**2026-10-16: the Felt redesign** (branch `felt-redesign`, see FRONTEND.md)
+replaced the tabbed layout with a phone-first home page and table, and the
+bidding box with a two-tap pad that explains each call. Items 2.1-2.5 below
+were about the old layout and are settled by it: the hand sits above the bid
+pad (2.1), the hand is one overlapping fan with every card visible (2.2), the
+tabs and scoreboard are gone (2.3), the strength line shows HCP and shape
+only on phones (2.4; the desktop layout shows the "2nd-highest value" too,
+to one decimal), and the table is a 520px column on phones with its own
+desktop layout from 1200px (2.5; mocked on the design canvas and approved
+2026-10-16).
 
-- [ ] **2.0 Screenshot the rest first**: card play, result screen,
+Follow-ups from the redesign:
+
+- [ ] **2.6 History and Challenge** sit in the new frame and colours but keep
+  their old, busier layout (emoji headings, wide tables). Redesign them in
+  the Felt style.
+- [ ] **2.7 How to play** still draws its examples with the old
+  `FeltTable`. Draw them with `TrickFelt` so they match the table.
+- [ ] **2.8 Safari with its toolbars showing** leaves ~660-750px of height;
+  the bidding screen needs ~770, so it scrolls a little there. Added to the
+  home screen (full screen) it fits an 844px iPhone with room to spare.
+- [ ] **2.9 Bid meanings run on the main thread** (`callMeanings`, 4,000
+  sampled hands, ~100 ms on a laptop) just after the pad appears. If a phone
+  shows a stutter, move it to a Web Worker.
+- [ ] **2.10 Streamlit** has no bid meanings or two-tap box; it stays the
+  reference engine with its old look unless the user asks.
+
+The original notes, from screenshots of the old built site (desktop
+1400x1000, phone 390x844):
+
+- [x] **2.0 Screenshot the rest first**: card play, result screen,
   Challenge tab with its review, History tab, Display menu, desktop and
   phone. Chrome headless shell is installed under
   `%LOCALAPPDATA%/ms-playwright/` and serves static screenshots
   (`--screenshot --window-size=...` against `npx vite preview`), but it can't
   click. To reach play, drive it with Playwright (`npx playwright`) or over
   the DevTools protocol. Add what you find to this section.
-- [ ] **2.1 The bidding box is too tall** (biggest issue). On desktop the
+- [x] **2.1 The bidding box is too tall** (biggest issue). On desktop the
   35-button grid pushes **your hand below the fold**, so you can't see your
   cards while you bid. **User decides** between:
   (a) hide rows where every bid is already illegal (small change, gets
@@ -99,17 +126,17 @@ the **bidding screen** has been reviewed so far.
   (b) BBO-style two-step box: a row of levels 1-7, then the strains (most
   compact, familiar to BBO players).
   Either way, also consider moving your hand above the box on desktop.
-- [ ] **2.2 Phone: a suit splits across two rows.** With 13 cards the hand
+- [x] **2.2 Phone: a suit splits across two rows.** With 13 cards the hand
   wraps mid-suit (clubs J8 on one row, 432 on the next). Keep each suit
   unbroken: wrap between suits, or overlap the cards slightly as BBO does.
   The user's standing rule: show every card at once, never clip or scroll a
   suit.
-- [ ] **2.3 Phone: small layout breaks.** The tab label is cut off
+- [x] **2.3 Phone: small layout breaks.** The tab label is cut off
   ("Hand History (0 bo"); "NORTH · DEALER" wraps onto two lines in the
   auction header; the scoreboard's HIGH BID cell drops to a row of its own.
-- [ ] **2.4 "2nd-highest value 4.905"**: show one decimal (4.9). Check
+- [x] **2.4 "2nd-highest value 4.905"**: show one decimal (4.9). Check
   whether Streamlit's `hand_summary_html` should match.
-- [ ] **2.5 Desktop: wasted space.** The seat panels are large for a card
+- [x] **2.5 Desktop: wasted space.** The seat panels are large for a card
   count, and there's empty space around the auction. Lower priority; revisit
   after 2.1.
 

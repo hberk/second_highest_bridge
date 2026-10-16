@@ -1,96 +1,13 @@
-/* ── Phone layout ────────────────────────────────────────────────────────────
-   Portrait-first rules for narrow screens, loaded after the other sheets so they
-   win at equal specificity. Desktop and tablet layouts are untouched. The aim on
-   a phone: the trick and your own cards on one screen, no scrolling to play. */
+/* ── Phone layout for the older screens ─────────────────────────────────────
+   The table, home and bidding are phone-first already (felt.css). What is left
+   here tightens How to play's felt diagrams and the section titles in History
+   and Challenge on narrow screens. Loaded after table.css so it wins at equal
+   specificity. */
 
 @media (max-width: 600px) {
-    .page { padding: 8px 10px 0; }
-
-    /* Header: one line, title and the Display menu side by side. */
-    .masthead-row { flex-wrap: nowrap; gap: 8px; }
-    .masthead { margin: 0; min-width: 0; }
-    .masthead-title { font-size: 18px; white-space: nowrap; }
-    .masthead-sub { display: none; }
-    .settings > summary { padding: 4px 10px; font-size: 12px; }
-
-    /* Tabs: compact, swipeable, no scrollbar. */
-    .tabs { margin-bottom: 8px; scrollbar-width: none; }
-    .tabs::-webkit-scrollbar { display: none; }
-    .tab { padding: 7px 9px; font-size: 13px; }
-
-    /* Scoreboard: a slim three-column strip. */
-    .scoreboard {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        margin-bottom: 8px;
-        border-radius: 10px;
-    }
-    .score-cell { padding: 5px 8px; border-bottom: none; }
-    .score-cell:nth-child(n + 4) { border-top: 1px solid var(--line); }
-    .score-label { font-size: 9.5px; letter-spacing: 1px; margin-bottom: 1px; }
-    .score-value { font-size: 14px; }
-    .score-value .muted { font-size: 11.5px; }
-    .vul-pill { padding: 1px 5px; font-size: 10px; }
-
-    /* One column. The opponents' panels only take room when they show cards
-       (the dummy, or every hand with X-ray on); otherwise the felt's seat labels
-       already say who is where. The dummy goes above the trick. */
-    .table-layout,
-    .table-layout.wide-west,
-    .table-layout.wide-east { grid-template-columns: minmax(0, 1fr); gap: 6px; }
-    .table-layout > .center { order: 0; }
-    .table-layout > .west:not(:has(.pcard-row, .card-btn-row)),
-    .table-layout > .east:not(:has(.pcard-row, .card-btn-row)) { display: none; }
-    /* A dummy across the table is North's and sits above the trick already. A
-       dummy at West or East stays on its own side of the trick, so the order of
-       play reads the way it does at the table: a narrow column of suit lines
-       beside the felt, with your hand full width underneath. */
-    .table-layout.wide-west:has(> .west .pcard-row) > .center,
-    .table-layout.wide-east:has(> .east .pcard-row) > .center { display: contents; }
-    .table-layout.wide-west:has(> .west .pcard-row) > .center > :not(.felt-zone),
-    .table-layout.wide-east:has(> .east .pcard-row) > .center > :not(.felt-zone) { grid-column: 1 / -1; }
-    .table-layout.wide-west:has(> .west .pcard-row) > .west { grid-column: 1; grid-row: 1 / span 2; order: 0; }
-    .table-layout.wide-west:has(> .west .pcard-row) .felt-zone { grid-column: 2; grid-row: 1; min-width: 0; }
-    .table-layout.wide-east:has(> .east .pcard-row) > .east { grid-column: 2; grid-row: 1 / span 2; order: 0; }
-    .table-layout.wide-east:has(> .east .pcard-row) .felt-zone { grid-column: 1; grid-row: 1; min-width: 0; }
-    .table-layout.wide-west:has(> .west .pcard-row) { grid-template-columns: minmax(0, 0.62fr) minmax(0, 1.6fr); }
-    .table-layout.wide-east:has(> .east .pcard-row) { grid-template-columns: minmax(0, 1.6fr) minmax(0, 0.62fr); }
-    /* The dummy as plain suit lines (♠ A K 5 2), the way a hand diagram reads. */
-    .table-layout > .west .pcard-row,
-    .table-layout > .east .pcard-row { display: none; }
-    .table-layout > .west .suit-lines,
-    .table-layout > .east .suit-lines {
-        display: grid; gap: 5px; padding: 8px 8px 9px;
-        background: var(--panel, #0f1c2b); border: 1px solid var(--line-2); border-radius: 10px;
-    }
-    .suit-line { display: flex; gap: 5px; align-items: baseline; line-height: 1.25; }
-    .suit-line-sym { font-size: 15px; flex: 0 0 auto; }
-    .suit-line-ranks { font-size: 14px; font-weight: 700; word-spacing: 2px; overflow-wrap: anywhere; }
-    .table-layout.wide-west > .west .ai-player-box,
-    .table-layout.wide-east > .east .ai-player-box { flex-wrap: wrap; gap: 0 6px; margin-bottom: 4px; }
-    .table-layout.wide-west > .west .seat-count,
-    .table-layout.wide-east > .east .seat-count { display: none; }
-    .table-layout > .west .ai-player-box,
-    .table-layout > .east .ai-player-box {
-        display: flex; align-items: baseline; gap: 8px;
-        padding: 5px 10px; text-align: left; border-radius: 9px;
-    }
-    .ai-player-box .card-backs { display: none; }
-    .ai-player-box .seat-name, .ai-player-box .seat-role { margin: 0; }
-    .ai-player-box .seat-count { margin-left: auto; }
-
-    /* A concealed partner during the auction, and a concealed North in play,
-       are just card backs: the felt and the auction grid already name them. */
-    .table-layout .center > .ai-player-box { display: none; }
-    .center > .hand-header:has(+ .card-backs),
-    .center > .card-backs,
-    .center > .card-backs + .seat-count { display: none; }
-
-    .hand-header { padding: 5px 10px; font-size: 13px; margin-bottom: 4px; }
-    .turn-pill { padding: 3px 8px; font-size: 10px; }
     .section-title { margin: 8px 0 6px; }
 
-    /* Felt: smaller, so the whole trick sits above your hand. */
+    /* Felt diagrams: smaller, so a whole trick fits beside its explanation. */
     .bridge-felt-container { min-height: 0; padding: 8px 10px; margin: 4px 0 6px; border-radius: 14px; }
     .felt-top { margin-bottom: 4px; }
     .felt-card, .empty-felt-slot { width: 42px; height: 58px; }
@@ -100,47 +17,4 @@
     .trick-title { font-size: 12px; }
     .felt-rule { font-size: 10px; }
     .winner-badge { font-size: 9px; padding: 1px 5px; }
-
-    .trick-result { padding: 6px 10px; margin-bottom: 6px; gap: 5px; }
-    .tr-winner { font-size: 14px; }
-    .last-trick-row { margin: 2px 0; }
-
-    /* Your hand is pinned to the bottom of the screen while you have something
-       to do with it: a call to choose, or a card to play. Between tricks it falls
-       back into the page, so the result and "Next trick" are never under it. */
-    .my-hand { margin-top: 6px; }
-    .my-hand:has(.card-btn-row),
-    .table-layout:has(.bidding-box-container) .my-hand {
-        position: sticky;
-        bottom: 0;
-        z-index: 20;
-        margin: 6px -10px 0;
-        padding: 6px 10px calc(8px + env(safe-area-inset-bottom));
-        background: var(--bg);
-        border-top: 1px solid var(--line-2);
-        box-shadow: 0 -8px 18px #0000008c;
-    }
-    .my-hand .section-title { margin-top: 0; }
-    .my-hand .hand-summary { padding-bottom: 2px; font-size: 11.5px; }
-
-    /* Playable cards: big enough to tap, small enough for 13 in two rows. */
-    .card-btn-row { gap: 5px 4px; padding: 2px 0 0; margin: 0; }
-    .card-btn { min-width: 38px; height: 52px; font-size: 15px; padding: 0 3px; }
-    .card-btn-gap { flex-basis: 4px; }
-    .pcard { width: 30px; height: 42px; flex: 0 0 30px; }
-    .pcard-gap { flex-basis: 6px; width: 6px; }
-
-    /* Bidding box: a little tighter so it and your hand fit together. */
-    .bidding-box-container { padding: 10px 10px 8px; margin-top: 8px; }
-    .bid-btn { height: 34px; font-size: 14px; }
-    .bid-alert-row label { font-size: 11px; }
-    .bid-alert-row input { padding: 5px 8px; font-size: 13px; }
-    .contract-ready { margin: 8px 0 6px; padding: 9px 12px; }
-    .cr-contract { font-size: 20px; }
-}
-
-/* Touch screens have no hover: a tapped card should not stay lifted. */
-@media (hover: none) {
-    .card-btn:hover:not(:disabled) { transform: none; box-shadow: 0 3px 7px #00000073, inset 0 1px 0 #ffffffe6; border-color: #c3ccd5; }
-    .card-btn:active:not(:disabled) { transform: translateY(-3px); border-color: var(--gold); }
 }

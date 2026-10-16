@@ -15,7 +15,7 @@ npm run build      # static site in frontend/dist, deployed to GitHub Pages
 ```
 
 A static Svelte 5 + Vite port of the Streamlit app, hosted on GitHub Pages:
-no server, everything runs in the browser, ~62 KB gzipped including the deal
+no server, everything runs in the browser, ~105 KB gzipped including the deal
 library. `app.py` and the Python engine stay as they are and remain the
 reference.
 - `frontend/src/lib/engine/` is a **line-for-line TypeScript port** of
@@ -33,11 +33,62 @@ reference.
   rebuilt from the call list rather than stored, so there is one source of truth.
   `game.test.ts` drives it through free and challenge boards, rendering every
   view at every step -- the counterpart of `tests/test_app_flow.py`.
-- Styles come from `styles.css` (`frontend/src/styles/table.css`, Streamlit
-  selectors dropped; `app-shell.css` replaces them). Svelte escapes all text,
+- **Screens (the Felt design, 2026-10-16).** Phone first, portrait, dark
+  green. `App.svelte` switches between a home page (`HomeView`) and the
+  table, Challenge, History and How to play, each with a back button
+  (`TopBar`); the screen follows the URL hash (`#table`, `#history`), so the
+  browser's back button and the phone's back swipe work. Settings live in a
+  bottom sheet (`Sheet` + `SettingsPanel`), opened from the gear on home and
+  at the table. `TableView` is one 520px column: the auction on an oval of
+  felt (`AuctionFelt`, each seat's latest call where it sits and the newest
+  alert spelled out), the trick on the felt (`TrickFelt`) with a line under it
+  saying who is winning and why (`trickText.ts`), your hand as an overlapping
+  fan at the bottom (`Fan`; legal cards rise, the rest grey out), the dummy
+  above the felt once it's down, and X-ray hands as suit lines (`MiniHand`).
+  The full auction is a sheet. **Wide screens (1200px and up,
+  `viewport.svelte.ts`) get a desktop layout instead**: a header with the
+  sections as tabs and the Display menu (`DeskHeader`), and
+  `DesktopTableView`, with everything on screen at once: a strip of board
+  facts (board, dealer, vulnerability, high bid or contract, trick, tricks
+  won, session), West and East as seat panels beside a larger felt
+  (`SeatCard`), the dummy above, your hand in large cards with the full
+  strength line (HCP, 2nd-highest value, shape), and down the right the
+  auction, your call (`BidPad` docked: its meaning box opens to the left),
+  the last trick and the session table. Both layouts read the table from one
+  `TableModel` (`tableModel.svelte.ts`: whose turn, which hands are face up,
+  seat labels, the last-trick peek, fast play), so they can't disagree, and
+  `game.test.ts` renders and checks both at every step of every board. Home
+  is the same on both. `index.html` and `public/manifest.webmanifest`
+  make it a full-screen app when added to an iPhone's home screen;
+  `felt.css` keeps content clear of the notch and home bar with the
+  safe-area insets.
+- **Two-tap bidding with meanings** (`BidPad.svelte`, `meanings.ts`). Every
+  call is a button. The first tap opens a box saying what the call would mean
+  here; tapping the same button again makes it; the box also takes a
+  self-alert. The meaning comes from the robots themselves: an alert depends
+  only on the auction and the call (machine-checked, see
+  [ARCHITECTURE.md](ARCHITECTURE.md)), so `callMeanings` asks `aiBidExplained`
+  what it would bid with 4,000 sampled hands in this seat and keeps each
+  call's alert. The sample is seeded from the auction (the same auction always
+  reads the same) and skewed towards strong and long hands, which uniform
+  deals rarely reach. It's what partner, a robot, will take the call to mean.
+  `describeCall` turns an alert into a title ("Negative double", "Transfer",
+  "Natural"), tags ("4+ ♠", "6+ HCP") and a plain sentence from a glossary of
+  the conventions GIB uses. A call no sampled hand makes says so: "No agreed
+  meaning". Pass gets a general explanation, since robot pass reasons read
+  the hand. `meanings.test.ts` checks the sampled meaning against the robots'
+  real alert at every bid of real auctions. Nothing here touches the engine,
+  so the fixtures don't cover it, and `ai.py` stays free of any RNG: the
+  sampler's is its own.
+- Styles: `felt.css` holds the Felt design and its colour tokens, loaded
+  last, so the older sheets (`table.css`, ported from `styles.css` with
+  Streamlit selectors dropped, and `app-shell.css`) take on its colours where
+  History and Challenge still use them. `mobile.css` now only tightens How to
+  play's felt diagrams on phones. Svelte escapes all text,
   so the `unsafe_allow_html` audit ([ARCHITECTURE.md](ARCHITECTURE.md)) has no equivalent here: no `{@html}`
   is used anywhere.
-- **Self-alerts** (both apps): the bidding box has an alert field; the
+- **Self-alerts** (both apps): the bidding box has an alert field (in the
+  Svelte app, "Add an alert" in the box a first tap opens); the
   text goes with the next call (`Game.humanBids(call, alert)`, `human_bids` in
   `app.py`), is cleaned by `cleanAlert` / `clean_alert` (one line, at most 70
   characters), and is shown live even on a pass, while robot pass reasons stay
@@ -70,12 +121,14 @@ reference.
   off by default, and `Game.autoPlayForced` defaults to false so the
   state machine and its tests behave as before unless asked) and **fast
   play** (`settings.fastPlay`, next trick after 1.2 s); a **session
-  scoreboard** (`SessionScore.svelte`) on the Table tab: N/S total, made and
+  scoreboard** (`SessionScore.svelte`) on the home page: N/S total, made and
   set counts, a board-by-board running total, and the margin against the
   robots on challenge boards. Passed-out boards count (`Game.passedOutCount`,
   `passed_out_count`); boards imported from LIN don't (`imported`). Auto-play
-  is on by default in both apps, so `test_app_flow`'s `_start_play_as` switches
-  it off: those tests click every card themselves. Fast play in Streamlit
+  is off by default in both apps (since 2026-10-15), and `test_app_flow`'s
+  `_start_play_as` switches it on only when a test asks: the others click
+  every card themselves. Last trick and the auction are buttons beside your
+  hand in the Svelte app. Fast play in Streamlit
   sleeps 1.2 s after the trick is drawn, then reruns.
 - **The challenge review renders the history view a second time in the same
   run**, so `render_history_tab(..., key=)` prefixes every widget key (`hist`
