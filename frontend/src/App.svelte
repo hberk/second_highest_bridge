@@ -5,9 +5,10 @@
   import TableView from './lib/views/TableView.svelte';
   import ChallengeView from './lib/views/ChallengeView.svelte';
   import HistoryView from './lib/views/HistoryView.svelte';
+  import HowToPlayView from './lib/views/HowToPlayView.svelte';
 
   const game = new Game();
-  let tab = $state<'table' | 'challenge' | 'history'>('table');
+  let tab = $state<'table' | 'challenge' | 'history' | 'howto'>('table');
 
   $effect(() => {
     settings.applyDeck();
@@ -28,6 +29,7 @@
     ['table', '🎮 Bridge Table'],
     ['challenge', `⚔️ Challenge${game.challengeLog.length ? ` (${game.challengeLog.length})` : ''}`],
     ['history', `📜 Hand History (${n} board${n === 1 ? '' : 's'})`],
+    ['howto', '📖 How to Play'],
   ] as const);
   const decks: DeckName[] = ['four', 'classic'];
 
@@ -88,6 +90,8 @@
       <TableView {game} />
     {:else if tab === 'challenge'}
       <ChallengeView {game} ondealt={() => (tab = 'table')} />
+    {:else if tab === 'howto'}
+      <HowToPlayView />
     {:else}
       <HistoryView records={game.history} onimport={(boards: HistoryRecord[]) => game.importBoards(boards)} />
     {/if}
