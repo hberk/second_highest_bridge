@@ -1065,7 +1065,8 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
     legal    = legal_plays(hand, led_suit)
 
     if not trick:
-        choice = _lead(hand, trump, played)
+        choice = (_draw_trump(player, hand, trump, played, visible, history)
+                  if DRAW_TRUMPS else None) or _lead(hand, trump, played)
     elif len(trick) == 3:
         choice = _play_last(legal, trick, trump)
     else:
@@ -1252,6 +1253,243 @@ def _endgame_totals(player: str, hand: list[Card], trick: list[tuple[str, Card]]
 
 
 # ── Lead ──────────────────────────────────────────────────────────────────────
+
+# ── Declarer draws trumps ────────────────────────────────────────────────────
+#
+# `_lead` is the same rule for every seat, and it ranks trumps last. So the
+# declaring side kept leading side suits while the defence still held trumps
+# for ruffing them: on deal 6, 4C by South with ten trumps (Q1075 opposite
+# AJ9643), South led the K♠ at trick 4 where J♣ to the Q♣ draws trumps. Over
+# the first 100 challenge deals, with the defence still holding trumps, the
+# declaring side led one only 38% of the time, and a costly side-suit lead
+# where a trump was best came up 66 times on 51 deals (double dummy, from
+# research/robot_lines.jsonl).
+#
+# A trump lead's outcome depends only on where the trumps are: anyone out of
+# trumps discards, and a discard never wins a trick in trumps. So declarer can
+# play the trump suit out on its own, for every split of the trumps it can't
+# see that fits who has shown out, and lead the trump that loses the fewest
+# trump tricks on average (worst case, then the lower card, to break ties).
+# Drawing trumps at a cost is still drawing them: the trumps it loses are
+# trumps the defence can't ruff side-suit winners with.
+
+#: Declaring side draws trumps when on lead (measurement switch).
+DRAW_TRUMPS = True
+
+
+def _trump_losers(ours: tuple, theirs: tuple, leader: int, memo: dict) -> int:
+    """Trump tricks the defence wins before running out, trumps led throughout.
+
+    `ours` is (leading hand, partner) and `theirs` is (left, right): each a
+    sorted tuple of trump values, seats in play order leader, left, partner,
+    right. The declaring side picks its cards and the defence picks its own,
+    each knowing the layout; after the defence wins a trick, the declaring side
+    leads trumps again from whichever of its hands does better.
+    """
+    if not theirs[0] and not theirs[1]:
+        return 0
+    if not ours[0] and not ours[1]:
+        return len(theirs[0]) + len(theirs[1])
+    key = (ours, theirs, leader)
+    if key in memo:
+        return memo[key]
+    lead_hand, partner = (ours[0], ours[1]) if leader == 0 else (ours[1], ours[0])
+    left, right = (theirs[0], theirs[1]) if leader == 0 else (theirs[1], theirs[0])
+    if not lead_hand:
+        result = _trump_losers(ours, theirs, 1 - leader, memo)
+        memo[key] = result
+        return result
+
+    def drop(cards: tuple, card) -> tuple:
+        return tuple(c for c in cards if c != card) if card is not None else cards
+
+    def options(cards: tuple) -> list:
+        return list(cards) if cards else [None]
+
+    best = None
+    for a in lead_hand:
+        worst = None
+        for b in options(left):
+            ours_best = None
+            for c in options(partner):
+                defence_best = None
+                for d in options(right):
+                    played = [(0, a), (1, b), (2, c), (3, d)]
+                    trumps = sorted((v, who) for who, v in played if v is not None)
+                    winner = trumps[0][1] if len(trumps) == 1 else trumps[-2][1]
+                    new_lead = drop(lead_hand, a)
+                    new_partner = drop(partner, c)
+                    new_left, new_right = drop(left, b), drop(right, d)
+                    if leader == 0:
+                        new_ours, new_theirs = (new_lead, new_partner), (new_left, new_right)
+                    else:
+                        new_ours, new_theirs = (new_partner, new_lead), (new_right, new_left)
+                    if winner in (0, 2):
+                        nxt = leader if winner == 0 else 1 - leader
+                        value = _trump_losers(new_ours, new_theirs, nxt, memo)
+                    else:
+                        value = 1 + min(_trump_losers(new_ours, new_theirs, h, memo)
+                                        for h in (0, 1) if new_ours[h]) \
+                            if (new_ours[0] or new_ours[1]) else \
+                            1 + len(new_theirs[0]) + len(new_theirs[1])
+                    if defence_best is None or value > defence_best:
+                        defence_best = value
+                if ours_best is None or defence_best < ours_best:
+                    ours_best = defence_best
+            if worst is None or ours_best > worst:
+                worst = ours_best
+        if best is None or worst < best:
+            best = worst
+    memo[key] = best
+    return best
+
+
+def _draw_trump(player: str, hand: list[Card], trump: str | None,
+                played: list[Card], visible: dict[str, list[Card]] | None,
+                history: list | None) -> Card | None:
+    """The trump the declaring side should lead to draw trumps, or None.
+
+    Only for a hand whose partner it can see (declarer and dummy see each
+    other; a defender sees only dummy, an opponent). Leads a trump when the
+    defence may still hold trumps and the declaring side holds more.
+    """
+    partner = PARTNERS[player]
+    if trump not in SUITS or not visible or partner not in visible:
+        return None
+    mine = sorted(c.value() for c in hand if c.suit == trump)
+    theirs_partner = sorted(c.value() for c in visible[partner] if c.suit == trump)
+    if not mine:
+        return None
+    seen = set(played) | set(hand) | set(visible[partner])
+    outstanding = [c.value() for c in _FULL_DECK if c.suit == trump and c not in seen]
+    if not outstanding or len(mine) + len(theirs_partner) <= len(outstanding):
+        return None
+
+    ruff = _ruff_first(hand, visible[partner], trump, len(outstanding))
+    if ruff is not None:
+        return ruff if ruff is not _NO_DRAW else None
+
+    left, right = PLAYERS[(PLAYERS.index(player) + 1) % 4], PLAYERS[(PLAYERS.index(player) + 3) % 4]
+    out = _shown_out(history or [], [])
+    unseen = sum(1 for c in _FULL_DECK if c not in seen)
+    slots = len(hand)                     # every hand holds this many at a lead
+    others = unseen - len(outstanding)
+    layouts = []
+    for n in range(len(outstanding) + 1):
+        for picked in combinations(sorted(outstanding), n):
+            left_trumps = tuple(picked)
+            right_trumps = tuple(v for v in sorted(outstanding) if v not in picked)
+            if (left_trumps and trump in out[left]) or (right_trumps and trump in out[right]):
+                continue
+            if len(left_trumps) > slots or len(right_trumps) > slots:
+                continue
+            # How many ways the rest of the unseen cards fill the left hand.
+            weight = _choose(others, slots - len(left_trumps))
+            if weight:
+                layouts.append((left_trumps, right_trumps, weight))
+    if not layouts:
+        return None
+
+    scored = []
+    memo: dict = {}
+    for card in sorted((c for c in hand if c.suit == trump), key=lambda c: c.value()):
+        total = 0
+        worst = 0
+        weights = 0
+        for left_trumps, right_trumps, weight in layouts:
+            # This card is led; the rest of the trick is played by the search.
+            losers = _after_lead(card.value(), tuple(v for v in mine if v != card.value()),
+                                 tuple(theirs_partner), left_trumps, right_trumps, memo)
+            total += losers * weight
+            weights += weight
+            worst = max(worst, losers)
+        scored.append((total / weights, worst, card.value(), card))
+    return min(scored, key=lambda t: t[:3])[3]
+
+
+def _after_lead(led: int, rest: tuple, partner: tuple, left: tuple, right: tuple,
+                memo: dict) -> int:
+    """Trump losers once `led` is on the table: the other three seats play,
+    then the trump suit is played out by `_trump_losers`."""
+    worst = None
+    for b in (left or (None,)):
+        ours_best = None
+        for c in (partner or (None,)):
+            defence_best = None
+            for d in (right or (None,)):
+                played = [(0, led), (1, b), (2, c), (3, d)]
+                trumps = sorted((v, who) for who, v in played if v is not None)
+                winner = trumps[0][1] if len(trumps) == 1 else trumps[-2][1]
+                new_ours = (rest, tuple(x for x in partner if x != c))
+                new_theirs = (tuple(x for x in left if x != b), tuple(x for x in right if x != d))
+                if winner in (0, 2):
+                    value = _trump_losers(new_ours, new_theirs, 0 if winner == 0 else 1, memo)
+                elif new_ours[0] or new_ours[1]:
+                    value = 1 + min(_trump_losers(new_ours, new_theirs, h, memo)
+                                    for h in (0, 1) if new_ours[h])
+                else:
+                    value = 1 + len(new_theirs[0]) + len(new_theirs[1])
+                if defence_best is None or value > defence_best:
+                    defence_best = value
+            if ours_best is None or defence_best < ours_best:
+                ours_best = defence_best
+        if worst is None or ours_best > worst:
+            worst = ours_best
+    return worst
+
+
+#: `_ruff_first`'s answer when ruffs come first but this hand can't start one.
+_NO_DRAW = object()
+
+
+def _ruff_first(hand: list[Card], partner_hand: list[Card], trump: str,
+                outstanding: int):
+    """Ruffs in the short-trump hand that drawing trumps would throw away.
+
+    The one reason to delay drawing trumps: the hand with fewer trumps (usually
+    dummy) is needed to ruff the long hand's extra cards in a suit where it
+    holds at most one. Each card the long hand holds past the short hand's
+    length there is a ruff. Drawing takes at least half the outstanding trumps
+    in rounds, each costing the short hand a trump; if what it would have left
+    can't take the ruffs, ruff first.
+
+    Returns None to draw trumps as usual; otherwise the card to lead (the long
+    hand's lowest card in the suit the short hand lacks), or `_NO_DRAW` when
+    this hand is the short one and can't start a ruff itself.
+    """
+    mine = [c for c in hand if c.suit == trump]
+    theirs = [c for c in partner_hand if c.suit == trump]
+    if len(mine) == len(theirs):
+        return None
+    long_hand, short_hand = (hand, partner_hand) if len(mine) > len(theirs) else (partner_hand, hand)
+    short_trumps = min(len(mine), len(theirs))
+    ruffs = 0
+    target = None
+    for suit in SUITS:
+        if suit == trump:
+            continue
+        long_cards = [c for c in long_hand if c.suit == suit]
+        short_count = sum(1 for c in short_hand if c.suit == suit)
+        if short_count <= 1 and len(long_cards) > short_count:
+            ruffs += len(long_cards) - short_count
+            # The suit the short hand is shortest in, then the longest in the long hand.
+            rank = (short_count, -len(long_cards), SUITS.index(suit))
+            if target is None or rank < target[0]:
+                target = (rank, min(long_cards, key=lambda c: c.value()))
+    rounds = (outstanding + 1) // 2
+    if not ruffs or short_trumps - rounds >= ruffs:
+        return None
+    return target[1] if long_hand is hand else _NO_DRAW
+
+
+def _choose(n: int, k: int) -> int:
+    if k < 0 or k > n:
+        return 0
+    result = 1
+    for i in range(k):
+        result = result * (n - i) // (i + 1)
+    return result
+
 
 def _lead(hand: list[Card], trump: str | None, played: list[Card]) -> Card:
     """
