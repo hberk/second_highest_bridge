@@ -194,7 +194,7 @@
           {/snippet}
           <div class="dk-felt">
             <TrickFelt trick={game.trick} winner={game.phase === 'trick_done' ? game.trickWinner : null}
-              labels={m.labels} counts={m.counts} awaiting={m.who} {info} />
+              labels={m.labels} awaiting={m.who} {info} />
           </div>
         {/snippet}
         {@render seats(trickFelt)}

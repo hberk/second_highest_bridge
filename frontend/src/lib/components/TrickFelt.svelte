@@ -1,17 +1,15 @@
 <!-- The trick on the felt: each card in front of the seat that played it, the
      winner ringed once the trick is over, and a dashed space where your card
-     goes when it's your turn. East and West appear only as a name and a card
-     count, since their hands are hidden. -->
+     goes when it's your turn. -->
 <script lang="ts">
   import { SUIT_NAMES, SUIT_SYMBOLS, type Card, type Seat } from '../engine/card';
   import type { Play } from '../engine/auction';
   import type { Snippet } from 'svelte';
 
-  let { trick, winner = null, labels, counts, awaiting = null, info }: {
+  let { trick, winner = null, labels, awaiting = null, info }: {
     trick: Play[];
     winner?: Seat | null;
     labels: Record<Seat, string>;
-    counts: Record<Seat, number>;
     awaiting?: Seat | null;
     /** Text for the middle of the felt (the desktop table's trick header). */
     info?: Snippet;
@@ -26,7 +24,7 @@
   {#each SEATS as p (p)}
     {@const c = played.get(p)}
     <div class="tf-seat tf-{p.toLowerCase()}">
-      <span class="tf-label">{labels[p]}{#if p === 'East' || p === 'West'}<small>{counts[p]} card{counts[p] === 1 ? '' : 's'}</small>{/if}</span>
+      <span class="tf-label">{labels[p]}</span>
       {#if c}
         <div class="tf-card" class:tf-winner={winner === p} style:color="var(--suit-{c.suit.toLowerCase()})">
           <span class="tf-rank">{c.rank}</span><span class="tf-suit" aria-hidden="true">{SUIT_SYMBOLS[c.suit]}</span>

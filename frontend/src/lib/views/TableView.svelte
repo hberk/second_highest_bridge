@@ -33,7 +33,6 @@
   const who = $derived(m.who);
   const led = $derived(m.led);
   const displayTrump = $derived(m.displayTrump);
-  const counts = $derived(m.counts);
   const usVul = $derived(m.usVul);
   const topSeat = $derived(m.topSeat);
   const xray = $derived(m.xray);
@@ -178,10 +177,10 @@
 
       {#snippet felt()}
         {#if peeking && lastTrick}
-          <TrickFelt trick={lastTrick.plays} winner={lastTrick.winner} {labels} {counts} />
+          <TrickFelt trick={lastTrick.plays} winner={lastTrick.winner} {labels} />
         {:else}
           <TrickFelt trick={game.trick} winner={game.phase === 'trick_done' ? game.trickWinner : null}
-            {labels} {counts} awaiting={who} />
+            {labels} awaiting={who} />
         {/if}
       {/snippet}
       {#if m.sideDummy}
