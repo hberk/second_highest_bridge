@@ -10,7 +10,7 @@
 
 use serde::Deserialize;
 use serde_json::Value;
-use solver_rs::bitstate::{Position, SecondHighest};
+use solver_rs::bitstate::{cards_in, Position, SecondHighest, NS_SEATS};
 use solver_rs::convert::{text_to_index, text_to_mask, trump_to_index};
 use solver_rs::search::Search;
 use std::collections::HashMap;
@@ -230,4 +230,43 @@ fn cli_binary_matches_the_fixture() {
         checked += 1;
     }
     assert!(checked >= 20, "only checked {checked} positions via the CLI");
+}
+
+/// `card_values` against the fixture: for every position up to 4 cards each,
+/// the best card's value is the fixture's answer, and every card's value is
+/// the same whatever the first guess (none, too low, too high) and matches
+/// playing the card and solving the rest from scratch.
+#[test]
+fn card_values_agree_with_the_fixture_whatever_the_guess() {
+    let sh = SecondHighest::build();
+    let mut checked = 0;
+    for entry in load_fixture() {
+        if entry.cards_each > 4 {
+            continue;
+        }
+        let position = position_of(&entry);
+        let mut reference = Vec::new();
+        for card in cards_in(position.moves()) {
+            let (after, winner) = position.play(card, &sh);
+            let gained = match winner {
+                Some(w) if NS_SEATS.contains(&w) => 1,
+                _ => 0,
+            };
+            reference.push((card, gained + Search::new(position.trump, &sh).value(&after)));
+        }
+        for guess in [None, Some(0), Some(13)] {
+            let values = Search::new(position.trump, &sh).card_values(&position, guess);
+            assert_eq!(values, reference, "{}: card_values with guess {guess:?}", entry.id);
+        }
+        let ns_to_act = NS_SEATS.contains(&position.to_act());
+        let best = if ns_to_act {
+            reference.iter().map(|v| v.1).max()
+        } else {
+            reference.iter().map(|v| v.1).min()
+        };
+        assert_eq!(best, Some(entry.ns_tricks), "{}: best card vs fixture", entry.id);
+        checked += 1;
+    }
+    assert!(checked >= 100, "only checked {checked} positions");
+    eprintln!("card_values matched {checked} fixture positions");
 }
