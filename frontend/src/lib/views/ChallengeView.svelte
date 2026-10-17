@@ -22,17 +22,16 @@
   }
 </script>
 
-<h2>Challenge the robots</h2>
 <p>A challenge board is dealt from the <strong>{ids.length} deals this project has solved exactly</strong>, so whatever contract you reach, the number of tricks it takes with perfect play on both sides is already known. You play South; the same deal is then played out by an all-robot table, and the two results are compared.</p>
 <p>Because every contract can be priced against perfect play, the gap splits in two: what the <strong>auction</strong> cost and what the <strong>card play</strong> cost. Those are separate skills, and the robots are far better at one than the other.</p>
 
 <div class="masthead-row" style="justify-content: flex-start">
   <button class="btn primary" disabled={!remaining} onclick={deal}>Deal a challenge board →</button>
-  <span class="caption">{remaining} of {ids.length} solved boards unplayed. Finish the board on the Bridge Table tab, then come back here for the comparison.</span>
+  <span class="caption">{remaining} of {ids.length} solved boards unplayed. Finish the board at the table, then come back here for the comparison.</span>
 </div>
 
 {#if game.challengeId !== null && !game.boardOver}
-  <div class="notice info">Challenge board in play on the <strong>Bridge Table</strong> tab. Finish it to see how the robots did with the same cards.</div>
+  <div class="notice info">A challenge board is in play at the <strong>table</strong>. Finish it to see how the robots did with the same cards.</div>
 {/if}
 
 {#if records.length}

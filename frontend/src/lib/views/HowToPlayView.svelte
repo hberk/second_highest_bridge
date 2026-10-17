@@ -71,7 +71,6 @@
   ];
 </script>
 
-<h2>How to play</h2>
 <p>
   This is Contract Bridge with one change: <strong>the second-highest card in the winning suit takes the
   trick</strong>, not the highest. The auction, the contracts, the vulnerability and the scoring are all

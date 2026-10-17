@@ -73,7 +73,7 @@ Full Bridge Bidding (Auction) from 1♣ to 7NT with Pass, Double (X), and Redoub
 | `gib.py`, `ai.py` | robot bidding (GIB first, the previous system as fallback), hand evaluation, card play | [BIDDING](docs/BIDDING.md), [CHALLENGE](docs/CHALLENGE.md) |
 | `challenge.py`, `data/solved_deals.json` | head-to-head mode on 400 solved deals | [CHALLENGE](docs/CHALLENGE.md) |
 | `app.py`, `web/`, `styles.css` | the Streamlit app | [ARCHITECTURE](docs/ARCHITECTURE.md) |
-| `frontend/` | the Svelte port, a static site | [FRONTEND](docs/FRONTEND.md) |
+| `frontend/` | the phone-first web app (Svelte), a static site | [FRONTEND](docs/FRONTEND.md) |
 | `research/` | dataset, fitting, the Rust solver; never imported by the app | [SOLVER](docs/SOLVER.md), [BIDDING](docs/BIDDING.md) |
 | `tests/` | the Python suites; `tests/fixtures/endings.json` is frozen solver ground truth | |
 
@@ -110,7 +110,8 @@ it before going against one.
 **Alerts and escaping** ([ARCHITECTURE](docs/ARCHITECTURE.md))
 - An alert states what the call *shows*: every number it quotes must be true of the hand, it
   depends only on the auction and the call, it stays under 70 characters, and pass reasons are
-  hidden while the board is live. The first two are machine-checked.
+  hidden while the board is live. The first two are machine-checked. The web app's bidding box
+  explains every call by reading the robots' alerts, so it relies on the second.
 - Every string that reaches `unsafe_allow_html` is escaped. A new input widget must be added to
   `REVIEWED_INPUTS` in `tests/test_web_escaping.py`, with its path traced. In Svelte, no `{@html}`.
 - Before exposing `web/analysis_view.py` publicly, cap its depth and bound its shared cache.

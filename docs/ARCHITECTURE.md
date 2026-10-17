@@ -66,7 +66,11 @@ The codebase is cleanly layered into pure domain engine, web presentation, style
     branch, 1m alerted "3+/4+/5+" by the real minor lengths, a contested
     two-level bid "Forcing" or "Free bid", and an answer to a takeout double
     quoting the actual length and band. Each now quotes the floor every hand
-    making that call shares.
+    making that call shares. The Svelte app's bidding box depends on this:
+    it explains any call by sampling hands and reading the robots' alert for
+    it (`frontend/src/lib/meanings.ts`, see [FRONTEND.md](FRONTEND.md)), so a
+    hand-dependent alert would show a player a meaning that is only true of
+    some hands.
   - **Pass reasons are hidden while the board is live** (`live_alerts` in
     `web/auction_view.py`, `Game.liveAlerts` in the port). "Fewer than 6
     points" versus "Fewer than 3 ♠ and no five-card suit" reads a robot's cards

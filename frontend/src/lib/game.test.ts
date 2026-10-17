@@ -7,50 +7,66 @@ import { render } from 'svelte/server';
 import { Game } from './game.svelte';
 import { legalPlays } from './engine/auction';
 import TableView from './views/TableView.svelte';
+import DesktopTableView from './views/DesktopTableView.svelte';
 import HistoryView from './views/HistoryView.svelte';
 import ChallengeView from './views/ChallengeView.svelte';
 
 let openingLeads = 0;
+let sideDummies = 0;
 
-function renderAll(game: Game): string {
-  const html = render(TableView, { props: { game } }).body;
+/** The table in both layouts, phone and desktop; every check below must hold
+ *  for each. */
+function renderAll(game: Game): string[] {
+  const tables = [render(TableView, { props: { game } }).body, render(DesktopTableView, { props: { game } }).body];
   render(HistoryView, { props: { records: game.history } });
   render(ChallengeView, { props: { game, ondealt: () => {} } });
-  return html;
+  return tables;
+}
+
+/** Each layout's markup contains `text`. */
+function expectBoth(htmls: string[], text: string, why?: string): void {
+  for (const [i, html] of htmls.entries()) expect(html, `${['phone', 'desktop'][i]}: ${why ?? text}`).toContain(text);
 }
 
 /** South passes unless it can open or raise cheaply, and plays its first
  *  legal card: crude, but it walks every phase. */
 function playBoard(game: Game): void {
   for (let guard = 0; guard < 500; guard++) {
-    const html = renderAll(game);
+    const htmls = renderAll(game);
     const auction = game.auction;
     if (game.phase === 'bidding') {
       if (auction.passedOut) return;
-      expect(html).toContain('Your call');
+      expectBoth(htmls, 'Your call');
       const legal = auction.legalCalls();
       const bid = legal.find((c) => c === '2C' || c === '2S' || c === '3H');
       game.humanBids(guard % 3 === 0 && bid ? bid : 'Pass');
     } else if (game.phase === 'auction_done') {
-      expect(html).toContain('Start play');
+      expectBoth(htmls, 'Start play');
       game.startPlay();
     } else if (game.phase === 'playing') {
       const who = game.whoseTurn();
       expect(who, 'playing phase must wait on the human').not.toBeNull();
       const led = game.trick.length ? game.trick[0][1].suit : null;
-      expect(html).toContain('Your turn');
+      expectBoth(htmls, 'Your turn');
       if (!game.played.length && !game.trick.length) {
         // South is on opening lead, and leads blind: dummy is not down yet.
-        // South's own hand is buttons, so no face-up card row may appear.
-        expect(html, 'dummy face-up before the opening lead').not.toContain('pcard-row');
+        // Dummy's hand goes above the felt only once the lead is made.
+        for (const html of htmls) expect(html, 'dummy face-up before the opening lead').not.toContain('dummy-zone');
         openingLeads++;
+      }
+      // An East or West dummy sits on its own side of the table, not on top.
+      const c = game.contract!;
+      if ((game.trickNum > 1 || game.trick.length > 0) && (c.dummy === 'East' || c.dummy === 'West')) {
+        expect(htmls[0], 'phone: dummy beside the felt').toContain('side-hand');
+        expect(htmls[1], 'desktop: dummy in its seat panel').toContain('dk-side-dummy');
+        sideDummies++;
       }
       game.humanPlays(who!, legalPlays(game.hands[who!], led)[0]);
     } else if (game.phase === 'trick_done') {
-      expect(html).toContain('second-highest');
+      expectBoth(htmls, 'trick-won');
       game.nextTrick();
     } else {
-      expect(html).toContain('Hand Complete');
+      expectBoth(htmls, 'Hand complete', 'the result');
       return;
     }
   }
@@ -74,6 +90,7 @@ describe('table flow', () => {
     }
     expect(finished).toBeGreaterThan(10);
     expect(openingLeads, 'no blind opening lead was exercised').toBeGreaterThan(0);
+    expect(sideDummies, 'no East or West dummy was exercised').toBeGreaterThan(0);
     expect(game.history.length).toBe(finished);
     expect(game.history.every((h) => h.tricks_log.length === 13)).toBe(true);
   });
@@ -95,7 +112,7 @@ describe('table flow', () => {
       expect(ch.margin).toBe(ch.you.actual - ch.robot.actual);
       const html = render(ChallengeView, { props: { game, ondealt: () => {} } }).body;
       expect(html).toContain('Review the deal');
-      expect(render(TableView, { props: { game } }).body).toContain('Where the points went');
+      expectBoth(renderAll(game), 'Where the points went');
     }
     expect(graded).toBeGreaterThan(5);
     // Every board is logged, passed-out ones included, each deal once.
@@ -120,9 +137,9 @@ describe('table flow', () => {
     expect(ch.margin).toBe(-ch.robot.actual);
     expect(game.challengeLog.at(-1)!.deal_id).toBe(ch.deal_id);
     expect(game.boardOver).toBe(true);
-    const table = render(TableView, { props: { game } }).body;
-    expect(table).toContain('Passed Out');
-    expect(table).toContain('Where the points went');
+    const tables = renderAll(game);
+    expectBoth(tables, 'Passed out');
+    expectBoth(tables, 'Where the points went');
     const review = render(ChallengeView, { props: { game, ondealt: () => {} } }).body;
     expect(review, 'still claims the board is in play').not.toContain('Finish it');
     expect(review).toContain('Your board');

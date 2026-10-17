@@ -8,8 +8,8 @@
   import type { ChallengeLogEntry, HistoryRecord } from '../game.svelte';
   import { signed } from './format';
 
-  let { history, challengeLog, passedOut }:
-    { history: HistoryRecord[]; challengeLog: ChallengeLogEntry[]; passedOut: number } = $props();
+  let { history, challengeLog, passedOut, open = false }:
+    { history: HistoryRecord[]; challengeLog: ChallengeLogEntry[]; passedOut: number; open?: boolean } = $props();
 
   const played = $derived(history.filter((h) => !h.imported && h.contract && h.result));
   const margins = $derived(new Map(challengeLog.map((r) => [r.board_num, r.margin])));
@@ -45,7 +45,7 @@
 </script>
 
 {#if boards}
-  <details class="expander session-score">
+  <details class="expander session-score" {open}>
     <summary>
       <span class="ss-title">Session</span>
       <span class="ss-item">{boards} board{boards === 1 ? '' : 's'}</span>

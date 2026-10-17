@@ -1,0 +1,15 @@
+{
+  "name": "Second-Highest Bridge",
+  "short_name": "2nd-Highest",
+  "description": "Contract bridge where the second-highest card takes the trick.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1915",
+  "theme_color": "#0d1915",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
