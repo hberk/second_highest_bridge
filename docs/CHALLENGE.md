@@ -58,6 +58,27 @@ user's 3H dummy played low under North's 7H where the king makes East's 8H
 second-highest. Measured one side at a time over the library: declarer
 **+0.43 tricks per board (t = +7.2)**, defence **+0.21 (t = +5.2)**.
 
+**Every robot card, scored double dummy** (`research/presolve_robot_lines.py`,
+`research/robot_line_report.py`). The robot table is run on each deal at all 16
+board positions (the robots bid differently by dealer and vulnerability);
+identical lines are solved once, by the Rust `line_values` binary, which scores
+every legal card at every decision against the contract: BBO's per-card
+display. Records go to `research/data/robot_lines.jsonl`, stamped with a hash
+of the robot code; a robot change makes them stale, so rerun after one. The
+first 100 deals give 149 lines, about an hour on one worker. The report sorts
+every costly card by side, seat in the trick, action and stage. Double dummy
+sees all four hands, so a "mistake" may have been right on what the robot could
+see: treat the report as where to look, and measure a fix head to head
+(`research/card_play_h2h.py`). Before the trump fix below
+(`robot_lines_before_draw_trumps.jsonl`), declarer-side leads were the largest
+category: 29% cost a trick, 2.79 tricks a deal gross. After it, 24% and 2.41,
+and robot declarers took 8.32 tricks a deal against 7.94 double dummy (8.08
+before). "Gross" because costly cards offset: a trick one side gives away often
+comes back from the other.
+
+    python research/presolve_robot_lines.py --deals 100
+    python research/robot_line_report.py
+
 **Declarer draws trumps** (`ai.DRAW_TRUMPS`, `_draw_trump`). `_lead` is one rule
 for every seat and ranks trumps last, so the declaring side kept leading side
 suits into the defence's trumps: on deal 6, 4C by South with ten trumps
