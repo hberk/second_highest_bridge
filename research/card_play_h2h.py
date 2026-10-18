@@ -11,6 +11,10 @@ across deals.
 
     python research/card_play_h2h.py DRAW_TRUMPS
     python research/card_play_h2h.py DRAW_TRUMPS --deals 100
+    python research/card_play_h2h.py NT_LONG_LEAD --set NT_LONG_LEAD_OPENING_ONLY=True
+    python research/card_play_h2h.py RUN_LONG_SUIT NT_LONG_LEAD    # both together
+
+A defence switch shows up as FEWER declarer tricks.
 """
 from __future__ import annotations
 
@@ -45,12 +49,22 @@ def paired(per_deal: list) -> str:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument('flag', help="an ai module switch, e.g. DRAW_TRUMPS")
+    parser.add_argument('flags', nargs='+', metavar='flag',
+                        help="ai switches to turn off and on together, e.g. DRAW_TRUMPS")
     parser.add_argument('--deals', type=int, default=None)
+    parser.add_argument('--set', action='append', default=[], metavar='NAME=VALUE',
+                        help="hold another ai switch at True or False for both runs")
     args = parser.parse_args(argv)
-    if not hasattr(ai, args.flag):
-        print(f"ai has no switch {args.flag}")
-        return 1
+    for flag in args.flags:
+        if not hasattr(ai, flag):
+            print(f"ai has no switch {flag}")
+            return 1
+    for setting in args.set:
+        name, _, raw = setting.partition('=')
+        if not hasattr(ai, name) or raw not in ('True', 'False'):
+            print(f"bad --set {setting!r}: expected an ai switch and True or False")
+            return 1
+        setattr(ai, name, raw == 'True')
 
     deal_ids = challenge.deal_ids()[:args.deals] if args.deals else challenge.deal_ids()
     tricks, points = [], []
@@ -63,7 +77,8 @@ def main(argv=None) -> int:
             vul = VUL_ROTATION[(board - 1) % 16]
             results = []
             for value in (False, True):
-                setattr(ai, args.flag, value)
+                for flag in args.flags:
+                    setattr(ai, flag, value)
                 results.append(challenge.robot_table(deal_id, dealer, vul))
             off, on = results
             if off['contract'] is None:
@@ -79,8 +94,8 @@ def main(argv=None) -> int:
         if deal_id % 50 == 49:
             print(f"  ...{deal_id + 1} deals, {time.perf_counter() - started:.0f}s", flush=True)
 
-    setattr(ai, args.flag, True)
-    print(f"\n{args.flag}: {len(deal_ids)} deals x 16 boards, {sum(len(d) for d in tricks)} played boards, "
+    label = ' + '.join(args.flags) + ''.join(f" ({setting})" for setting in args.set)
+    print(f"\n{label}: {len(deal_ids)} deals x 16 boards, {sum(len(d) for d in tricks)} played boards, "
           f"{time.perf_counter() - started:.0f}s")
     print(f"  declarer tricks: {paired(tricks)}")
     print(f"  declarer score (from the declaring side): {paired(points)}")
