@@ -338,6 +338,39 @@ def test_middle_play_follows_suit_and_plays_from_hand():
             assert got.suit == lead.suit, f"revoked: led {lead.suit}, played {got}"
 
 
+def test_defender_cashes_a_sure_trick_seen_through_dummy():
+    """Deal 92, 1NT by North: East wins the J♦ at trick 2 with K765 of clubs,
+    dummy's J1032 in view and the 8♣ 9♣ 4♣ gone. The A♣ is the only club East
+    can't see, so its holder must play it under the K♣ -- a sure trick. The 7♣
+    (what East used to lead) loses to dummy's J♣, and the king never scores."""
+    import challenge
+    hands = challenge.hands_for(92)
+    tricks = [[('East', Card('C', 'Q')), ('South', Card('C', '8')),
+               ('West', Card('C', '4')), ('North', Card('C', '9'))],
+              [('North', Card('D', 'Q')), ('East', Card('D', 'J')),
+               ('South', Card('D', '3')), ('West', Card('D', '5'))]]
+    played = []
+    for trick in tricks:
+        for seat, card in trick:
+            hands[seat].remove(card)
+            played.append(card)
+    got = ai_play('East', hands['East'], [], None, played,
+                  visible={'South': hands['South']}, history=tricks)
+    assert got == Card('C', 'K'), f"expected the sure K♣, got {got}"
+
+
+def test_a_trick_declarer_could_ruff_is_not_sure():
+    """The same K♣ over a lone unseen A♣ is sure in notrump, but not in spades:
+    with the A♣ on declarer's left, declarer may be void and ruff."""
+    import ai
+    east = [Card('C', 'K'), Card('C', '5')]
+    dummy = [Card('C', 'J'), Card('C', '10')]
+    played = [Card('C', r) for r in ('2', '3', '4', '6', '7', '8', '9', 'Q')]
+    view = {'South': dummy}
+    assert ai._sure_lead('East', east, None, played, view, []) == Card('C', 'K')
+    assert ai._sure_lead('East', east, 'S', played, view, []) is None
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):

@@ -100,6 +100,64 @@ Head to head over the library (`research/card_play_h2h.py DRAW_TRUMPS`, all 16
 board positions, 6,356 boards, t across deals): **+0.171 declarer tricks per
 board (t = +3.19), +17.1 points (t = +2.43)**; 2,748 boards changed.
 
+**Declarer runs a long suit** (`ai.RUN_LONG_SUIT`, `_run_long_suit`). On the
+user's deal 96, 3NT by South, declarer won the opening heart and cashed the K♥
+from AK9 opposite J74, setting up the defence's hearts (double dummy, six
+tricks became two), with clubs AJ1084 opposite KQ63: five tricks off the top.
+`_gap` judges a suit by declarer's own hand, so the K♣ and Q♣ in dummy counted
+as holes. A suit led in notrump, or once the defence has no trumps, is a self-
+contained puzzle like the trump suit, so the same search (`_splits`,
+`_after_lead`) scores it: for each suit where the partnership holds seven or
+more, the expected losers of its best lead over every split of the defence's
+cards. The suit with the most expected tricks among those under half a loser
+(`RUN_MAX_LOSERS`) is run, from the top on ties, since partner's follow comes
+from the ordinary rules, not the search; a suit the defence is out of is run to
+the end. Not "no loss on any split": under these rules a defender holding all
+the outstanding cards behind dummy can nearly always slip one between
+declarer's two, so even AKQJ10 8643 opposite 9752 loses to 4-0. The suit search
+skips equivalent cards and stores positions by card order (answers checked
+identical to the plain search on 2,578 random suits); a robot table costs about
+twice what it did. Head to head with every other rule on: **+0.080 declarer
+tricks per board (t = +1.99), +19.8 points (t = +2.91)**; 788 boards changed.
+
+**Defenders lead their long suit in notrump** (`ai.NT_LONG_LEAD`,
+`_nt_long_lead`). `_lead` ranks suits by `_gap` and length only breaks ties, so
+a defender with five cards in a suit would lead a short, tidy one. The user's
+point: set up the long suit, as in ordinary bridge, but lead the second-highest
+card, since low gives the trick away here. A defender in notrump with a suit of
+four or more leads second-highest from its longest. Every lead, not just the
+opening one: the opening lead alone measured -0.019 tricks (t = -0.61), every
+lead -0.073 (t = -1.75), -16.4 points (t = -2.39), both before
+`RUN_LONG_SUIT`. Once declarer runs its long suits first the gain shrinks;
+with every other rule on: **-0.086 declarer tricks per board (t = -1.85), -6.3
+points (t = -0.97)**; 976 boards changed. Kept by the user's decision: never
+harmful in three measurements, but not separately significant.
+
+The three rules after draw-trumps, together, against the draw-trumps baseline
+(`card_play_h2h.py RUN_LONG_SUIT NT_LONG_LEAD SURE_LEAD`): -0.127 declarer
+tricks per board (t = -2.30), -11.1 points (t = -1.33), 2,044 boards changed.
+Robots play both sides, so a declarer rule and two defence rules partly cancel;
+each rule's own gain, measured with the others on, is the figure to judge it by.
+
+**A defender on lead cashes a sure trick** (`ai.SURE_LEAD`, `_sure_lead`). A
+defender's lead went straight to `_lead`, which never asks whether a card wins
+and never looks at dummy. On the user's deal 92, 1NT by North, East won the J♦
+at trick 2 with K765 of clubs, dummy's J1032 in view and the 8♣ 9♣ 4♣ gone: the
+A♣ was the only club East couldn't see, so its holder had to play it under the
+K♣. East led the 7♣ instead (`_gap` counted dummy's J♣ 10♣ as cards an
+opponent might hold), dummy's J♣ won, and the king never scored: four tricks
+given away double dummy. Now a defender on lead tries each card against every
+split of the unseen cards of its suit between partner and declarer (none to a
+seat that has shown out) and every legal play from there -- dummy's from its
+known cards, a void hidden seat's as any unseen trump or a discard -- and leads
+the lowest card that wins the trick every time. Partner's card counts against
+us too, so "sure" never relies on partner finding a play. Head to head over the
+library (`research/card_play_h2h.py SURE_LEAD`, 6,356 boards, baseline with
+`RUN_LONG_SUIT` and `NT_LONG_LEAD` on): **-0.174 declarer tricks per board
+(t = -4.53), -18.6 points (t = -3.40)**; 1,168 boards changed. No measurable
+cost in speed. Choosing the lead suit with dummy in view when there is no sure
+trick (`_gap` still ignores dummy) is the next step, not yet done.
+
 **A cuebid raise that forces the three level needs four trumps or 12+
 judgement points** (`gib.CUE_LIMIT_AT_3`), a small tightening of GIB's "limit
 raise or better"; weaker hands with three trumps raise to the two level. The
