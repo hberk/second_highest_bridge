@@ -162,17 +162,59 @@ The review's four real bugs are fixed (passed-out challenge boards, LIN
 imports evicting played boards, tabs overwriting saves, claims lost on LIN
 export). These were left, each small:
 
-- [ ] **3.4** The challenge review finds "your board" by `board_num`
+- [x] **3.4** (fixed 2026-10-18: imports skipped, the deal compared) The challenge review finds "your board" by `board_num`
   (`ChallengeView.svelte`, the Challenge tab in `app.py`). An imported LIN
   board with the same number, added later, would be shown in its place.
   Match on the deal too, as `saves.boardKey` does.
-- [ ] **3.5** `gib.ILLEGAL` (and the port's) is module-level mutable state
+- [x] **3.5** (the claim corrected in ARCHITECTURE.md, and the illegal calls a human at the table caused fixed, 2026-10-18) `gib.ILLEGAL` (and the port's) is module-level mutable state
   that grows when a branch produces an illegal call. CLAUDE.md says the
   Streamlit app holds none, so concurrent players can't interfere. Harmless
   (tests keep it empty), but either cap it or correct the claim.
 - [ ] **3.6** `loadGames` checks a save's shape only at the top level. One
   malformed board inside would load, then break the History view, without
   being copied to `shb-games-backup`. Validate each record, or skip bad ones.
+
+## 3c. Left open by the 2026-10-17 code analysis (`reports/2026-10-17-code-analysis.md`)
+
+Fixed 2026-10-18 on branch `code-analysis-fixes`:
+
+- the 1M-2M-3NT crash (H1) and illegal calls with a human at the table (M4):
+  a fuzz test with a random human seat now holds `gib.ILLEGAL` at zero;
+- the flaky tests (H4): seeded deals in the web app's tests and in the
+  self-alert app-flow test;
+- the Streamlit analysis panel (H3): depth capped at 8, cache bounded (LRU);
+- "your board" in the challenge review (M1, 3.4 above);
+- the 13th trick shown before the score in Streamlit (M2);
+- the LIN parsers (M5): one hostile-input fixture both must agree on, size and
+  board limits, imported alerts cleaned, re-imports skipped;
+- `run_all.py` (M6): SKIP is reported, and an import failure no longer ends the run;
+- the dataset pool (M7) and `deal_for` restoring the global RNG;
+- the pass-out count after a failed save (M8);
+- the covering robot's own cards (M3): a correctness fix that changed 0 of
+  6,356 boards head to head;
+- dead code and unused imports, `Card.__eq__`, the future import in every
+  `__init__.py`, CI timeouts and main deploys never cancelled, and the stale
+  docs and comments.
+
+Still open, **each the user's call**:
+
+- [ ] **3.7 Responder over 1M-2M-3NT.** Robots never bid it; after a human
+  opener does, responder now passes ("Partner placed the contract."). Standard
+  is pass or correct to 4M as a choice of games. Decide the rule.
+- [ ] **3.8 1♥-2♥-3♠ from a human opener** jumps past where responder declines
+  a game try (3♥). The guard's fallback bids 4♥; 1 auction in 60,000.
+- [ ] **3.9 Challenge grading uses one declarer per strain and side (H2).**
+  22.5% of robot boards are declared by the other partner (CHALLENGE.md). Solve
+  both declarers, or flag mismatched boards.
+- [ ] **3.10 Dealing a challenge board throws away the board in play (M9)**,
+  with no confirmation, and the deal goes back in the pool. Intended?
+- [ ] **3.11 Robot discards and leads.** The duck fallbacks (`_play_last`,
+  `_middle_play`) take the lowest card by value in any suit, so a void robot can
+  throw a trump; `_lead`/`_gap` count dummy's cards as an opponent's. Each is a
+  card-play change: measure with `research/card_play_h2h.py`.
+- [ ] **3.12 The challenge loss figures** (the caption in
+  `web/challenge_view.py`, its docstring, CHALLENGE.md's table) predate the
+  card-play changes. Re-measure and quote one figure everywhere.
 
 ## 4. Bigger projects (only when the user asks)
 

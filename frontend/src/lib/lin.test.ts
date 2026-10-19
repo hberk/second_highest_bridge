@@ -4,9 +4,11 @@
 // writer dropped something or the replay disagrees with the table.
 import { describe, expect, it } from 'vitest';
 import { Game, cleanAlert, type HistoryRecord } from './game.svelte';
+import { prng } from './meanings';
 import { legalPlays } from './engine/auction';
-import { fromLin, fromLinFile, toLin, toLinFile, LinError } from './lin';
+import { fromLin, fromLinFile, toLin, toLinFile, LinError, MAX_LIN_BOARDS } from './lin';
 import pythonLin from './engine/__fixtures__/lin.json';
+import pythonHostile from './engine/__fixtures__/lin_hostile.json';
 
 const ALERTS = ['Forcing | one round', '5+ ♠, 10-12 HCP!', 'Natural'];
 
@@ -40,7 +42,7 @@ function expected(r: HistoryRecord): HistoryRecord {
 }
 
 const boards = (() => {
-  const game = new Game();
+  const game = new Game(null, prng(1));
   for (let i = 0; i < 30; i++) {
     play(game, i);
     game.newBoard();
@@ -137,11 +139,42 @@ describe('LIN', () => {
   it('refuses a deal with a card twice', () => {
     expect(() => fromLin('md|1SAKQJT98765432H,SA,,|')).toThrow(/twice/);
   });
+
+  it('accepts and refuses exactly what bridge/lin.py does', () => {
+    // Odd and hostile texts with Python's verdict: prototype keys as a
+    // vulnerability, claims Number() would read, other scripts' digits, a
+    // byte-order mark, a long alert with control characters.
+    const cases = pythonHostile as { lin: string; ok: boolean; board_num?: number; bid_alerts?: Record<string, string> }[];
+    expect(cases.length).toBeGreaterThan(15);
+    for (const fx of cases) {
+      if (!fx.ok) {
+        expect(() => fromLin(fx.lin), JSON.stringify(fx.lin.slice(-40))).toThrow(LinError);
+        continue;
+      }
+      const r = fromLin(fx.lin);
+      expect(r.board_num).toBe(fx.board_num);
+      expect(r.bid_alerts).toEqual(fx.bid_alerts);
+    }
+  });
+
+  it(`reads at most ${MAX_LIN_BOARDS} boards at once`, () => {
+    const lin = toLin(boards[0]);
+    expect(fromLinFile(Array(MAX_LIN_BOARDS).fill(lin).join('\n'))).toHaveLength(MAX_LIN_BOARDS);
+    expect(() => fromLinFile(Array(MAX_LIN_BOARDS + 1).fill(lin).join('\n'))).toThrow(LinError);
+  });
+
+  it('importing the same boards twice adds them once', () => {
+    const game = new Game(null, prng(3));
+    const imported = boards.slice(0, 4).map((b) => ({ ...b, label: `Imported #${b.board_num}`, imported: true }));
+    expect(game.importBoards(imported)).toBe(4);
+    expect(game.importBoards(imported)).toBe(0);
+    expect(game.history.filter((h) => h.imported)).toHaveLength(4);
+  });
 });
 
 describe('self-alerts', () => {
   it('stores the alert against the call and shows it live, even on a pass', () => {
-    const game = new Game();
+    const game = new Game(null, prng(2));
     for (let i = 0; i < 20 && game.auction.currentPlayer() !== 'South'; i++) game.newBoard();
     expect(game.auction.currentPlayer()).toBe('South');
     const index = game.calls.length;

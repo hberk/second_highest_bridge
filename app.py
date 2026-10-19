@@ -52,7 +52,7 @@ def init_game(next_board: bool = False, deal_id: int | None = None) -> None:
         'initial_hands': initial_hands,   # full 13-card snapshot
         'hands':         hands,
         'auction':       auction,
-        'phase':         'bidding',   # 'bidding' | 'playing' | 'trick_done'
+        'phase':         'bidding',   # 'bidding' | 'playing' | 'trick_done' | 'done'
         'contract':      None,
         'trump':         None,
         'leader':        None,
@@ -382,7 +382,8 @@ if 'hands' not in st.session_state:
 
 # Auto-play switched on while a forced card is waiting: play it now. Harmless
 # otherwise -- _advance_ai stops at the first human choice.
-if st.session_state.get('auto_play') and st.session_state['phase'] == 'playing':
+if (st.session_state.get('auto_play') and st.session_state['phase'] == 'playing'
+        and not st.session_state.get('game_over')):
     _advance_ai()
 
 s = st.session_state
@@ -513,8 +514,13 @@ with tab_challenge:
             "the auctions diverged and which card turned the play. Hover any "
             "robot call for what it was supposed to show."
         )
+        # The board number alone is not enough: an imported LIN takes its
+        # number from the file, so match the deal and skip imports.
+        deal = last['robot_record']['initial_hands']
         yours = next((h for h in reversed(hand_history)
-                      if h.get('board_num') == last.get('board_num')),
+                      if not h.get('imported')
+                      and h.get('board_num') == last.get('board_num')
+                      and h.get('initial_hands') == deal),
                      last.get('your_record'))
         records = []
         if yours is not None:
@@ -534,7 +540,7 @@ with tab_game:
     render_session_score(hand_history, challenge_log, s.get('passed_out_count', 0))
 
     # ── Status Banner Metrics ─────────────────────────────────────────────────
-    display_num = s['trick_num'] - 1 if s['phase'] == 'trick_done' else s['trick_num']
+    display_num = s['trick_num'] - 1 if s['phase'] in ('trick_done', 'done') else s['trick_num']
 
     if s['phase'] == 'bidding':
         curr_bid = auction.highest_bid
@@ -565,7 +571,9 @@ with tab_game:
         ])
 
     # ── Game Over Screen ──────────────────────────────────────────────────────
-    if s['game_over']:
+    # After the 13th trick the table shows it first, like every other trick;
+    # "See final score" (or fast play) then moves the phase on to 'done', here.
+    if s['game_over'] and s['phase'] != 'trick_done':
         r = s['result']
         contract_c = s['contract']
         c_str = (f"{strain_html(contract_c['level'], contract_c['strain'])}{doubled_suffix(contract_c['doubled'])}"
@@ -790,7 +798,7 @@ with tab_game:
                     btn_label += " (automatic)"
                 if st.button(btn_label, type="primary", use_container_width=True):
                     if s['game_over']:
-                        s['phase'] = 'playing'
+                        s['phase'] = 'done'
                     else:
                         next_trick()
                     st.rerun()
@@ -837,7 +845,7 @@ with tab_game:
         if fast_play and s['phase'] == 'trick_done':
             time.sleep(FAST_PLAY_SECONDS)
             if s['game_over']:
-                s['phase'] = 'playing'
+                s['phase'] = 'done'
             else:
                 next_trick()
             st.rerun()

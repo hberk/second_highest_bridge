@@ -25,9 +25,10 @@ the browser.
     private repos are metered, so every job is skipped (a skipped job starts no
     runner). A manual "Run workflow" still runs the checks on demand;
   - once public, every push and pull request runs the gate: fixtures from
-    Python 3.12, `npm ci`, `npm run check`, `npm test`, `npm run build`. Public
-    repos' Actions are free;
-  - only a push to `main` uploads and deploys.
+    Python 3.12, `npm ci`, `npm run check`, `npm test`, `npm run build`, and
+    beside them the Python suite (`tests/run_all.py`). Public repos' Actions
+    are free;
+  - only a push to `main` uploads and deploys, and only when both jobs pass.
 - **To turn it on:**
   1. make the repo public. Pages from a private personal repo needs GitHub Pro,
      and the site is public either way;
@@ -41,9 +42,9 @@ the browser.
   from Pages' sub-path or any other address. Tested on 2026-10-13: the built
   site served from `/second_highest_bridge/` played a board, reloaded with the
   board still in its history, and logged no CSP violations.
-- **No routes:** the tabs are component state, not URLs, so Pages' lack of a
-  single-page-app fallback doesn't matter. A hash router (`#/history`) keeps
-  that true.
+- **Hash routes only:** the screen follows the URL hash (`#table`,
+  `#history`; `App.svelte`), so every URL is the one page and Pages' lack of
+  a single-page-app fallback doesn't matter.
 - **Headers:** Pages can't send custom headers.
   - The CSP is a `<meta>` in `frontend/index.html`, and the referrer policy is
     `<meta name="referrer">`.
@@ -75,7 +76,8 @@ passed-out count and the board number.
   (.lin)** in Hand History is the archive.
 - **Eviction:** after the first save, `navigator.storage.persist()` asks the
   browser not to evict the site under disk pressure.
-- **Player control:** Display → **Saved on this device** shows the counts and a
+- **Player control:** **Saved on this device** (in the settings sheet behind
+  the gear on a phone, in the Display menu on a desktop) shows the counts and a
   **Clear saved games** button.
 
 **How long it lasts:** `localStorage` survives closing the browser, restarts

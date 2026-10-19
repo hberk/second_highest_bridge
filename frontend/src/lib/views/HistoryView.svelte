@@ -9,10 +9,11 @@
   import FeltTable from '../components/FeltTable.svelte';
   import SeatBox from '../components/SeatBox.svelte';
   import Strain from '../components/Strain.svelte';
-  import { fromLinFile, toLin, toLinFile } from '../lin';
+  import { MAX_LIN_BYTES, fromLinFile, toLin, toLinFile } from '../lin';
   import { MAX_SAVED_BOARDS } from '../saves';
 
-  let { records, onimport }: { records: HistoryRecord[]; onimport?: (boards: HistoryRecord[]) => void } = $props();
+  /** `onimport` adds the boards it hasn't already got and says how many. */
+  let { records, onimport }: { records: HistoryRecord[]; onimport?: (boards: HistoryRecord[]) => number } = $props();
 
   // ── LIN in and out ──────────────────────────────────────────────────────────
   let linText = $state('');
@@ -44,9 +45,10 @@
     linNote = '';
     try {
       const boards = fromLinFile(text).map((b) => ({ ...b, label: `Imported #${b.board_num}`, imported: true }));
-      const total = records.length + boards.length;
-      onimport?.(boards);
-      linNote = `Imported ${boards.length} board${boards.length === 1 ? '' : 's'}.`;
+      const added = onimport?.(boards) ?? 0;
+      const total = records.length + added;
+      linNote = `Imported ${added} board${added === 1 ? '' : 's'}.`;
+      if (added < boards.length) linNote += ` ${boards.length - added} already imported, skipped.`;
       if (total > MAX_SAVED_BOARDS) {
         linNote += ` This device keeps ${MAX_SAVED_BOARDS} boards, so the oldest imported ones won't be kept after a reload; your own boards are kept first.`;
       }
@@ -60,7 +62,10 @@
   async function importFile(e: Event & { currentTarget: HTMLInputElement }): Promise<void> {
     const file = e.currentTarget.files?.[0];
     e.currentTarget.value = '';
-    if (file) importLin(await file.text());
+    if (file && file.size > MAX_LIN_BYTES) {
+      linNote = '';
+      linError = `The file is ${file.size.toLocaleString()} bytes; at most ${MAX_LIN_BYTES.toLocaleString()} are read`;
+    } else if (file) importLin(await file.text());
   }
 
   // Newest first, as the Streamlit selector lists them.
@@ -136,7 +141,7 @@
     <summary>📥 Import LIN</summary>
     <div class="expander-body lin-box">
       <p class="caption">Paste LIN text or open a .lin file. Each board is replayed under second-highest rules; one played under ordinary rules will usually be refused, because its tricks go to different hands.</p>
-      <textarea rows="4" spellcheck="false" placeholder="pn|...|md|3SAKQ...|sv|o|mb|1S|..." bind:value={linText}></textarea>
+      <textarea rows="4" spellcheck="false" maxlength={MAX_LIN_BYTES} placeholder="pn|...|md|3SAKQ...|sv|o|mb|1S|..." bind:value={linText}></textarea>
       <div class="lin-actions">
         <button class="btn" disabled={!linText.trim()} onclick={() => importLin(linText)}>Import</button>
         <label class="btn">Open .lin file<input class="sr-only" type="file" accept=".lin,.txt,text/plain" onchange={importFile} /></label>

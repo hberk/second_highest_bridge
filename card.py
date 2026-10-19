@@ -51,8 +51,9 @@ class Card:
         # the reload holds instances of the old Card class. An isinstance test
         # made those unequal to every new Card, and the double dummy panel
         # then rejected every recorded play as "not legal".
-        return (type(other).__name__ == 'Card' and self.suit == other.suit
-                and self.rank == other.rank)
+        if type(other).__name__ != 'Card':
+            return NotImplemented
+        return self.suit == other.suit and self.rank == other.rank
 
     def __hash__(self) -> int:
         return hash((self.suit, self.rank))

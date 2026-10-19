@@ -10,14 +10,18 @@ The codebase is cleanly layered into pure domain engine, web presentation, style
 - `bridge/auction.py`: `AuctionState`, seating order, bidding ladder legal calls, pass-outs, declarer determination.
 - `bridge/trick.py`: `legal_plays()`, `resolve_trick()` (Second-Highest winning mechanic).
 - `bridge/scoring.py`: `score_contract()` (full duplicate bridge scoring engine).
+- `bridge/lin.py`: LIN hand records, written and read back by replaying the board (see [FRONTEND.md](FRONTEND.md), LIN).
 
 **`bridge/solver/`** — double dummy solver. Answers "how many tricks do N/S take with optimal play by both sides", which is unsolved for this variant, so the layering exists to keep correctness checkable:
 - `bridge/solver/bitstate.py`: packed-int core. One 52-bit mask per seat, card index `suit * 13 + rank`. Deliberately free of `Card` objects so the hot loops stay cheap and the core stays portable.
-- `bridge/solver/convert.py`: the *only* module that translates between domain objects and solver ints. Nothing else under `bridge/solver/` may import `card` or `bridge.auction`.
+- `bridge/solver/convert.py`: the *only* module that translates between domain objects and solver ints. The packed-int core (`bitstate`, `brute`, `search`) never imports `card`, `game` or `bridge.auction`; the domain-facing layer (`api`, `replay`) works in `Card`s and seat names and goes through `convert` for the ints.
 - `bridge/solver/brute.py`: exhaustive enumeration, no pruning or memoisation. Defines what a correct answer is; kept permanently, never optimised.
 - `bridge/solver/api.py`: **the layer the app and replayer should call.** Speaks seat names,
   `Card` and strain strings; validates positions and refuses malformed ones rather than
   answering them. `solve_deal`, `card_values`, `best_cards`, `single_dummy`.
+- `bridge/solver/replay.py`: turns a finished board into the decisions worth
+  reviewing, latest trick first, and analyses each through `api`. Used by the
+  Streamlit analysis panel; tested by `tests/test_solver_replay.py`.
 - `bridge/solver/search.py`: the fast solver — zero-window alpha-beta, transposition table, rank-equivalence reduction, move ordering. Every reduction is sound, and each is independently switchable so a disagreement can be bisected.
 
 **`research/`** — tooling that informs the engine, not the app:
@@ -31,7 +35,16 @@ The codebase is cleanly layered into pure domain engine, web presentation, style
 
 **`card.py`** — pure card & deck primitives (`Card`, `deal()`, constants `SUITS`, `STRAINS`, `RANKS`, `bid_index`, `parse_bid`).
 
-**`game.py`** — high-level domain facade re-exporting `bridge` engine components for backwards compatibility.
+**`game.py`** — domain facade re-exporting the `bridge` engine. Not just for
+backwards compatibility: `ai.py`, `challenge.py`, the solver's `api`/`replay` and
+the tests import from it. (`bridge/__init__.py` re-exports the same names and is
+unused.)
+
+**`main.py`** — the original terminal game, kept but not maintained: no auction,
+a fixed two-level contract, South always declares. It is what keeps
+`card.auto_contract`, `bridge.scoring.score()` and `game.CONTRACT_LEVEL` alive,
+and `tests/test_sim.py` exercises only it; the auction-driven game is covered by
+`test_bidding.test_full_ai_game_simulation`.
 
 **`ai.py`** — AI decision making (`eval_hand_sh` hand valuation, `ai_play` trick strategy, and `ai_bid`: GIB first, then the previous system's logic as the fallback for contested auctions).
 
@@ -78,8 +91,9 @@ The codebase is cleanly layered into pure domain engine, web presentation, style
     `bid_alerts` and appear on the result screen and in history.
   - Alerts stay under 70 characters so they fit a tooltip.
 - **`unsafe_allow_html` and why it is currently safe** (`tests/test_web_escaping.py`).
-  The app renders its own markup: 33 `unsafe_allow_html` sites and 1,187 lines of
-  hand-written CSS. Seven sites are static literals; 26 build HTML from data.
+  The app renders its own markup: 42 `unsafe_allow_html` sites and 1,256 lines of
+  hand-written CSS (counted 2026-10-18). A few sites are static literals; the
+  rest build HTML from data.
   **No current vulnerability exists, and the reason is structural, not careful
   coding.** Until self-alerts and LIN import, the app had no text input at all.
   It now has exactly three, each reviewed (`REVIEWED_INPUTS`): the self-alert
@@ -102,7 +116,7 @@ The codebase is cleanly layered into pure domain engine, web presentation, style
     deliberately NOT escaped: an unknown suit raises `KeyError`, which fails closed.
   - `test_every_free_text_input_has_been_reviewed` fails the moment an input
     widget appears that is not in `REVIEWED_INPUTS`: each new one needs its own
-    trace through the 26 data-driven sites. Two end-to-end tests type hostile
+    trace through the data-driven sites. Two end-to-end tests type hostile
     payloads into the self-alert box and into an imported LIN (as alerts and as
     player names) in the running app, and check the page.
   - The escaping test asserts on **tag openings** (`<script`, `<img`, …), not on
@@ -110,6 +124,11 @@ The codebase is cleanly layered into pure domain engine, web presentation, style
     output — once `<` and `"` are entities, `onerror=alert(1)` is inert text. An
     over-strict security test is one that gets switched off.
 - `web/card_component.py`: styled card chips, static hands, and interactive hand clickers.
+- `web/auction_view.py`: the auction grid, the bidding box, and `live_alerts`.
+- `web/analysis_view.py`: the double dummy post-mortem panel (see the deployment
+  note at the end).
+- `web/challenge_view.py`: the Challenge tab's grade tables and captions.
+- `web/session_view.py`: the session scoreboard (imported boards left out).
 - `web/felt_table.py`: central green felt table canvas, card slots, and dynamic role badges.
 - `web/replayer_view.py`: hand history selector, compass deal diagram, card-by-card
   replayer controls, and trick log. It renders any record of the hand-history
@@ -131,10 +150,15 @@ The codebase is cleanly layered into pure domain engine, web presentation, style
 
 **Deployment.** The app's only third-party dependency is `streamlit`
 (`requirements.txt`); it writes nothing to disk, keeps all game state in
-`st.session_state`, and holds no mutable module-level state, so concurrent
-players cannot interfere. The deployable footprint is about 420 KB (the deal library grew from 96 to 130 KB at 400 deals) — `research/` is
+`st.session_state`, so concurrent players cannot interfere. Two pieces of
+module-level state are shared and both stay small: `gib.ILLEGAL`, which a
+test sweep (robots alone and with a random human) keeps empty, and the
+analysis cache below. The deployable footprint is about 420 KB (the deal library grew from 96 to 130 KB at 400 deals) — `research/` is
 not imported by the app and `research/solver-rs/target/` (49 MB) is gitignored.
-The one deployment hazard is `web/analysis_view.py`: it runs the double dummy
-solver interactively, offers a depth costed at ~5 minutes, and caches results in
-an `@st.cache_resource` dict that Streamlit shares across **all** sessions and
-never evicts. Cap the depth and bound that cache before exposing it publicly.
+`web/analysis_view.py` runs the double dummy solver interactively, so it is
+bounded for a public server (2026-10-18): the depth stops at 8 cards a hand
+(~15 s a board; `SHB_ANALYSIS_MAX_CARDS=10` on your own machine offers 9 and 10,
+up to ~5 minutes), and its results live in a cache that every session shares,
+capped at `CACHE_ENTRIES` decisions with the least recently used dropped first.
+One 8-card decision still holds the script thread for its slice, so the table
+pauses while a board is analysed.

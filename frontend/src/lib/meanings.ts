@@ -22,7 +22,7 @@ const DECK: Card[] = SUITS.flatMap((s) => RANKS.map((r) => card(s, r)));
 const HONOURS = new Set(['J', 'Q', 'K', 'A']);
 
 /** mulberry32: small, fast, and good enough to deal cards. */
-function prng(seed: number): () => number {
+export function prng(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;

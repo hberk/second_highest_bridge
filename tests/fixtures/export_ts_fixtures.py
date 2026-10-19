@@ -3,7 +3,7 @@
 The Svelte front end (frontend/) runs a TypeScript port of card.py, bridge/,
 ai.py and challenge.py. `ai.py` is tuned against measured results, so a port
 that drifted by one tie-break would quietly invalidate every figure in
-CLAUDE.md. Python stays the oracle: this script records what it does, and
+docs/BIDDING.md. Python stays the oracle: this script records what it does, and
 frontend/src/lib/engine/engine.test.ts must reproduce every call, alert, card,
 score and grade exactly.
 
@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 import sys
 from pathlib import Path
 
@@ -228,6 +229,48 @@ def export_lin(games: list[dict]) -> list[dict]:
     return out
 
 
+def export_hostile_lin(games: list[dict]) -> list[dict]:
+    """Odd and hostile LIN, with bridge.lin's verdict on each: lin.ts must
+    accept and refuse exactly the same texts, and read the same board number
+    and alerts from the ones it accepts."""
+    record = next(history_record(g, i + 1) for i, g in enumerate(games)
+                  if g['contract'] and len(g['plays']) == 52)
+    base = lin.to_lin(record)
+    cut = [m.start() for m in re.finditer(r'pc\|', base)][8 * 4]
+    claimed = base[:cut] + 'mc|{}|'
+    first_call = base.index('mb|')
+    end_of_call = base.index('|', first_call + 3) + 1
+    if base.startswith('an|', end_of_call):              # after any alert it has: the last one counts
+        end_of_call = base.index('|', end_of_call + 3) + 1
+    alerted = base[:end_of_call] + 'an|{}|' + base[end_of_call:]
+
+    texts = [
+        base,
+        '﻿' + base,                                         # byte-order mark
+        base.replace(f"sv|{lin.LIN_VUL[record['vulnerability']]}|", 'sv|constructor|'),
+        base.replace(f"sv|{lin.LIN_VUL[record['vulnerability']]}|", 'sv|toString|'),
+        base.replace(f"sv|{lin.LIN_VUL[record['vulnerability']]}|", 'sv|__proto__|'),
+        base.replace('ah|', 'ah|Board ٣ '),                 # an Arabic-Indic three
+        re.sub(r'ah\|[^|]*\|', 'ah|Board 99999999999999999999|', base),
+        re.sub(r'ah\|[^|]*\|', 'ah|Board 123456|', base),
+        alerted.format('x' * 200),
+        alerted.format('two\tlines\x07here  !s'),
+    ]
+    tricks = record['tricks_taken'][record['contract']['side']]
+    for claim in (str(tricks), f' {tricks} ', '', '0x5', '1e1', '٥', '14', '-1', '7.0'):
+        texts.append(claimed.format(claim))
+
+    out = []
+    for text in texts:
+        try:
+            r = lin.from_lin(text)
+            out.append({'lin': text, 'ok': True, 'board_num': r['board_num'],
+                        'bid_alerts': {str(k): v for k, v in r['bid_alerts'].items()}})
+        except lin.LinError:
+            out.append({'lin': text, 'ok': False})
+    return out
+
+
 def write(name: str, data) -> None:
     path = OUT / name
     path.write_text(json.dumps(data, separators=(',', ':'), ensure_ascii=False),
@@ -246,6 +289,7 @@ def main() -> None:
     write('scoring.json', export_scoring())
     write('challenge.json', export_challenge())
     write('lin.json', export_lin(games))
+    write('lin_hostile.json', export_hostile_lin(games))
 
 
 if __name__ == '__main__':

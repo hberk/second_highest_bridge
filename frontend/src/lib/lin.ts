@@ -12,7 +12,7 @@
 // The reverse caveat: BBO's own hand viewer applies ordinary rules, so it
 // would credit our tricks to the wrong side and see leads out of turn.
 import {
-  PLAYERS, AuctionState, PARTNERSHIP, clockwiseFrom, legalPlays, resolveTrick,
+  PLAYERS, AuctionState, PARTNERSHIP, cleanAlert, clockwiseFrom, legalPlays, resolveTrick,
   type CallRecord, type Play,
 } from './engine/auction';
 import {
@@ -26,9 +26,15 @@ import type { HistoryRecord } from './game.svelte';
 /** LIN lists hands, and numbers the dealer, starting from South. */
 const LIN_SEATS: readonly Seat[] = ['South', 'West', 'North', 'East'];
 const LIN_VUL: Record<Vulnerability, string> = { None: 'o', 'N/S': 'n', 'E/W': 'e', Both: 'b' };
-const VUL_FROM_LIN: Record<string, Vulnerability> = {
-  o: 'None', '0': 'None', '-': 'None', n: 'N/S', e: 'E/W', b: 'Both',
-};
+/** A Map, not an object: `sv|constructor|` must not find Object's prototype. */
+const VUL_FROM_LIN = new Map<string, Vulnerability>([
+  ['o', 'None'], ['0', 'None'], ['-', 'None'], ['n', 'N/S'], ['e', 'E/W'], ['b', 'Both'],
+]);
+
+/** The most boards one import reads: what this app keeps on a device. */
+export const MAX_LIN_BOARDS = 500;
+/** The largest LIN file the app opens; 500 boards are about 200 KB. */
+export const MAX_LIN_BYTES = 1_000_000;
 const HAND_SUITS: readonly Suit[] = ['S', 'H', 'D', 'C'];
 const SYMBOL_TO_LIN: Record<string, string> = { '♠': '!S', '♥': '!H', '♦': '!D', '♣': '!C' };
 const LIN_TO_SYMBOL: Record<string, string> = { S: '♠', H: '♥', D: '♦', C: '♣' };
@@ -59,8 +65,10 @@ function alertToLin(text: string): string {
   return text.replace(/[|\r\n]+/g, '/').replace(/[♠♥♦♣]/g, (s) => SYMBOL_TO_LIN[s]).trim();
 }
 
+/** Suit symbols back, then the clean-up a typed alert gets: one line, at most
+ *  70 characters. */
 function alertFromLin(text: string): string {
-  return text.replace(/!([SHDC])/gi, (_, s: string) => LIN_TO_SYMBOL[s.toUpperCase()]).trim();
+  return cleanAlert(text.replace(/!([SHDC])/gi, (_, s: string) => LIN_TO_SYMBOL[s.toUpperCase()]));
 }
 
 function handToLin(hand: Card[]): string {
@@ -115,7 +123,7 @@ export function toLinFile(records: HistoryRecord[]): string {
 }
 
 function tokens(text: string): [string, string][] {
-  const fields = text.replace(/\r?\n/g, '').split('|');
+  const fields = text.replace(/^﻿/, '').replace(/\r?\n/g, '').split('|');
   const out: [string, string][] = [];
   for (let i = 0; i + 1 < fields.length; i += 2) out.push([fields[i].trim().toLowerCase(), fields[i + 1]]);
   return out;
@@ -138,6 +146,9 @@ export function fromLinFile(text: string): HistoryRecord[] {
   }
   if (sawDeal) boards.push(current);
   if (!boards.length) throw new LinError('No deal (md) found');
+  if (boards.length > MAX_LIN_BOARDS) {
+    throw new LinError(`${boards.length} boards; at most ${MAX_LIN_BOARDS} are read at once`);
+  }
   return boards.map((b, i) => buildRecord(b, i + 1));
 }
 
@@ -167,14 +178,14 @@ function buildRecord(toks: [string, string][], fallbackNum: number): HistoryReco
         break;
       }
       case 'sv': {
-        const v = VUL_FROM_LIN[value.trim().toLowerCase()];
+        const v = VUL_FROM_LIN.get(value.trim().toLowerCase());
         if (!v) throw new LinError(`Bad vulnerability '${value}'`);
         vulnerability = v;
         break;
       }
       case 'ah': {
-        const m = /(\d+)/.exec(value);
-        if (m) boardNum = Number(m[1]);
+        const m = /[0-9]+/.exec(value);
+        if (m && m[0].length <= 6) boardNum = Number(m[0]);
         break;
       }
       case 'mb': {
@@ -196,8 +207,9 @@ function buildRecord(toks: [string, string][], fallbackNum: number): HistoryReco
         break;
       }
       case 'mc':
+        // Digits only: Number() would read '' as 0 and '0x5' or '1e1' as numbers.
+        if (!/^[0-9]{1,2}$/.test(value.trim()) || Number(value) > 13) throw new LinError(`Bad claim '${value}'`);
         claim = Number(value);
-        if (!Number.isInteger(claim) || claim < 0 || claim > 13) throw new LinError(`Bad claim '${value}'`);
         break;
       // pn, st, rh, pg, qx, nt, ...: presentation only.
     }

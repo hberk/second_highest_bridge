@@ -2,6 +2,7 @@
 // gets in the way of play.
 import { describe, expect, it } from 'vitest';
 import { Game, type HistoryRecord } from './game.svelte';
+import { prng } from './meanings';
 import { legalPlays } from './engine/auction';
 import { BACKUP_KEY, MAX_SAVED_BOARDS, SAVE_KEY, boardKey, loadGames, saveGames, trimHistory } from './saves';
 
@@ -55,9 +56,9 @@ function finishBoards(game: Game, n: number): void {
 describe('saved games', () => {
   it('a finished board survives a reload, and numbering carries on', () => {
     const storage = new MemoryStorage();
-    const game = new Game(storage);
+    const game = new Game(storage, prng(1));
     finishBoards(game, 2);
-    const reloaded = new Game(storage);
+    const reloaded = new Game(storage, prng(2));
     expect(reloaded.history).toEqual(game.history);
     expect(reloaded.passedOutCount).toBe(game.passedOutCount);
     // The new page deals the board after the last one saved.
@@ -66,25 +67,25 @@ describe('saved games', () => {
 
   it('a passed-out board is saved too', () => {
     const storage = new MemoryStorage();
-    const game = new Game(storage);
+    const game = new Game(storage, prng(3));
     for (let i = 0; i < 200 && game.passedOutCount === 0; i++) {
       playOut(game);
       game.newBoard();
     }
     expect(game.passedOutCount).toBeGreaterThan(0);
-    expect(new Game(storage).passedOutCount).toBe(game.passedOutCount);
+    expect(new Game(storage, prng(4)).passedOutCount).toBe(game.passedOutCount);
   });
 
   it('restored challenge results keep dealChallenge off those deals', () => {
     const storage = new MemoryStorage();
-    const game = new Game(storage);
+    const game = new Game(storage, prng(5));
     for (let i = 0; i < 20 && game.challengeLog.length === 0; i++) {
       expect(game.dealChallenge()).toBe(true);
       playOut(game);
     }
     expect(game.challengeLog.length).toBe(1);
     const played = game.challengeLog[0].deal_id;
-    const reloaded = new Game(storage);
+    const reloaded = new Game(storage, prng(6));
     expect(reloaded.challengeLog).toEqual(game.challengeLog);
     for (let i = 0; i < 30; i++) {
       reloaded.dealChallenge();
@@ -94,33 +95,50 @@ describe('saved games', () => {
 
   it('imported LIN boards are saved', () => {
     const storage = new MemoryStorage();
-    const game = new Game(storage);
+    const game = new Game(storage, prng(7));
     finishBoards(game, 1);
     const imported: HistoryRecord = { ...game.history[0], label: 'Imported #1', imported: true };
     game.importBoards([imported]);
-    expect(new Game(storage).history.at(-1)).toEqual(imported);
+    expect(new Game(storage, prng(8)).history.at(-1)).toEqual(imported);
   });
 
   it('an unreadable save starts empty and is kept as a backup', () => {
     for (const raw of ['{not json', JSON.stringify({ version: 2, history: [] }), '"text"']) {
       const storage = new MemoryStorage();
       storage.setItem(SAVE_KEY, raw);
-      const game = new Game(storage);
+      const game = new Game(storage, prng(9));
       expect(game.history).toEqual([]);
       expect(game.boardNum).toBe(1);
       expect(storage.getItem(BACKUP_KEY)).toBe(raw);
     }
   });
 
+  it('a pass-out counted while storage was full is saved once it frees up', () => {
+    const storage = new MemoryStorage();
+    const game = new Game(storage, prng(12));
+    finishBoards(game, 1);
+    (storage as unknown as { failWrites: boolean }).failWrites = true;
+    const before = game.passedOutCount;
+    for (let i = 0; i < 200 && game.passedOutCount === before; i++) {
+      playOut(game);
+      game.newBoard();
+    }
+    expect(game.passedOutCount).toBe(before + 1);
+    (storage as unknown as { failWrites: boolean }).failWrites = false;
+    finishBoards(game, game.history.length + 1);      // the next save goes through
+    expect(game.passedOutCount, 'the pass-out was dropped').toBeGreaterThanOrEqual(before + 1);
+    expect(new Game(storage, prng(13)).passedOutCount).toBe(game.passedOutCount);
+  });
+
   it('a storage that refuses writes never stops play', () => {
-    const game = new Game(new MemoryStorage(true));
+    const game = new Game(new MemoryStorage(true), prng(10));
     finishBoards(game, 2);
     expect(game.history.every((h) => h.tricks_log.length === 13)).toBe(true);
   });
 
   it('keeps only the newest boards', () => {
     const storage = new MemoryStorage();
-    const game = new Game(storage);
+    const game = new Game(storage, prng(11));
     finishBoards(game, 1);
     const many = Array.from({ length: MAX_SAVED_BOARDS + 20 }, (_, i) => ({ ...game.history[0], board_num: i + 1 }));
     expect(saveGames(storage, { version: 1, boardNum: many.length, history: many, challengeLog: [], passedOut: 0 })).toBe(true);
@@ -131,24 +149,24 @@ describe('saved games', () => {
 
   it('Clear saved games forgets everything, on the page and in storage', () => {
     const storage = new MemoryStorage();
-    const game = new Game(storage);
+    const game = new Game(storage, prng(12));
     finishBoards(game, 1);
     game.clearSaved();
     expect(game.history).toEqual([]);
     expect(game.challengeLog).toEqual([]);
     expect(storage.getItem(SAVE_KEY)).toBeNull();
-    expect(new Game(storage).history).toEqual([]);
+    expect(new Game(storage, prng(13)).history).toEqual([]);
   });
 
   it('a big LIN import never pushes out boards you played', () => {
     const storage = new MemoryStorage();
-    const game = new Game(storage);
+    const game = new Game(storage, prng(14));
     finishBoards(game, 2);
     const mine = game.history.length;
     const imports = Array.from({ length: MAX_SAVED_BOARDS }, (_, i) => (
       { ...game.history[0], board_num: 1000 + i, label: `Imported #${i}`, imported: true }));
     game.importBoards(imports);
-    const back = new Game(storage).history;
+    const back = new Game(storage, prng(15)).history;
     expect(back.length).toBe(MAX_SAVED_BOARDS);
     expect(back.filter((r) => !r.imported).length, 'a played board was dropped for an import').toBe(mine);
   });
@@ -164,8 +182,8 @@ describe('saved games', () => {
 
   it("two tabs never overwrite each other's boards", () => {
     const storage = new MemoryStorage();
-    const a = new Game(storage);
-    const b = new Game(storage);          // both loaded the same, empty save
+    const a = new Game(storage, prng(16));
+    const b = new Game(storage, prng(17));          // both loaded the same, empty save
     /** Play until this tab finishes a board of its own; returns that board's
      *  key and how many boards it passed out on the way. */
     const finishOne = (g: Game): [string, number] => {
@@ -185,7 +203,7 @@ describe('saved games', () => {
     };
     const [fromA, outA] = finishOne(a);
     const [fromB, outB] = finishOne(b);   // b never saw a's board; its saves must keep it
-    const reloaded = new Game(storage);
+    const reloaded = new Game(storage, prng(18));
     const saved = reloaded.history.map(boardKey);
     expect(saved, "b's save dropped a's board").toContain(fromA);
     expect(saved).toContain(fromB);
@@ -200,8 +218,8 @@ describe('saved games', () => {
     g.window = target;
     try {
       const storage = new MemoryStorage();
-      const a = new Game(storage);
-      const b = new Game(storage);
+      const a = new Game(storage, prng(19));
+      const b = new Game(storage, prng(20));
       const fire = () => target.dispatchEvent(Object.assign(new Event('storage'), { key: SAVE_KEY, storageArea: storage }));
       finishBoards(a, 1);
       fire();

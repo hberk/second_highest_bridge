@@ -5,7 +5,7 @@
 //! The Python version keeps four independently-switchable flags
 //! (use_table / normalise_key / reduce_moves / ordering) so each optimisation
 //! could be measured in isolation during development — that ablation work is
-//! done and recorded in CLAUDE.md, so this port hard-codes the winning
+//! done and recorded in docs/SOLVER.md, so this port hard-codes the winning
 //! configuration (all four on, ordering="trick") rather than re-porting the
 //! switches. If a fifth optimisation ever needs the same kind of ablation,
 //! add the flags back here first.

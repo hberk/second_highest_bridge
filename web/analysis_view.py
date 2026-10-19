@@ -12,8 +12,11 @@ work, then asks Streamlit to rerun. That keeps every write on the script thread
 one rerun per slice.
 """
 from __future__ import annotations
+import os
+import threading
 import time
-from typing import Dict, List
+from collections import OrderedDict
+from typing import List
 
 import streamlit as st
 
@@ -25,14 +28,24 @@ from bridge.solver import replay
 SLICE_SECONDS = 1.5
 
 #: Depth choices, as hand size at the start of the trick. The cost estimates
-#: are measured, not guessed — see CLAUDE.md.
-DEPTH_CHOICES = {
+#: are measured, not guessed — see docs/SOLVER.md.
+ALL_DEPTH_CHOICES = {
     'Endgame only — last 5 tricks (instant)': 5,
     'Most of the hand — last 8 tricks (~15s)': 8,
     'Deeper — last 9 tricks (~1 min)': 9,
     'Deepest affordable — last 10 tricks (~5 min)': 10,
 }
 DEFAULT_DEPTH = 'Most of the hand — last 8 tricks (~15s)'
+
+#: The deepest choice offered. One 9- or 10-card decision holds the script
+#: thread for far longer than a slice, and a public server shares its CPU, so
+#: the default stops at 8. Set SHB_ANALYSIS_MAX_CARDS=10 on your own machine.
+MAX_CARDS = max(5, int(os.environ.get('SHB_ANALYSIS_MAX_CARDS', '8')))
+DEPTH_CHOICES = {label: n for label, n in ALL_DEPTH_CHOICES.items() if n <= MAX_CARDS}
+
+#: Decisions kept across every session (a board has up to ~30). Least
+#: recently used go first.
+CACHE_ENTRIES = 4000
 
 
 #: Bumped whenever the analysis code changes. A Streamlit server outlives many
@@ -42,10 +55,48 @@ DEFAULT_DEPTH = 'Most of the hand — last 8 tricks (~15s)'
 _CACHE_VERSION = 3
 
 
+class _LruCache:
+    """A dict of at most `size` entries, evicting the least recently used.
+    Every session shares one (st.cache_resource), so access is locked."""
+
+    def __init__(self, size: int):
+        self.size = size
+        self._data: OrderedDict = OrderedDict()
+        self._lock = threading.Lock()
+
+    def __contains__(self, key) -> bool:
+        with self._lock:
+            return key in self._data
+
+    def get(self, key):
+        """The entry, or None if it was never stored or has been evicted."""
+        with self._lock:
+            if key not in self._data:
+                return None
+            self._data.move_to_end(key)
+            return self._data[key]
+
+    def __setitem__(self, key, value) -> None:
+        with self._lock:
+            self._data[key] = value
+            self._data.move_to_end(key)
+            while len(self._data) > self.size:
+                self._data.popitem(last=False)
+
+    def pop(self, key, default=None):
+        with self._lock:
+            return self._data.pop(key, default)
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._data)
+
+
 @st.cache_resource(show_spinner=False)
-def _analysis_cache() -> Dict[tuple, dict]:
-    """Survives reruns, shared across boards. Keyed by version + board/trick/seat."""
-    return {}
+def _analysis_cache() -> _LruCache:
+    """Survives reruns, shared across boards and sessions. Keyed by version +
+    board/trick/seat."""
+    return _LruCache(CACHE_ENTRIES)
 
 
 def _key(record: dict, decision) -> tuple:
@@ -88,7 +139,7 @@ def render_analysis(record: dict, key: str = 'dd') -> None:
         with controls[0]:
             depth_label = st.selectbox(
                 "How far back to analyse", list(DEPTH_CHOICES),
-                index=list(DEPTH_CHOICES).index(DEFAULT_DEPTH),
+                index=list(DEPTH_CHOICES).index(DEFAULT_DEPTH) if DEFAULT_DEPTH in DEPTH_CHOICES else 0,
                 key=f"{key}_depth_{record['board_num']}",
                 help="Earlier tricks cost dramatically more. Times are for a whole board.",
             )
@@ -121,11 +172,11 @@ def render_analysis(record: dict, key: str = 'dd') -> None:
             deadline = time.perf_counter() + SLICE_SECONDS
             while pending and time.perf_counter() < deadline:
                 decision = pending.pop(0)
-                key = _key(record, decision)
+                cache_key = _key(record, decision)
                 try:
-                    cache[key] = replay.analyse(decision)
+                    cache[cache_key] = replay.analyse(decision)
                 except Exception as error:        # never retry a failure forever
-                    cache[key] = {'error': str(error),
+                    cache[cache_key] = {'error': str(error),
                                   'trick_num': decision.trick_num,
                                   'seat': decision.seat}
                 done.append(decision)
@@ -133,8 +184,8 @@ def render_analysis(record: dict, key: str = 'dd') -> None:
             if pending:
                 st.rerun()
 
-        results = [cache[_key(record, d)] for d in decisions
-                   if _key(record, d) in cache]
+        results = [r for r in (cache.get(_key(record, d)) for d in decisions)
+                   if r is not None]
         usable = [r for r in results if 'error' not in r]
         broken = [r for r in results if 'error' in r]
 

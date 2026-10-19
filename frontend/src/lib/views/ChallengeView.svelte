@@ -2,6 +2,7 @@
      the same deal played by an all-robot table. -->
 <script lang="ts">
   import { dealIds } from '../engine/challenge';
+  import { PLAYERS } from '../engine/auction';
   import type { Game, HistoryRecord } from '../game.svelte';
   import HistoryView from './HistoryView.svelte';
   import MatchTotal from '../components/MatchTotal.svelte';
@@ -13,7 +14,13 @@
   const last = $derived(game.challenge);
   const records = $derived.by((): HistoryRecord[] => {
     if (!last) return [];
-    const yours = game.history.findLast((h) => h.board_num === last.board_num) ?? last.your_record;
+    // The board number alone is not enough: an imported LIN takes its number
+    // from the file, so match the deal and skip imports.
+    const deal = last.robot_record.initial_hands;
+    const sameDeal = (h: HistoryRecord) =>
+      PLAYERS.every((p) => JSON.stringify(h.initial_hands[p]) === JSON.stringify(deal[p]));
+    const yours = game.history.findLast((h) => !h.imported && h.board_num === last.board_num && sameDeal(h))
+      ?? last.your_record;
     return [...(yours ? [{ ...yours, label: '🧑 Your board' }] : []), last.robot_record];
   });
 

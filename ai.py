@@ -27,7 +27,7 @@ def hcp(hand: list[Card]) -> int:
 
 
 #: Tricks per card, fitted to double dummy results over 100 deals -- see
-#: research/hand_value.py and "Hand evaluation and bidding" in CLAUDE.md.
+#: research/hand_value.py and "Hand evaluation and bidding research" in docs/BIDDING.md.
 #: Out-of-sample R^2 0.740 (5-fold grouped by deal), mean error 1.05 tricks.
 #:
 #: The ace is NOT an honour in this variant. The highest card of the winning suit
@@ -122,7 +122,7 @@ def eval_hand_sh(hand: list[Card]) -> dict:
 # ── Bidding thresholds (fitted) ───────────────────────────────────────────────
 # Every threshold is in EXPECTED TRICKS -- the unit eval_hand_sh returns -- so each
 # can be compared directly against solved double dummy results. See
-# research/hand_value.py and "Hand evaluation and bidding" in CLAUDE.md.
+# research/hand_value.py and "Hand evaluation and bidding research" in docs/BIDDING.md.
 #
 #   * Notrump is never the right strain (it won 7 of 600 solved comparisons), so
 #     this AI never bids it. A finding, not a simplification.
@@ -223,16 +223,6 @@ JUMP_RAISE_TRICKS = 6.2
 # so nothing that only wants the decision has to care.
 
 
-def _strains_bid_by(seat: str, auction: AuctionState) -> set[str]:
-    """Every strain `seat` has named in the auction so far."""
-    strains = set()
-    for who, call in auction.calls:
-        parsed = parse_bid(call)
-        if who == seat and parsed:
-            strains.add(parsed[1])
-    return strains
-
-
 def _bids_by(seat: str, auction: AuctionState) -> list:
     """(level, strain) for each real bid `seat` has made, in order."""
     return [parse_bid(call) for who, call in auction.calls
@@ -313,27 +303,6 @@ def _partner_promise(player: str, partner: str, auction: AuctionState,
     return PROMISE_TWO_OVER_ONE if introduced_level >= 2 else PROMISE_RESPONDED_1
 
 
-def _promise_name(player: str, partner: str, auction: AuctionState,
-                  strain: str) -> str:
-    """Plain words for what partner's bid in `strain` showed."""
-    mine = _bids_by(player, auction)
-    theirs = _bids_by(partner, auction)
-    if not theirs:
-        return "a takeout double" if _doubled_by(partner, auction) else "an opening"
-    if _doubled_by(player, auction) and not mine:
-        return "an advance of my double"
-    named_here = [b for b in theirs if b[1] == strain]
-    if not named_here:
-        return "a bid elsewhere"
-    introduced_level = named_here[0][0]
-    opened = (not mine) or theirs[0][0] <= mine[0][0]
-    if _first_namer(auction, strain) == player:
-        return "a jump raise" if introduced_level >= 3 else "a simple raise"
-    if opened and theirs[0][1] == strain:
-        return "an opening"
-    return "a two-over-one" if introduced_level >= 2 else "a one-level response"
-
-
 def _is_two_over_one(responder_suit: str, opener_suit: str) -> bool:
     """Is a two-level bid of `responder_suit` over `opener_suit` a real 2/1?
 
@@ -376,7 +345,7 @@ SUIT_SYM = {'S': '\u2660', 'H': '\u2665', 'D': '\u2666', 'C': '\u2663'}
 # past the fourth in any suit), minus one for a flat 4-3-3-3. That method, not
 # raw HCP, is the currency the system card's thresholds are written in -- and it
 # is also much closer to what actually wins tricks here, where a trump card is
-# worth about 1.15 tricks. Counting the guide's way moved this AI's median
+# worth about a trick (TRUMP_CARD). Counting the guide's way moved this AI's median
 # opening from 11 raw HCP to exactly 12 guide points: the system was never as
 # light as raw HCP made it look.
 #
@@ -428,7 +397,8 @@ REBID_LENGTH = 6               # extra length is its own reason to bid again
 # The cuebid -- advancer bidding the OPPONENTS' suit to show a good raise of
 # partner's overcall -- has no threshold constant because the AI does not make the
 # call. The card's 11+ points with 3+ support was implemented and measured at
-# -16.4 per board (t = -3.34); see `_response`. `_is_cuebid` still READS one.
+# -4.1 per board head to head (t = -2.66); see `_response`. `_is_cuebid` still
+# READS one.
 
 # The guide's raise tiers, which the alerts quote. JUMP_RAISE_POINTS is enforced
 # as well as printed, and costs nothing: the trick threshold beside it already
@@ -472,7 +442,6 @@ def _place(strain: str, combined: float, legal: list[str], held: int) -> tuple:
     follow the auction upward is what made an earlier 2/1 attempt escalate, with
     2-level contracts collapsing from 211 to 125 and the score dropping 14 points.
     """
-    word = SUIT_WORD.get(strain, strain)
     if combined >= GAME_TRICKS:
         game = _game_call(strain, legal)
         if game:
@@ -490,7 +459,6 @@ def _place(strain: str, combined: float, legal: list[str], held: int) -> tuple:
     # `max(ceiling, PARTSCORE_LEVEL)` admits level 2 and nothing higher, so a
     # 3-level call still has to clear the ceiling on its own.
     if call and parse_bid(call)[0] <= max(ceiling, PARTSCORE_LEVEL):
-        level = parse_bid(call)[0]
         return call, (f"{SUPPORT_LENGTH}+ {SUIT_SYM[strain]} support, limited.")
     return 'Pass', "No extra values."
 
@@ -701,7 +669,8 @@ def _response(player: str, partner: str, auction: AuctionState, ev: dict,
     if held >= SUPPORT_LENGTH:
         # THE AI DOES NOT CUEBID, and this is where it would. Implemented and
         # measured: advancer bidding the opponents' suit on 11+ points with
-        # support cost -16.4 points per board (t = -3.34, 36 of 299 deals), and
+        # support cost -4.1 points per board head to head (t = -2.66; -16.4 on
+        # the declaring-side metric, which a competitive call can't use), and
         # pushed contracts at the 3-level or higher from 17 to 25. The cause is
         # the one already recorded for game-forcing 2/1: showing extra values
         # buys height, and height is where this variant loses money, because an
@@ -710,7 +679,6 @@ def _response(player: str, partner: str, auction: AuctionState, ev: dict,
         # correctly, so a HUMAN South who cuebids is understood by robot North.
         pass
         promise = _partner_promise(player, partner, auction, p_strain)
-        shown = _promise_name(player, partner, auction, p_strain)
         combined = ev['suit_pts'][p_strain] + promise
         pts = _points(groups)
         if combined >= GAME_TRICKS:
@@ -820,7 +788,6 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
     if p_strain in SUITS and len(groups[p_strain]) >= SUPPORT_LENGTH:
         held = len(groups[p_strain])
         promise = _partner_promise(player, partner, auction, p_strain)
-        shown = _promise_name(player, partner, auction, p_strain)
         combined = ev['suit_pts'][p_strain] + promise
         call, why = _place(p_strain, combined, legal, held)
         if call != 'Pass':
@@ -944,9 +911,9 @@ def ai_bid_explained(player: str, hand: list[Card], auction: AuctionState) -> tu
 def ai_bid(player: str, hand: list[Card], auction: AuctionState) -> str:
     """A 2/1-shaped auction: limited raises, a forcing new suit at the two level.
 
-    The auction is a search for trump length -- a trump card is worth about 1.15
-    tricks, roughly four queens -- and partners each showing their longest suit
-    finds the true best fit 95% of the time. The 2/1 skeleton lets partner's bid
+    The auction is a search for trump length -- a trump card is worth about a
+    trick (TRUMP_CARD), more than three queens -- and partners each showing their
+    longest suit finds the true best fit 94% of the time. The 2/1 skeleton lets partner's bid
     mean different things, so the combined estimate is read off the auction rather
     than assumed; the ceiling keeps that information from being spent on height.
     """
@@ -1082,7 +1049,7 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
 
     partner = PARTNERS[player]
     if len(trick) == 1 and visible and partner in visible and len(legal) > 1:
-        choice = _cover_for_partner(player, legal, trick, trump, played,
+        choice = _cover_for_partner(player, hand, legal, trick, trump, played,
                                     visible, choice)
 
     if (history is not None and visible and len(legal) > 1
@@ -1109,8 +1076,8 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
 # possible cards still leave partner a winning reply -- partner's cards are
 # known, the third player's are only the ones declarer cannot see.
 
-def _cover_for_partner(player: str, legal: list[Card], trick: list[tuple[str, Card]],
-                       trump: str | None, played: list[Card],
+def _cover_for_partner(player: str, hand: list[Card], legal: list[Card],
+                       trick: list[tuple[str, Card]], trump: str | None, played: list[Card],
                        visible: dict[str, list[Card]], choice: Card) -> Card:
     partner = PARTNERS[player]
     third = PLAYERS[(PLAYERS.index(player) + 1) % 4]
@@ -1118,7 +1085,9 @@ def _cover_for_partner(player: str, legal: list[Card], trick: list[tuple[str, Ca
     if third in visible:
         candidates = list(visible[third])
     else:
-        seen = set(played) | {c for _, c in trick} | set(legal)
+        # The whole hand, not just the legal cards: following suit, this hand's
+        # other suits are still its own, never the third player's ruff or discard.
+        seen = set(played) | {c for _, c in trick} | set(hand)
         for cards in visible.values():
             seen |= set(cards)
         candidates = [c for c in _FULL_DECK if c not in seen]

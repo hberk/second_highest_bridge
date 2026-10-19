@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import { Game } from './game.svelte';
+import { prng } from './meanings';
 import { legalPlays } from './engine/auction';
 import TableView from './views/TableView.svelte';
 import DesktopTableView from './views/DesktopTableView.svelte';
@@ -75,7 +76,7 @@ function playBoard(game: Game): void {
 
 describe('table flow', () => {
   it('plays free boards to the end and records them', () => {
-    const game = new Game();
+    const game = new Game(null, prng(1));
     let finished = 0;
     for (let i = 0; i < 40; i++) {
       playBoard(game);
@@ -96,7 +97,7 @@ describe('table flow', () => {
   });
 
   it('grades challenge boards against the robot table', () => {
-    const game = new Game();
+    const game = new Game(null, prng(2));
     let graded = 0;
     for (let i = 0; i < 25; i++) {
       expect(game.dealChallenge()).toBe(true);
@@ -122,7 +123,7 @@ describe('table flow', () => {
 
   it('grades a challenge board that passes out', () => {
     // Find a library deal the robots pass out when South passes too.
-    const game = new Game();
+    const game = new Game(null, prng(3));
     let found = false;
     for (let id = 0; id < 400 && !found; id++) {
       game.newBoard(id);
@@ -147,7 +148,7 @@ describe('table flow', () => {
   });
 
   it('refuses illegal or out-of-turn actions', () => {
-    const game = new Game();
+    const game = new Game(null, prng(4));
     const before = game.calls.length;
     game.humanBids('8NT');
     expect(game.calls.length).toBe(before);

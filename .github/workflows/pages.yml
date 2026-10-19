@@ -29,16 +29,18 @@ permissions:
 
 concurrency:
   group: pages-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded PR runs are cancelled; a deploy from main is never cut off mid-flight.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   python-tests:
     if: github.event.repository.visibility == 'public' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       # 3.12 is the reference: 3.12's sum() can move a hand's value in the
-      # last bit (see CLAUDE.md, "Commands").
+      # last bit (see CLAUDE.md, "Environment").
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -51,6 +53,7 @@ jobs:
   build:
     if: github.event.repository.visibility == 'public' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -89,6 +92,7 @@ jobs:
     needs: [build, python-tests]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.visibility == 'public'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       pages: write
       id-token: write

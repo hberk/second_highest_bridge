@@ -125,6 +125,37 @@ def test_refuses_a_card_dealt_twice():
     raise AssertionError('a duplicated card was accepted')
 
 
+def test_refuses_hostile_fields_and_cleans_alerts():
+    lin = to_lin(_played(_boards())[0])
+    claimed = lin[:[m.start() for m in re.finditer(r'pc\|', lin)][8 * 4]] + 'mc|{}|'
+    for bad in (re.sub(r'sv\|.\|', 'sv|constructor|', lin),
+                claimed.format(''), claimed.format('0x5'), claimed.format('٥'),
+                claimed.format('14')):
+        try:
+            from_lin(bad)
+        except LinError:
+            continue
+        raise AssertionError(f"accepted: ...{bad[-30:]!r}")
+    assert from_lin('﻿' + lin) == from_lin(lin)                # byte-order mark
+    assert from_lin(re.sub(r'ah\|[^|]*\|', 'ah|Board ٣|', lin))['board_num'] == 1
+    end = lin.index('|', lin.index('mb|') + 3) + 1
+    if lin.startswith('an|', end):
+        end = lin.index('|', end + 3) + 1
+    alert = from_lin(lin[:end] + 'an|a\tb' + 'x' * 100 + '|' + lin[end:])['bid_alerts'][0]
+    assert alert.startswith('a b') and len(alert) == 70
+
+
+def test_reads_at_most_500_boards():
+    from bridge.lin import MAX_LIN_BOARDS
+    lin = to_lin(_played(_boards())[0])
+    assert len(from_lin_file('\n'.join([lin] * MAX_LIN_BOARDS))) == MAX_LIN_BOARDS
+    try:
+        from_lin_file('\n'.join([lin] * (MAX_LIN_BOARDS + 1)))
+    except LinError:
+        return
+    raise AssertionError('read more than MAX_LIN_BOARDS boards')
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_') and callable(fn):

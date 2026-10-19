@@ -1,8 +1,8 @@
 """Every string that reaches the page through `unsafe_allow_html` is escaped.
 
-The app renders its own markup: 33 `unsafe_allow_html` call sites and 1,187
-lines of hand-written CSS. Seven of those sites are static literals and cannot
-inject anything; the other 26 build HTML from data.
+The app renders its own markup: 42 `unsafe_allow_html` call sites and 1,256
+lines of hand-written CSS (counted 2026-10-18). A few of those sites are static
+literals and cannot inject anything; the rest build HTML from data.
 
 **The app now takes free text in two places, both reviewed** (see
 `REVIEWED_INPUTS` below): the self-alert box and LIN import. Both deliver only
@@ -13,7 +13,7 @@ vulnerability, and the end-to-end tests here push hostile text through both
 inputs in the running app to keep it that way.
 
 The risk is the NEXT change. A player name, a saved-board label, a shareable
-URL parameter or a chat line would reach those 26 sites by a new path. This
+URL parameter or a chat line would reach those sites by a new path. This
 file is the guardrail for that day: it pushes a hostile payload through every
 public function in `web/` that returns or renders HTML, fails if the payload
 survives raw, and fails on any input widget not in `REVIEWED_INPUTS`.
@@ -138,7 +138,7 @@ def test_a_hostile_card_cannot_inject_markup():
 #:   kept. The one free-text field that survives is alert text: `call_badge`
 #:   again. Parse errors can quote the input, so they are shown with `st.code`.
 #:
-#: So the 26 data-driven `unsafe_allow_html` sites still only ever see fixed
+#: So the data-driven `unsafe_allow_html` sites still only ever see fixed
 #: values, plus alert text through the one escaping function. The tests below
 #: check that end to end in the running app.
 REVIEWED_INPUTS = {

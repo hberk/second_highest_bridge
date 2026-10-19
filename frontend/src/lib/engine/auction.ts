@@ -12,6 +12,16 @@ export const PARTNERSHIP: Record<Seat, Side> = {
   North: 'N/S', South: 'N/S', East: 'E/W', West: 'E/W',
 };
 
+/** The longest alert, the robots' own limit: it has to fit a tooltip. */
+export const ALERT_MAX = 70;
+
+/** An alert a person wrote (typed, or imported from LIN) as one line of plain
+ *  text. Svelte escapes it on the page; LIN export handles the `|` separator
+ *  itself. Port of bridge.auction.clean_alert. */
+export function cleanAlert(text: string): string {
+  return text.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, ALERT_MAX);
+}
+
 export const DEALER_ROTATION: readonly Seat[] = ['North', 'East', 'South', 'West'];
 export const VUL_ROTATION: readonly Vulnerability[] = [
   'None', 'N/S', 'E/W', 'Both',
@@ -49,7 +59,6 @@ export class AuctionState {
   calls: CallRecord[] = [];
   highestBid: [number, Strain, Seat] | null = null;
   doubled: Doubled = 'None';
-  doubledBy: Seat | null = null;
   isComplete = false;
   passedOut = false;
 
@@ -99,13 +108,11 @@ export class AuctionState {
       }
     } else if (call === 'X' || call === 'XX') {
       this.doubled = call;
-      this.doubledBy = player;
     } else {
       const parsed = parseBid(call);
       if (parsed) {
         this.highestBid = [parsed[0], parsed[1], player];
         this.doubled = 'None';
-        this.doubledBy = null;
       }
     }
   }

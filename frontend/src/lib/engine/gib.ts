@@ -219,6 +219,11 @@ export class Ctx {
 const TO_PLAY = 'To play.';
 const natural = (suit: Suit) => `Natural, ${SYM[suit]}.`;
 
+/** `decision`, unless partner has already bid past it. Only a human partner
+ *  does that, by not answering a convention (2NT-3♣-3NT): the contract is theirs. */
+const placed = (ctx: Ctx, decision: Decision): Decision =>
+  ctx.ok(decision[0]) ? decision : ['Pass', 'Partner placed the contract.'];
+
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 /** Calls a branch produced that were not legal, caught by the guard. */
@@ -685,7 +690,7 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
     if ((o === '2S' || o === '2NT') && o !== `2${x}`) {
       return hcp >= 9 ? [`4${x}`, TO_PLAY] : [`3${x}`, 'Declining the game try.'];
     }
-    if (ol === 3 && os !== x) {
+    if (ol === 3 && isSuit(os) && os !== x) {
       const accept = hcp >= 9
         || (hcp >= 8 && (h.len[os as Suit] <= 1 || h.top(os as Suit, ['A', 'K', 'Q']) >= 1));
       return accept ? [`4${x}`, TO_PLAY] : [`3${x}`, 'Declining the game try.'];
@@ -711,7 +716,7 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
       if (hcp + hi >= GAME && ol === 2) return [`3${y}`, 'Invitational.'];
       return ['Pass', 'No game.'];
     }
-    if (hcp + lo >= GAME) return ['3NT', TO_PLAY];
+    if (hcp + lo >= GAME) return placed(ctx, ['3NT', TO_PLAY]);
     return ['Pass', 'No game.'];
   }
   if (o === '1NT') {
@@ -764,8 +769,8 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
     const forcing = reverse || ol === 3;
     if (forcing) return afterForcingRebid(ctx, x, y, z);
     if (hcp + lo >= GAME) {
-      if (isMajor(z) && h.len[z] >= 4) return [`4${z}`, TO_PLAY];
-      if (isMajor(x) && h.len[x] >= 3) return [`4${x}`, TO_PLAY];
+      if (isMajor(z) && h.len[z] >= 4) return placed(ctx, [`4${z}`, TO_PLAY]);
+      if (isMajor(x) && h.len[x] >= 3) return placed(ctx, [`4${x}`, TO_PLAY]);
       if (isMajor(y) && h.len[y as Suit] >= 6) return [`4${y}`, TO_PLAY];
       const fourth = SUITS.filter((s) => s !== x && s !== y && s !== z);
       if (fourth.length) {
@@ -774,7 +779,7 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
           return [call, 'Fourth suit forcing. Artificial.'];
         }
       }
-      return ['3NT', TO_PLAY];
+      return placed(ctx, ['3NT', TO_PLAY]);
     }
     if (hcp + hi >= GAME) {
       if (isMajor(z) && h.len[z] >= 4 && ctx.ok(`3${z}`)) return [`3${z}`, 'Invitational.'];
@@ -1121,13 +1126,13 @@ function ntResponderSecond(ctx: Ctx, base: number, seq: string[], lo: number, hi
   if (r === code.stayman) {
     const s = strainOf(o);
     if (isMajor(s) && h.len[s as Suit] >= 4) {
-      if (hcp + lo >= GAME) return [`4${s}`, TO_PLAY];
-      return [`3${s}`, 'Invitational.'];
+      if (hcp + lo >= GAME) return placed(ctx, [`4${s}`, TO_PLAY]);
+      return placed(ctx, [`3${s}`, 'Invitational.']);
     }
     if (hcp + lo >= GAME) {
       const m5 = MAJORS.filter((m) => h.len[m] >= 5);
       if (m5.length && o !== '2S' && ctx.ok(`3${m5[0]}`)) return [`3${m5[0]}`, `5+ ${SYM[m5[0]]}, game forcing.`];
-      return ['3NT', TO_PLAY];
+      return placed(ctx, ['3NT', TO_PLAY]);
     }
     if (ctx.ok('2NT')) return ['2NT', 'Invitational.'];
     return ['Pass', 'No game.'];
@@ -1136,7 +1141,7 @@ function ntResponderSecond(ctx: Ctx, base: number, seq: string[], lo: number, hi
     if (r === code[key]) {
       if (o === `3${s}` && base === 1) return hcp >= 4 ? [`4${s}`, TO_PLAY] : ['Pass', 'Weak.'];
       if (hcp + lo >= SLAM && ctx.ok('4NT')) return ['4NT', 'Quantitative: invites 6NT.'];
-      if (hcp + lo >= GAME) return ['3NT', `5 ${SYM[s]}, choice of games.`];
+      if (hcp + lo >= GAME) return placed(ctx, ['3NT', `5 ${SYM[s]}, choice of games.`]);
       if (hcp + hi >= GAME && ctx.ok('2NT')) return ['2NT', `5 ${SYM[s]}, invitational.`];
       return ['Pass', 'Weak.'];
     }

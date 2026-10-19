@@ -12,8 +12,10 @@ python tests/test_solver_core.py    # packed-int core vs bridge/trick.py, the ru
 python tests/test_solver_exact.py   # exhaustive enumeration vs the frozen fixture
 python tests/test_solver_search.py  # optimised search vs exhaustive enumeration
 python tests/test_solver_api.py     # domain-facing analysis layer + validation
+python tests/test_solver_replay.py  # a finished board's decisions, latest trick first
 python tests/test_dd_dataset.py      # dataset generator: strains, pairing, resume
 python tests/test_solver_rust.py     # Rust engine vs trusted Python search, beyond the fixture
+                                     # (SKIP, not pass, when the binary isn't built; CI never builds it)
 
 # Heavier sweeps (all optional, all default to a quick setting)
 SOLVER_TEST_SAMPLES=1000000 python tests/test_solver_core.py

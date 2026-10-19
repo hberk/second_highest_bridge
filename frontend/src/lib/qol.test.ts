@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import { Game } from './game.svelte';
+import { prng } from './meanings';
 import { legalPlays } from './engine/auction';
 import TableView from './views/TableView.svelte';
 import SessionScore from './components/SessionScore.svelte';
@@ -28,7 +29,7 @@ function playBoard(game: Game, onPlaying?: (game: Game) => void): void {
 
 describe('auto-play forced cards', () => {
   it('never waits on the human with only one legal card', () => {
-    const game = new Game();
+    const game = new Game(null, prng(1));
     game.autoPlayForced = true;
     let waits = 0;
     let finished = 0;
@@ -52,7 +53,7 @@ describe('auto-play forced cards', () => {
   });
 
   it('is off by default: the human plays the last trick themselves', () => {
-    const game = new Game();
+    const game = new Game(null, prng(2));
     let lastTrickWaits = 0;
     for (let i = 0; i < 15; i++) {
       playBoard(game, (g) => { if (g.trickNum === 13) lastTrickWaits++; });
@@ -64,7 +65,7 @@ describe('auto-play forced cards', () => {
 
 describe('last trick', () => {
   it('is offered from trick 2 on, never during trick 1', () => {
-    const game = new Game();
+    const game = new Game(null, prng(3));
     let offered = 0;
     for (let i = 0; i < 10; i++) {
       playBoard(game, (g) => {
@@ -83,7 +84,7 @@ describe('last trick', () => {
 
 describe('session scoreboard', () => {
   it('counts passed-out boards', () => {
-    const game = new Game();
+    const game = new Game(null, prng(4));
     let seen = 0;
     for (let i = 0; i < 60; i++) {
       while (game.phase === 'bidding' && !game.auction.isComplete) game.humanBids('Pass');
@@ -95,7 +96,7 @@ describe('session scoreboard', () => {
   });
 
   it('totals N/S scores and leaves imported boards out', () => {
-    const game = new Game();
+    const game = new Game(null, prng(5));
     for (let i = 0; i < 12; i++) {
       playBoard(game);
       game.newBoard();
@@ -114,7 +115,7 @@ describe('session scoreboard', () => {
   });
 
   it('shows the margin against the robots on challenge boards', () => {
-    const game = new Game();
+    const game = new Game(null, prng(6));
     for (let i = 0; i < 8; i++) {
       game.dealChallenge();
       playBoard(game);
