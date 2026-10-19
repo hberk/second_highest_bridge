@@ -163,6 +163,55 @@ library (`research/card_play_h2h.py SURE_LEAD`, 6,356 boards, baseline with
 cost in speed. Choosing the lead suit with dummy in view when there is no sure
 trick (`_gap` still ignores dummy) is the next step, not yet done.
 
+**Four rules from the user's review of deals 92, 156 and 174** (2026-10-19;
+the presolved robot lines in `research/data/robot_lines.jsonl`, viewed hand by
+hand). Each is a switch, measured alone over the library (`card_play_h2h.py`,
+6,356 boards, t across 398 deals), then all four together. A card is **dead**
+when every higher card of its suit is played or in its own hand: it can never
+be second-highest, so it wins only as the one card of its suit in a trick.
+
+| switch | what it does | declarer tricks | points | boards changed | |
+|---|---|---|---|---|---|
+| `SURE_LEAD_DECLARER` | in the side suit the lead rules chose, lead the lowest card that wins for sure | **+0.165 (t = +3.81)** | +17.8 (t = +2.85) | 1,152 | **on** |
+| `DEAD_CARD_LAST` | fourth hand that can't keep the trick follows with a dead card | +0.046 (t = +1.13) | +3.8 | 1,492 | **on** |
+| `RUFF_LEAD` | defence out of trumps: lead a suit partner is void in, for a ruff | -0.020 (t = -0.98) | -2.8 | 596 | off |
+| `FORCE_DUMMY` | a defender who'd lead a trump leads dummy's void suit instead | -0.001 (t = -0.05) | +0.3 | 156 | off |
+| all four | | +0.158 (t = +2.73) | +15.8 (t = +1.69) | 2,540 | |
+
+The two kept, together: **+0.183 declarer tricks per board (t = +3.37), +20.5
+points (t = +2.35)**; 2,208 boards changed. Each with the other on:
+`SURE_LEAD_DECLARER` +0.137 (t = +3.41), `DEAD_CARD_LAST` +0.018 (t = +0.41,
+both sides netted; see below for one side at a time).
+
+- **Sure lead for the declaring side** (deal 174, 4H by East): with dummy's
+  10♣ and 9♣ 2♣ in hand, the 9♣ wins whatever the defence holds and the 2♣
+  (what East led) lost to North's 8♣. `_sure_lead` is the defender's version;
+  here partner's hand is in view, so partner's card is the one partner's own
+  rules (`_middle_play`) would play. Its first form chose the suit as well,
+  cashing any sure trick before the other lead rules ran, and cost the
+  declaring side **0.85 tricks a board** on ten deals: a "sure" trump trick
+  spent two trumps on one trick (deal 6, 4C by South, the J♣ to dummy's Q♣
+  with the defence out of trumps, four tricks lost over the hand). Without
+  trumps it still cost 0.18: cashing early lost timing (deal 0, 1NT) and
+  ruffed in the long trump hand (deal 4). Card choice within the side suit
+  the lead rules chose is the version measured above. The user's point, in the end:
+  the 9♣ is plain good planning, not part of a ruffing plan.
+- **Dead card in fourth seat** (deal 156, 1H by North): on 10♣ 3♣ 9♣ North
+  dumped the 5♣, keeping A♣ K♣ that could never win a trick. Double dummy
+  over 199 deals the lowest card lost 43.5 tricks where the lowest dead card
+  lost 14.5; a dead card in ANY seat, following suit, is worse (-0.23 to -0.39
+  a deal), since the card added decides which card is second-highest. It
+  plays for both sides, so it was also measured one side at a time: declaring
+  side **+0.077 (t = +3.33)**, defence -0.036 declarer tricks (t = -1.08, the
+  defence's gain). On for both, as `NT_LONG_LEAD` was: the defence's half is
+  never harmful but not separately significant.
+- **Ruff lead** (deal 174: with the defence out of trumps East led trumps three
+  times, each won with one of dummy's ruffing trumps) and **force dummy** (deal
+  92, 3C by North: the A♥ or 10♥ makes trump-void-in-hearts dummy ruff, the 6♣
+  let dummy underplay with the 3♣) are right on their deals but not on the
+  library, so both stay off. Their code stays in both engines behind the
+  switches.
+
 **A cuebid raise that forces the three level needs four trumps or 12+
 judgement points** (`gib.CUE_LIMIT_AT_3`), a small tightening of GIB's "limit
 raise or better"; weaker hands with three trumps raise to the two level. The
