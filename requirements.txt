@@ -9,4 +9,4 @@
 # Nothing here is needed to build or run research/solver-rs -- that is Rust,
 # and the app never imports it. Its sources are in the repo; only its build
 # output (target/) is ignored.
-streamlit>=1.50,<2
+streamlit>=1.66.0,<2
