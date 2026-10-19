@@ -49,7 +49,12 @@ only from cards the robot cannot see -- leave partner a winning reply. On a
 user's 3NT East ducked the 8C holding K64 with dummy's 9C to come; covering
 makes the nine win. Library: **0.199 -> 0.025 tricks below double dummy per
 board (22.0 -> 6.2 points)**; "below double dummy" also credits weak robot
-defence, so treat it as a ceiling on the gain. The table below predates all
+defence, so treat it as a ceiling on the gain. Until 2026-10-18 "cards the
+robot cannot see" left out its own cards outside the led suit (it passed the
+legal cards, not the hand), so its own trumps could be the third player's
+ruff. Fixed; measured head to head it changed **0 of 6,356 boards** (the
+candidate set differed on 2,564 of 3,932 calls over 60 deals, the card chosen
+never), so it is a correctness fix with no effect on the library. The table below predates all
 four changes.
 
 **Fourth hand plays for the partnership** (`_play_last`): it used to take a
@@ -180,9 +185,24 @@ neither column materially. Note the caveat baked into `par()`: it is
 the best contract available to ONE side ignoring whether the opponents would
 compete, so it is a ceiling and overstates the true bidding gap — but the ratio
 between the two columns is what matters and is robust.
+
+**Known limitation: one declarer per strain and side.** The library holds one
+trick count per strain and side (`"C:N/S"`), solved with the declarer
+`research/dd_dataset.declarer_for` picks (longer in the suit, or more HCP in
+notrump; ties to North or East), and so with the opening lead from that seat's
+left. `grade()` looks the count up by strain and side and never asks who
+declared. When the auction puts the contract in the other hand, the double
+dummy count can differ by a trick or more, and the difference lands in
+`play_loss` and, through `dd_score`, in `bidding_loss`. It is common: measured
+2026-10-18 over the robot table's auctions at all 16 board positions, **1,428 of
+6,356 boards (22.5%)** are declared by the other partner, 612 of 1,972 in
+notrump. The fix is to solve both declarers and key the library by
+`strain:declarer`, or to record the solved declarer and flag mismatched boards.
+
 `hands_for` deliberately rebuilds deals from stored text rather than calling
-`research.dd_dataset.deal_for`, which reseeds the global RNG; doing that inside
-the app would silently make every later `deal()` reproducible. `ai.py` imports no
+`research.dd_dataset.deal_for`, which seeds the global RNG (and puts it back
+afterwards, since 2026-10-18); seeding inside the app would silently make every
+later `deal()` reproducible. `ai.py` imports no
 RNG at all, so the robot table is deterministic and the benchmark cannot drift —
 also pinned by a test, because a benchmark that wandered would turn every margin
 into noise.

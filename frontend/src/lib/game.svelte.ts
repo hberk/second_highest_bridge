@@ -5,14 +5,14 @@
 // truth and nothing to keep in sync.
 import { deal, removeCard, sameCard, type Card, type Seat, type Side, type Vulnerability } from './engine/card';
 import {
-  AuctionState, DEALER_ROTATION, PARTNERSHIP, VUL_ROTATION, clockwiseFrom, legalPlays, resolveTrick,
+  ALERT_MAX, AuctionState, DEALER_ROTATION, PARTNERSHIP, VUL_ROTATION, cleanAlert, clockwiseFrom, legalPlays, resolveTrick,
   type CallRecord, type Contract, type Play,
 } from './engine/auction';
 import { aiBidExplained, aiPlay, visibleHands } from './engine/ai';
 import { scoreContract, type ScoreResult } from './engine/scoring';
 import * as challenge from './engine/challenge';
 import type { Grade, RobotTable, TrickLog } from './engine/challenge';
-import { SAVE_KEY, askPersistence, browserStorage, clearGames, loadGames, mergeGames, saveGames } from './saves';
+import { SAVE_KEY, askPersistence, boardKey, browserStorage, clearGames, loadGames, mergeGames, saveGames } from './saves';
 
 export type Phase = 'bidding' | 'auction_done' | 'playing' | 'trick_done' | 'done';
 
@@ -61,14 +61,7 @@ export interface ChallengeLogEntry {
 
 const HUMAN: Seat = 'South';
 
-/** The longest alert, the robots' own limit: it has to fit a tooltip. */
-export const ALERT_MAX = 70;
-
-/** One line of plain text. Svelte escapes it on the page; LIN export handles
- *  the `|` separator itself. */
-export function cleanAlert(text: string): string {
-  return text.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, ALERT_MAX);
-}
+export { ALERT_MAX, cleanAlert };
 
 const copyHands = (h: Record<Seat, Card[]>) =>
   Object.fromEntries(Object.entries(h).map(([s, cs]) => [s, [...cs]])) as Record<Seat, Card[]>;
@@ -150,8 +143,10 @@ export class Game {
   get boardOver() { return this.gameOver || this.auction.passedOut; }
 
   /** `storage` is where finished boards are kept between visits: the
-   *  browser's localStorage by default, null (nothing kept) in Node. */
-  constructor(private storage: Storage | null = browserStorage()) {
+   *  browser's localStorage by default, null (nothing kept) in Node.
+   *  `random` deals the boards and picks challenge deals; tests seed it. */
+  constructor(private storage: Storage | null = browserStorage(),
+              private random: () => number = Math.random) {
     const saved = loadGames(storage);
     if (saved) {
       this.boardNum = saved.boardNum;
@@ -192,15 +187,27 @@ export class Game {
       challengeLog: $state.snapshot(this.challengeLog) as ChallengeLogEntry[],
       passedOut: this.passedOutCount,
     }, this.passedOutCount - this.passedOutSynced);
-    this.adopt(merged);
-    if (saveGames(this.storage, merged)) askPersistence();
+    const saved = saveGames(this.storage, merged);
+    this.history = merged.history;
+    this.challengeLog = merged.challengeLog;
+    this.passedOutCount = merged.passedOut;
+    // Only a stored pass-out is synced: after a failed save the next one must
+    // still add it, or the count drops back when storage frees up.
+    if (saved) {
+      this.passedOutSynced = merged.passedOut;
+      askPersistence();
+    }
   }
 
   /** Boards loaded from LIN join the history (outside the session score, as
-   *  `imported`) and are saved with it. */
-  importBoards(boards: HistoryRecord[]): void {
-    this.history.push(...boards);
+   *  `imported`) and are saved with it. A board already here is skipped, so
+   *  importing the same file twice adds nothing. Returns how many were added. */
+  importBoards(boards: HistoryRecord[]): number {
+    const have = new Set(this.history.map(boardKey));
+    const added = boards.filter((b) => !have.has(boardKey(b)));
+    this.history.push(...added);
     this.persist();
+    return added.length;
   }
 
   /** Forget every saved board on this device. The board in play carries on. */
@@ -216,7 +223,7 @@ export class Game {
     this.vulnerability = VUL_ROTATION[(n - 1) % 16];
     // A challenge board comes from the solved library, so every contract it
     // can reach already has an exact trick count.
-    const hands = dealId === null ? deal() : challenge.handsFor(dealId);
+    const hands = dealId === null ? deal(this.random) : challenge.handsFor(dealId);
     this.initialHands = copyHands(hands);
     this.hands = hands;
     this.calls = [];
@@ -240,7 +247,7 @@ export class Game {
     const done = new Set(this.challengeLog.map((r) => r.deal_id));
     const remaining = challenge.dealIds().filter((i) => !done.has(i));
     if (!remaining.length) return false;
-    this.newBoard(remaining[Math.floor(Math.random() * remaining.length)]);
+    this.newBoard(remaining[Math.floor(this.random() * remaining.length)]);
     return true;
   }
 

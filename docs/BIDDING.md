@@ -149,7 +149,7 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     also flipped the whole card incorporation from -3.3 to **+1.7** head to head
     against the pre-card AI.
 - **TWO METRICS, AND THE DIFFERENCE MATTERS. Read this before quoting any
-  competitive number.** `research/hand_value.py` and `harness.run` score a board
+  competitive number.** `research/hand_value.py` scores a board
   from the **declaring side**: "given that somebody bought this contract, how did
   they do". That is the right question for *is this contract any good* and it is
   the metric every figure elsewhere in this section uses. It is the **wrong**
@@ -492,7 +492,7 @@ Do not "improve" these constants against an unpaired mean; that is fitting noise
   the AI passes anyway where it matters (deal 4: 15 points and five spades,
   combined 7.97, ceiling 1) — and correcting it downward would only make the AI
   more conservative. Worth a measurement if the partner model is revisited.
-- The AI's combined estimate (own hand + `PARTNER_PROMISE`) runs **+1.8 tricks high**
+- The AI's combined estimate (own hand + the `PROMISE_*` constants (`PROMISE_SHIFT`, `PROMISE_OPENED`, ...)) runs **+1.8 tricks high**
   and correlates only r = +0.20 with actual tricks, against r = +0.70 for the true
   count. A better partner model is the most promising open lead, but nothing at n=153
   can be validated against the noise floor.

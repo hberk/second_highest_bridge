@@ -17,6 +17,7 @@ from typing import Dict, List, NamedTuple, Optional, Sequence
 
 from card import Card
 from game import PARTNERSHIP, PLAYERS, clockwise_from
+from bridge.trick import legal_plays
 from bridge.solver import api
 
 
@@ -40,11 +41,7 @@ class Decision(NamedTuple):
     def choices(self) -> int:
         """Cards legally available. A forced play is not worth analysing."""
         led = self.trick_so_far[0].suit if self.trick_so_far else None
-        hand = self.hands[self.seat]
-        if led is None:
-            return len(hand)
-        follow = [c for c in hand if c.suit == led]
-        return len(follow) if follow else len(hand)
+        return len(legal_plays(self.hands[self.seat], led))
 
 
 def decisions(record: dict, seats: Optional[Sequence[str]] = None,

@@ -1,4 +1,5 @@
 # Second-Highest double dummy solver — packed-integer core (Stage 0).
+from __future__ import annotations
 from bridge.solver.bitstate import (
     DECK_SIZE, FULL_DECK, RANKS_PER_SUIT, RANK_OF, SEAT_COUNT, SECOND_HIGHEST,
     SUIT_COUNT, SUIT_MASKS, SUIT_OF, Position, card_index, cards_in, count,

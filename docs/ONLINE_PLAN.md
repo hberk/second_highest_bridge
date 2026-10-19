@@ -173,7 +173,7 @@ button.
   retake it on return. If the host leaves, the host role passes to another
   human at the table.
 - **The table view stops assuming South.** `Game.isHumanSeat`, `FeltTable`
-  and `SeatPanel` take "my seat" and rotate so you're always at the bottom.
+  and `SeatBox`/`SeatCard` take "my seat" and rotate so you're always at the bottom.
   Solo play passes `South` and is unchanged. Who plays which hand follows the
   real rules:
 

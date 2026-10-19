@@ -26,7 +26,7 @@ from __future__ import annotations
 import re
 
 from card import Card, RANKS, SUITS
-from bridge.auction import PLAYERS, PARTNERSHIP, AuctionState, clockwise_from
+from bridge.auction import PLAYERS, PARTNERSHIP, AuctionState, clean_alert, clockwise_from
 from bridge.scoring import score_contract
 from bridge.trick import legal_plays, resolve_trick
 
@@ -37,6 +37,11 @@ VUL_FROM_LIN = {'o': 'None', '0': 'None', '-': 'None', 'n': 'N/S', 'e': 'E/W', '
 HAND_SUITS = ['S', 'H', 'D', 'C']
 SYMBOL_TO_LIN = {'♠': '!S', '♥': '!H', '♦': '!D', '♣': '!C'}
 LIN_TO_SYMBOL = {'S': '♠', 'H': '♥', 'D': '♦', 'C': '♣'}
+
+#: The most boards one import reads: what the web app keeps on a device.
+MAX_LIN_BOARDS = 500
+#: The largest LIN text an app accepts; 500 boards are about 200 KB.
+MAX_LIN_BYTES = 1_000_000
 
 
 class LinError(ValueError):
@@ -91,8 +96,10 @@ def _alert_to_lin(text: str) -> str:
 
 
 def _alert_from_lin(text: str) -> str:
-    return re.sub(r'!([SHDC])', lambda m: LIN_TO_SYMBOL[m.group(1).upper()],
-                  text, flags=re.IGNORECASE).strip()
+    """Suit symbols back, then the clean-up a typed alert gets: one line, at
+    most 70 characters."""
+    return clean_alert(re.sub(r'!([SHDC])', lambda m: LIN_TO_SYMBOL[m.group(1).upper()],
+                              text, flags=re.IGNORECASE))
 
 
 def _hand_to_lin(hand: list[Card]) -> str:
@@ -154,7 +161,7 @@ def to_lin_file(records: list[dict]) -> str:
 
 
 def _tokens(text: str) -> list[tuple[str, str]]:
-    fields = re.sub(r'\r?\n', '', text).split('|')
+    fields = re.sub(r'\r?\n', '', text.lstrip('﻿')).split('|')
     return [(fields[i].strip().lower(), fields[i + 1]) for i in range(0, len(fields) - 1, 2)]
 
 
@@ -176,6 +183,8 @@ def from_lin_file(text: str) -> list[dict]:
         boards.append(current)
     if not boards:
         raise LinError('No deal (md) found')
+    if len(boards) > MAX_LIN_BOARDS:
+        raise LinError(f"{len(boards)} boards; at most {MAX_LIN_BOARDS} are read at once")
     return [_build_record(b, i + 1) for i, b in enumerate(boards)]
 
 
@@ -209,9 +218,9 @@ def _build_record(toks: list[tuple[str, str]], fallback_num: int) -> dict:
                 raise LinError(f"Bad vulnerability '{value}'")
             vulnerability = v
         elif key == 'ah':
-            m = re.search(r'(\d+)', value)
-            if m:
-                board_num = int(m.group(1))
+            m = re.search(r'[0-9]+', value)        # ASCII only: \d takes any script's digits
+            if m and len(m.group(0)) <= 6:
+                board_num = int(m.group(0))
         elif key == 'mb':
             raw = value.strip()
             alerted = raw.endswith('!')
@@ -228,12 +237,9 @@ def _build_record(toks: list[tuple[str, str]], fallback_num: int) -> dict:
                 raise LinError(f"Bad card '{value}'")
             cards.append(Card(suit, rank))
         elif key == 'mc':
-            try:
-                claim = int(value)
-            except ValueError:
-                raise LinError(f"Bad claim '{value}'") from None
-            if not 0 <= claim <= 13:
+            if not re.fullmatch(r'[0-9]{1,2}', value.strip()) or int(value) > 13:
                 raise LinError(f"Bad claim '{value}'")
+            claim = int(value)
         # pn, st, rh, pg, qx, nt, ...: presentation only.
     if dealer is None or hands is None:
         raise LinError('No deal (md) found')

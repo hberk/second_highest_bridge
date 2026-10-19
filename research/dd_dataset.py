@@ -74,7 +74,8 @@ DEFAULT_OUT = ROOT / 'research' / 'data' / 'dd_pilot.jsonl'
 
 #: The compiled Rust engine. Built separately (`cargo build --release` in
 #: research/solver-rs/); this module never builds it, only calls it.
-RUST_EXE = ROOT / 'research' / 'solver-rs' / 'target' / 'release' / 'solver-rs.exe'
+RUST_EXE = (Path(os.environ.get('CARGO_TARGET_DIR') or ROOT / 'research' / 'solver-rs' / 'target')
+            / 'release' / ('solver-rs.exe' if os.name == 'nt' else 'solver-rs'))
 
 #: Generous rather than tight: a timeout here should only ever catch a genuine
 #: hang, never a slow-but-legitimate solve. At the measured ~67x speedup even a
@@ -88,9 +89,14 @@ Task = Tuple[int, str, List[str]]          # (deal id, strain, why it is solved)
 # ── Deals ────────────────────────────────────────────────────────────────────
 
 def deal_for(deal_id: int) -> Hands:
-    """The deal for an id. Reproducible: the same id always gives the same cards."""
-    random.seed(SEED_BASE + deal_id)
-    return {seat: list(cards) for seat, cards in deal().items()}
+    """The deal for an id. Reproducible: the same id always gives the same cards.
+    The global RNG is put back afterwards, since tests import this module."""
+    state = random.getstate()
+    try:
+        random.seed(SEED_BASE + deal_id)
+        return {seat: list(cards) for seat, cards in deal().items()}
+    finally:
+        random.setstate(state)
 
 
 def hands_to_text(hands: Hands) -> Dict[str, str]:
@@ -384,6 +390,15 @@ def run(tasks: Sequence[Task], out: Path, workers: int,
                 log(f"[{written}/{len(todo)}] deal {record['deal_id']:>3} {record['strain']:>2}  "
                     f"{tricks}  {record.get('seconds', 0):>7.0f}s   "
                     f"elapsed {elapsed / 60:5.1f}m  eta {remaining / 60:6.1f}m")
+    except BaseException:
+        # A failed task (or Ctrl-C) ends the run now. close() + join() would
+        # first wait for every queued solve, then throw those answers away;
+        # what was written is kept and a rerun resumes after it.
+        if pool is not None:
+            pool.terminate()
+            pool.join()
+            pool = None
+        raise
     finally:
         if pool is not None:
             pool.close()

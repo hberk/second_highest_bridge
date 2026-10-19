@@ -1,9 +1,15 @@
-"""Run every test_* function in every tests/test_*.py file and report all failures."""
+"""Run every test_* function in every tests/test_*.py file and report all failures.
+
+A test that raises unittest.SkipTest (the Rust engine not built, say) is
+reported as SKIP, not counted as a pass. A module that fails to import is a
+failure of its own and the run carries on to the next one.
+"""
 from __future__ import annotations
 import importlib
 import sys
 import traceback
 from pathlib import Path
+from unittest import SkipTest
 
 root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
@@ -14,9 +20,14 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 
 def main() -> int:
-    passed, failures = 0, []
+    passed, skipped, failures = 0, [], []
     for path in sorted(Path(__file__).parent.glob('test_*.py')):
-        module = importlib.import_module(f'tests.{path.stem}')
+        try:
+            module = importlib.import_module(f'tests.{path.stem}')
+        except Exception:
+            failures.append((f"{path.stem} (import)", traceback.format_exc()))
+            print(f"FAIL {path.stem} (import)")
+            continue
         for name, fn in list(vars(module).items()):
             if not (name.startswith('test_') and callable(fn)):
                 continue
@@ -24,13 +35,16 @@ def main() -> int:
                 fn()
                 passed += 1
                 print(f"PASS {path.stem}.{name}")
+            except SkipTest as why:
+                skipped.append(f"{path.stem}.{name}")
+                print(f"SKIP {path.stem}.{name} ({why})")
             except Exception:
                 failures.append((f"{path.stem}.{name}", traceback.format_exc()))
                 print(f"FAIL {path.stem}.{name}")
 
     for name, tb in failures:
         print(f"\n── {name} ──\n{tb}")
-    print(f"\n{passed} passed, {len(failures)} failed")
+    print(f"\n{passed} passed, {len(skipped)} skipped, {len(failures)} failed")
     return 1 if failures else 0
 
 

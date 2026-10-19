@@ -18,7 +18,7 @@
 //! The first query is solved with `value`; every later query starts from the
 //! immediately-preceding query's answer via `value_from` — this is the exact
 //! shape of `solve_strain` in dd_dataset.py, and is where the measured 1.45x
-//! pairing win comes from (see CLAUDE.md, Dataset invariants).
+//! pairing win comes from (see docs/SOLVER.md, Dataset invariants).
 //!
 //! Output:
 //!   {

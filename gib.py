@@ -7,7 +7,7 @@ jump shift, weak 2 bids and a strong artificial 2C."
 Adopted IN FULL and by default, at the user's request, because it is the system
 players already know -- including the parts this project had measured as
 costing points in the second-highest variant (game-forcing 2/1, notrump,
-slam conventions, cuebids). The measurements are kept in CLAUDE.md; the meaning
+slam conventions, cuebids). The measurements are kept in docs/BIDDING.md; the meaning
 of every call here is GIB's.
 
 `gib_bid` returns (call, alert) for every situation the system describes, and
@@ -202,10 +202,17 @@ def natural(suit: str) -> str:
     return f"Natural, {SYM[suit]}."
 
 
+def placed(ctx: Ctx, decision: tuple) -> tuple:
+    """`decision`, unless partner has already bid past it. Only a human partner
+    does that, by not answering a convention (2NT-3♣-3NT): the contract is theirs."""
+    return decision if ctx.ok(decision[0]) else ('Pass', "Partner placed the contract.")
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 #: Calls a branch produced that were not legal, caught by the guard below.
-#: Tests assert this stays at zero; in play the guard keeps the table moving.
+#: Tests assert this stays at zero, robots alone and with a random human at the
+#: table (test_gib.py); in play the guard keeps the table moving.
 ILLEGAL = []
 
 
@@ -713,7 +720,7 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
     if r == f"2{x}" and x in MAJORS:                     # after a game try
         if o in ('2S', '2NT') and o != f"2{x}":
             return (f"4{x}", TO_PLAY) if hcp >= 9 else (f"3{x}", "Declining the game try.")
-        if ol == 3 and os_ != x:
+        if ol == 3 and os_ in SUITS and os_ != x:
             accept = hcp >= 9 or (hcp >= 8 and (h.len[os_] <= 1 or h.top(os_, ('A', 'K', 'Q')) >= 1))
             return (f"4{x}", TO_PLAY) if accept else (f"3{x}", "Declining the game try.")
         if o == f"3{x}":
@@ -745,7 +752,7 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
                 return f"3{y}", "Invitational."
             return 'Pass', "No game."
         if hcp + lo >= GAME:
-            return '3NT', TO_PLAY
+            return placed(ctx, ('3NT', TO_PLAY))
         return 'Pass', "No game."
     if o == '1NT':
         if y in MAJORS and h.len[y] >= 5 and hcp >= 11:
@@ -807,9 +814,9 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
             return _after_forcing_rebid(ctx, x, y, z)
         if hcp + lo >= GAME:
             if z in MAJORS and h.len[z] >= 4:
-                return f"4{z}", TO_PLAY
+                return placed(ctx, (f"4{z}", TO_PLAY))
             if x in MAJORS and h.len[x] >= 3:
-                return f"4{x}", TO_PLAY
+                return placed(ctx, (f"4{x}", TO_PLAY))
             if y in MAJORS and h.len[y] >= 6:
                 return f"4{y}", TO_PLAY
             fourth = [s for s in SUITS if s not in (x, y, z)]
@@ -817,7 +824,7 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
                 call = ctx.cheapest(fourth[0])
                 if call and level_of(call) <= 3 and rank_of(call) < rank_of('3NT'):
                     return call, "Fourth suit forcing. Artificial."
-            return '3NT', TO_PLAY
+            return placed(ctx, ('3NT', TO_PLAY))
         if hcp + hi >= GAME:
             if z in MAJORS and h.len[z] >= 4 and ctx.ok(f"3{z}"):
                 return f"3{z}", "Invitational."
@@ -1171,13 +1178,13 @@ def _nt_responder_second(ctx: Ctx, base: int, seq: list[str], lo: int, hi: int) 
         s = strain_of(o)
         if s in MAJORS and h.len[s] >= 4:
             if hcp + lo >= GAME:
-                return f"4{s}", TO_PLAY
-            return f"3{s}", "Invitational."
+                return placed(ctx, (f"4{s}", TO_PLAY))
+            return placed(ctx, (f"3{s}", "Invitational."))
         if hcp + lo >= GAME:
             m5 = [m for m in MAJORS if h.len[m] >= 5]
             if m5 and o != '2S' and ctx.ok(f"3{m5[0]}"):
                 return f"3{m5[0]}", f"5+ {SYM[m5[0]]}, game forcing."
-            return '3NT', TO_PLAY
+            return placed(ctx, ('3NT', TO_PLAY))
         if ctx.ok('2NT'):
             return '2NT', "Invitational."
         return 'Pass', "No game."
@@ -1188,7 +1195,7 @@ def _nt_responder_second(ctx: Ctx, base: int, seq: list[str], lo: int, hi: int) 
             if hcp + lo >= SLAM and ctx.ok('4NT'):
                 return '4NT', "Quantitative: invites 6NT."
             if hcp + lo >= GAME:
-                return '3NT', f"5 {SYM[s]}, choice of games."
+                return placed(ctx, ('3NT', f"5 {SYM[s]}, choice of games."))
             if hcp + hi >= GAME and ctx.ok('2NT'):
                 return '2NT', f"5 {SYM[s]}, invitational."
             return 'Pass', "Weak."

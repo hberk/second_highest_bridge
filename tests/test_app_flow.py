@@ -1,5 +1,6 @@
 """Game-flow tests: drive the real Streamlit app headlessly with streamlit's AppTest."""
 from __future__ import annotations
+import os
 import re
 import sys
 from pathlib import Path
@@ -84,6 +85,26 @@ def test_north_declarer_plays_both_hands():
     _play_out(at)
     taken = at.session_state['tricks_taken']
     assert taken['N/S'] + taken['E/W'] == 13
+
+
+def test_the_thirteenth_trick_is_shown_before_the_score():
+    at = _start_play_as('North')            # robots play every card
+    for _ in range(13):
+        if any(b.label.startswith('See final') for b in at.button):
+            break
+        next(b for b in at.button if b.label.startswith('Next trick')).click().run()
+    else:
+        raise AssertionError("never reached the last trick")
+    assert at.session_state['game_over'] and at.session_state['phase'] == 'trick_done'
+    page = "\n".join(m.value for m in at.markdown)
+    assert 'takes trick 13' in page, "the last trick must be shown like the others"
+    assert not any(b.label.startswith('Deal Next Board') for b in at.button)
+    next(b for b in at.button if b.label.startswith('See final')).click().run()
+    assert any(b.label.startswith('Deal Next Board') for b in at.button)
+    # Auto-play on: the finished board must stay finished, not play on with
+    # empty hands (it once looped, counting tricks past 13).
+    at.checkbox(key='auto_play_choice').check().run()
+    assert at.session_state['trick_num'] == 14 and not at.exception
 
 
 def test_history_tab_renders_after_hand():
@@ -204,6 +225,22 @@ def test_analysis_panel_produces_results_when_switched_on():
     assert int(reviewed) > 0 and int(reviewed) == int(total), labels
 
 
+def test_analysis_is_capped_and_its_cache_bounded():
+    """Every session shares the analysis cache, and one deep decision holds
+    the script thread: both must stay bounded on a public server."""
+    from web import analysis_view
+    if 'SHB_ANALYSIS_MAX_CARDS' not in os.environ:
+        assert max(analysis_view.DEPTH_CHOICES.values()) == 8
+    cache = analysis_view._LruCache(3)
+    for n in range(5):
+        cache[n] = n
+    assert len(cache) == 3 and 0 not in cache and 1 not in cache
+    cache.get(2)                    # used: 3 is now the oldest
+    cache[5] = 5
+    assert 2 in cache and 3 not in cache
+    assert cache.get(3) is None
+
+
 # ── Self-alerts, LIN, last trick, auto-play, fast play, session score ────────
 
 def _south_to_call(at: AppTest) -> bool:
@@ -217,6 +254,10 @@ def _alert_box(at: AppTest):
 
 
 def test_a_self_alert_goes_with_the_call_and_shows_even_on_a_pass():
+    # A seeded deal: on about one board in eight South's pass is the fourth,
+    # the board passes out, and there is no live auction left to show it in.
+    import random
+    random.seed(0)
     at = AppTest.from_file(APP, default_timeout=30)
     at.run()
     assert _south_to_call(at)

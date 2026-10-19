@@ -19,7 +19,9 @@ no server, everything runs in the browser, ~105 KB gzipped including the deal
 library. `app.py` and the Python engine stay as they are and remain the
 reference.
 - `frontend/src/lib/engine/` is a **line-for-line TypeScript port** of
-  `card.py`, `bridge/` (auction, trick, scoring) and `ai.py`/`challenge.py`. It is
+  `card.py`, `bridge/` (auction, trick, scoring; the trick rules `legalPlays` and
+  `resolveTrick` live in `auction.ts`, there is no `trick.ts`) and
+  `ai.py`/`gib.py`/`challenge.py`. It is
   held to the Python by `engine.test.ts` against fixtures from
   `tests/fixtures/export_ts_fixtures.py`: every legal-call list, call, alert and
   card over 1,200 games (half with a random human South, to reach states an
@@ -33,6 +35,9 @@ reference.
   rebuilt from the call list rather than stored, so there is one source of truth.
   `game.test.ts` drives it through free and challenge boards, rendering every
   view at every step -- the counterpart of `tests/test_app_flow.py`.
+  `new Game(storage, random)` takes the random source that deals and picks
+  challenge deals; every test passes a seeded one (`prng` from `meanings.ts`),
+  since an unseeded "at least once in ten boards" check failed CI by chance.
 - **Screens (the Felt design, 2026-10-16).** Phone first, portrait, dark
   green. `App.svelte` switches between a home page (`HomeView`) and the
   table, Challenge, History and How to play, each with a back button
@@ -104,7 +109,13 @@ reference.
   hand-record format, exported and imported in the History tab. **The two
   write byte-identical LIN**: `export_ts_fixtures.py` writes Python's LIN for
   300 boards to `lin.json`, and `lin.test.ts` must parse each to Python's
-  score and write it back unchanged. Exported
+  score and write it back unchanged. **They also refuse the same input**:
+  `lin_hostile.json` holds odd and hostile texts with Python's verdict
+  (prototype keys as a vulnerability, `mc` values `Number()` would read, other
+  scripts' digits, a byte-order mark, an over-long alert), and `lin.test.ts`
+  must agree on each. Imported alerts get the typed-alert clean-up (one line,
+  70 characters); an import reads at most 500 boards and 1 MB, and boards
+  already imported are skipped. Exported
   and imported in the History tab. `toLin` writes only what LIN holds (deal,
   dealer, vulnerability, calls, alerts as `mb|1S!|an|...|`, cards); `fromLin`
   rebuilds contract, trick winners and score by **replaying under

@@ -21,10 +21,10 @@ depth rather than trusting a build that merely compiles.
 
 The Rust engine is optional (research/dd_dataset.py defaults to
 --engine python; the app never touches it), so a missing build is not this
-suite's problem to fail on — every test here skips itself (prints a notice,
-returns) when solver-rs.exe is not built, rather than reporting a false
-failure to tests/run_all.py. Build it with `cargo build --release` in
-research/solver-rs/ to actually exercise this file.
+suite's problem to fail on — every test here raises SkipTest when the binary
+is not built, which tests/run_all.py reports as SKIP: neither a false failure
+nor a pass. Build it with `cargo build --release` in research/solver-rs/ to
+actually exercise this file.
 """
 from __future__ import annotations
 import json
@@ -32,6 +32,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from unittest import SkipTest
 
 root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
@@ -43,7 +44,7 @@ from bridge.solver.convert import mask_to_cards, mask_to_text
 from research import dd_dataset as ds
 from tests.fixtures.generate_endings import random_ending
 
-RUST_EXE = root_dir / 'research' / 'solver-rs' / 'target' / 'release' / 'solver-rs.exe'
+RUST_EXE = ds.RUST_EXE
 
 #: Depths and sample counts for the default (quick) cross-check. Heavier:
 #!   SOLVER_RUST_DEEP=1 python tests/test_solver_rust.py
@@ -52,12 +53,11 @@ DEEP_DEPTHS = [(6, 15), (7, 12), (8, 10), (9, 8), (10, 5)]
 
 
 def _built() -> bool:
-    """True if there is something to test. False prints a skip notice once."""
+    """True if there is something to test; otherwise the test is skipped."""
     if RUST_EXE.exists():
         return True
-    print(f"  (skipped: solver-rs.exe not built at {RUST_EXE} — "
-          f"cd research/solver-rs && cargo build --release)")
-    return False
+    raise SkipTest(f"solver-rs not built at {RUST_EXE} — "
+                   f"cd research/solver-rs && cargo build --release")
 
 
 def _solve_via_cli(hands_text, strain, leader) -> tuple:
@@ -99,12 +99,11 @@ def test_rust_cli_matches_python_search_beyond_the_fixture():
 
 
 def test_rust_cli_agrees_on_a_slice_of_the_measured_full_deal():
-    """The exact deal this project's Python engine was benchmarked on (seed 0,
-    13 cards each): N/S=2/13, 55,633,842 nodes, 3,620,453 table entries,
-    603.9s in Python, 9.0s in Rust (67.0x). Re-solving the full deal is slow
-    even in Rust, so this only re-checks a shallower slice of the same deal —
-    the full-depth number is recorded in CLAUDE.md, not re-verified on every
-    test run.
+    """A 10-card ending, the deepest this suite checks. It is random_ending's
+    seed 0, NOT the 13-card deal the engines were benchmarked on (N/S=2/13,
+    55,633,842 nodes, 603.9s in Python, 9.0s in Rust): re-solving that is slow
+    even in Rust, so its numbers are recorded in docs/SOLVER.md, not
+    re-verified on every test run.
     """
     if not _built():
         return
@@ -161,7 +160,7 @@ def test_solve_strain_rust_reproduces_the_original_pilot_data():
         return
     pilot_path = root_dir / 'research' / 'data' / 'dd_pilot.jsonl'
     if not pilot_path.exists():
-        return  # nothing to compare against; not a failure
+        raise SkipTest(f"no pilot data at {pilot_path}")
     saved = [json.loads(line) for line in pilot_path.read_text(encoding='utf-8').splitlines()
              if line.strip()]
 
@@ -196,8 +195,11 @@ if __name__ == '__main__':
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     for name, fn in list(globals().items()):
         if name.startswith('test_') and callable(fn):
-            fn()
-            print(f"PASS {name}")
+            try:
+                fn()
+                print(f"PASS {name}")
+            except SkipTest as why:
+                print(f"SKIP {name} ({why})")
     print("\nRust engine verified against the trusted Python search"
           if RUST_EXE.exists() else
           "\nRust engine not built — nothing was actually checked; see notices above.")

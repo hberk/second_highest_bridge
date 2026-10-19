@@ -1,5 +1,4 @@
 from __future__ import annotations
-from card import SUITS, LEVELS
 
 
 def score_contract(contract: dict, tricks_taken: dict[str, int]) -> dict:

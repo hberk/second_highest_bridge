@@ -1,9 +1,25 @@
 from __future__ import annotations
-from card import Card, SUITS, STRAINS, LEVELS, parse_bid, bid_index
+import re
+from card import SUITS, STRAINS, LEVELS, parse_bid, bid_index
 
 PLAYERS = ['North', 'East', 'South', 'West']
 PARTNERS = {'North': 'South', 'South': 'North', 'East': 'West', 'West': 'East'}
 PARTNERSHIP = {'North': 'N/S', 'South': 'N/S', 'East': 'E/W', 'West': 'E/W'}
+
+#: The longest alert, the robots' own limit: it has to fit a tooltip.
+ALERT_MAX = 70
+
+
+def clean_alert(text: str | None) -> str:
+    """An alert a person wrote (typed, or imported from LIN) as one line of
+    plain text, at most ALERT_MAX characters.
+
+    This is NOT the XSS defence -- `call_badge` escapes every alert it renders,
+    and that is the only place alert text reaches markup. It only keeps the
+    tooltip one tidy line. Port: `cleanAlert` in frontend/src/lib/engine/auction.ts.
+    """
+    text = re.sub(r'[\x00-\x1f\x7f]+', ' ', text or '')
+    return re.sub(r'\s+', ' ', text).strip()[:ALERT_MAX]
 
 
 def clockwise_from(player: str) -> list[str]:
@@ -21,7 +37,6 @@ class AuctionState:
         self.calls: list[tuple[str, str]] = []  # [(player, call_str), ...]
         self.highest_bid: tuple[int, str, str] | None = None  # (level, strain, player)
         self.doubled: str = 'None'  # 'None' | 'X' | 'XX'
-        self.doubled_by: str | None = None
         self.is_complete: bool = False
         self.passed_out: bool = False
 
@@ -41,14 +56,12 @@ class AuctionState:
 
         # Double (X)
         if self.highest_bid is not None and self.doubled == 'None':
-            high_level, high_strain, high_player = self.highest_bid
-            if PARTNERSHIP[high_player] != curr_side:
+            if PARTNERSHIP[self.highest_bid[2]] != curr_side:
                 calls.append('X')
 
         # Redouble (XX)
         if self.highest_bid is not None and self.doubled == 'X':
-            high_level, high_strain, high_player = self.highest_bid
-            if PARTNERSHIP[high_player] == curr_side:
+            if PARTNERSHIP[self.highest_bid[2]] == curr_side:
                 calls.append('XX')
 
         # Bids: 1C..7NT strictly higher than current highest_bid
@@ -85,16 +98,13 @@ class AuctionState:
                     self.is_complete = True
         elif call == 'X':
             self.doubled = 'X'
-            self.doubled_by = player
         elif call == 'XX':
             self.doubled = 'XX'
-            self.doubled_by = player
         else:
             parsed = parse_bid(call)
             if parsed is not None:
                 self.highest_bid = (parsed[0], parsed[1], player)
                 self.doubled = 'None'
-                self.doubled_by = None
 
     def get_contract(self) -> dict | None:
         """Returns final contract dictionary once auction is complete."""

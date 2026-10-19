@@ -11,7 +11,7 @@ measured. It reads `research/data/dd_pilot.jsonl` and answers, in order:
   6. What does the current `ai_bid` actually score over the same deals?
 
 Nothing here assumes an answer; every number is fit from solved results. The
-conclusions are recorded in CLAUDE.md under "Hand evaluation and bidding" so
+conclusions are recorded in docs/BIDDING.md under "Hand evaluation and bidding research" so
 they survive without re-running this, but re-running is cheap (a few seconds)
 and is the right move whenever the dataset grows.
 

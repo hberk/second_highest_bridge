@@ -1,6 +1,6 @@
 // Port of ai.py. A line-for-line port, deliberately: every constant and branch
 // here was measured in Python, and the reasons are recorded beside them in
-// ai.py and CLAUDE.md -- read those before changing anything. engine.test.ts
+// ai.py and docs/BIDDING.md -- read those before changing anything. engine.test.ts
 // holds this file to the Python engine's exact calls, alerts and cards.
 import {
   RANKS, SUITS, maxBy, minBy, parseBid, value, cardKey, card,
@@ -623,7 +623,7 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
 
   const partner = PARTNERS[player];
   if (trick.length === 1 && Object.keys(visible).length && partner in visible && legal.length > 1) {
-    choice = coverForPartner(player, legal, trick, trump, played, visible, choice);
+    choice = coverForPartner(player, hand, legal, trick, trump, played, visible, choice);
   }
 
   if (history !== null && Object.keys(visible).length && legal.length > 1 && hand.length <= ENDGAME_CARDS) {
@@ -639,7 +639,7 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
 
 // ── Second hand, partner last and in view (see ai.py) ────────────────────────
 
-function coverForPartner(player: Seat, legal: Card[], trick: AnyPlay[], trump: string | null,
+function coverForPartner(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[], trump: string | null,
   played: Card[], visible: Partial<Record<Seat, Card[]>>, choice: Card): Card {
   const partner = PARTNERS[player];
   const third = PLAYERS[(PLAYERS.indexOf(player) + 1) % 4];
@@ -648,7 +648,8 @@ function coverForPartner(player: Seat, legal: Card[], trick: AnyPlay[], trump: s
   if (third in visible) {
     candidates = [...visible[third]!];
   } else {
-    const seen = new Set([...played, ...trick.map(([, c]) => c), ...legal].map(cardKey));
+    // The whole hand, not just the legal cards (see ai.py).
+    const seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
     for (const cards of Object.values(visible)) for (const c of cards!) seen.add(cardKey(c));
     candidates = FULL_DECK.filter((c) => !seen.has(cardKey(c)));
   }

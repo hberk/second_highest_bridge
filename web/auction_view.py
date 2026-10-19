@@ -5,28 +5,14 @@ replayer_view.py). They live here so the live table, the post-auction recap and
 the hand-history replayer all render an auction the same way.
 """
 from __future__ import annotations
-import re
 import streamlit as st
 from card import LEVELS, STRAINS, STRAIN_SYMBOLS, STRAIN_NAMES
 from game import PLAYERS
+from bridge.auction import ALERT_MAX, clean_alert  # noqa: F401  (re-exported for app.py)
 from web.card_component import call_badge
 
 # The four columns of a written auction, in the order hand records print them.
 _AUCTION_COLUMNS = ['West', 'North', 'East', 'South']
-
-#: The longest alert, the robots' own limit: it has to fit a tooltip.
-ALERT_MAX = 70
-
-
-def clean_alert(text: str | None) -> str:
-    """A self-alert as one line of plain text, at most ALERT_MAX characters.
-
-    This is NOT the XSS defence -- `call_badge` escapes every alert it renders,
-    and that is the only place alert text reaches markup. It only keeps the
-    tooltip one tidy line. Port: `cleanAlert` in frontend/src/lib/game.svelte.ts.
-    """
-    text = re.sub(r'[\x00-\x1f\x7f]+', ' ', text or '')
-    return re.sub(r'\s+', ' ', text).strip()[:ALERT_MAX]
 
 
 def live_alerts(calls: list[tuple[str, str]], alerts: dict | None,

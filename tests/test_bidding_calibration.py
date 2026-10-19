@@ -2,7 +2,7 @@
 
 ai.py's thresholds are no longer quantile-matched against high card points. They
 are expressed in EXPECTED TRICKS and fitted to solved double dummy results — see
-research/hand_value.py and "Hand evaluation and bidding" in CLAUDE.md. These
+research/hand_value.py and "Hand evaluation and bidding research" in docs/BIDDING.md. These
 tests fail loudly if a change to eval_hand_sh or to a threshold quietly undoes
 one of the findings the calibration rests on, without pinning exact frequencies
 that a larger dataset is expected to move.

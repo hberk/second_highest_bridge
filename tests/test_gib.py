@@ -16,7 +16,7 @@ if str(root_dir) not in sys.path:
 
 import ai
 import gib
-from card import Card, deal
+from card import Card, RANKS, SUITS, deal
 from game import AuctionState, PLAYERS
 
 
@@ -412,6 +412,49 @@ def test_no_illegal_call_over_many_auctions():
         while not auction.is_complete and len(auction.calls) < 80:
             who = auction.current_player()
             auction.apply_call(who, ai.ai_bid(who, hands[who], auction))
+        assert auction.is_complete
+    assert not gib.ILLEGAL, f"illegal calls caught by the guard: {gib.ILLEGAL[:3]}"
+
+
+def test_raised_major_then_3nt_from_a_human_opener():
+    """1♠-2♠-3NT is no game try: the robot used to look up a 'NT' suit length
+    and crash. Robots never bid it; a human South does."""
+    call, _ = bid('AS 9S 7S KH 8H 4H 3H 2H 8D 7D 10C 9C 3C',
+                  '1S', 'Pass', '2S', 'Pass', '3NT', 'Pass', dealer='South')
+    assert call == 'Pass'
+
+
+def test_no_crash_or_illegal_call_with_a_human_at_the_table():
+    """The sweep above is robots only, and they always answer each other's
+    conventions. A human at a random seat makes calls the branches never
+    expected (jumping to 3NT over Stayman, passing a forcing bid)."""
+    gib.ILLEGAL.clear()
+    rng = random.Random(2026_10_18)
+    deck = [Card(s, r) for s in SUITS for r in RANKS]
+    for index in range(2000):
+        rng.shuffle(deck)
+        hands = {p: sorted(deck[i * 13:(i + 1) * 13], reverse=True,
+                           key=lambda c: (SUITS.index(c.suit), c.value()))
+                 for i, p in enumerate(PLAYERS)}
+        human = PLAYERS[rng.randrange(4)]
+        auction = AuctionState(dealer=PLAYERS[index % 4], vulnerability='None')
+        while not auction.is_complete and len(auction.calls) < 80:
+            who = auction.current_player()
+            if who == human:
+                legal = auction.legal_calls()
+                bids = [c for c in legal if c[0].isdigit()]
+                roll = rng.random()
+                if roll < 0.10 and 'X' in legal:
+                    call = 'X'
+                elif roll < 0.17 and '3NT' in legal:
+                    call = '3NT'
+                elif roll < 0.40 and bids:
+                    call = rng.choice(bids[:10])
+                else:
+                    call = 'Pass'
+            else:
+                call = ai.ai_bid(who, hands[who], auction)
+            auction.apply_call(who, call)
         assert auction.is_complete
     assert not gib.ILLEGAL, f"illegal calls caught by the guard: {gib.ILLEGAL[:3]}"
 

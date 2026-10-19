@@ -7,7 +7,7 @@ from web.card_component import card_text_html, doubled_suffix, seat_box_html, st
 from web.auction_view import render_auction_grid
 from web.felt_table import render_felt_table
 from web.analysis_view import render_analysis
-from bridge.lin import LinError, from_lin_file, to_lin, to_lin_file
+from bridge.lin import MAX_LIN_BYTES, LinError, from_lin_file, to_lin, to_lin_file
 
 
 def _role(contract: dict, seat: str) -> str:
@@ -32,23 +32,34 @@ def _render_lin_import(hand_history: list[dict], key: str) -> None:
                    "second-highest rules; one played under ordinary rules will usually "
                    "be refused, because its tricks go to different hands.")
         text = st.text_area("LIN text", key=f"{key}_lin_text", height=100,
+                            max_chars=MAX_LIN_BYTES,
                             placeholder="pn|...|md|3SAKQ...|sv|o|mb|1S|...")
         upload = st.file_uploader("…or a .lin file", type=['lin', 'txt'], key=f"{key}_lin_file")
         if st.button("Import", key=f"{key}_lin_import", disabled=not (text.strip() or upload)):
-            source = upload.getvalue().decode('utf-8', errors='replace') if upload else text
             try:
+                if upload and upload.size > MAX_LIN_BYTES:
+                    raise LinError(f"The file is {upload.size:,} bytes; "
+                                   f"at most {MAX_LIN_BYTES:,} are read")
+                # utf-8-sig: a file saved with a byte-order mark reads the same.
+                source = upload.getvalue().decode('utf-8-sig', errors='replace') if upload else text
                 boards = from_lin_file(source)
             except LinError as e:
                 st.session_state[f"{key}_lin_msg"] = ('error', str(e))
             except Exception:  # anything the parser didn't anticipate: refuse, don't crash
                 st.session_state[f"{key}_lin_msg"] = ('error', 'This is not readable LIN.')
             else:
-                for b in boards:
+                # Importing the same file twice adds nothing the second time.
+                held = [_identity(h) for h in hand_history if h.get('imported')]
+                new = [b for b in boards if _identity(b) not in held]
+                for b in new:
                     b['label'] = f"Imported #{b['board_num']}"
                     b['imported'] = True
-                hand_history.extend(boards)
-                n = len(boards)
-                st.session_state[f"{key}_lin_msg"] = ('ok', f"Imported {n} board{'s' if n != 1 else ''}.")
+                hand_history.extend(new)
+                n, again = len(new), len(boards) - len(new)
+                note = f"Imported {n} board{'s' if n != 1 else ''}."
+                if again:
+                    note += f" {again} already imported, skipped."
+                st.session_state[f"{key}_lin_msg"] = ('ok', note)
             st.rerun()
         msg = st.session_state.get(f"{key}_lin_msg")
         if msg and msg[0] == 'error':
@@ -56,6 +67,12 @@ def _render_lin_import(hand_history: list[dict], key: str) -> None:
             st.code(msg[1], language=None, wrap_lines=True)
         elif msg:
             st.success(msg[1])
+
+
+def _identity(board: dict) -> tuple:
+    """What makes two boards the same board (`saves.boardKey` in the web app)."""
+    return (board['board_num'], board['dealer'], board['initial_hands'],
+            list(board['auction_calls']))
 
 
 def _render_lin_record(hb: dict, key: str, sel_idx: int) -> None:
