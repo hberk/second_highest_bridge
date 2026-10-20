@@ -114,6 +114,22 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   (t = +1.29, 14 changed): deals 1 and 381 went down in game with exactly
   10. 11 was chosen by the user knowing it drops those two -- a threshold
   read off a handful of deals, so treat it as below the noise floor.
+- **After our two-suited overcall** (Unusual 2NT, Michaels; the user's call,
+  2026-10-20). Two faults, two switches:
+  - `TWO_SUITER_GAME` (`_advance`): advancer with 3+ in one of partner's
+    suits and game values (`judge` + `TWO_SUITED_MIN` >= `GAME`) bids game
+    in it. Before, advancer always took the cheapest preference: deal 163,
+    (1♦) 2NT (P) with five clubs and a 10-card fit bid 3♣, and N/S defended
+    4♦ where 7♣ makes; now 5♣, 13 tricks.
+  - `TWO_SUITER_READ` (`continuation`, `_our_two_suiter`,
+    `_two_suiter_lengths`): the later rounds read the overcall as 8+ HCP and
+    5-5 in its suits, and advancer's suit bids as a preference (3) or a suit
+    of their own (5). Before, they read our 2NT as a 20-21 opening and the
+    next bids as Stayman and transfers, so neither hand saw the fit.
+  - Head to head: **+0.23 per board, t = +1.43, 3 of 1,600 auctions changed**
+    (all deal 163). `TWO_SUITER_READ` alone scores +0.00: on 163 the minor-fit
+    branch still prefers 3NT below 29 combined. 36 library auctions have a
+    two-suited overcall at all.
 - **After a single raise, 1M-2M** (`_game_try`, `responder_rebid`; roadmap
   3.7 and 3.8, both the user's call, 2026-10-19).
   - **Opener's splinter** (`SELF_SPLINTER`, `SELF_SPLINTER_MIN = 18`):

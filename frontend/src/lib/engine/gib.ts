@@ -1495,20 +1495,67 @@ function gameForced(seq: string[], ctx: Ctx): boolean {
   return false;
 }
 
+/** Our two-suited overcall (Unusual 2NT, Michaels), 8+ HCP and 5-5:
+ *  advancer with 3+ in one of the suits and game values (judge + 8 >= 25)
+ *  bids game in it instead of the cheapest preference (deal 163). */
+export const TWO_SUITER_GAME = true;
+/** ...and the later rounds read it as two suits, not as a 2NT opening
+ *  whose next bids are Stayman and transfers. */
+export const TWO_SUITER_READ = true;
+
+/** The suits our first call showed, when it was a two-suited overcall
+ *  straight over their one-level opening. */
+function ourTwoSuiter(ctx: Ctx): [Suit, Suit | null] | null {
+  if (ctx.weOpened || !ctx.seq.length) return null;
+  const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
+  if (i < 0 || ctx.calls.length <= i + 1 || ctx.calls[i + 1][1] !== ctx.seq[0]) return null;
+  return twoSuitsShown(ctx.seq[0], ctx.calls[i][1]);
+}
+
+/** Overcaller (parity 0): 5 in each shown suit, 6 once rebid, 4 in a new
+ *  suit. Advancer: 3 in the suit preferred, 5 in a suit of their own. */
+function twoSuiterLengths(seq: string[], parity: number, two: [Suit, Suit | null]): Record<Suit, number> {
+  const lengths: Record<Suit, number> = { C: 0, D: 0, H: 0, S: 0 };
+  const shown = two.filter((t): t is Suit => t !== null);
+  for (let i = parity; i < seq.length; i += 2) {
+    const s = strainOf(seq[i]);
+    if (parity === 0) {
+      if (i === 0) {
+        for (const t of shown) lengths[t] = 5;
+      } else if (isSuit(s) && shown.includes(s)) {
+        lengths[s] = 6;
+      } else if (isSuit(s)) {
+        lengths[s] = Math.max(lengths[s], 4);
+      }
+    } else if (isSuit(s)) {
+      lengths[s] = Math.max(lengths[s], shown.includes(s) ? 3 : 5);
+    }
+  }
+  return lengths;
+}
+
 function continuation(ctx: Ctx): Decision {
   const seq = ctx.seq;
   const h = ctx.h;
   let meParity = ctx.iAmOpener() ? 0 : 1;
   if (!ctx.weOpened) meParity = ctx.ours.length && ctx.ours[0][0] === ctx.me ? 0 : 1;
   const pParity = 1 - meParity;
-  const pmin = partnerMin(seq, pParity);
-  const plen = shownLengths(seq, pParity);
-  const mylen = shownLengths(seq, meParity);
+  let pmin = partnerMin(seq, pParity);
+  let plen = shownLengths(seq, pParity);
+  let mylen = shownLengths(seq, meParity);
+  let trump = agreedTrump(seq);
+  const two = TWO_SUITER_READ ? ourTwoSuiter(ctx) : null;
+  if (two) {
+    pmin = pParity === 0 ? TWO_SUITED_MIN : 0;
+    plen = twoSuiterLengths(seq, pParity, two);
+    mylen = twoSuiterLengths(seq, meParity, two);
+    const p2 = plen, m2 = mylen;
+    trump = SUITS.find((s) => p2[s] && m2[s] && p2[s] + m2[s] >= 8) ?? null;
+  }
   const comb = h.judge + pmin;
-  const gf = gameForced(seq, ctx);
+  const gf = gameForced(seq, ctx) && !two;
   const current = ctx.current();
   const curRank = current ? rankOf(current) : -1;
-  const trump = agreedTrump(seq);
   const partners = ctx.partners();
   const partnerLast = partners.length ? partners[partners.length - 1] : null;
 
@@ -2377,6 +2424,11 @@ function advance(ctx: Ctx): Decision | null {
     let choice: Suit;
     if (b === null) choice = h.len[a] >= 2 ? a : maxBy(MINORS, (s) => [h.len[s], idx(s)]);
     else choice = maxBy([a, b], (s) => [h.len[s], idx(s)]);
+    const game = `${isMajor(choice) ? 4 : 5}${choice}`;
+    if (TWO_SUITER_GAME && (choice === a || choice === b) && h.len[choice] >= 3
+      && h.judge + TWO_SUITED_MIN >= GAME && ctx.ok(game)) {
+      return [game, `3+ ${SYM[choice]}, game values. To play.`];
+    }
     const call = ctx.cheapest(choice, 2);
     if (call && levelOf(call) <= 5) return [call, "Choosing between partner's two suits."];
     return ['Pass', 'No room.'];

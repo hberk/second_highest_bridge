@@ -485,6 +485,28 @@ def test_responder_bids_game_over_a_three_level_jump_overcall():
     assert bid('9S 6S 4S KH QH 6H 3H JD 4D 3D 8C 6C 2C', '1H', '3D')[0] == '3H'
 
 
+def test_advancer_bids_game_over_a_two_suited_overcall():
+    """Deal 163: (1♦) 2NT (P) with ♠Q2 ♥2 ♦Q10974 ♣KQJ96 chose 3♣, the same
+    call as with two clubs, and N/S defended 4♦ where 7♣ makes. 3+ in one
+    of partner's suits and game values bids game."""
+    call, why = bid('QS 2S 2H QD 10D 9D 7D 4D KC QC JC 9C 6C', '1D', '2NT', 'Pass', dealer='West')
+    assert call == '5C' and 'game values' in why, (call, why)
+    # A weak hand still takes the cheapest preference.
+    assert bid('8S 2S 2H 9D 8D 7D 5D 4D 10C 9C 6C 3C 2C', '1D', '2NT', 'Pass',
+               dealer='West')[0] == '3C'
+
+
+def test_later_rounds_read_our_two_suiter_as_two_suits():
+    """After (1♦) 2NT, partner's 3♣ is a preference, not Stayman over a 2NT
+    opening: the overcaller sees the club fit."""
+    ctx = gib.Ctx('North', hand('KS JS 9S AH QH 9H 7H 3H AC 8C 7C 5C 4C'),
+                  after('1D', '2NT', 'Pass', '3C', 'Pass', dealer='West'))
+    two = gib._our_two_suiter(ctx)
+    assert two == ('C', 'H'), two
+    assert gib._two_suiter_lengths(ctx.seq, 1, two)['C'] == 3
+    assert gib._two_suiter_lengths(ctx.seq, 0, two) == {'C': 5, 'D': 0, 'H': 5, 'S': 0}
+
+
 def test_opener_splinters_after_a_single_raise():
     """Roadmap 3.8, the user's call: 1♥-2♥-3♠ is a splinter, a singleton or
     void in spades and a hand good enough to force game."""

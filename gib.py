@@ -1569,6 +1569,46 @@ def _game_forced(seq: list[str], ctx: Ctx) -> bool:
     return False
 
 
+#: Our two-suited overcall (Unusual 2NT, Michaels), 8+ HCP and 5-5:
+#: advancer with 3+ in one of the suits and game values (judge + 8 >= 25)
+#: bids game in it instead of the cheapest preference (deal 163).
+TWO_SUITER_GAME = True
+#: ...and the later rounds read it as two suits, not as a 2NT opening
+#: whose next bids are Stayman and transfers.
+TWO_SUITER_READ = True
+
+
+def _our_two_suiter(ctx: Ctx) -> tuple | None:
+    """The suits our first call showed, when it was a two-suited overcall
+    straight over their one-level opening."""
+    if ctx.we_opened or not ctx.seq:
+        return None
+    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None or len(ctx.calls) <= i + 1 or ctx.calls[i + 1][1] != ctx.seq[0]:
+        return None
+    return _two_suits_shown(ctx, ctx.seq[0], ctx.calls[i][1])
+
+
+def _two_suiter_lengths(seq: list[str], parity: int, two: tuple) -> dict:
+    """Overcaller (parity 0): 5 in each shown suit, 6 once rebid, 4 in a new
+    suit. Advancer: 3 in the suit preferred, 5 in a suit of their own."""
+    lengths = {s: 0 for s in SUITS}
+    shown = [s for s in two if s]
+    for i in range(parity, len(seq), 2):
+        s = strain_of(seq[i])
+        if parity == 0:
+            if i == 0:
+                for t in shown:
+                    lengths[t] = 5
+            elif s in shown:
+                lengths[s] = 6
+            elif s in SUITS:
+                lengths[s] = max(lengths[s], 4)
+        elif s in SUITS:
+            lengths[s] = max(lengths[s], 3 if s in shown else 5)
+    return lengths
+
+
 def continuation(ctx: Ctx) -> tuple:
     """Anything the explicit tables above do not cover: find the fit, then
     the level -- game forced, invited, or a partscore."""
@@ -1581,11 +1621,18 @@ def continuation(ctx: Ctx) -> tuple:
     pmin = _partner_min(seq, p_parity)
     plen = _shown_lengths(seq, p_parity)
     mylen = _shown_lengths(seq, me_parity)
+    trump = agreed_trump(seq)
+    two = _our_two_suiter(ctx) if TWO_SUITER_READ else None
+    if two:
+        pmin = TWO_SUITED_MIN if p_parity == 0 else 0
+        plen = _two_suiter_lengths(seq, p_parity, two)
+        mylen = _two_suiter_lengths(seq, me_parity, two)
+        trump = next((s for s in SUITS if plen[s] and mylen[s]
+                      and plen[s] + mylen[s] >= 8), None)
     comb = h.judge + pmin
-    gf = _game_forced(seq, ctx)
+    gf = _game_forced(seq, ctx) and not two
     current = ctx.current()
     cur_rank = rank_of(current) if current else -1
-    trump = agreed_trump(seq)
     partner_last = ctx.partners()[-1] if ctx.partners() else None
 
     fits = [s for s in SUITS if plen[s] and plen[s] + h.len[s] >= 8]
@@ -2509,6 +2556,10 @@ def _advance(ctx: Ctx) -> tuple | None:
             choice = a if h.len[a] >= 2 else max(MINORS, key=lambda s: (h.len[s], SUITS.index(s)))
         else:
             choice = max((a, b), key=lambda s: (h.len[s], SUITS.index(s)))
+        game = f"{4 if choice in MAJORS else 5}{choice}"
+        if (TWO_SUITER_GAME and choice in (a, b) and h.len[choice] >= 3
+                and h.judge + TWO_SUITED_MIN >= GAME and ctx.ok(game)):
+            return game, f"3+ {SYM[choice]}, game values. To play."
         call = ctx.cheapest(choice, 2)
         if call and level_of(call) <= 5:
             return call, "Choosing between partner's two suits."
