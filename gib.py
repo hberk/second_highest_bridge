@@ -1701,6 +1701,9 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
     reopen = _reopening(ctx) or _answer_reopening(ctx) or _answer_extras_double(ctx)
     if reopen:
         return reopen
+    splintered = _answer_competed_splinter(ctx)
+    if splintered:
+        return splintered
     support = _after_support_double(ctx)
     if support:
         return support
@@ -1738,6 +1741,42 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
 #: Opener after 1x (P) 1y (2z): a new suit shows extras; 2NT is 18-19.
 REBID_NEW_SUIT_HCP = 16
 REBID_2NT = (18, 19)
+#: ...and with four of partner's major and 0-1 of their suit, a jump in
+#: their suit (4z) is a splinter, game forcing: HCP plus dummy points for
+#: the shortness (void 5, singleton 3) reach 19. Deal 329: 1♣ (P) 1♥ (2♦)
+#: with ♠K752 ♥Q753 ♦— ♣AKQ63 raised to 2♥ and defended 3♦; 7♥ makes.
+COMPETED_SPLINTER = True
+COMPETED_SPLINTER_MIN = 19
+SHORT_POINTS = {0: 5, 1: 3}
+
+
+def _competed_splinter_call(y: str, z: str) -> str | None:
+    """1x (P) 1y (2z) 4z: the splinter for major y in their suit z, when it
+    sits below game in y."""
+    if y not in MAJORS or z not in SUITS:
+        return None
+    call = f"4{z}"
+    return call if rank_of(call) < rank_of(f"4{y}") else None
+
+
+def _answer_competed_splinter(ctx: Ctx) -> tuple | None:
+    """Responder after 1x (P) 1y (2z) 4z: partner's splinter, game forcing.
+    Bid game in y. If they have bid over it, leave it to the fallback."""
+    if ctx.i_am_opener() or len(ctx.seq) != 3:
+        return None
+    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None or len(ctx.calls) < i + 5:
+        return None
+    (w0, c0), (_, c1), (w2, c2), (_, c3), (w4, c4) = ctx.calls[i:i + 5]
+    y, z = strain_of(c2), strain_of(c3)
+    if (w0 != ctx.pd or w2 != ctx.me or w4 != ctx.pd or level_of(c0) != 1
+            or c1 != 'Pass' or level_of(c2) != 1 or level_of(c3) != 2
+            or c4 != _competed_splinter_call(y, z)):
+        return None
+    game = f"4{y}"
+    if ctx.ok(game):
+        return game, TO_PLAY
+    return None
 
 
 def _rebid_over_their_overcall(ctx: Ctx) -> tuple | None:
@@ -1759,6 +1798,11 @@ def _rebid_over_their_overcall(ctx: Ctx) -> tuple | None:
     h = ctx.h
     if h.len[y] == 3:
         return None
+    splinter = _competed_splinter_call(y, z)
+    if (COMPETED_SPLINTER and splinter and h.len[y] >= 4 and h.len[z] <= 1
+            and h.hcp + SHORT_POINTS[h.len[z]] >= COMPETED_SPLINTER_MIN
+            and ctx.ok(splinter)):
+        return splinter, f"Splinter: 4+ {SYM[y]}, 0-1 {SYM[z]}. Game forcing."
     if h.len[y] >= 4:
         cheap = ctx.cheapest(y, 2)
         if cheap and (level_of(cheap) <= 3 or h.hcp >= NEG_COMPETED_JUMP_HCP):

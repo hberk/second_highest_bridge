@@ -94,6 +94,16 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   changed boards show the variant's usual cost of showing strength (deal
   234: 4S with 18 failed where 2S made; deal 228: 2NT went down where 2S
   made). **Kept by the user's choice**, as GIB-standard bidding.
+  - **The splinter in their suit** (`COMPETED_SPLINTER`,
+    `COMPETED_SPLINTER_MIN = 19`, `_answer_competed_splinter`; the user's call,
+    2026-10-20): with four of partner's major and 0-1 of their suit, and HCP
+    plus dummy points for the shortness (void 5, singleton 3) of 19+, opener
+    jumps to 4z, game forcing; responder bids 4M. Only below game in the
+    major (no 4♠ over 1♥ (2♠)). Deal 329, 1♣ (P) 1♥ (2♦) with ♠K752 ♥Q753
+    ♦— ♣AKQ63, used to raise to 2♥ and defend 3♦ where 7♥ makes; now 4♦-4♥,
+    13 tricks. Head to head (`research/gib_h2h.py COMPETED_SPLINTER`): **+0.19
+    per board, t = +1.00, 2 of 1,600 auctions changed** (329 +610; 234 the
+    same 4♠ via 4♥). No slam follow-up yet: responder always signs off.
 - **After a single raise, 1M-2M** (`_game_try`, `responder_rebid`; roadmap
   3.7 and 3.8, both the user's call, 2026-10-19).
   - **Opener's splinter** (`SELF_SPLINTER`, `SELF_SPLINTER_MIN = 18`):

@@ -1610,6 +1610,8 @@ function weOpenedContested(ctx: Ctx): Decision | null {
   if (ctx.iAmOpener() && levelOf(first) >= 2 && !ctx.partners().length) return ['Pass', 'Pre-empted already.'];
   const reopen = reopening(ctx) ?? answerReopening(ctx) ?? answerExtrasDouble(ctx);
   if (reopen) return reopen;
+  const splintered = answerCompetedSplinter(ctx);
+  if (splintered) return splintered;
   const support = afterSupportDouble(ctx);
   if (support) return support;
   const forced = openerOverForcingResponse(ctx);
@@ -1643,6 +1645,39 @@ function weOpenedContested(ctx: Ctx): Decision | null {
 /** Opener after 1x (P) 1y (2z): a new suit shows extras; 2NT is 18-19. */
 export const REBID_NEW_SUIT_HCP = 16;
 export const REBID_2NT: [number, number] = [18, 19];
+/** ...and with four of partner's major and 0-1 of their suit, a jump in
+ *  their suit (4z) is a splinter, game forcing: HCP plus dummy points for
+ *  the shortness (void 5, singleton 3) reach 19. Deal 329: 1♣ (P) 1♥ (2♦)
+ *  with ♠K752 ♥Q753 ♦— ♣AKQ63 raised to 2♥ and defended 3♦; 7♥ makes. */
+export const COMPETED_SPLINTER = true;
+export const COMPETED_SPLINTER_MIN = 19;
+const SHORT_POINTS: Record<number, number> = { 0: 5, 1: 3 };
+
+/** 1x (P) 1y (2z) 4z: the splinter for major y in their suit z, when it
+ *  sits below game in y. */
+function competedSplinterCall(y: string | null, z: string | null): string | null {
+  if (!isSuit(y) || !isMajor(y) || !isSuit(z)) return null;
+  const call = `4${z}`;
+  return rankOf(call) < rankOf(`4${y}`) ? call : null;
+}
+
+/** Responder after 1x (P) 1y (2z) 4z: partner's splinter, game forcing.
+ *  Bid game in y. If they have bid over it, leave it to the fallback. */
+function answerCompetedSplinter(ctx: Ctx): Decision | null {
+  if (ctx.iAmOpener() || ctx.seq.length !== 3) return null;
+  const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
+  if (i < 0 || ctx.calls.length < i + 5) return null;
+  const [[w0, c0], [, c1], [w2, c2], [, c3], [w4, c4]] = ctx.calls.slice(i, i + 5);
+  const y = strainOf(c2), z = strainOf(c3);
+  if (w0 !== ctx.pd || w2 !== ctx.me || w4 !== ctx.pd || levelOf(c0) !== 1
+    || c1 !== 'Pass' || levelOf(c2) !== 1 || levelOf(c3) !== 2
+    || c4 !== competedSplinterCall(y, z)) {
+    return null;
+  }
+  const game = `4${y}`;
+  if (ctx.ok(game)) return [game, TO_PLAY];
+  return null;
+}
 
 /** 1x (P) 1y (2z): they overcalled partner's one-level response. Raise
  *  with four -- cheapest with 12-14, a jump with 15-17, game in a major with
@@ -1662,6 +1697,12 @@ function rebidOverTheirOvercall(ctx: Ctx): Decision | null {
   }
   const h = ctx.h;
   if (h.len[y] === 3) return null;
+  const splinter = competedSplinterCall(y, z);
+  if (COMPETED_SPLINTER && splinter && h.len[y] >= 4 && h.len[z] <= 1
+    && h.hcp + SHORT_POINTS[h.len[z]] >= COMPETED_SPLINTER_MIN
+    && ctx.ok(splinter)) {
+    return [splinter, `Splinter: 4+ ${SYM[y]}, 0-1 ${SYM[z]}. Game forcing.`];
+  }
   if (h.len[y] >= 4) {
     const cheap = ctx.cheapest(y, 2);
     if (cheap && (levelOf(cheap) <= 3 || h.hcp >= NEG_COMPETED_JUMP_HCP)) {

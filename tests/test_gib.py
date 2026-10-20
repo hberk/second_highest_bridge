@@ -456,6 +456,25 @@ def test_responder_chooses_between_3nt_and_four_of_the_major():
     assert call == '4H', call
 
 
+def test_opener_splinters_in_their_suit_after_they_overcall_the_response():
+    """Deal 329: 1♣ (P) 1♥ (2♦) with ♠K752 ♥Q753 ♦— ♣AKQ63 raised to 2♥,
+    and 3♦ ended it; 7♥ makes. Four trumps, 0-1 in their suit and 19+
+    with dummy points (void 5, singleton 3) jump in their suit, game forcing."""
+    gib.ILLEGAL.clear()
+    call, why = bid('KS 7S 5S 2S QH 7H 5H 3H AC KC QC 6C 3C', '1C', 'Pass', '1H', '2D')
+    assert call == '4D' and 'Splinter' in why and 'Game forcing' in why, (call, why)
+    # A singleton needs 16 HCP: 15 raises with a jump instead.
+    assert bid('KS 7S 5S 2S KH 7H 5H 3H 4D AC KC QC 3C', '1C', 'Pass', '1H', '2D')[0] == '3H'
+    assert bid('AS 7S 5S 2S KH 7H 5H 3H 4D AC KC QC 3C', '1C', 'Pass', '1H', '2D')[0] == '4D'
+    # No splinter above game: 4♠ over 1♥ (2♠), nor for a minor.
+    assert bid('9S AH KH 7H 5H AD KD 7D 2D AC QC 6C 3C', '1C', 'Pass', '1H', '2S')[0] != '4S'
+    # Responder bids game over it.
+    call, _ = bid('AS KH JH 10H 6H 4H 10D 4D 10C 9C 8C 7C 2C',
+                  '1C', 'Pass', '1H', '2D', '4D', 'Pass')
+    assert call == '4H', call
+    assert not gib.ILLEGAL, gib.ILLEGAL
+
+
 def test_opener_splinters_after_a_single_raise():
     """Roadmap 3.8, the user's call: 1♥-2♥-3♠ is a splinter, a singleton or
     void in spades and a hand good enough to force game."""
