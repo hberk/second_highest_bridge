@@ -475,6 +475,16 @@ def test_opener_splinters_in_their_suit_after_they_overcall_the_response():
     assert not gib.ILLEGAL, gib.ILLEGAL
 
 
+def test_responder_bids_game_over_a_three_level_jump_overcall():
+    """Deal 346: ♠AK96 ♥K ♦QJ10432 ♣J6 passed 1♠ (3♥): the cuebid is above
+    three, 3♠ shows 6-9, and nothing else fit. 3+ support and 11+ bids game."""
+    assert bid('AS KS 9S 6S KH QD JD 10D 4D 3D 2D JC 6C', '1S', '3H')[0] == '4S'
+    # 10 HCP still does not: deals 1 and 381 went down in game.
+    assert bid('9S 6S 4S KH QH 8H 6H 3H AD 4D 3D JC 2C', '1H', '3D')[0] != '4H'
+    # Weak hands still raise to three.
+    assert bid('9S 6S 4S KH QH 6H 3H JD 4D 3D 8C 6C 2C', '1H', '3D')[0] == '3H'
+
+
 def test_opener_splinters_after_a_single_raise():
     """Roadmap 3.8, the user's call: 1♥-2♥-3♠ is a splinter, a singleton or
     void in spades and a hand good enough to force game."""

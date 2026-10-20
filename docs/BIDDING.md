@@ -104,6 +104,16 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     13 tricks. Head to head (`research/gib_h2h.py COMPETED_SPLINTER`): **+0.19
     per board, t = +1.00, 2 of 1,600 auctions changed** (329 +610; 234 the
     same 4♠ via 4♥). No slam follow-up yet: responder always signs off.
+- **Game over a three-level jump overcall** (`JUMP_OVERCALL_GAME`, in
+  `_respond_over_interference`; the user's call, 2026-10-20): 1M (3x) with
+  3+ support and 11+ HCP bids 4M. Before, the cuebid (4x) was above the
+  three-level limit, 3M needed 6-9, and these hands passed or made a
+  negative double. Deal 346: ♠AK96 ♥K ♦QJ10432 ♣J6 passed 1♠ (3♥); 4♠
+  makes 13. Head to head: **+0.76 per board, t = +1.93, 9 of 1,600 auctions
+  changed** (wins 346, 88, 386; loss 202). At 10+ it measured +0.53
+  (t = +1.29, 14 changed): deals 1 and 381 went down in game with exactly
+  10. 11 was chosen by the user knowing it drops those two -- a threshold
+  read off a handful of deals, so treat it as below the noise floor.
 - **After a single raise, 1M-2M** (`_game_try`, `responder_rebid`; roadmap
   3.7 and 3.8, both the user's call, 2026-10-19).
   - **Opener's splinter** (`SELF_SPLINTER`, `SELF_SPLINTER_MIN = 18`):

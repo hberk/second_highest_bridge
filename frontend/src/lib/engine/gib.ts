@@ -1902,6 +1902,11 @@ function cuebidRaiseReply(ctx: Ctx): Decision | null {
   return null;
 }
 
+/** Responder over 1M (3x), a three-level overcall: with 3+ support and 11+
+ *  HCP the cuebid is above three and 3M shows 6-9, so bid game. Before,
+ *  these hands passed (deal 346: ♠AK96 ♥K ♦QJ10432 ♣J6 over 1♠ (3♥)). */
+export const JUMP_OVERCALL_GAME = true;
+
 function respondOverInterference(ctx: Ctx, x: Suit): Decision {
   const h = ctx.h;
   const hcp = h.hcp;
@@ -1969,6 +1974,10 @@ function respondOverInterference(ctx: Ctx, x: Suit): Decision {
   if (sup >= 3 && hcp >= 6) {
     const call = ctx.cheapest(x, 2);
     if (call && levelOf(call) <= 3 && (hcp <= 9 || cueTooHigh)) return [call, `3+ ${SYM[x]}, 6+ HCP.`];
+  }
+  if (JUMP_OVERCALL_GAME && isMajor(x) && lvl === 3 && isSuit(their)
+    && sup >= 3 && hcp >= 11 && ctx.ok(`4${x}`)) {
+    return [`4${x}`, `3+ ${SYM[x]}, 11+ HCP. To play.`];
   }
   for (const s of sortedBy(SUITS, (t) => [h.len[t], idx(t)], true)) {
     if (s === x || s === their) continue;
