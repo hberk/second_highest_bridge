@@ -1720,6 +1720,28 @@ def _lead(hand: list[Card], trump: str | None, played: list[Card]) -> Card:
     return cards[min(1, len(cards) - 1)]
 
 
+# ── Giving up a trick ────────────────────────────────────────────────────────
+#
+# Both fallbacks below used to throw the lowest card by value in any suit, so a
+# robot void in the led suit could throw the 2 of trumps on a trick it was
+# losing anyway. The user's rule (roadmap 3.11): a trump is only ever played
+# off-suit to ruff for a win, so a losing card comes from a side suit while
+# there is one.
+
+#: A void robot giving up a trick discards rather than throws a trump
+#: (measurement switch).
+KEEP_TRUMPS = True
+
+
+def _shed(legal: list[Card], trump: str | None) -> Card:
+    """The card to play on a trick this hand isn't trying to win."""
+    if KEEP_TRUMPS:
+        side = [c for c in legal if c.suit != trump]
+        if side:
+            return min(side, key=lambda c: c.value())
+    return min(legal, key=lambda c: c.value())
+
+
 # ── Middle positions (2nd / 3rd to play) ─────────────────────────────────────
 
 def _middle_play(player: str, legal: list[Card], trick: list[tuple[str, Card]],
@@ -1746,7 +1768,7 @@ def _middle_play(player: str, legal: list[Card], trick: list[tuple[str, Card]],
             options.append((exposed, c.value(), c))
     if options:
         return min(options, key=lambda t: (t[0], t[1]))[2]
-    return min(legal, key=lambda c: c.value())
+    return _shed(legal, trump)
 
 
 # ── Last to play ──────────────────────────────────────────────────────────────
@@ -1770,5 +1792,5 @@ def _play_last(legal: list[Card], trick: list[tuple[str, Card]], trump: str | No
         c for c in legal
         if resolve_trick(trick + [(_AI_TAG, c)], trump) in ours
     ]
-    return min(winning, key=lambda c: c.value()) if winning else min(legal, key=lambda c: c.value())
+    return min(winning, key=lambda c: c.value()) if winning else _shed(legal, trump)
 

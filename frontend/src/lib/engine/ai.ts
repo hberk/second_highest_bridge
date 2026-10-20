@@ -1166,6 +1166,20 @@ function lead(hand: Card[], trump: string | null, played: Card[]): Card {
   return cards[Math.min(1, cards.length - 1)];
 }
 
+// ── Giving up a trick ── (ai.py: a void robot keeps its trumps, roadmap 3.11)
+
+/** A void robot giving up a trick discards rather than throws a trump (measurement switch). */
+export const KEEP_TRUMPS = true;
+
+/** The card to play on a trick this hand isn't trying to win. */
+function shed(legal: Card[], trump: string | null): Card {
+  if (KEEP_TRUMPS) {
+    const side = legal.filter((c) => c.suit !== trump);
+    if (side.length) return minBy(side, (c) => [value(c)]);
+  }
+  return minBy(legal, (c) => [value(c)]);
+}
+
 function middlePlay(player: Seat, legal: Card[], trick: AnyPlay[], trump: string | null,
   later: Card[]): Card {
   const options: [number, number, Card][] = [];
@@ -1176,7 +1190,7 @@ function middlePlay(player: Seat, legal: Card[], trick: AnyPlay[], trump: string
     }
   }
   if (options.length) return minBy(options, (o) => [o[0], o[1]])[2];
-  return minBy(legal, (c) => [value(c)]);
+  return shed(legal, trump);
 }
 
 /** Fourth hand counts partner's winning as its own (see ai.py). */
@@ -1186,5 +1200,5 @@ function playLast(legal: Card[], trick: AnyPlay[], trump: string | null): Card {
   const partner = trick[1][0];
   const ours = settingsPlay.lastHandForPartner ? [AI_TAG, partner] : [AI_TAG];
   const winning = legal.filter((c) => ours.includes(resolveTrick([...trick, [AI_TAG, c]], trump)));
-  return winning.length ? minBy(winning, (c) => [value(c)]) : minBy(legal, (c) => [value(c)]);
+  return winning.length ? minBy(winning, (c) => [value(c)]) : shed(legal, trump);
 }

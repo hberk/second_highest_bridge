@@ -43,6 +43,13 @@ RAISE = (7, 10)               # 1M-2M shows 7-10
 LIMIT = (11, 12)              # 1M-3M limit raise, four-card support
 JACOBY_MIN = 13
 SPLINTER = (13, 16)
+#: Opener's splinter after a single raise, 1M-2M-3♠/4x: a singleton or void,
+#: game forcing (the user's call, roadmap 3.8). 18+ is where opener already
+#: bids game over the raise; the splinter says where its shortness is.
+SELF_SPLINTER_MIN = 18
+#: Opener makes that splinter (measurement switch; responder answers it
+#: either way, since a human opener can bid it).
+SELF_SPLINTER = True
 TWO_OVER_ONE = 12
 JUMP_SHIFT_POINTS = 17        # Soloway: 17+ total points, 4+ controls
 DRURY = (10, 12)
@@ -379,7 +386,7 @@ def respond_major(ctx: Ctx, x: str) -> tuple:
     if sup >= 4 and not passed and hcp >= JACOBY_MIN:
         if shortness and hcp <= SPLINTER[1]:
             s = shortness[0]
-            call = f"3{s}" if (x == 'H' and s == 'S') else f"4{s}"
+            call = _splinter_call(x, s)
             if ctx.ok(call):
                 return call, (f"Splinter: 4+ {SYM[x]}, short {SYM[s]}, "
                               f"{SPLINTER[0]}-{SPLINTER[1]} HCP.")
@@ -491,6 +498,11 @@ def _is_two_over_one(x: str, y: str) -> bool:
     return y in SUITS and SUITS.index(y) < SUITS.index(x)
 
 
+def _splinter_call(x: str, s: str) -> str:
+    """The jump in `s` that splinters for `x`: 3♠ over hearts, else the four level."""
+    return f"3{s}" if (x == 'H' and s == 'S') else f"4{s}"
+
+
 def _is_splinter(x: str, r: str) -> bool:
     if x == 'H':
         return r in ('3S', '4C', '4D')
@@ -521,6 +533,11 @@ def _game_try(ctx: Ctx, x: str) -> tuple:
     short = h.short(x)
     if hcp <= 14:
         return 'Pass', "Minimum."
+    if SELF_SPLINTER and hcp >= SELF_SPLINTER_MIN and short:
+        s = short[0]
+        call = _splinter_call(x, s)
+        if ctx.ok(call):
+            return call, f"Splinter: short {SYM[s]}, {SELF_SPLINTER_MIN}+ HCP. Game forcing."
     if hcp >= 18 or (hcp >= 17 and not short):
         return f"4{x}", TO_PLAY
     if short:
@@ -718,6 +735,12 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
             return (f"3{x}", "Invitational.") if hcp >= 11 else (f"2{x}", "Sign-off.")
         return 'Pass', "Partner placed the contract."
     if r == f"2{x}" and x in MAJORS:                     # after a game try
+        if _is_splinter(x, o):                           # opener's splinter: game forcing
+            return f"4{x}", TO_PLAY
+        if o == '3NT':                                   # a choice of games (roadmap 3.7)
+            if h.len[x] >= 4 or h.short(x):
+                return f"4{x}", "Choice of games: a fourth trump or a short suit."
+            return 'Pass', "Choice of games: three trumps, no short suit."
         if o in ('2S', '2NT') and o != f"2{x}":
             return (f"4{x}", TO_PLAY) if hcp >= 9 else (f"3{x}", "Declining the game try.")
         if ol == 3 and os_ in SUITS and os_ != x:

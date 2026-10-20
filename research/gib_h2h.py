@@ -9,6 +9,7 @@ with 0 as the baseline and measures the AUCTION only (see "TWO METRICS" in
 docs/BIDDING.md for why it must be this metric).
 
     python research/gib_h2h.py _reopening _answer_reopening
+    python research/gib_h2h.py SELF_SPLINTER       # a switch: True against False
 
 First used 2026-10-14 for the reopening double: +1.64 per board, t = +2.06,
 28 of 1,600 auctions changed.
@@ -31,7 +32,11 @@ VULS = ['None', 'N/S', 'E/W', 'Both']
 
 def main(names: list[str]) -> None:
     on = {n: getattr(gib, n) for n in names}
-    off = {n: (lambda ctx, *a, **k: None) for n in names}
+    # A function is switched off by returning None; a True/False switch by False.
+    off = {n: False if isinstance(on[n], bool) else (lambda ctx, *a, **k: None) for n in names}
+    for n in names:
+        if isinstance(on[n], bool):
+            on[n] = True
 
     def auction(deal_id, dealer, vul, variant_side):
         hands = challenge.hands_for(deal_id)
@@ -72,7 +77,8 @@ def main(names: list[str]) -> None:
     mean = sum(diffs) / n
     sd = math.sqrt(sum((x - mean) ** 2 for x in diffs) / (n - 1))
     print(f"boards {n}, auctions changed {len(examples)}")
-    print(f"head to head: {mean:+.2f} per board, t = {mean / (sd / math.sqrt(n)):+.2f}")
+    t = f"{mean / (sd / math.sqrt(n)):+.2f}" if sd else "undefined (no board scored differently)"
+    print(f"head to head: {mean:+.2f} per board, t = {t}")
     examples.sort()
     for d, i, dl, vs, a0, a1 in examples[:5] + examples[-5:]:
         print(f"{d:+6} deal {i:3} dealer {dl:5} variant {vs}\n      was: {a0}\n      now: {a1}")

@@ -389,6 +389,25 @@ def test_fourth_hand_plays_for_partner():
     assert str(ai._play_last(ai.legal_plays(west, 'H'), trick, 'H')) == 'K\u2665'
 
 
+def test_a_void_robot_keeps_its_trumps_on_a_lost_trick():
+    """Roadmap 3.11, the user's rule: a trump goes off-suit only to ruff for a
+    win. South has ruffed the diamond with the 5H; West's 6H would lose to it
+    (of two trumps the lower wins), so West throws the 7C, not the trump."""
+    trick = [('North', Card('D', '9')), ('East', Card('D', '2')), ('South', Card('H', '5'))]
+    west = hand('6H 7C')
+    saved = ai.KEEP_TRUMPS
+    try:
+        ai.KEEP_TRUMPS = False
+        assert ai._play_last(ai.legal_plays(west, 'D'), trick, 'H') == Card('H', '6')
+        ai.KEEP_TRUMPS = True
+        assert ai._play_last(ai.legal_plays(west, 'D'), trick, 'H') == Card('C', '7')
+        # A ruff that wins still ruffs: alone in trumps, the 6H takes the trick.
+        trick[2] = ('South', Card('D', '4'))
+        assert ai._play_last(ai.legal_plays(west, 'D'), trick, 'H') == Card('H', '6')
+    finally:
+        ai.KEEP_TRUMPS = saved
+
+
 def test_a_three_level_cuebid_raise_needs_more():
     """1H-(2C): a cuebid raise here forces 3H. On three trumps and 10 HCP the
     same user's board went two down; the hand now raises to 2H instead."""
@@ -418,10 +437,43 @@ def test_no_illegal_call_over_many_auctions():
 
 def test_raised_major_then_3nt_from_a_human_opener():
     """1♠-2♠-3NT is no game try: the robot used to look up a 'NT' suit length
-    and crash. Robots never bid it; a human South does."""
+    and crash. Robots never bid it; a human South does. It offers a choice of
+    games, and three trumps with no short suit stay in 3NT."""
     call, _ = bid('AS 9S 7S KH 8H 4H 3H 2H 8D 7D 10C 9C 3C',
                   '1S', 'Pass', '2S', 'Pass', '3NT', 'Pass', dealer='South')
     assert call == 'Pass'
+
+
+def test_responder_chooses_between_3nt_and_four_of_the_major():
+    """Roadmap 3.7, the user's call: 1M-2M-3NT offers a choice of games.
+    Three trumps and no short suit pass; a fourth trump or a short suit
+    bids 4M."""
+    call, _ = bid('KS 7S 5S QH 8H 4H QD 9D 6D 3D KC 7C 2C', '1H', 'Pass', '2H', 'Pass', '3NT', 'Pass')
+    assert call == 'Pass', call
+    call, why = bid('KS 7S 5S QH 8H 4H 2H 9D 6D 3D KC 7C 2C', '1H', 'Pass', '2H', 'Pass', '3NT', 'Pass')
+    assert call == '4H' and 'Choice of games' in why, (call, why)
+    call, _ = bid('KS 8S 7S 5S 2S QH 8H 4H QD 9D 6D 3D KC', '1H', 'Pass', '2H', 'Pass', '3NT', 'Pass')
+    assert call == '4H', call
+
+
+def test_opener_splinters_after_a_single_raise():
+    """Roadmap 3.8, the user's call: 1♥-2♥-3♠ is a splinter, a singleton or
+    void in spades and a hand good enough to force game."""
+    call, why = bid('AS KH QH 9H 7H 6H AD 8D 5D KC QC 4C 3C', '1H', 'Pass', '2H', 'Pass')
+    assert call == '3S' and 'Splinter' in why and 'Game forcing' in why, (call, why)
+    call, why = bid('AS KS QS 9S 7S AH 8H 5H 2H KD QD 4D 3C', '1S', 'Pass', '2S', 'Pass')
+    assert call == '4C' and 'Splinter' in why, (call, why)
+
+
+def test_responder_bids_game_over_openers_splinter():
+    """It is game forcing. Before, 3♠ read as a help-suit try, and declining
+    it with 3♥ was illegal, so the guard bid 4♥ for it."""
+    gib.ILLEGAL.clear()
+    call, _ = bid('KS 7S 5S 2S 10H 8H 4H QD 9D 6D KC 7C 2C', '1H', 'Pass', '2H', 'Pass', '3S', 'Pass')
+    assert call == '4H', call
+    call, _ = bid('KS 7S 5S KH 8H 4H 3H QD 9D 6D 2D 7C 2C', '1S', 'Pass', '2S', 'Pass', '4D', 'Pass')
+    assert call == '4S', call
+    assert not gib.ILLEGAL, gib.ILLEGAL
 
 
 def test_no_crash_or_illegal_call_with_a_human_at_the_table():

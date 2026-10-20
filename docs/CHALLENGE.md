@@ -19,13 +19,24 @@ the mode exists for:
 `play_loss` is that value minus what was actually scored. The identity is exact
 and `tests/test_challenge.py` asserts it on every deal in the library. It makes
 "how good is the robot at **bidding**" and "at **declaring**" separable questions,
-which a single score cannot answer. Measured over the 372 library boards the
-robots reach a contract on:
+which a single score cannot answer. Measured 2026-10-19 by
+`research/challenge_losses.py` over all 400 deals at all 16 board positions
+(6,356 boards with a contract, 44 passed out), graded from N/S as the app
+grades, so this is what the "Robots" column of the match table averages to.
+The captions in both apps quote this table; rerun the script after a robot
+change and update all three together:
 
 | | mean per board | median |
 |---|---|---|
-| lost in the auction | **143.7** | 130.0 |
-| lost in the card play | **31.8** | **0.0** |
+| lost in the auction | **233.9** | 200.0 |
+| lost in the card play | **12.5** | **0.0** |
+
+Graded from the declaring side instead: 220.5 in the auction and **-26.0** in
+the card play (median 0.0), so the declaring side's play beats double dummy on
+average, on the defence's mistakes. The figures before this (143.7 / 31.8 over
+372 boards) were one auction per deal and predate every card-play change
+below, so they aren't comparable: the 16 board positions include vulnerable
+boards, where par is worth far more (not measured separately).
 
 **Declarer sees its own two hands, defenders see dummy** (`ai.visible_hands`;
 nobody sees a defender's cards). Before this, the robot played dummy blind to
@@ -62,6 +73,16 @@ trick only if it could win it ITSELF, never by promoting partner's card. On a
 user's 3H dummy played low under North's 7H where the king makes East's 8H
 second-highest. Measured one side at a time over the library: declarer
 **+0.43 tricks per board (t = +7.2)**, defence **+0.21 (t = +5.2)**.
+
+**A void robot keeps its trumps** (`ai.KEEP_TRUMPS`, `_shed`; roadmap 3.11,
+the user's rule, 2026-10-19). When `_play_last` and `_middle_play` find no
+card that keeps the trick, they used to throw the lowest card by value in any
+suit, so a robot void in the led suit could throw the 2 of trumps on a trick it
+was losing anyway. Now a trump goes off-suit only to ruff for a win: a losing
+card comes from a side suit while there is one. Head to head
+(`card_play_h2h.py KEEP_TRUMPS`, both sides): **+0.003 declarer tricks per
+board (t = +0.37), +0.7 points**; 88 of 6,356 boards changed. Kept as the
+user's rule; it costs nothing measurable.
 
 **Every robot card, scored double dummy** (`research/presolve_robot_lines.py`,
 `research/robot_line_report.py`). The robot table is run on each deal at all 16
@@ -177,11 +198,11 @@ slam uses judgement points. Head to head against HCP judgement: **+2.7 per
 board, t = +2.90**; self-play +32.7 -> +39.7, games 39% -> 36%, made 44% ->
 46%. `gib.JUDGE_BY_VARIANT = False` (`settingsGib.judgeByVariant`) restores HCP.
 
-**The robot declares well and bids badly.** Card play is perfect (at or above
-double dummy) on 197 of 372 boards; the auction on 137. The worst single auction
-gave away 1,260 (deal 346: E/W stopped in 2S with 7NT available). At 289 deals
-the same table read 149.1 / 28.1 over 267 boards — the extra 100 deals moved
-neither column materially. Note the caveat baked into `par()`: it is
+**The robot declares well and bids badly.** Card play is at or above double
+dummy on 3,668 of 6,356 boards (graded from N/S; 4,320 from the declaring
+side); the auction is at or above par on 1,662. (One auction per deal, before
+the card-play changes: 197 and 137 of 372, and the worst single auction gave
+away 1,260, deal 346: E/W stopped in 2S with 7NT available.) Note the caveat baked into `par()`: it is
 the best contract available to ONE side ignoring whether the opponents would
 compete, so it is a ceiling and overstates the true bidding gap — but the ratio
 between the two columns is what matters and is robust.
