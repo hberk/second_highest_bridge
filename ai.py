@@ -1,6 +1,7 @@
 from __future__ import annotations
 from card import Card, SUITS, STRAINS, RANKS, RANK_VALUE, parse_bid, bid_index
 from itertools import combinations
+import re
 from game import legal_plays, resolve_trick, AuctionState, PARTNERSHIP, PARTNERS, PLAYERS
 import gib
 
@@ -948,7 +949,8 @@ _FULL_DECK = [Card(s, r) for s in SUITS for r in RANKS]
 
 
 def _later_holdings(player: str, hand: list[Card], trick: list[tuple[str, Card]],
-                    played: list[Card], visible: dict[str, list[Card]]) -> set[Card]:
+                    played: list[Card], visible: dict[str, list[Card]],
+                    out: dict[str, set[str]] | None = None) -> set[Card]:
     """Cards the *opponents* still to act in this trick might hold.
 
     Partner is skipped: these cards are used to judge how a trick could be taken
@@ -965,6 +967,13 @@ def _later_holdings(player: str, hand: list[Card], trick: list[tuple[str, Card]]
         for h in visible.values():
             seen |= set(h)
         pool = {c for c in _FULL_DECK if c not in seen}
+    # An opponent who has shown out of a suit holds none of it: drop those
+    # cards from what they might play (there is at most one opponent still to
+    # act after the second or third hand).
+    if out:
+        for p in opponents:
+            if p not in visible and out.get(p):
+                pool = {c for c in pool if c.suit not in out[p]}
     for p in opponents:
         if p in visible:
             pool |= set(visible[p])
@@ -1021,22 +1030,33 @@ def visible_hands(seat: str, contract: dict, hands: dict[str, list[Card]]) -> di
 def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
             trump: str | None, played: list[Card],
             visible: dict[str, list[Card]] | None = None,
-            history: list[list[tuple[str, Card]]] | None = None) -> Card:
+            history: list[list[tuple[str, Card]]] | None = None,
+            shown: dict[str, dict[str, int]] | None = None) -> Card:
     """
     played:  all cards from completed previous tricks (card memory).
     visible: hands every seat can see, keyed by seat (dummy, once exposed).
     history: the completed tricks with their seats, which is what shows who
              has run out of a suit. Given it, the last tricks are searched.
+    shown:   the fewest cards each seat's bidding showed in each suit
+             (`shown_lengths`), so the play can use the auction.
     """
     led_suit = trick[0][1].suit if trick else None
     legal    = legal_plays(hand, led_suit)
+    if NO_PEEK_OPENING_LEAD and not trick and not played:
+        visible = {}                  # dummy goes down after the opening lead
+    if not AUCTION_IN_PLAY:
+        shown = None
 
+    if not trick and not played and shown:
+        choice = _partner_suit_lead(player, hand, trump, shown)
+        if choice is not None:
+            return choice
     if not trick:
-        choice = ((_draw_trump(player, hand, trump, played, visible, history)
+        choice = ((_draw_trump(player, hand, trump, played, visible, history, shown)
                    if DRAW_TRUMPS else None)
                   or (_ruff_lead(player, hand, trump, played, visible)
                       if RUFF_LEAD else None)
-                  or (_run_long_suit(player, hand, trump, played, visible, history)
+                  or (_run_long_suit(player, hand, trump, played, visible, history, shown)
                       if RUN_LONG_SUIT else None)
                   or (_sure_lead(player, hand, trump, played, visible, history)
                       if SURE_LEAD else None)
@@ -1052,7 +1072,9 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
     elif len(trick) == 3:
         choice = _play_last(legal, trick, trump, hand, played)
     else:
-        later = _later_holdings(player, hand, trick, played, visible or {})
+        out = (_shown_out(history, trick)
+               if SHOWOUT_MIDDLE and history is not None else None)
+        later = _later_holdings(player, hand, trick, played, visible or {}, out)
         choice = _middle_play(player, legal, trick, trump, later)
 
     partner = PARTNERS[player]
@@ -1061,9 +1083,9 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                                     visible, choice)
 
     if (history is not None and visible and len(legal) > 1
-            and len(hand) <= ENDGAME_CARDS):
+            and len(hand) <= (DEEP_ENDGAME_CARDS if DEEP_ENDGAME else ENDGAME_CARDS)):
         totals = _endgame_totals(player, hand, trick, trump, played, visible,
-                                 history, legal)
+                                 history, legal, shown)
         if totals:
             best = max(totals.values())
             tied = [c for c in legal if totals[c] == best]
@@ -1151,6 +1173,81 @@ def _card_order(c: Card) -> tuple:
     return (SUITS.index(c.suit), c.value())
 
 
+# ── What the auction told the play ───────────────────────────────────────────
+#
+# The play used to know nothing of the bidding: a robot led its own best suit
+# with partner's overcalled suit beside it, and counted every layout as equally
+# likely when the bidding had placed a long suit. Every number an alert quotes
+# is true of the hand (machine-checked), so "5+ ♠" is a floor on that seat's
+# spades: `shown_lengths` reads those floors off the auction's alerts.
+
+#: The opening leader never sees dummy, which goes down after the lead
+#: (measurement switch). Before, the leader was handed dummy's cards.
+NO_PEEK_OPENING_LEAD = True
+#: Second and third hand drop the suits an opponent has shown out of from
+#: the cards that opponent might play (measurement switch).
+SHOWOUT_MIDDLE = True
+#: The play uses the lengths the auction showed: the opening lead in
+#: partner's bid suit, and layouts that fit the bidding (measurement switch).
+AUCTION_IN_PLAY = True
+#: The shortest suit partner's bidding must show for the opening lead in it.
+PARTNER_LEAD_MIN = 5
+
+_SUIT_OF_SYM = {'\u2660': 'S', '\u2665': 'H', '\u2666': 'D', '\u2663': 'C'}
+_SHOWN_RE = re.compile(r'(\d+)\+ ([\u2660\u2665\u2666\u2663](?: [\u2660\u2665\u2666\u2663])*)')
+_EXACT_RE = re.compile(r'exactly (\d+) ([\u2660\u2665\u2666\u2663])')
+
+
+def shown_lengths(calls: list, alerts: dict) -> dict[str, dict[str, int]]:
+    """The fewest cards each seat's alerts promise in each suit.
+
+    `calls` is the auction as (seat, call); `alerts` maps a call's index to
+    its alert. Only alerts that are true of the hand belong here -- the
+    robots'. "4+ ♥ ♠" is four of each; "exactly 3 ♥" is three."""
+    shown: dict[str, dict[str, int]] = {p: {} for p in PLAYERS}
+    for i, (seat, _) in enumerate(calls):
+        text = alerts.get(i) or ''
+        for n, syms in _SHOWN_RE.findall(text):
+            for sym in syms.split():
+                s = _SUIT_OF_SYM[sym]
+                shown[seat][s] = max(shown[seat].get(s, 0), int(n))
+        for n, sym in _EXACT_RE.findall(text):
+            s = _SUIT_OF_SYM[sym]
+            shown[seat][s] = max(shown[seat].get(s, 0), int(n))
+    return shown
+
+
+def _played_in(seat: str, suit: str, history: list, trick: list) -> int:
+    """Cards of `suit` that `seat` has already played."""
+    return sum(1 for plays in list(history) + [trick] for p, c in plays
+               if p == seat and c.suit == suit)
+
+
+def _fits_auction(seat: str, cards: list, history: list, trick: list,
+                  shown: dict[str, dict[str, int]]) -> bool:
+    """Could `seat` hold `cards` now and still have bid what it bid?"""
+    for suit, n in shown.get(seat, {}).items():
+        if sum(1 for c in cards if c.suit == suit) + _played_in(seat, suit, history, trick) < n:
+            return False
+    return True
+
+
+def _partner_suit_lead(player: str, hand: list[Card], trump: str | None,
+                       shown: dict[str, dict[str, int]]) -> Card | None:
+    """The opening lead in the suit partner's bidding showed, or None.
+
+    Partner's longest shown suit of PARTNER_LEAD_MIN or more, not trumps, and
+    one I hold; led like any other suit (`_lead`'s second-highest card)."""
+    partner = PARTNERS[player]
+    suits = [s for s, n in shown.get(partner, {}).items()
+             if n >= PARTNER_LEAD_MIN and s != trump and any(c.suit == s for c in hand)]
+    if not suits:
+        return None
+    s = max(suits, key=lambda t: (shown[partner][t], SUITS.index(t)))
+    cards = sorted((c for c in hand if c.suit == s), key=lambda c: c.value(), reverse=True)
+    return cards[min(1, len(cards) - 1)]
+
+
 def _shown_out(history: list, trick: list) -> dict[str, set[str]]:
     """Suits each seat has failed to follow, so cannot hold."""
     out: dict[str, set[str]] = {p: set() for p in PLAYERS}
@@ -1194,10 +1291,218 @@ def _search(hands: dict[str, list[Card]], trick: list[tuple[str, Card]],
     return best
 
 
+# ── Mid-hand: the endgame search, two tricks earlier ────────────────────────
+#
+# One trick of look-ahead loses most where the hand is decided (tricks 5-9
+# cost 2.3 tricks a deal each side against double dummy, research/robot_lines).
+# The last three tricks were searched over every layout of the unseen cards;
+# `_fast_search` makes every layout affordable from four cards a hand. A
+# sample of eight layouts was tried first and dropped: on deal 0 it chose the
+# K♦ third in hand where the 6♦ takes three more tricks -- whether the king
+# wins depends on one card of East's, and eight layouts misjudge that often.
+
+#: Search every layout from DEEP_ENDGAME_CARDS a hand, not ENDGAME_CARDS
+#: (measurement switch).
+DEEP_ENDGAME = True
+DEEP_ENDGAME_CARDS = 4
+
+
+# ── The same search on bit patterns ─────────────────────────────────────────
+#
+# `_fast_search` holds hands as lists of Card and builds a sorted tuple for
+# every position it remembers; that bookkeeping, not the search, was most of
+# its time. Here a hand is one 52-bit number (bit 13 * suit + rank, suits in
+# SUITS order, rank 0 = the 2), as in bridge/solver: legal moves, rank
+# equivalence and position keys are integer operations. Same answers --
+# `tests/test_play_information.py` checks it against `_search` -- so the same
+# cards are played, faster.
+
+_SUIT_BITS = [((1 << 13) - 1) << (13 * i) for i in range(4)]
+_NS_SEATS = (0, 2)                         # North, South in PLAYERS order
+
+
+def _bit(c: Card) -> int:
+    return 13 * SUITS.index(c.suit) + c.value()
+
+
+def _bit_winner(trick: tuple, trump: int | None) -> int:
+    """The seat winning a full trick of (seat, bit) plays: resolve_trick's
+    rule on bit numbers (second-highest of the winning suit, or a lone card)."""
+    suit = trick[0][1] // 13
+    if trump is not None:
+        for _, b in trick:
+            if b // 13 == trump:
+                suit = trump
+                break
+    top = second = -1
+    top_seat = second_seat = -1
+    for seat, b in trick:
+        if b // 13 == suit:
+            if b > top:
+                second, second_seat = top, top_seat
+                top, top_seat = b, seat
+            elif b > second:
+                second, second_seat = b, seat
+    return second_seat if second >= 0 else top_seat
+
+
+def _bit_search(hands: list, trick: tuple, leader: int, trump: int | None,
+                ns: bool, memo: dict, alpha: int = -1, beta: int = 14) -> int:
+    """Tricks for N/S (`ns`) or E/W from here, both sides perfect: `_fast_search`
+    on bit patterns. `hands` is four 52-bit numbers in PLAYERS order."""
+    if len(trick) == 4:
+        winner = _bit_winner(trick, trump)
+        won = 1 if (winner in _NS_SEATS) == ns else 0
+        if not hands[winner]:
+            return won
+        return won + _bit_search(hands, (), winner, trump, ns, memo,
+                                 alpha - won, beta - won)
+    key = None
+    if not trick:
+        key = (leader, hands[0], hands[1], hands[2], hands[3])
+        lo, hi = memo.get(key, (0, 13))
+        if lo >= beta or lo == hi:
+            return lo                 # known exactly: never search an empty window
+        if hi <= alpha:
+            return hi
+        if lo > alpha:
+            alpha = lo
+        if hi < beta:
+            beta = hi
+    a0, b0 = alpha, beta
+    seat = (leader + len(trick)) % 4
+    hand = hands[seat]
+    legal = hand
+    if trick:
+        follow = hand & _SUIT_BITS[trick[0][1] // 13]
+        if follow:
+            legal = follow
+    others = 0
+    for p in range(4):
+        if p != seat:
+            others |= hands[p]
+    for _, b in trick:
+        others |= 1 << b
+    ours = (seat in _NS_SEATS) == ns
+    best = -1 if ours else 99
+    for suit in range(4):
+        mine = legal & _SUIT_BITS[suit]
+        if not mine:
+            continue
+        rest = others & _SUIT_BITS[suit]
+        previous = -1
+        while mine:
+            low = mine & -mine
+            mine ^= low
+            b = low.bit_length() - 1
+            # One card from each run with no other unplayed card between.
+            if previous >= 0 and not rest & (((1 << b) - 1) ^ ((1 << (previous + 1)) - 1)):
+                previous = b
+                continue
+            previous = b
+            hands[seat] = hand ^ low
+            value = _bit_search(hands, trick + ((seat, b),), leader, trump, ns,
+                                memo, alpha, beta)
+            hands[seat] = hand
+            if ours:
+                if value > best:
+                    best = value
+                    if best > alpha:
+                        alpha = best
+            else:
+                if value < best:
+                    best = value
+                    if best < beta:
+                        beta = best
+            if alpha >= beta:
+                break
+        if alpha >= beta:
+            break
+    if key is not None:
+        lo, hi = memo.get(key, (0, 13))
+        if best <= a0:
+            hi = min(hi, best)
+        elif best >= b0:
+            lo = max(lo, best)
+        else:
+            lo = hi = best
+        memo[key] = (lo, hi)
+    return best
+
+
+def _fast_search(hands: dict[str, list[Card]], trick: list[tuple[str, Card]],
+                 leader: str, trump: str | None, side: str, memo: dict,
+                 alpha: int = -1, beta: int = 14) -> int:
+    """`_search`'s answer -- tricks `side` takes from here, both sides perfect
+    on THIS layout -- found far faster: alpha-beta, with bounds kept per
+    position, and rank equivalence (cards in one hand with no outstanding
+    card of the suit between them play alike, so one is tried). `_search`
+    took 1 s at five cards a hand and 12+ s at six; this makes searching
+    from mid-hand affordable."""
+    if len(trick) == 4:
+        winner = resolve_trick(trick, trump)
+        won = 1 if PARTNERSHIP[winner] == side else 0
+        if not hands[winner]:
+            return won
+        return won + _fast_search(hands, [], winner, trump, side, memo,
+                                  alpha - won, beta - won)
+    key = None
+    if not trick:
+        key = (leader,) + tuple(tuple(sorted(_card_order(c) for c in hands[p]))
+                                for p in PLAYERS)
+        lo, hi = memo.get(key, (0, 13))
+        if lo >= beta or lo == hi:
+            return lo                 # known exactly: never search an empty window
+        if hi <= alpha:
+            return hi
+        alpha, beta = max(alpha, lo), min(beta, hi)
+    a0, b0 = alpha, beta
+    seat = PLAYERS[(PLAYERS.index(leader) + len(trick)) % 4]
+    led = trick[0][1].suit if trick else None
+    legal = legal_plays(hands[seat], led)
+    tried = []
+    for suit in SUITS:
+        mine = [c for c in legal if c.suit == suit]
+        if not mine:
+            continue
+        others = tuple(c.value() for p in PLAYERS if p != seat
+                       for c in hands[p] if c.suit == suit) \
+            + tuple(c.value() for _, c in trick if c.suit == suit)
+        values = _distinct(tuple(c.value() for c in mine), others)
+        tried += [c for c in mine if c.value() in values]
+    ours = PARTNERSHIP[seat] == side
+    best = -1 if ours else 99
+    for card in tried:
+        at = hands[seat].index(card)
+        hands[seat].pop(at)
+        value = _fast_search(hands, trick + [(seat, card)], leader, trump, side,
+                             memo, alpha, beta)
+        hands[seat].insert(at, card)
+        if ours:
+            best = max(best, value)
+            alpha = max(alpha, best)
+        else:
+            best = min(best, value)
+            beta = min(beta, best)
+        if alpha >= beta:
+            break
+    if key is not None:
+        lo, hi = memo.get(key, (0, 13))
+        if best <= a0:
+            hi = min(hi, best)
+        elif best >= b0:
+            lo = max(lo, best)
+        else:
+            lo = hi = best
+        memo[key] = (lo, hi)
+    return best
+
+
 def _endgame_totals(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                     trump: str | None, played: list[Card],
                     visible: dict[str, list[Card]], history: list,
-                    legal: list[Card]) -> dict | None:
+                    legal: list[Card],
+                    shown: dict[str, dict[str, int]] | None = None) -> dict | None:
     """Tricks for each legal card, summed over every layout that fits."""
     known = {player: list(hand)}
     seen = set(played) | {c for _, c in trick} | set(hand)
@@ -1223,16 +1528,23 @@ def _endgame_totals(player: str, hand: list[Card], trick: list[tuple[str, Card]]
         b = [unseen[i] for i in range(len(unseen)) if i not in chosen]
         if any(c.suit in out[first] for c in a) or any(c.suit in out[second] for c in b):
             continue
+        if shown and not (_fits_auction(first, a, history, trick, shown)
+                          and _fits_auction(second, b, history, trick, shown)):
+            continue
         layouts += 1
-        hands = {seat: list(cards) for seat, cards in known.items()}
-        hands[first], hands[second] = a, b
+        held = {seat: list(cards) for seat, cards in known.items()}
+        held[first], held[second] = a, b
+        masks = [sum(1 << _bit(c) for c in held[p]) for p in PLAYERS]
+        bits_trick = tuple((PLAYERS.index(p), _bit(c)) for p, c in trick)
+        trump_bit = SUITS.index(trump) if trump in SUITS else None
         memo: dict = {}
+        me = PLAYERS.index(player)
         for card in legal:
-            at = hands[player].index(card)
-            hands[player].pop(at)
-            totals[card] += _search(hands, trick + [(player, card)], leader,
-                                    trump, side, memo)
-            hands[player].insert(at, card)
+            masks[me] ^= 1 << _bit(card)
+            totals[card] += _bit_search(masks, bits_trick + ((me, _bit(card)),),
+                                        PLAYERS.index(leader), trump_bit,
+                                        side == 'N/S', memo)
+            masks[me] ^= 1 << _bit(card)
     return totals if layouts else None
 
 
@@ -1280,6 +1592,19 @@ def _distinct(cards: tuple, others: tuple) -> list:
 def _options(cards: tuple, others: tuple) -> list:
     """A seat's distinct cards in the suit, or a discard when it has none."""
     return _distinct(cards, others) if cards else [None]
+
+
+# `_trump_losers` keys a position by its cards' order alone, so an answer holds
+# in every game: one memory serves every call instead of a fresh one each time
+# (the same answers, far fewer searches). Bounded, so it can't grow without end.
+_TRUMP_MEMO: dict = {}
+_TRUMP_MEMO_MAX = 400_000
+
+
+def _trump_memo() -> dict:
+    if len(_TRUMP_MEMO) > _TRUMP_MEMO_MAX:
+        _TRUMP_MEMO.clear()
+    return _TRUMP_MEMO
 
 
 def _trump_losers(ours: tuple, theirs: tuple, leader: int, memo: dict) -> int:
@@ -1352,7 +1677,8 @@ def _trump_losers(ours: tuple, theirs: tuple, leader: int, memo: dict) -> int:
 
 def _draw_trump(player: str, hand: list[Card], trump: str | None,
                 played: list[Card], visible: dict[str, list[Card]] | None,
-                history: list | None) -> Card | None:
+                history: list | None,
+                shown: dict[str, dict[str, int]] | None = None) -> Card | None:
     """The trump the declaring side should lead to draw trumps, or None.
 
     Only for a hand whose partner it can see (declarer and dummy see each
@@ -1375,12 +1701,12 @@ def _draw_trump(player: str, hand: list[Card], trump: str | None,
     if ruff is not None:
         return ruff if ruff is not _NO_DRAW else None
 
-    layouts = _splits(player, hand, trump, outstanding, seen, history)
+    layouts = _splits(player, hand, trump, outstanding, seen, history, shown)
     if not layouts:
         return None
 
     scored = []
-    memo: dict = {}
+    memo = _trump_memo()
     for card in sorted((c for c in hand if c.suit == trump), key=lambda c: c.value()):
         total = 0
         worst = 0
@@ -1397,7 +1723,8 @@ def _draw_trump(player: str, hand: list[Card], trump: str | None,
 
 
 def _splits(player: str, hand: list[Card], suit: str, outstanding: list[int],
-            seen: set, history: list | None) -> list:
+            seen: set, history: list | None,
+            shown: dict[str, dict[str, int]] | None = None) -> list:
     """Every way the defence's cards in `suit` can lie, as (left, right, weight).
 
     Rules out a split that gives cards to a defender who has shown out, and
@@ -1406,6 +1733,7 @@ def _splits(player: str, hand: list[Card], suit: str, outstanding: list[int],
     """
     left, right = PLAYERS[(PLAYERS.index(player) + 1) % 4], PLAYERS[(PLAYERS.index(player) + 3) % 4]
     out = _shown_out(history or [], [])
+    gone = {p: _played_in(p, suit, history or [], []) for p in PLAYERS}
     unseen = sum(1 for c in _FULL_DECK if c not in seen)
     slots = len(hand)                     # every hand holds this many at a lead
     others = unseen - len(outstanding)
@@ -1418,6 +1746,9 @@ def _splits(player: str, hand: list[Card], suit: str, outstanding: list[int],
                 continue
             if len(left_cards) > slots or len(right_cards) > slots:
                 continue
+            if shown and (len(left_cards) + gone[left] < shown.get(left, {}).get(suit, 0)
+                          or len(right_cards) + gone[right] < shown.get(right, {}).get(suit, 0)):
+                continue                  # fewer than their bidding showed
             weight = _choose(others, slots - len(left_cards))
             if weight:
                 layouts.append((left_cards, right_cards, weight))
@@ -1450,7 +1781,8 @@ RUN_MAX_LOSERS = 0.5
 
 def _run_long_suit(player: str, hand: list[Card], trump: str | None,
                    played: list[Card], visible: dict[str, list[Card]] | None,
-                   history: list | None) -> Card | None:
+                   history: list | None,
+                   shown: dict[str, dict[str, int]] | None = None) -> Card | None:
     """A lead that runs the partnership's long suit without loss, or None."""
     partner = PARTNERS[player]
     if not visible or partner not in visible:
@@ -1475,10 +1807,10 @@ def _run_long_suit(player: str, hand: list[Card], trump: str | None,
         tricks = max(len(mine), len(theirs_partner))
         cards = sorted((c for c in hand if c.suit == suit), key=lambda c: c.value())
         if outstanding:
-            layouts = _splits(player, hand, suit, outstanding, seen, history)
+            layouts = _splits(player, hand, suit, outstanding, seen, history, shown)
             if not layouts:
                 continue
-            memo: dict = {}
+            memo = _trump_memo()
             scored = []
             for card in cards:
                 total = weights = worst = 0

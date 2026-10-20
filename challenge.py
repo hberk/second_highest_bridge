@@ -28,7 +28,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from ai import ai_bid_explained, ai_play, visible_hands
+from ai import ai_bid_explained, ai_play, shown_lengths, visible_hands
 from bridge.scoring import score_contract
 from card import Card
 from game import AuctionState, clockwise_from, resolve_trick
@@ -159,6 +159,7 @@ def robot_table(deal_id: int, dealer: str, vulnerability: str = 'None') -> dict:
                 'result': None}
 
     remaining = {seat: list(cards) for seat, cards in hands.items()}
+    shown = shown_lengths(calls, alerts)
     trump = contract['trump']
     leader = contract['leader']
     played: list[Card] = []
@@ -171,7 +172,7 @@ def robot_table(deal_id: int, dealer: str, vulnerability: str = 'None') -> dict:
         for seat in clockwise_from(leader):
             card = ai_play(seat, remaining[seat], trick, trump, played,
                            visible=visible_hands(seat, contract, remaining),
-                           history=[e['plays'] for e in tricks_log])
+                           history=[e['plays'] for e in tricks_log], shown=shown)
             remaining[seat].remove(card)
             trick.append((seat, card))
         winner = resolve_trick(trick, trump)

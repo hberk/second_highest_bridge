@@ -8,9 +8,10 @@ import {
   ALERT_MAX, AuctionState, DEALER_ROTATION, PARTNERSHIP, VUL_ROTATION, cleanAlert, clockwiseFrom, legalPlays, resolveTrick,
   type CallRecord, type Contract, type Play,
 } from './engine/auction';
-import { aiBidExplained, aiPlay, visibleHands } from './engine/ai';
+import { aiBidExplained, aiPlay, shownLengths, visibleHands } from './engine/ai';
 import { scoreContract, type ScoreResult } from './engine/scoring';
 import * as challenge from './engine/challenge';
+import { callMeanings } from './meanings';
 import type { Grade, RobotTable, TrickLog } from './engine/challenge';
 import { SAVE_KEY, askPersistence, boardKey, browserStorage, clearGames, loadGames, mergeGames, saveGames } from './saves';
 
@@ -281,6 +282,32 @@ export class Game {
 
   /** `alert` is the player's own explanation of the call, as a self-alert on
    *  BBO. The robots don't read it; it goes into the record and the LIN. */
+  /** GIB's reading of each human call, by auction (see app.py). */
+  private gibReadings = new Map<string, string | null>();
+
+  /** The lengths the bidding showed, for the robots' play: a robot's call by
+   *  its own alert, the human's by what GIB would mean by it (`callMeanings`)
+   *  -- the self-alert is free text the robots don't read (see app.py). */
+  robotShown() {
+    const alerts: Record<number, string> = {};
+    for (const [i, why] of Object.entries(this.alerts)) {
+      const call = this.calls[Number(i)];
+      if (call && call[0] !== HUMAN) alerts[Number(i)] = why;
+    }
+    this.calls.forEach(([who, call], i) => {
+      if (who !== HUMAN) return;
+      const key = `${this.dealer}|${this.vulnerability}|${this.calls.slice(0, i + 1).map(([, c]) => c).join(' ')}`;
+      if (!this.gibReadings.has(key)) {
+        const prefix = new AuctionState(this.dealer, this.vulnerability);
+        for (const [p, c] of this.calls.slice(0, i)) prefix.applyCall(p, c);
+        this.gibReadings.set(key, call === 'Pass' ? null : callMeanings(prefix).get(call) ?? null);
+      }
+      const why = this.gibReadings.get(key);
+      if (why) alerts[i] = why;
+    });
+    return shownLengths(this.calls.map(([p, c]) => [p, c] as [Seat, string]), alerts);
+  }
+
   humanBids(call: string, alert = ''): void {
     const auction = this.auction;
     if (auction.isComplete || auction.currentPlayer() !== HUMAN) return;
@@ -353,7 +380,7 @@ export class Game {
       const hands = $state.snapshot(this.hands) as Record<Seat, Card[]>;
       const c = aiPlay(player, hands[player], $state.snapshot(this.trick) as Play[],
         contract.trump, this.played, visibleHands(player, contract, hands),
-        ($state.snapshot(this.tricksLog) as TrickLog[]).map((e) => e.plays));
+        ($state.snapshot(this.tricksLog) as TrickLog[]).map((e) => e.plays), this.robotShown());
       removeCard(this.hands[player], c);
       this.trick.push([player, c]);
       done.add(player);

@@ -38,6 +38,35 @@ average, on the defence's mistakes. The figures before this (143.7 / 31.8 over
 below, so they aren't comparable: the 16 board positions include vulnerable
 boards, where par is worth far more (not measured separately).
 
+**What the robots know when they play** (the user's call, 2026-10-20; three
+switches, measured with `research/card_play_seated.py`: the switches on for
+one side against robots without them, sides swapped, scored from the switched
+side over all 400 deals x 16 boards. `card_play_h2h.py` switches all four
+seats, which nets out a change both declarer and defenders use.)
+- `NO_PEEK_OPENING_LEAD`: the opening leader no longer sees dummy before it
+  goes down. `visible_hands` always included dummy, so the robot leader was
+  handed it (7 library deals' leads changed, 164 and 212 among them). Seated:
+  **+0.24 points per board, t = +1.39, 24 boards changed** -- the honest lead
+  does no worse; the peek was unfair without being useful.
+- `SHOWOUT_MIDDLE`: second and third hand drop the suits the next opponent
+  has shown out of from the cards it might play (`_later_holdings`). The pool
+  shrinks in ~7% of mid-hand decisions but the card changes rarely, because
+  `_outlook` only counts the deciding suit. Seated: **-0.16, t = -0.79, 48
+  boards changed**.
+- `AUCTION_IN_PLAY`: `shown_lengths` reads each seat's suit floors off its
+  alerts ("5+ ♠", "4+ ♥ ♠", "exactly 3 ♥" -- every number an alert quotes is
+  true of the hand). The opening lead goes to partner's longest shown suit of
+  5+ (`_partner_suit_lead`, `PARTNER_LEAD_MIN`), and `_splits` and the endgame
+  search keep only layouts that fit the bidding. A human's call reads by what
+  GIB would mean by it, never by the human's free-text self-alert: the apps
+  ask the robots what they would bid there with sampled hands and keep that
+  call's alert (`meanings.gib_alert`, the Python twin of
+  `frontend/src/lib/meanings.ts`), once per call.
+  Seated: **+0.43, t = +0.38, 492 boards changed**.
+- All three: **+0.55 points per board, t = +0.48, 556 boards changed.** None
+  is distinguishable from zero; they are kept as correctness (the user's
+  call), not as a measured gain.
+
 **Declarer sees its own two hands, defenders see dummy** (`ai.visible_hands`;
 nobody sees a defender's cards). Before this, the robot played dummy blind to
 declarer's own hand -- on a user's board dummy overtook declarer's winning J♥
@@ -52,7 +81,29 @@ the card with the most tricks summed over them is played. Never the real
 layout: that would be double dummy. Enumerated, not sampled, so still
 deterministic and still ported exactly. Down to **0.199 tricks below double
 dummy per board (22.0 points)**, the whole library in ~15 s. Four cards measured
-over 15 minutes for the library -- too slow for the table -- and was dropped.
+over 15 minutes for the library -- too slow for the table -- and was dropped,
+until `_fast_search` (below) made it affordable.
+**The search now starts at four cards** (`ai.DEEP_ENDGAME`,
+`DEEP_ENDGAME_CARDS = 4`, the user's call, 2026-10-20), made affordable by
+two rewrites that give `_search`'s exact answers
+(`tests/test_play_information.py`): `_fast_search` (alpha-beta, bounds kept
+per position, rank equivalence) and `_bit_search`, the same on 52-bit hands
+as in bridge/solver, which the endgame uses (3-5x faster again). With
+`_trump_losers` sharing one memory across calls -- its positions are keyed by
+card order, so an answer holds in every game -- a robot board takes **~0.20 s,
+against ~0.17 s before the deeper search** (240 boards replayed card for card
+identical between the rewrites). Seated (`research/card_play_seated.py`):
+**+0.190 tricks and +19.8 points per board for the side searching, t = +10.29
+(tricks) over 398 deals, 2,092 of 6,356 boards changed** -- the largest
+card-play gain measured here. Two things learned on the way:
+- A position the memory already knew exactly was searched again with an
+  empty window, and its entry overwritten with a wrong bound (deal 4: West's
+  3♦ summed 43 over the layouts where it is worth 46). Now an exact entry is
+  returned at once. The first measurement, with the bug, was +0.186 / +18.9.
+- A sampled search from five or six cards (eight seeded layouts) was tried
+  first and dropped: on deal 0 it put up the K♦ third in hand where the 6♦
+  takes three more tricks, because whether the king wins turns on one of
+  East's cards. Every layout from five cards took ~16 s a board.
 **Second hand covers to promote a visible partner** (`_cover_for_partner`):
 when partner plays last and partner's hand is in view (declarer and dummy),
 each card is scored by how many of the third player's possible cards -- drawn

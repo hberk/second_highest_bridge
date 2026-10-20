@@ -6,7 +6,8 @@ from game import (
     clockwise_from, legal_plays, resolve_trick, score_contract,
     AuctionState, PARTNERSHIP, DEALER_ROTATION, VUL_ROTATION
 )
-from ai import ai_play, ai_bid, ai_bid_explained, eval_hand_sh, hcp, visible_hands
+from ai import ai_play, ai_bid, ai_bid_explained, eval_hand_sh, hcp, shown_lengths, visible_hands
+from meanings import gib_alert
 
 from web.card_component import (
     DECKS, DECK_LABELS, DECK_HELP, deck_style_block, suit_colors, suit_colors_light,
@@ -71,6 +72,29 @@ def init_game(next_board: bool = False, deal_id: int | None = None) -> None:
         'hand_history':  st.session_state.get('hand_history', []),
     })
     _advance_auction_ai()
+
+
+def _robot_shown(s) -> dict:
+    """The lengths the bidding showed, for the robots' play. A robot's call
+    reads by its own alert; a human's by what GIB would mean by that call
+    (`meanings.gib_alert`) -- a self-alert is free text the robots don't
+    read. Each human call is read once and kept."""
+    auction = s['auction']
+    calls = list(auction.calls)
+    alerts = {i: why for i, why in s.get('bid_alerts', {}).items()
+              if i < len(calls) and calls[i][0] not in HUMAN}
+    read = s.setdefault('gib_readings', {})
+    for i, (who, call) in enumerate(calls):
+        if who in HUMAN:
+            key = (auction.dealer, auction.vulnerability, tuple(c for _, c in calls[:i + 1]))
+            if key not in read:
+                prefix = AuctionState(dealer=auction.dealer, vulnerability=auction.vulnerability)
+                for w, c in calls[:i]:
+                    prefix.apply_call(w, c)
+                read[key] = gib_alert(prefix, call)
+            if read[key]:
+                alerts[i] = read[key]
+    return shown_lengths(calls, alerts)
 
 
 def _advance_auction_ai() -> None:
@@ -174,7 +198,8 @@ def _advance_ai() -> None:
             continue
         card = ai_play(player, s['hands'][player], s['trick'], s['trump'], s['played'],
                        visible=visible_hands(player, s['contract'], s['hands']),
-                       history=[e['plays'] for e in s['tricks_log']])
+                       history=[e['plays'] for e in s['tricks_log']],
+                       shown=_robot_shown(s))
         s['hands'][player].remove(card)
         s['trick'].append((player, card))
         already_played.add(player)
