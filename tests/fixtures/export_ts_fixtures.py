@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 import challenge  # noqa: E402
-from ai import ai_bid_explained, ai_play, eval_hand_sh, hcp, visible_hands  # noqa: E402
+from ai import ai_bid_explained, ai_play, eval_hand_sh, hcp, shown_lengths, visible_hands  # noqa: E402
 from bridge import lin  # noqa: E402
 from bridge.scoring import score_contract  # noqa: E402
 from card import Card, SUITS, RANKS, STRAINS  # noqa: E402
@@ -97,6 +97,9 @@ def play_game(hands, dealer, vul, rng: random.Random | None):
 
     trump, dummy = contract['trump'], contract['dummy']
     leader = contract['leader']
+    # What the robots' bidding showed (a random South's calls have no alert).
+    shown = shown_lengths([(w, c) for w, c, _, _ in calls],
+                          {i: why for i, (_, _, why, _) in enumerate(calls) if why})
     played: list[Card] = []
     history: list = []
     taken = {'N/S': 0, 'E/W': 0}
@@ -109,7 +112,7 @@ def play_game(hands, dealer, vul, rng: random.Random | None):
             else:
                 card = ai_play(seat, hands[seat], trick, trump, played,
                                visible=visible_hands(seat, contract, hands),
-                               history=history)
+                               history=history, shown=shown)
             hands[seat].remove(card)
             trick.append((seat, card))
             record['plays'].append([seat, tok(card)])

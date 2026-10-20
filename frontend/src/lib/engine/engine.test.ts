@@ -8,7 +8,7 @@ import scoring from './__fixtures__/scoring.json';
 import challengeFx from './__fixtures__/challenge.json';
 import { parseCard, parseHand, removeCard, cardKey, type Card, type Seat, type Suit } from './card';
 import { AuctionState, clockwiseFrom, legalPlays, resolveTrick, type Play } from './auction';
-import { aiBidExplained, aiPlay, evalHandSh, hcp, visibleHands } from './ai';
+import { aiBidExplained, aiPlay, evalHandSh, hcp, shownLengths, visibleHands } from './ai';
 import { scoreContract } from './scoring';
 import { grade, par, robotTable } from './challenge';
 
@@ -73,6 +73,10 @@ describe('games', () => {
       // South's cards were random in odd games; replay them rather than ask the AI.
       const human = gi % 2 === 1;
       const { trump, dummy } = g.contract;
+      // What the robots' bidding showed (a random South's calls have no alert).
+      const alerts: Record<number, string> = {};
+      g.calls.forEach((call: unknown[], i: number) => { if (call[2]) alerts[i] = call[2] as string; });
+      const shown = shownLengths(g.calls.map((call: unknown[]) => [call[0], call[1]] as [Seat, string]), alerts);
       const played: Card[] = [];
       const history: Play[][] = [];
       const taken = { 'N/S': 0, 'E/W': 0 };
@@ -89,7 +93,7 @@ describe('games', () => {
             expect(legal.map(cardKey), where).toContain(cardKey(expected));
           } else {
             const got = aiPlay(seat, hands[seat], trick, trump, played,
-              visibleHands(seat, g.contract, hands), history);
+              visibleHands(seat, g.contract, hands), history, shown);
             expect(cardKey(got), `${where} trick ${t + 1} ${seat}`).toBe(fxCard);
           }
           removeCard(hands[seat], expected);

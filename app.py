@@ -6,7 +6,7 @@ from game import (
     clockwise_from, legal_plays, resolve_trick, score_contract,
     AuctionState, PARTNERSHIP, DEALER_ROTATION, VUL_ROTATION
 )
-from ai import ai_play, ai_bid, ai_bid_explained, eval_hand_sh, hcp, visible_hands
+from ai import ai_play, ai_bid, ai_bid_explained, eval_hand_sh, hcp, shown_lengths, visible_hands
 
 from web.card_component import (
     DECKS, DECK_LABELS, DECK_HELP, deck_style_block, suit_colors, suit_colors_light,
@@ -71,6 +71,15 @@ def init_game(next_board: bool = False, deal_id: int | None = None) -> None:
         'hand_history':  st.session_state.get('hand_history', []),
     })
     _advance_auction_ai()
+
+
+def _robot_shown(s) -> dict:
+    """The lengths the ROBOTS' bidding showed, for the robots' play. A human's
+    self-alert is free text the robots don't read, so human calls add nothing."""
+    calls = list(s['auction'].calls)
+    alerts = {i: why for i, why in s.get('bid_alerts', {}).items()
+              if i < len(calls) and calls[i][0] not in HUMAN}
+    return shown_lengths(calls, alerts)
 
 
 def _advance_auction_ai() -> None:
@@ -174,7 +183,8 @@ def _advance_ai() -> None:
             continue
         card = ai_play(player, s['hands'][player], s['trick'], s['trump'], s['played'],
                        visible=visible_hands(player, s['contract'], s['hands']),
-                       history=[e['plays'] for e in s['tricks_log']])
+                       history=[e['plays'] for e in s['tricks_log']],
+                       shown=_robot_shown(s))
         s['hands'][player].remove(card)
         s['trick'].append((player, card))
         already_played.add(player)

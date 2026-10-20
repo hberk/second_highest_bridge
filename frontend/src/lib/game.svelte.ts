@@ -8,7 +8,7 @@ import {
   ALERT_MAX, AuctionState, DEALER_ROTATION, PARTNERSHIP, VUL_ROTATION, cleanAlert, clockwiseFrom, legalPlays, resolveTrick,
   type CallRecord, type Contract, type Play,
 } from './engine/auction';
-import { aiBidExplained, aiPlay, visibleHands } from './engine/ai';
+import { aiBidExplained, aiPlay, shownLengths, visibleHands } from './engine/ai';
 import { scoreContract, type ScoreResult } from './engine/scoring';
 import * as challenge from './engine/challenge';
 import type { Grade, RobotTable, TrickLog } from './engine/challenge';
@@ -281,6 +281,17 @@ export class Game {
 
   /** `alert` is the player's own explanation of the call, as a self-alert on
    *  BBO. The robots don't read it; it goes into the record and the LIN. */
+  /** The lengths the ROBOTS' bidding showed, for the robots' play. The
+   *  human's self-alert is free text the robots don't read (see app.py). */
+  robotShown() {
+    const alerts: Record<number, string> = {};
+    for (const [i, why] of Object.entries(this.alerts)) {
+      const call = this.calls[Number(i)];
+      if (call && call[0] !== HUMAN) alerts[Number(i)] = why;
+    }
+    return shownLengths(this.calls.map(([p, c]) => [p, c] as [Seat, string]), alerts);
+  }
+
   humanBids(call: string, alert = ''): void {
     const auction = this.auction;
     if (auction.isComplete || auction.currentPlayer() !== HUMAN) return;
@@ -353,7 +364,7 @@ export class Game {
       const hands = $state.snapshot(this.hands) as Record<Seat, Card[]>;
       const c = aiPlay(player, hands[player], $state.snapshot(this.trick) as Play[],
         contract.trump, this.played, visibleHands(player, contract, hands),
-        ($state.snapshot(this.tricksLog) as TrickLog[]).map((e) => e.plays));
+        ($state.snapshot(this.tricksLog) as TrickLog[]).map((e) => e.plays), this.robotShown());
       removeCard(this.hands[player], c);
       this.trick.push([player, c]);
       done.add(player);
