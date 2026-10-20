@@ -81,7 +81,29 @@ the card with the most tricks summed over them is played. Never the real
 layout: that would be double dummy. Enumerated, not sampled, so still
 deterministic and still ported exactly. Down to **0.199 tricks below double
 dummy per board (22.0 points)**, the whole library in ~15 s. Four cards measured
-over 15 minutes for the library -- too slow for the table -- and was dropped.
+over 15 minutes for the library -- too slow for the table -- and was dropped,
+until `_fast_search` (below) made it affordable.
+**The search now starts at four cards** (`ai.DEEP_ENDGAME`,
+`DEEP_ENDGAME_CARDS = 4`, the user's call, 2026-10-20), made affordable by
+two rewrites that give `_search`'s exact answers
+(`tests/test_play_information.py`): `_fast_search` (alpha-beta, bounds kept
+per position, rank equivalence) and `_bit_search`, the same on 52-bit hands
+as in bridge/solver, which the endgame uses (3-5x faster again). With
+`_trump_losers` sharing one memory across calls -- its positions are keyed by
+card order, so an answer holds in every game -- a robot board takes **~0.20 s,
+against ~0.17 s before the deeper search** (240 boards replayed card for card
+identical between the rewrites). Seated (`research/card_play_seated.py`):
+**+0.190 tricks and +19.8 points per board for the side searching, t = +10.29
+(tricks) over 398 deals, 2,092 of 6,356 boards changed** -- the largest
+card-play gain measured here. Two things learned on the way:
+- A position the memory already knew exactly was searched again with an
+  empty window, and its entry overwritten with a wrong bound (deal 4: West's
+  3♦ summed 43 over the layouts where it is worth 46). Now an exact entry is
+  returned at once. The first measurement, with the bug, was +0.186 / +18.9.
+- A sampled search from five or six cards (eight seeded layouts) was tried
+  first and dropped: on deal 0 it put up the K♦ third in hand where the 6♦
+  takes three more tricks, because whether the king wins turns on one of
+  East's cards. Every layout from five cards took ~16 s a board.
 **Second hand covers to promote a visible partner** (`_cover_for_partner`):
 when partner plays last and partner's hand is in view (declarer and dummy),
 each card is scored by how many of the third player's possible cards -- drawn

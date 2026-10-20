@@ -1307,6 +1307,129 @@ DEEP_ENDGAME = True
 DEEP_ENDGAME_CARDS = 4
 
 
+# ── The same search on bit patterns ─────────────────────────────────────────
+#
+# `_fast_search` holds hands as lists of Card and builds a sorted tuple for
+# every position it remembers; that bookkeeping, not the search, was most of
+# its time. Here a hand is one 52-bit number (bit 13 * suit + rank, suits in
+# SUITS order, rank 0 = the 2), as in bridge/solver: legal moves, rank
+# equivalence and position keys are integer operations. Same answers --
+# `tests/test_play_information.py` checks it against `_search` -- so the same
+# cards are played, faster.
+
+_SUIT_BITS = [((1 << 13) - 1) << (13 * i) for i in range(4)]
+_NS_SEATS = (0, 2)                         # North, South in PLAYERS order
+
+
+def _bit(c: Card) -> int:
+    return 13 * SUITS.index(c.suit) + c.value()
+
+
+def _bit_winner(trick: tuple, trump: int | None) -> int:
+    """The seat winning a full trick of (seat, bit) plays: resolve_trick's
+    rule on bit numbers (second-highest of the winning suit, or a lone card)."""
+    suit = trick[0][1] // 13
+    if trump is not None:
+        for _, b in trick:
+            if b // 13 == trump:
+                suit = trump
+                break
+    top = second = -1
+    top_seat = second_seat = -1
+    for seat, b in trick:
+        if b // 13 == suit:
+            if b > top:
+                second, second_seat = top, top_seat
+                top, top_seat = b, seat
+            elif b > second:
+                second, second_seat = b, seat
+    return second_seat if second >= 0 else top_seat
+
+
+def _bit_search(hands: list, trick: tuple, leader: int, trump: int | None,
+                ns: bool, memo: dict, alpha: int = -1, beta: int = 14) -> int:
+    """Tricks for N/S (`ns`) or E/W from here, both sides perfect: `_fast_search`
+    on bit patterns. `hands` is four 52-bit numbers in PLAYERS order."""
+    if len(trick) == 4:
+        winner = _bit_winner(trick, trump)
+        won = 1 if (winner in _NS_SEATS) == ns else 0
+        if not hands[winner]:
+            return won
+        return won + _bit_search(hands, (), winner, trump, ns, memo,
+                                 alpha - won, beta - won)
+    key = None
+    if not trick:
+        key = (leader, hands[0], hands[1], hands[2], hands[3])
+        lo, hi = memo.get(key, (0, 13))
+        if lo >= beta or lo == hi:
+            return lo                 # known exactly: never search an empty window
+        if hi <= alpha:
+            return hi
+        if lo > alpha:
+            alpha = lo
+        if hi < beta:
+            beta = hi
+    a0, b0 = alpha, beta
+    seat = (leader + len(trick)) % 4
+    hand = hands[seat]
+    legal = hand
+    if trick:
+        follow = hand & _SUIT_BITS[trick[0][1] // 13]
+        if follow:
+            legal = follow
+    others = 0
+    for p in range(4):
+        if p != seat:
+            others |= hands[p]
+    for _, b in trick:
+        others |= 1 << b
+    ours = (seat in _NS_SEATS) == ns
+    best = -1 if ours else 99
+    for suit in range(4):
+        mine = legal & _SUIT_BITS[suit]
+        if not mine:
+            continue
+        rest = others & _SUIT_BITS[suit]
+        previous = -1
+        while mine:
+            low = mine & -mine
+            mine ^= low
+            b = low.bit_length() - 1
+            # One card from each run with no other unplayed card between.
+            if previous >= 0 and not rest & (((1 << b) - 1) ^ ((1 << (previous + 1)) - 1)):
+                previous = b
+                continue
+            previous = b
+            hands[seat] = hand ^ low
+            value = _bit_search(hands, trick + ((seat, b),), leader, trump, ns,
+                                memo, alpha, beta)
+            hands[seat] = hand
+            if ours:
+                if value > best:
+                    best = value
+                    if best > alpha:
+                        alpha = best
+            else:
+                if value < best:
+                    best = value
+                    if best < beta:
+                        beta = best
+            if alpha >= beta:
+                break
+        if alpha >= beta:
+            break
+    if key is not None:
+        lo, hi = memo.get(key, (0, 13))
+        if best <= a0:
+            hi = min(hi, best)
+        elif best >= b0:
+            lo = max(lo, best)
+        else:
+            lo = hi = best
+        memo[key] = (lo, hi)
+    return best
+
+
 def _fast_search(hands: dict[str, list[Card]], trick: list[tuple[str, Card]],
                  leader: str, trump: str | None, side: str, memo: dict,
                  alpha: int = -1, beta: int = 14) -> int:
@@ -1328,8 +1451,8 @@ def _fast_search(hands: dict[str, list[Card]], trick: list[tuple[str, Card]],
         key = (leader,) + tuple(tuple(sorted(_card_order(c) for c in hands[p]))
                                 for p in PLAYERS)
         lo, hi = memo.get(key, (0, 13))
-        if lo >= beta:
-            return lo
+        if lo >= beta or lo == hi:
+            return lo                 # known exactly: never search an empty window
         if hi <= alpha:
             return hi
         alpha, beta = max(alpha, lo), min(beta, hi)
@@ -1409,15 +1532,19 @@ def _endgame_totals(player: str, hand: list[Card], trick: list[tuple[str, Card]]
                           and _fits_auction(second, b, history, trick, shown)):
             continue
         layouts += 1
-        hands = {seat: list(cards) for seat, cards in known.items()}
-        hands[first], hands[second] = a, b
+        held = {seat: list(cards) for seat, cards in known.items()}
+        held[first], held[second] = a, b
+        masks = [sum(1 << _bit(c) for c in held[p]) for p in PLAYERS]
+        bits_trick = tuple((PLAYERS.index(p), _bit(c)) for p, c in trick)
+        trump_bit = SUITS.index(trump) if trump in SUITS else None
         memo: dict = {}
+        me = PLAYERS.index(player)
         for card in legal:
-            at = hands[player].index(card)
-            hands[player].pop(at)
-            totals[card] += _fast_search(hands, trick + [(player, card)], leader,
-                                         trump, side, memo)
-            hands[player].insert(at, card)
+            masks[me] ^= 1 << _bit(card)
+            totals[card] += _bit_search(masks, bits_trick + ((me, _bit(card)),),
+                                        PLAYERS.index(leader), trump_bit,
+                                        side == 'N/S', memo)
+            masks[me] ^= 1 << _bit(card)
     return totals if layouts else None
 
 
@@ -1465,6 +1592,19 @@ def _distinct(cards: tuple, others: tuple) -> list:
 def _options(cards: tuple, others: tuple) -> list:
     """A seat's distinct cards in the suit, or a discard when it has none."""
     return _distinct(cards, others) if cards else [None]
+
+
+# `_trump_losers` keys a position by its cards' order alone, so an answer holds
+# in every game: one memory serves every call instead of a fresh one each time
+# (the same answers, far fewer searches). Bounded, so it can't grow without end.
+_TRUMP_MEMO: dict = {}
+_TRUMP_MEMO_MAX = 400_000
+
+
+def _trump_memo() -> dict:
+    if len(_TRUMP_MEMO) > _TRUMP_MEMO_MAX:
+        _TRUMP_MEMO.clear()
+    return _TRUMP_MEMO
 
 
 def _trump_losers(ours: tuple, theirs: tuple, leader: int, memo: dict) -> int:
@@ -1566,7 +1706,7 @@ def _draw_trump(player: str, hand: list[Card], trump: str | None,
         return None
 
     scored = []
-    memo: dict = {}
+    memo = _trump_memo()
     for card in sorted((c for c in hand if c.suit == trump), key=lambda c: c.value()):
         total = 0
         worst = 0
@@ -1670,7 +1810,7 @@ def _run_long_suit(player: str, hand: list[Card], trump: str | None,
             layouts = _splits(player, hand, suit, outstanding, seen, history, shown)
             if not layouts:
                 continue
-            memo: dict = {}
+            memo = _trump_memo()
             scored = []
             for card in cards:
                 total = weights = worst = 0

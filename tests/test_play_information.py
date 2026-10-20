@@ -130,6 +130,73 @@ def test_a_human_call_reads_the_way_gib_means_it():
     assert why and '5+ \u2663' in why and '5+ \u2666' in why, why
 
 
+def test_the_searches_stay_exact_when_their_memory_is_shared():
+    """The endgame searches each candidate card with one memory per layout.
+    A position already known exactly used to be searched again with an empty
+    window and its entry overwritten with a wrong bound (deal 4: West's 3D
+    scored 43 where it is worth 46). Both searches must give `_search`'s
+    answer for every card in turn."""
+    import random
+    from game import legal_plays
+    # The position it was found in (deal 4, clubs trumps): South led the
+    # 9D, West to play from AH KD 6D 3D. Each of West's diamonds in turn, one
+    # memory: the 3D is worth 3 tricks to E/W, as searched fresh.
+    hands = {'West': ['AH', 'KD', '6D', '3D'], 'East': ['9S', '8H', '5D', '9C'],
+             'North': ['10D', 'JD', 'QD', 'KH'], 'South': ['7D', 'AD', 'AS']}
+    masks = [sum(1 << ai._bit(C(c)) for c in hands[p]) for p in PLAYERS]
+    west, south = PLAYERS.index('West'), PLAYERS.index('South')
+    for search in ('fast', 'bit'):
+        memo: dict = {}
+        got = []
+        for card in ('KD', '6D', '3D'):
+            if search == 'bit':
+                masks[west] ^= 1 << ai._bit(C(card))
+                got.append(ai._bit_search(masks, ((south, ai._bit(C('9D'))), (west, ai._bit(C(card)))),
+                                          south, ai.SUITS.index('C'), False, memo))
+                masks[west] ^= 1 << ai._bit(C(card))
+            else:
+                h = {p: [C(c) for c in v if not (p == 'West' and c == card)] for p, v in hands.items()}
+                got.append(ai._fast_search(h, [('South', C('9D')), ('West', C(card))],
+                                           'South', 'C', 'E/W', memo))
+        assert got == [2, 3, 3], (search, got)
+    rnd = random.Random(11)
+    for n in (2, 3, 4):
+        for _ in range(60):
+            deck = list(ai._FULL_DECK)
+            rnd.shuffle(deck)
+            hands = {p: deck[i * n:(i + 1) * n] for i, p in enumerate(PLAYERS)}
+            trump = rnd.choice(['S', 'H', 'D', 'C', None])
+            leader = rnd.choice(PLAYERS)
+            side = rnd.choice(['N/S', 'E/W'])
+            fast, bits = {}, {}
+            for card in legal_plays(hands[leader], None):
+                h = {p: list(v) for p, v in hands.items()}
+                h[leader].remove(card)
+                exact = ai._search({p: list(v) for p, v in h.items()}, [(leader, card)],
+                                   leader, trump, side, {})
+                assert ai._fast_search({p: list(v) for p, v in h.items()}, [(leader, card)],
+                                       leader, trump, side, fast) == exact
+                masks = [sum(1 << ai._bit(c) for c in h[p]) for p in PLAYERS]
+                assert ai._bit_search(masks, ((PLAYERS.index(leader), ai._bit(card)),),
+                                      PLAYERS.index(leader),
+                                      ai.SUITS.index(trump) if trump else None,
+                                      side == 'N/S', bits) == exact
+
+
+def test_the_bit_trick_winner_follows_the_rules():
+    import random
+    from game import resolve_trick
+    rnd = random.Random(2)
+    for _ in range(3000):
+        cards = rnd.sample(ai._FULL_DECK, 4)
+        lead = rnd.randrange(4)
+        trump = rnd.choice(['C', 'D', 'H', 'S', None])
+        trick = [(PLAYERS[(lead + k) % 4], c) for k, c in enumerate(cards)]
+        bits = tuple((PLAYERS.index(p), ai._bit(c)) for p, c in trick)
+        winner = ai._bit_winner(bits, ai.SUITS.index(trump) if trump else None)
+        assert PLAYERS[winner] == resolve_trick(trick, trump)
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_') and callable(fn):

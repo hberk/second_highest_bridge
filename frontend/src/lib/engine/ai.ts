@@ -830,7 +830,7 @@ function fastSearch(hands: Record<string, Card[]>, trick: AnyPlay[], leader: Sea
     key = leader + '|' + PLAYERS.map((p) => hands[p].map(cardOrder)
       .sort((a, b) => a[0] - b[0] || a[1] - b[1]).map((o) => o.join('.')).join(',')).join('|');
     const [lo, hi] = memo.get(key) ?? [0, 13];
-    if (lo >= beta) return lo;
+    if (lo >= beta || lo === hi) return lo; // known exactly: never search an empty window
     if (hi <= alpha) return hi;
     alpha = Math.max(alpha, lo);
     beta = Math.min(beta, hi);
