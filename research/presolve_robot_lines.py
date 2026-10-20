@@ -52,8 +52,10 @@ DEFAULT_OUT = ROOT / 'research' / 'data' / 'robot_lines.jsonl'
 ROBOT_SOURCES = ('ai.py', 'gib.py', 'game.py', 'card.py', 'challenge.py',
                  'bridge/trick.py', 'bridge/auction.py')
 
-#: Memory per worker. The hardest benchmark deal peaked at 3.2 GB in one
-#: process (bench_cards, deal 3); the margin covers harder ones.
+#: Memory per worker. Before the solver's table was capped, deal 197 (2NT by
+#: South) grew one process to 8.9 GB and two at once swapped the machine
+#: (2026-10-18). `MAX_TABLE_ENTRIES` in research/solver-rs/src/search.rs now
+#: holds a process to about 3.3 GB at worst (3.1 GB measured on that deal).
 GB_PER_WORKER = 4.0
 
 BOARDS = 16
