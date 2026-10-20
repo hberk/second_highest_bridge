@@ -46,6 +46,12 @@ describe('hand evaluation', () => {
   });
 });
 
+// The two replays below are the slowest tests by far: about 40s and 20s alone
+// on an idle machine (2026-10-19), and npm test runs the test files in
+// parallel, so the global 60s limit failed them on a busy machine. Their own
+// limit keeps the global one tight for everything else.
+const LONG = 300_000;
+
 describe('games', () => {
   it(`replays ${(games as FxGame[]).length} boards call for call and card for card`, () => {
     for (const [gi, g] of (games as FxGame[]).entries()) {
@@ -98,7 +104,7 @@ describe('games', () => {
       expect(taken, where).toEqual(g.tricks);
       expect(scoreContract(g.contract, taken), where).toEqual(g.result);
     }
-  });
+  }, LONG);
 });
 
 describe('challenge', () => {
@@ -122,5 +128,5 @@ describe('challenge', () => {
         }
       }
     }
-  });
+  }, LONG);
 });
