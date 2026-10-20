@@ -25,6 +25,7 @@ python tests/test_bidding_rebids.py       # agreed-suit rebids, minor-suit game
 python tests/test_gib.py                  # GIB 2/1 conventions, call by call
 python tests/test_lin.py                  # LIN hand records: round trips, BBO variants, refusals
 python tests/test_challenge.py            # challenge grading: par = bidding + play loss
+python tests/test_card_play_rules.py      # the card-play rules from deals 92, 156, 174
 python tests/test_web_escaping.py         # every string reaching unsafe_allow_html is escaped
 ```
 
@@ -45,7 +46,7 @@ npm run build      # static site in frontend/dist, deployed to GitHub Pages
 
 ## Environment
 
-Python 3.9 or newer. Developed on 3.9.13, and the full suite (235 tests as of 2026-10-19,
+Python 3.9 or newer. Developed on 3.9.13, and the full suite (246 tests as of 2026-10-19,
 including `tests/test_app_flow.py`, which executes `app.py` headlessly) passes
 unchanged on **3.12.10** — no source edits were needed, because every file
 already starts with `from __future__ import annotations`. `.python-version`

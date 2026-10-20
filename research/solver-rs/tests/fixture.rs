@@ -121,6 +121,34 @@ fn reproduces_the_whole_fixture() {
     eprintln!("reproduced {checked} fixture positions up to {max_cards} cards each");
 }
 
+/// A full table is cleared, never trusted past its limit: with the table
+/// cleared every few entries the whole fixture must come out the same, both
+/// as one value and as every card's value.
+#[test]
+fn a_cleared_table_changes_no_answer() {
+    let sh = SecondHighest::build();
+    let mut checked = 0;
+    let mut clears = 0;
+    for entry in load_fixture() {
+        if entry.cards_each > 4 {
+            continue;
+        }
+        let position = position_of(&entry);
+        for limit in [1usize, 7, 64] {
+            let mut engine = Search::with_limit(position.trump, &sh, limit);
+            assert_eq!(engine.value(&position), entry.ns_tricks,
+                       "{}: wrong with the table capped at {limit}", entry.id);
+            let capped = Search::with_limit(position.trump, &sh, limit).card_values(&position, None);
+            let free = Search::new(position.trump, &sh).card_values(&position, None);
+            assert_eq!(capped, free, "{}: card values differ capped at {limit}", entry.id);
+            clears += engine.clears;
+        }
+        checked += 1;
+    }
+    assert!(checked >= 100, "only checked {checked} positions");
+    assert!(clears > 0, "the limit never cleared the table, so this tested nothing");
+}
+
 /// Every hand-crafted worst case by name, regardless of the depth cutoff above
 /// — these are exactly the shapes most likely to expose an equivalence or
 /// trump-handling bug, and skipping them silently would defeat the point.

@@ -216,7 +216,7 @@ Still open, **each the user's call**:
   change to measure with `research/card_play_h2h.py`.
 - [x] **3.12 The challenge loss figures** (2026-10-19): re-measured by the new
   `research/challenge_losses.py` over all 16 board positions, 234 in the
-  auction and 13 in the play, now quoted by both apps' captions, the
+  auction and 7 in the play (with the card-play rules merged from main), now quoted by both apps' captions, the
   Streamlit docstring and CHALLENGE.md. Rerun it after any robot change.
 
 ## 4. Bigger projects (only when the user asks)

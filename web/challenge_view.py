@@ -9,7 +9,7 @@ That split is what makes "is the robot good at bidding" and "is it good at
 declaring" separate questions. Measured over the library at all 16 board
 positions (6,356 boards with a contract; `research/challenge_losses.py`, which
 is where these figures come from), they are very different questions: the
-auction gives away a mean of 234 points a board, the card play 13, and the
+auction gives away a mean of 234 points a board, the card play 7, and the
 median play loss is ZERO -- more than half of all boards are played perfectly. The robot declares
 well and bids badly, and this panel is where a player can see that for
 themselves rather than take it on trust.
@@ -116,7 +116,7 @@ def render_match_total(log: list[dict]) -> None:
     cols[3].metric("Margin", _signed(you - robot))
     st.caption(f"Won {won}, drew {drawn}, lost {boards - won - drawn}. "
                f"Across the library the robots give away a mean of 234 points a "
-               f"board in the auction and 13 in the play — the auction is where "
+               f"board in the auction and 7 in the play — the auction is where "
                f"they are beatable.")
 
     your_bid = sum(r['your_bidding_loss'] for r in log) / boards

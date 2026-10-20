@@ -17,7 +17,7 @@
 //! Output (stdout):
 //!   {"decisions": [{"seat": "West", "played": "2C",
 //!                   "values": [["2C", 7], ["5D", 6], ...]}, ...],
-//!    "nodes": 123, "table_entries": 456, "seconds": 7.8}
+//!    "nodes": 123, "table_entries": 456, "table_clears": 0, "seconds": 7.8}
 //!
 //! Each value is N/S's tricks for the WHOLE hand if that card is played and
 //! everyone plays perfectly after it: tricks already won plus the rest.
@@ -108,10 +108,11 @@ fn run(input: Input) -> Result<String, String> {
     }
 
     Ok(format!(
-        "{{\"decisions\":[{}],\"nodes\":{},\"table_entries\":{},\"seconds\":{:.3}}}",
+        "{{\"decisions\":[{}],\"nodes\":{},\"table_entries\":{},\"table_clears\":{},\"seconds\":{:.3}}}",
         decisions.join(","),
         engine.nodes,
         engine.table_len(),
+        engine.clears,
         started.elapsed().as_secs_f64()
     ))
 }

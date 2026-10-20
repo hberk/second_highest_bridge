@@ -1034,15 +1034,23 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
     if not trick:
         choice = ((_draw_trump(player, hand, trump, played, visible, history)
                    if DRAW_TRUMPS else None)
+                  or (_ruff_lead(player, hand, trump, played, visible)
+                      if RUFF_LEAD else None)
                   or (_run_long_suit(player, hand, trump, played, visible, history)
                       if RUN_LONG_SUIT else None)
                   or (_sure_lead(player, hand, trump, played, visible, history)
                       if SURE_LEAD else None)
                   or (_nt_long_lead(player, hand, trump, played, visible)
-                      if NT_LONG_LEAD else None)
-                  or _lead(hand, trump, played))
+                      if NT_LONG_LEAD else None))
+        if choice is None:
+            choice = _lead(hand, trump, played)
+            if SURE_LEAD_DECLARER:
+                choice = _sure_lead_declarer(player, hand, trump, played, visible, history,
+                                             choice.suit) or choice
+            if FORCE_DUMMY and choice.suit == trump:
+                choice = _force_dummy(player, hand, trump, visible, played) or choice
     elif len(trick) == 3:
-        choice = _play_last(legal, trick, trump)
+        choice = _play_last(legal, trick, trump, hand, played)
     else:
         later = _later_holdings(player, hand, trick, played, visible or {})
         choice = _middle_play(player, legal, trick, trump, later)
@@ -1583,6 +1591,201 @@ def _sure_lead(player: str, hand: list[Card], trump: str | None,
     return None
 
 
+# ── Four rules from the user's review of deals 92, 156 and 174 ───────────────
+#
+# A card is DEAD when every higher card of its suit is played or in its own
+# hand: it can then never be second-highest, so it wins a trick only as the
+# one card of the winning suit. An ace is always dead.
+#
+# Deal 174, 4H by East, the defence out of trumps after trick 4: East led
+# trumps three times (`_lead` ranks a suit by its gap, and 8-7-6-5 has none),
+# each won with dummy's 9H, QH, KH, and the ruffs that make eleven tricks were
+# gone. The declaring side never asked for a sure trick either: 9C to dummy's
+# 10C wins whatever the defence does; East's 2C lost to North's 8C.
+#
+# Deal 92, 3C by North: East held 765 of trumps with dummy's J103 in view and
+# dummy void in hearts. East led the 6C and dummy underplayed the 3C (of two
+# trumps the lower wins). AH or 10H forces dummy to ruff (double dummy, down
+# two instead of making).
+#
+# Deal 156, 1H by North: on 10C 3C 9C, North could not win the trick and
+# dumped the 5C. Its AC and KC could never win a trick (the K needs a higher
+# club from someone else, and the only one is North's own ace), while the 5C
+# and 8C could still win under the defence's QC or JC.
+
+#: The declaring side, in the side suit its lead rules chose, leads the lowest
+#: card that wins the trick for sure, partner's card chosen by partner's own
+#: rules (measurement switch).
+SURE_LEAD_DECLARER = True
+#: The declaring side, with the defence out of trumps, leads a suit its visible
+#: partner is void in and can ruff (measurement switch).
+RUFF_LEAD = False
+#: A defender who would lead a trump forces dummy instead, in a suit dummy is
+#: void in while it still has trumps (measurement switch).
+FORCE_DUMMY = False
+#: Fourth hand that can't keep the trick for its side follows with a dead card
+#: (measurement switch).
+DEAD_CARD_LAST = True
+
+
+def _dead(card: Card, hand: list[Card], gone: set[Card]) -> bool:
+    """No other seat can play a higher card of this suit: every one is gone or ours."""
+    mine = set(hand)
+    return all(c in gone or c in mine for c in _FULL_DECK
+               if c.suit == card.suit and c.value() > card.value())
+
+
+def _shed_first(cards: list[Card], hand: list[Card], played: list[Card]) -> Card:
+    """The card of a suit to give up first: the lowest dead card, else the lowest."""
+    gone = set(played)
+    dead = [c for c in cards if _dead(c, hand, gone)]
+    return min(dead or cards, key=lambda c: c.value())
+
+
+def _ruff_lead(player: str, hand: list[Card], trump: str | None,
+               played: list[Card], visible: dict[str, list[Card]] | None) -> Card | None:
+    """A lead for partner to ruff, once the defence has no trumps, or None.
+
+    Partner's lone trump in a trick wins it outright, so each ruff is a trick,
+    where leading trumps makes our two hands' trumps fall together. The suit
+    with a dead card goes first (that card wins nothing otherwise), then the
+    longest.
+    """
+    partner = PARTNERS[player]
+    if trump not in SUITS or not visible or partner not in visible:
+        return None
+    seen = set(played) | set(hand) | set(visible[partner])
+    if any(c.suit == trump and c not in seen for c in _FULL_DECK):
+        return None                       # the defence may still hold trumps
+    if not any(c.suit == trump for c in visible[partner]):
+        return None
+    gone = set(played)
+    best = None
+    for suit in SUITS:
+        if suit == trump or any(c.suit == suit for c in visible[partner]):
+            continue
+        cards = [c for c in hand if c.suit == suit]
+        if not cards:
+            continue
+        has_dead = any(_dead(c, hand, gone) for c in cards)
+        rank = (has_dead, len(cards), -SUITS.index(suit))
+        if best is None or rank > best[0]:
+            best = (rank, _shed_first(cards, hand, played))
+    return best[1] if best else None
+
+
+def _sure_lead_declarer(player: str, hand: list[Card], trump: str | None,
+                        played: list[Card], visible: dict[str, list[Card]] | None,
+                        history: list | None, suit: str) -> Card | None:
+    """The lowest card of `suit` that wins the trick on every layout, or None.
+
+    Card choice within a suit the other rules already chose, never the choice
+    of suit: cashing a sure trick in a suit nobody chose cost timing (deal 0,
+    1NT by North, the Q♥ cashed early, a trick lost later) and ruffed in the
+    long trump hand (deal 4). Measured on ten deals, choosing the suit this way
+    cost the declaring side 0.18 tricks a board.
+
+    For the declaring side, which sees partner. `_sure_lead` treats partner's
+    card as the enemy's because a defender can't see it; here partner's hand is
+    in view, so partner's card is the one partner's own rules would play after
+    the left-hand opponent's card, and each opponent's play is every card the
+    split allows it (a void one ruffs with any unseen trump, or discards).
+    """
+    partner = PARTNERS[player]
+    if not visible or partner not in visible:
+        return None
+    partner_hand = visible[partner]
+    seen = set(played) | set(hand) | set(partner_hand)
+    unseen = [c for c in _FULL_DECK if c not in seen]
+    out = _shown_out(history or [], [])
+    i = PLAYERS.index(player)
+    left, right = PLAYERS[(i + 1) % 4], PLAYERS[(i + 3) % 4]
+    ours = (player, partner)
+    slots = len(hand)                     # every hand holds this many at a lead
+    ruffing = trump if trump in SUITS else None
+
+    for card in sorted((c for c in hand if c.suit == suit), key=lambda c: c.value()):
+        led = card.suit
+        # Trumps are `_draw_trump`'s. A "sure" trump trick with the defence
+        # out of trumps spends two of ours on one trick: on deal 6, 4C by
+        # South, the J♣ led to dummy's Q♣ cost four tricks over the hand.
+        if led == ruffing:
+            continue
+        follows = [c for c in unseen if c.suit == led]
+        trumps = ([c for c in unseen if c.suit == ruffing]
+                  if ruffing and ruffing != led else [])
+        # A discard never wins; any unseen card of another side suit stands for all.
+        spare = [c for c in unseen if c.suit not in (led, ruffing)]
+        discard = spare[:1]
+        rest = [c for c in hand if c != card]
+        partner_view = {player: rest, partner: partner_hand}
+        replies: dict = {}
+
+        def partner_card(b: Card) -> Card:
+            if b not in replies:
+                trick = [(player, card), (left, b)]
+                legal = legal_plays(partner_hand, led)
+                later = _later_holdings(partner, partner_hand, trick, played, partner_view)
+                replies[b] = _middle_play(partner, legal, trick, trump, later)
+            return replies[b]
+
+        sure = True
+        for n in range(len(follows) + 1):
+            for picked in combinations(range(len(follows)), n):
+                held = {left: [follows[k] for k in picked],
+                        right: [c for k, c in enumerate(follows) if k not in picked]}
+                if any(held[p] and led in out[p] for p in (left, right)):
+                    continue
+                if any(len(held[p]) > slots for p in (left, right)):
+                    continue
+                options = {}
+                for p in (left, right):
+                    options[p] = held[p] or (discard + (trumps if ruffing not in out[p] else []))
+                for b in options[left]:
+                    c = partner_card(b)
+                    for d in options[right]:
+                        if d == b and d in trumps:
+                            continue      # both hidden seats can't ruff with the same trump
+                        plays = [(player, card), (left, b), (partner, c), (right, d)]
+                        if resolve_trick(plays, trump) not in ours:
+                            sure = False
+                            break
+                    if not sure:
+                        break
+                if not sure:
+                    break
+            if not sure:
+                break
+        if sure:
+            return card
+    return None
+
+
+def _force_dummy(player: str, hand: list[Card], trump: str | None,
+                 visible: dict[str, list[Card]] | None, played: list[Card]) -> Card | None:
+    """A defender's lead in a suit dummy is void in while dummy has trumps, or None.
+
+    Only asked when the ordinary lead would be a trump: leading trumps into
+    dummy's lets dummy underplay, while a forced ruff spends a dummy trump.
+    """
+    if trump not in SUITS or not visible or PARTNERS[player] in visible:
+        return None
+    dummy = next(iter(visible))
+    if not any(c.suit == trump for c in visible[dummy]):
+        return None
+    best = None
+    for suit in SUITS:
+        if suit == trump or any(c.suit == suit for c in visible[dummy]):
+            continue
+        cards = [c for c in hand if c.suit == suit]
+        if not cards:
+            continue
+        rank = (len(cards), -SUITS.index(suit))
+        if best is None or rank > best[0]:
+            best = (rank, _shed_first(cards, hand, played))
+    return best[1] if best else None
+
+
 def _after_lead(led: int, rest: tuple, partner: tuple, left: tuple, right: tuple,
                 memo: dict) -> int:
     """Trump losers once `led` is on the table: the other three seats play,
@@ -1777,7 +1980,8 @@ def _middle_play(player: str, legal: list[Card], trick: list[tuple[str, Card]],
 LAST_HAND_FOR_PARTNER = True
 
 
-def _play_last(legal: list[Card], trick: list[tuple[str, Card]], trump: str | None) -> Card:
+def _play_last(legal: list[Card], trick: list[tuple[str, Card]], trump: str | None,
+               hand: list[Card] | None = None, played: list[Card] | None = None) -> Card:
     """Simulate each legal card; pick the smallest that keeps the trick for the
     PARTNERSHIP, else dump the lowest.
 
@@ -1785,12 +1989,24 @@ def _play_last(legal: list[Card], trick: list[tuple[str, Card]], trump: str | No
     decides which of the others is second-highest: on a user's 3H, North led
     the 7H, East played the 8H, and dummy's 4H let the seven win, where the
     king pushes the eight into second place. Partner taking the trick is
-    exactly as good as taking it."""
+    exactly as good as taking it.
+
+    With nothing that keeps the trick, following suit, a dead card goes first
+    (`DEAD_CARD_LAST`): on deal 156 North's AC and KC could never win a trick,
+    while the 5C it dumped could."""
     partner = trick[1][0]                     # fourth hand's partner played second
     ours = (_AI_TAG, partner) if LAST_HAND_FOR_PARTNER else (_AI_TAG,)
     winning = [
         c for c in legal
         if resolve_trick(trick + [(_AI_TAG, c)], trump) in ours
     ]
-    return min(winning, key=lambda c: c.value()) if winning else _shed(legal, trump)
+    if winning:
+        return min(winning, key=lambda c: c.value())
+    if DEAD_CARD_LAST and hand is not None:
+        led = trick[0][1].suit
+        gone = set(played or []) | {c for _, c in trick}
+        dead = [c for c in legal if c.suit == led and _dead(c, hand, gone)]
+        if dead:
+            return min(dead, key=lambda c: c.value())
+    return _shed(legal, trump)
 

@@ -19,24 +19,57 @@ use crate::bitstate::{
 };
 use rustc_hash::FxHashMap;
 
+/// The most transposition-table entries a `Search` keeps.
+///
+/// The table had no bound, and it grows by doubling: on challenge deal 197
+/// (2NT by South, every card of the hand scored by `line_values`) it reached
+/// 206 million entries and 8.9 GB, and two such deals at once swapped a 16 GB
+/// machine to a standstill. 50 million entries fit in 2^26 buckets, about
+/// 2.2 GB, so the table never grows past that (3.3 GB for the moment the
+/// last doubling copies). An entry holds a 16-byte key and its bounds, 32
+/// bytes with alignment, so storing tricks-left beside them costs nothing.
+///
+/// When full, the shallow entries go and the deep ones stay (`evict`).
+/// Clearing the whole table instead made deal 197 more than six times slower:
+/// a deep position is expensive to search again, and the shallow ones are
+/// both the most numerous and the cheapest. Keeping the deep half, deal 197
+/// took 2,174s against 1,049s uncapped at a 3.1 GB peak (24 evictions); the
+/// next three largest lines (62-68M entries) 13-25% longer; lines under the
+/// limit, unchanged. Values identical on all 15 lines re-solved (2026-10-19). Either is sound: an entry only
+/// caches bounds on a position's value, so losing one costs search time,
+/// never a different answer -- `tests/fixture.rs` re-checks the fixture with
+/// tiny limits.
+pub const MAX_TABLE_ENTRIES: usize = 50_000_000;
+
 pub struct Search<'a> {
     trump: Option<u32>,
     sh: &'a SecondHighest,
-    table: FxHashMap<u128, (i32, i32)>,
+    /// Bounds on N/S's tricks from a position, and its tricks left.
+    table: FxHashMap<u128, (i32, i32, i32)>,
+    limit: usize,
     pub nodes: u64,
     pub probes: u64,
     pub hits: u64,
+    /// Times the table reached `limit` and shed its shallow entries.
+    pub clears: u64,
 }
 
 impl<'a> Search<'a> {
     pub fn new(trump: Option<u32>, sh: &'a SecondHighest) -> Self {
+        Self::with_limit(trump, sh, MAX_TABLE_ENTRIES)
+    }
+
+    /// A search whose table is cleared once it holds `limit` entries.
+    pub fn with_limit(trump: Option<u32>, sh: &'a SecondHighest, limit: usize) -> Self {
         Search {
             trump,
             sh,
             table: FxHashMap::default(),
+            limit: limit.max(1),
             nodes: 0,
             probes: 0,
             hits: 0,
+            clears: 0,
         }
     }
 
@@ -206,7 +239,7 @@ impl<'a> Search<'a> {
         let key = self.key(&hands, leader);
         let mut low = 0i32;
         let mut high = tricks_left;
-        if let Some(&(l, h)) = self.table.get(&key) {
+        if let Some(&(l, h, _)) = self.table.get(&key) {
             low = l;
             high = h;
             if need <= low {
@@ -228,8 +261,40 @@ impl<'a> Search<'a> {
         } else if need - 1 < high {
             high = need - 1;
         }
-        self.table.insert(key, (low, high));
+        if self.table.len() >= self.limit && !self.table.contains_key(&key) {
+            self.evict();
+        }
+        self.table.insert(key, (low, high, tricks_left));
         result
+    }
+
+    /// Make room in a full table: keep the deepest entries, at most half the
+    /// limit, and drop the rest. Keeps the allocation, so there's no regrowth.
+    fn evict(&mut self) {
+        let mut at_depth = [0usize; 14];
+        for &(_, _, depth) in self.table.values() {
+            at_depth[depth.clamp(0, 13) as usize] += 1;
+        }
+        // The shallowest depth whose entries and everything deeper fit in half.
+        let mut keep_from = 14;
+        let mut kept = 0;
+        while keep_from > 0 && kept + at_depth[keep_from - 1] <= self.limit / 2 {
+            keep_from -= 1;
+            kept += at_depth[keep_from];
+        }
+        let keep_from = keep_from as i32;
+        // Drained and refilled, not `retain`ed: removing in place leaves
+        // deleted markers that count towards the table's load, so it doubled
+        // long before reaching the limit (6.2 GB measured on deal 197).
+        // `drain` keeps the allocation and resets every slot; the kept half
+        // waits in a Vec meanwhile (about 0.8 GB at the default limit).
+        let kept: Vec<(u128, (i32, i32, i32))> = self
+            .table
+            .drain()
+            .filter(|&(_, (_, _, depth))| depth >= keep_from)
+            .collect();
+        self.table.extend(kept);
+        self.clears += 1;
     }
 
     /// Play out the trick in progress. No table probes: mid-trick only.
