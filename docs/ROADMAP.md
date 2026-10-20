@@ -198,23 +198,26 @@ Fixed 2026-10-18 on branch `code-analysis-fixes`:
 
 Still open, **each the user's call**:
 
-- [ ] **3.7 Responder over 1M-2M-3NT.** Robots never bid it; after a human
-  opener does, responder now passes ("Partner placed the contract."). Standard
-  is pass or correct to 4M as a choice of games. Decide the rule.
-- [ ] **3.8 1♥-2♥-3♠ from a human opener** jumps past where responder declines
-  a game try (3♥). The guard's fallback bids 4♥; 1 auction in 60,000.
+- [x] **3.7 Responder over 1M-2M-3NT.** (2026-10-19, the user's call: a choice
+  of games.) Responder passes with three trumps and no short suit, else bids
+  4M. See "After a single raise" in BIDDING.md.
+- [x] **3.8 1♥-2♥-3♠.** (2026-10-19, the user's call: a splinter, short in
+  spades, game forcing.) Opener now bids it too, with 18+ HCP (also 4♣/4♦, and
+  1♠-2♠-4♣/4♦/4♥), and responder bids game. 1 of 1,600 auctions changed.
 - [ ] **3.9 Challenge grading uses one declarer per strain and side (H2).**
   22.5% of robot boards are declared by the other partner (CHALLENGE.md). Solve
   both declarers, or flag mismatched boards.
 - [ ] **3.10 Dealing a challenge board throws away the board in play (M9)**,
   with no confirmation, and the deal goes back in the pool. Intended?
-- [ ] **3.11 Robot discards and leads.** The duck fallbacks (`_play_last`,
-  `_middle_play`) take the lowest card by value in any suit, so a void robot can
-  throw a trump; `_lead`/`_gap` count dummy's cards as an opponent's. Each is a
-  card-play change: measure with `research/card_play_h2h.py`.
-- [ ] **3.12 The challenge loss figures** (the caption in
-  `web/challenge_view.py`, its docstring, CHALLENGE.md's table) predate the
-  card-play changes. Re-measure and quote one figure everywhere.
+- [ ] **3.11 Robot discards and leads.** Discards done 2026-10-19 (the user's
+  rule: a void robot throws a trump only to ruff for a win; `ai.KEEP_TRUMPS`,
+  head to head +0.003 tricks, t = +0.37, 88 of 6,356 boards changed). Still
+  open: `_lead`/`_gap` count dummy's cards as an opponent's, a card-play
+  change to measure with `research/card_play_h2h.py`.
+- [x] **3.12 The challenge loss figures** (2026-10-19): re-measured by the new
+  `research/challenge_losses.py` over all 16 board positions, 234 in the
+  auction and 7 in the play (with the card-play rules merged from main), now quoted by both apps' captions, the
+  Streamlit docstring and CHALLENGE.md. Rerun it after any robot change.
 
 ## 4. Bigger projects (only when the user asks)
 

@@ -23,6 +23,10 @@ export const RAISE: [number, number] = [7, 10];
 export const LIMIT: [number, number] = [11, 12];
 export const JACOBY_MIN = 13;
 export const SPLINTER: [number, number] = [13, 16];
+/** Opener's splinter after a single raise, 1M-2M-3♠/4x (roadmap 3.8). */
+export const SELF_SPLINTER_MIN = 18;
+/** Opener makes that splinter (measurement switch); responder answers it either way. */
+export const SELF_SPLINTER = true;
 export const TWO_OVER_ONE = 12;
 export const JUMP_SHIFT_POINTS = 17;
 export const DRURY: [number, number] = [10, 12];
@@ -373,7 +377,7 @@ function respondMajor(ctx: Ctx, x: Suit): Decision {
   if (sup >= 4 && !passed && hcp >= JACOBY_MIN) {
     if (shortness.length && hcp <= SPLINTER[1]) {
       const s = shortness[0];
-      const call = x === 'H' && s === 'S' ? `3${s}` : `4${s}`;
+      const call = splinterCall(x, s);
       if (ctx.ok(call)) {
         return [call, `Splinter: 4+ ${SYM[x]}, short ${SYM[s]}, ${SPLINTER[0]}-${SPLINTER[1]} HCP.`];
       }
@@ -480,6 +484,11 @@ export function isTwoOverOne(x: string, y: string | null): boolean {
   return isSuit(y) && idx(y) < idx(x);
 }
 
+/** The jump in `s` that splinters for `x`: 3♠ over hearts, else the four level. */
+function splinterCall(x: string, s: string): string {
+  return x === 'H' && s === 'S' ? `3${s}` : `4${s}`;
+}
+
 function isSplinter(x: string, r: string): boolean {
   if (x === 'H') return ['3S', '4C', '4D'].includes(r);
   if (x === 'S') return ['4C', '4D', '4H'].includes(r);
@@ -508,6 +517,11 @@ function gameTry(ctx: Ctx, x: Suit): Decision {
   const hcp = h.hcp;
   const short = h.short(x);
   if (hcp <= 14) return ['Pass', 'Minimum.'];
+  if (SELF_SPLINTER && hcp >= SELF_SPLINTER_MIN && short.length) {
+    const s = short[0];
+    const call = splinterCall(x, s);
+    if (ctx.ok(call)) return [call, `Splinter: short ${SYM[s]}, ${SELF_SPLINTER_MIN}+ HCP. Game forcing.`];
+  }
   if (hcp >= 18 || (hcp >= 17 && !short.length)) return [`4${x}`, TO_PLAY];
   if (short.length) {
     const step = x === 'H' ? '2S' : '2NT';
@@ -687,6 +701,11 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
     return ['Pass', 'Partner placed the contract.'];
   }
   if (r === `2${x}` && isMajor(x)) {
+    if (isSplinter(x, o)) return [`4${x}`, TO_PLAY];   // opener's splinter: game forcing
+    if (o === '3NT') {                                // a choice of games (roadmap 3.7)
+      if (h.len[x] >= 4 || h.short(x).length) return [`4${x}`, 'Choice of games: a fourth trump or a short suit.'];
+      return ['Pass', 'Choice of games: three trumps, no short suit.'];
+    }
     if ((o === '2S' || o === '2NT') && o !== `2${x}`) {
       return hcp >= 9 ? [`4${x}`, TO_PLAY] : [`3${x}`, 'Declining the game try.'];
     }

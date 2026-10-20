@@ -94,6 +94,19 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   changed boards show the variant's usual cost of showing strength (deal
   234: 4S with 18 failed where 2S made; deal 228: 2NT went down where 2S
   made). **Kept by the user's choice**, as GIB-standard bidding.
+- **After a single raise, 1M-2M** (`_game_try`, `responder_rebid`; roadmap
+  3.7 and 3.8, both the user's call, 2026-10-19).
+  - **Opener's splinter** (`SELF_SPLINTER`, `SELF_SPLINTER_MIN = 18`):
+    1♥-2♥-3♠/4♣/4♦ and 1♠-2♠-4♣/4♦/4♥ show a singleton or void there and
+    18+ HCP, game forcing; responder bids 4M. Before, a human's 1♥-2♥-3♠ read
+    as a help-suit game try, the decline (3♥) was illegal, and the guard bid
+    4♥ for it. Head to head (`research/gib_h2h.py SELF_SPLINTER`): **1 of
+    1,600 auctions changed** (deal 116, 1♥-2♥-3♠-4♥ where opener used to bid
+    4♥ directly), the same contract, so +0.00.
+  - **1M-2M-3NT is a choice of games**: responder passes with three trumps and
+    no singleton or void, and bids 4M with a fourth trump or a short suit.
+    Robots never bid 3NT here; it answers a human opener, who used to be
+    passed out in 3NT every time.
 
 ## The previous system (`ai.USE_GIB = False`)
 
