@@ -7,6 +7,7 @@ from game import (
     AuctionState, PARTNERSHIP, DEALER_ROTATION, VUL_ROTATION
 )
 from ai import ai_play, ai_bid, ai_bid_explained, eval_hand_sh, hcp, shown_lengths, visible_hands
+from meanings import gib_alert
 
 from web.card_component import (
     DECKS, DECK_LABELS, DECK_HELP, deck_style_block, suit_colors, suit_colors_light,
@@ -74,11 +75,25 @@ def init_game(next_board: bool = False, deal_id: int | None = None) -> None:
 
 
 def _robot_shown(s) -> dict:
-    """The lengths the ROBOTS' bidding showed, for the robots' play. A human's
-    self-alert is free text the robots don't read, so human calls add nothing."""
-    calls = list(s['auction'].calls)
+    """The lengths the bidding showed, for the robots' play. A robot's call
+    reads by its own alert; a human's by what GIB would mean by that call
+    (`meanings.gib_alert`) -- a self-alert is free text the robots don't
+    read. Each human call is read once and kept."""
+    auction = s['auction']
+    calls = list(auction.calls)
     alerts = {i: why for i, why in s.get('bid_alerts', {}).items()
               if i < len(calls) and calls[i][0] not in HUMAN}
+    read = s.setdefault('gib_readings', {})
+    for i, (who, call) in enumerate(calls):
+        if who in HUMAN:
+            key = (auction.dealer, auction.vulnerability, tuple(c for _, c in calls[:i + 1]))
+            if key not in read:
+                prefix = AuctionState(dealer=auction.dealer, vulnerability=auction.vulnerability)
+                for w, c in calls[:i]:
+                    prefix.apply_call(w, c)
+                read[key] = gib_alert(prefix, call)
+            if read[key]:
+                alerts[i] = read[key]
     return shown_lengths(calls, alerts)
 
 

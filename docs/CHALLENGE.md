@@ -57,8 +57,11 @@ seats, which nets out a change both declarer and defenders use.)
   alerts ("5+ ♠", "4+ ♥ ♠", "exactly 3 ♥" -- every number an alert quotes is
   true of the hand). The opening lead goes to partner's longest shown suit of
   5+ (`_partner_suit_lead`, `PARTNER_LEAD_MIN`), and `_splits` and the endgame
-  search keep only layouts that fit the bidding. Only robot alerts count: in
-  the apps a human's self-alert is free text, so human calls add nothing.
+  search keep only layouts that fit the bidding. A human's call reads by what
+  GIB would mean by it, never by the human's free-text self-alert: the apps
+  ask the robots what they would bid there with sampled hands and keep that
+  call's alert (`meanings.gib_alert`, the Python twin of
+  `frontend/src/lib/meanings.ts`), once per call.
   Seated: **+0.43, t = +0.38, 492 boards changed**.
 - All three: **+0.55 points per board, t = +0.48, 556 boards changed.** None
   is distinguishable from zero; they are kept as correctness (the user's

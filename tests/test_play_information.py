@@ -101,6 +101,35 @@ def test_layouts_fit_the_bidding():
     assert bid and all(len(a) >= 5 for a, _, _ in bid)
 
 
+def test_the_fast_search_gives_the_plain_searchs_answer():
+    """`_fast_search` (alpha-beta, rank equivalence) must agree with `_search`
+    exactly: the deeper endgame relies on it."""
+    import random
+    rnd = random.Random(20261020)
+    for n in (2, 3, 4):
+        for _ in range(25):
+            deck = list(ai._FULL_DECK)
+            rnd.shuffle(deck)
+            hands = {p: deck[i * n:(i + 1) * n] for i, p in enumerate(PLAYERS)}
+            trump = rnd.choice(['S', 'H', 'D', 'C', None])
+            leader = rnd.choice(PLAYERS)
+            slow = ai._search({p: list(h) for p, h in hands.items()}, [], leader, trump, 'N/S', {})
+            fast = ai._fast_search({p: list(h) for p, h in hands.items()}, [], leader, trump, 'N/S', {})
+            assert slow == fast, (hands, trump, leader, slow, fast)
+
+
+def test_a_human_call_reads_the_way_gib_means_it():
+    """The robots read a human's call by GIB's alert for it, not by the
+    human's self-alert: an opening 1S is 5+ spades."""
+    from meanings import gib_alert
+    auction = AuctionState(dealer='North', vulnerability='None')
+    assert gib_alert(auction, '1S') == "5+ \u2660, 11-21 HCP."
+    assert gib_alert(auction, 'Pass') is None
+    auction.apply_call('North', '1H')
+    why = gib_alert(auction, '2NT')       # East: Unusual, the two lowest unbid
+    assert why and '5+ \u2663' in why and '5+ \u2666' in why, why
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_') and callable(fn):

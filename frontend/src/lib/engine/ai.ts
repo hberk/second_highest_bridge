@@ -651,7 +651,8 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     choice = coverForPartner(player, hand, legal, trick, trump, played, visible, choice);
   }
 
-  if (history !== null && Object.keys(visible).length && legal.length > 1 && hand.length <= ENDGAME_CARDS) {
+  if (history !== null && Object.keys(visible).length && legal.length > 1
+    && hand.length <= (DEEP_ENDGAME ? DEEP_ENDGAME_CARDS : ENDGAME_CARDS)) {
     const totals = endgameTotals(player, hand, trick, trump, played, visible, history, legal, shown);
     if (totals) {
       const best = Math.max(...totals.values());
@@ -708,6 +709,9 @@ function coverForPartner(player: Seat, hand: Card[], legal: Card[], trick: AnyPl
 // ── Endgame: single dummy search (see ai.py) ─────────────────────────────────
 
 export const ENDGAME_CARDS = 3;
+/** Search every layout from DEEP_ENDGAME_CARDS a hand (see ai.py). */
+export const DEEP_ENDGAME = true;
+export const DEEP_ENDGAME_CARDS = 4;
 
 const cardOrder = (c: Card): number[] => [suitIndex(c.suit), value(c)];
 
@@ -810,6 +814,62 @@ function search(hands: Record<string, Card[]>, trick: AnyPlay[], leader: Seat,
   return best;
 }
 
+/** `search`'s answer, with alpha-beta, bounds per position and rank
+ *  equivalence (see ai.py `_fast_search`). */
+function fastSearch(hands: Record<string, Card[]>, trick: AnyPlay[], leader: Seat,
+  trump: string | null, side: string, memo: Map<string, [number, number]>,
+  alpha = -1, beta = 14): number {
+  if (trick.length === 4) {
+    const winner = resolveTrick(trick, trump) as Seat;
+    const won = PARTNERSHIP[winner] === side ? 1 : 0;
+    if (!hands[winner].length) return won;
+    return won + fastSearch(hands, [], winner, trump, side, memo, alpha - won, beta - won);
+  }
+  let key: string | null = null;
+  if (!trick.length) {
+    key = leader + '|' + PLAYERS.map((p) => hands[p].map(cardOrder)
+      .sort((a, b) => a[0] - b[0] || a[1] - b[1]).map((o) => o.join('.')).join(',')).join('|');
+    const [lo, hi] = memo.get(key) ?? [0, 13];
+    if (lo >= beta) return lo;
+    if (hi <= alpha) return hi;
+    alpha = Math.max(alpha, lo);
+    beta = Math.min(beta, hi);
+  }
+  const a0 = alpha, b0 = beta;
+  const seat = PLAYERS[(PLAYERS.indexOf(leader) + trick.length) % 4];
+  const ledSuit = trick.length ? trick[0][1].suit : null;
+  const legal = legalPlays(hands[seat], ledSuit);
+  const tried: Card[] = [];
+  for (const suit of SUITS) {
+    const mine = legal.filter((c) => c.suit === suit);
+    if (!mine.length) continue;
+    const others: number[] = [];
+    for (const p of PLAYERS) if (p !== seat) for (const c of hands[p]) if (c.suit === suit) others.push(value(c));
+    for (const [, c] of trick) if (c.suit === suit) others.push(value(c));
+    const keep = new Set(distinct(mine.map(value), others));
+    for (const c of mine) if (keep.has(value(c))) tried.push(c);
+  }
+  const ours = PARTNERSHIP[seat] === side;
+  let best = ours ? -1 : 99;
+  for (const c of tried) {
+    const at = hands[seat].findIndex((x) => cardKey(x) === cardKey(c));
+    hands[seat].splice(at, 1);
+    const v = fastSearch(hands, [...trick, [seat, c]], leader, trump, side, memo, alpha, beta);
+    hands[seat].splice(at, 0, c);
+    if (ours) { best = Math.max(best, v); alpha = Math.max(alpha, best); }
+    else { best = Math.min(best, v); beta = Math.min(beta, best); }
+    if (alpha >= beta) break;
+  }
+  if (key !== null) {
+    let [lo, hi] = memo.get(key) ?? [0, 13];
+    if (best <= a0) hi = Math.min(hi, best);
+    else if (best >= b0) lo = Math.max(lo, best);
+    else { lo = best; hi = best; }
+    memo.set(key, [lo, hi]);
+  }
+  return best;
+}
+
 function* combinations(n: number, k: number): Generator<number[]> {
   const idx = Array.from({ length: k }, (_, i) => i);
   if (k > n) return;
@@ -859,11 +919,11 @@ function endgameTotals(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     for (const [seat, cards] of Object.entries(known)) hands[seat] = [...cards];
     hands[first] = a;
     hands[second] = b;
-    const memo = new Map<string, number>();
+    const bounds = new Map<string, [number, number]>();
     for (const c of legal) {
       const at = hands[player].findIndex((x) => cardKey(x) === cardKey(c));
       hands[player].splice(at, 1);
-      totals.set(cardKey(c), totals.get(cardKey(c))! + search(hands, [...trick, [player, c]], leader, trump, side, memo));
+      totals.set(cardKey(c), totals.get(cardKey(c))! + fastSearch(hands, [...trick, [player, c]], leader, trump, side, bounds));
       hands[player].splice(at, 0, c);
     }
   }

@@ -1083,7 +1083,7 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                                     visible, choice)
 
     if (history is not None and visible and len(legal) > 1
-            and len(hand) <= ENDGAME_CARDS):
+            and len(hand) <= (DEEP_ENDGAME_CARDS if DEEP_ENDGAME else ENDGAME_CARDS)):
         totals = _endgame_totals(player, hand, trick, trump, played, visible,
                                  history, legal, shown)
         if totals:
@@ -1291,6 +1291,90 @@ def _search(hands: dict[str, list[Card]], trick: list[tuple[str, Card]],
     return best
 
 
+# ── Mid-hand: the endgame search, two tricks earlier ────────────────────────
+#
+# One trick of look-ahead loses most where the hand is decided (tricks 5-9
+# cost 2.3 tricks a deal each side against double dummy, research/robot_lines).
+# The last three tricks were searched over every layout of the unseen cards;
+# `_fast_search` makes every layout affordable from four cards a hand. A
+# sample of eight layouts was tried first and dropped: on deal 0 it chose the
+# K♦ third in hand where the 6♦ takes three more tricks -- whether the king
+# wins depends on one card of East's, and eight layouts misjudge that often.
+
+#: Search every layout from DEEP_ENDGAME_CARDS a hand, not ENDGAME_CARDS
+#: (measurement switch).
+DEEP_ENDGAME = True
+DEEP_ENDGAME_CARDS = 4
+
+
+def _fast_search(hands: dict[str, list[Card]], trick: list[tuple[str, Card]],
+                 leader: str, trump: str | None, side: str, memo: dict,
+                 alpha: int = -1, beta: int = 14) -> int:
+    """`_search`'s answer -- tricks `side` takes from here, both sides perfect
+    on THIS layout -- found far faster: alpha-beta, with bounds kept per
+    position, and rank equivalence (cards in one hand with no outstanding
+    card of the suit between them play alike, so one is tried). `_search`
+    took 1 s at five cards a hand and 12+ s at six; this makes searching
+    from mid-hand affordable."""
+    if len(trick) == 4:
+        winner = resolve_trick(trick, trump)
+        won = 1 if PARTNERSHIP[winner] == side else 0
+        if not hands[winner]:
+            return won
+        return won + _fast_search(hands, [], winner, trump, side, memo,
+                                  alpha - won, beta - won)
+    key = None
+    if not trick:
+        key = (leader,) + tuple(tuple(sorted(_card_order(c) for c in hands[p]))
+                                for p in PLAYERS)
+        lo, hi = memo.get(key, (0, 13))
+        if lo >= beta:
+            return lo
+        if hi <= alpha:
+            return hi
+        alpha, beta = max(alpha, lo), min(beta, hi)
+    a0, b0 = alpha, beta
+    seat = PLAYERS[(PLAYERS.index(leader) + len(trick)) % 4]
+    led = trick[0][1].suit if trick else None
+    legal = legal_plays(hands[seat], led)
+    tried = []
+    for suit in SUITS:
+        mine = [c for c in legal if c.suit == suit]
+        if not mine:
+            continue
+        others = tuple(c.value() for p in PLAYERS if p != seat
+                       for c in hands[p] if c.suit == suit) \
+            + tuple(c.value() for _, c in trick if c.suit == suit)
+        values = _distinct(tuple(c.value() for c in mine), others)
+        tried += [c for c in mine if c.value() in values]
+    ours = PARTNERSHIP[seat] == side
+    best = -1 if ours else 99
+    for card in tried:
+        at = hands[seat].index(card)
+        hands[seat].pop(at)
+        value = _fast_search(hands, trick + [(seat, card)], leader, trump, side,
+                             memo, alpha, beta)
+        hands[seat].insert(at, card)
+        if ours:
+            best = max(best, value)
+            alpha = max(alpha, best)
+        else:
+            best = min(best, value)
+            beta = min(beta, best)
+        if alpha >= beta:
+            break
+    if key is not None:
+        lo, hi = memo.get(key, (0, 13))
+        if best <= a0:
+            hi = min(hi, best)
+        elif best >= b0:
+            lo = max(lo, best)
+        else:
+            lo = hi = best
+        memo[key] = (lo, hi)
+    return best
+
+
 def _endgame_totals(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                     trump: str | None, played: list[Card],
                     visible: dict[str, list[Card]], history: list,
@@ -1331,8 +1415,8 @@ def _endgame_totals(player: str, hand: list[Card], trick: list[tuple[str, Card]]
         for card in legal:
             at = hands[player].index(card)
             hands[player].pop(at)
-            totals[card] += _search(hands, trick + [(player, card)], leader,
-                                    trump, side, memo)
+            totals[card] += _fast_search(hands, trick + [(player, card)], leader,
+                                         trump, side, memo)
             hands[player].insert(at, card)
     return totals if layouts else None
 

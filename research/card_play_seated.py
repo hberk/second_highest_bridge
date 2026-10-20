@@ -15,7 +15,9 @@ untouched (card play only), so each pair is the same contract.
     python research/card_play_seated.py --merge a.json b.json         # then merge
 
 Boards of one deal share robot lines, so each deal's boards are averaged
-first and the t is taken across deals.
+first and the t is taken across deals. The play doesn't depend on the
+vulnerability, so a switched side's play is reused across boards with the
+same auction and only rescored.
 """
 from __future__ import annotations
 
@@ -77,6 +79,7 @@ def main(argv=None) -> int:
         setattr(ai, name, raw == 'True')
 
     switched = {'side': None}
+    replayed: dict = {}                   # (deal, calls, side) -> tricks taken
     real_play = challenge.ai_play
 
     def play(seat, *a, **k):
@@ -106,14 +109,18 @@ def main(argv=None) -> int:
                 gain_p = gain_t = 0.0
                 for side in ('N/S', 'E/W'):
                     switched['side'] = side
-                    var = challenge.robot_table(deal_id, dealer, vul)
-                    if var['contract'] != base['contract']:
-                        raise AssertionError(f"deal {deal_id}: the switch changed the auction")
-                    def score(t):
-                        r = t['result']
+                    key = (deal_id, tuple(base['calls']), side)
+                    if key not in replayed:
+                        var = challenge.robot_table(deal_id, dealer, vul)
+                        if var['contract'] != base['contract']:
+                            raise AssertionError(f"deal {deal_id}: the switch changed the auction")
+                        replayed[key] = dict(var['tricks_taken'])
+                    taken = replayed[key]
+                    result = challenge.score_contract(base['contract'], taken)
+                    def score(r):
                         return r['points'] if r['winner'] == side else -r['points']
-                    gain_p += score(var) - score(base)
-                    gain_t += var['tricks_taken'][side] - base['tricks_taken'][side]
+                    gain_p += score(result) - score(base['result'])
+                    gain_t += taken[side] - base['tricks_taken'][side]
                 points[-1].append(gain_p / 2)
                 tricks[-1].append(gain_t / 2)
             if deal_id % 100 == 99:
