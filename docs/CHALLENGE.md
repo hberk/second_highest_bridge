@@ -38,6 +38,32 @@ average, on the defence's mistakes. The figures before this (143.7 / 31.8 over
 below, so they aren't comparable: the 16 board positions include vulnerable
 boards, where par is worth far more (not measured separately).
 
+**What the robots know when they play** (the user's call, 2026-10-20; three
+switches, measured with `research/card_play_seated.py`: the switches on for
+one side against robots without them, sides swapped, scored from the switched
+side over all 400 deals x 16 boards. `card_play_h2h.py` switches all four
+seats, which nets out a change both declarer and defenders use.)
+- `NO_PEEK_OPENING_LEAD`: the opening leader no longer sees dummy before it
+  goes down. `visible_hands` always included dummy, so the robot leader was
+  handed it (7 library deals' leads changed, 164 and 212 among them). Seated:
+  **+0.24 points per board, t = +1.39, 24 boards changed** -- the honest lead
+  does no worse; the peek was unfair without being useful.
+- `SHOWOUT_MIDDLE`: second and third hand drop the suits the next opponent
+  has shown out of from the cards it might play (`_later_holdings`). The pool
+  shrinks in ~7% of mid-hand decisions but the card changes rarely, because
+  `_outlook` only counts the deciding suit. Seated: **-0.16, t = -0.79, 48
+  boards changed**.
+- `AUCTION_IN_PLAY`: `shown_lengths` reads each seat's suit floors off its
+  alerts ("5+ ♠", "4+ ♥ ♠", "exactly 3 ♥" -- every number an alert quotes is
+  true of the hand). The opening lead goes to partner's longest shown suit of
+  5+ (`_partner_suit_lead`, `PARTNER_LEAD_MIN`), and `_splits` and the endgame
+  search keep only layouts that fit the bidding. Only robot alerts count: in
+  the apps a human's self-alert is free text, so human calls add nothing.
+  Seated: **+0.43, t = +0.38, 492 boards changed**.
+- All three: **+0.55 points per board, t = +0.48, 556 boards changed.** None
+  is distinguishable from zero; they are kept as correctness (the user's
+  call), not as a measured gain.
+
 **Declarer sees its own two hands, defenders see dummy** (`ai.visible_hands`;
 nobody sees a defender's cards). Before this, the robot played dummy blind to
 declarer's own hand -- on a user's board dummy overtook declarer's winning J♥
