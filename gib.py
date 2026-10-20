@@ -2016,6 +2016,12 @@ def _cuebid_raise_reply(ctx: Ctx) -> tuple | None:
     return None
 
 
+#: Responder over 1M (3x), a three-level overcall: with 3+ support and 10+
+#: HCP the cuebid is above three and 3M shows 6-9, so bid game. Before,
+#: these hands passed (deal 346: ♠AK96 ♥K ♦QJ10432 ♣J6 over 1♠ (3♥)).
+JUMP_OVERCALL_GAME = True
+
+
 def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
     h = ctx.h
     hcp = h.hcp
@@ -2087,6 +2093,9 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
         call = ctx.cheapest(x, 2)
         if call and level_of(call) <= 3 and (hcp <= 9 or cue_too_high):
             return call, f"3+ {SYM[x]}, 6+ HCP."
+    if (JUMP_OVERCALL_GAME and x in MAJORS and lvl == 3 and their in SUITS
+            and sup >= 3 and hcp >= 10 and ctx.ok(f"4{x}")):
+        return f"4{x}", f"3+ {SYM[x]}, 10+ HCP. To play."
     for s in sorted(SUITS, key=lambda s: (h.len[s], SUITS.index(s)), reverse=True):
         if s in (x, their):
             continue
