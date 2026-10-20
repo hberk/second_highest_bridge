@@ -130,6 +130,20 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     (all deal 163). `TWO_SUITER_READ` alone scores +0.00: on 163 the minor-fit
     branch still prefers 3NT below 29 combined. 36 library auctions have a
     two-suited overcall at all.
+- **Their contract is not our game reached** (`THEIR_CONTRACT_DOUBLE`,
+  `_over_their_contract`, in `continuation`; the user's call, 2026-10-20).
+  `continuation` passed "Game reached" whenever the bidding stood at 3NT or
+  the four level, without asking whose bid it was: when they outbid our game
+  or bid 3NT themselves, the robots passed it as if it were ours, and nobody
+  ever doubled (24 library auctions, 8 deals). Now, when they hold the
+  contract, double for penalty if our side has shown game values (bid game,
+  a game-forcing auction, or `judge` + partner's minimum >= `GAME`); else
+  pass, "Their contract; nothing more to show." Head to head: **+2.99 per
+  board, t = +3.48, 20 of 1,600 auctions changed**, 18 better: deal 118 4♠
+  doubled four down (+1100), 109, 125, 224, 110, 235. The loss is deal 328
+  (-170 twice), where their 4♥ makes. Deal 67 still passes 3NT that goes
+  down five: opener's 2NT rebid is not credited as 18-19, so E/W never see
+  game values.
 - **After a single raise, 1M-2M** (`_game_try`, `responder_rebid`; roadmap
   3.7 and 3.8, both the user's call, 2026-10-19).
   - **Opener's splinter** (`SELF_SPLINTER`, `SELF_SPLINTER_MIN = 18`):

@@ -1609,6 +1609,25 @@ def _two_suiter_lengths(seq: list[str], parity: int, two: tuple) -> dict:
     return lengths
 
 
+#: When THEY hold the contract at 3NT or the four level, it is not our game
+#: reached: double for penalty if our side has shown game values (bid
+#: game, a game-forcing auction, or judge + partner's minimum >= GAME),
+#: else pass. Before, the robots passed it as "Game reached".
+THEIR_CONTRACT_DOUBLE = True
+OVER_THEIRS = "Their contract; nothing more to show."
+
+
+def _is_game_bid(call: str) -> bool:
+    return call == '3NT' or (level_of(call) >= 4 and strain_of(call) in ('H', 'S', 'NT')) \
+        or (level_of(call) >= 5 and strain_of(call) in ('C', 'D'))
+
+
+def _over_their_contract(ctx: Ctx, values: bool) -> tuple:
+    if values and ctx.ok('X'):
+        return 'X', "Penalty: our side has the values for game."
+    return 'Pass', OVER_THEIRS
+
+
 def continuation(ctx: Ctx) -> tuple:
     """Anything the explicit tables above do not cover: find the fit, then
     the level -- game forced, invited, or a partscore."""
@@ -1644,6 +1663,9 @@ def continuation(ctx: Ctx) -> tuple:
 
     if partner_last and level_of(partner_last) >= 6:
         return 'Pass', "Partner placed the contract."
+    hb = ctx.auction.highest_bid
+    theirs_hold = THEIR_CONTRACT_DOUBLE and hb is not None and hb[2] not in (ctx.me, ctx.pd)
+    values = gf or comb >= GAME or any(_is_game_bid(c) for c in seq)
     if fit:
         if trump == fit and comb >= SLAM and ctx.ok('4NT') and cur_rank < rank_of('4NT') \
                 and '4NT' not in seq:
@@ -1651,6 +1673,8 @@ def continuation(ctx: Ctx) -> tuple:
         if fit in MAJORS:
             if comb >= GAME or gf:
                 if cur_rank >= rank_of(f"4{fit}"):
+                    if theirs_hold:
+                        return _over_their_contract(ctx, values)
                     return 'Pass', "Game reached."
                 return f"4{fit}", TO_PLAY
             call = ctx.cheapest(fit, 2)
@@ -1668,6 +1692,8 @@ def continuation(ctx: Ctx) -> tuple:
                 return f"5{fit}", TO_PLAY
             if cur_rank < rank_of('3NT'):
                 return '3NT', TO_PLAY
+            if theirs_hold:
+                return _over_their_contract(ctx, values)
             return 'Pass', "Game reached."
         if partner_last and strain_of(partner_last) == fit:
             return 'Pass', "No game."
@@ -1677,6 +1703,8 @@ def continuation(ctx: Ctx) -> tuple:
         return 'Pass', "No game."
 
     if current and level_of(current) >= 4 or current in ('3NT',):
+        if theirs_hold:
+            return _over_their_contract(ctx, values)
         return 'Pass', "Game reached."
     if gf or comb >= GAME:
         for s in SUITS:

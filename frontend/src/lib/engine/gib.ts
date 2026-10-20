@@ -1534,6 +1534,24 @@ function twoSuiterLengths(seq: string[], parity: number, two: [Suit, Suit | null
   return lengths;
 }
 
+/** When THEY hold the contract at 3NT or the four level, it is not our game
+ *  reached: double for penalty if our side has shown game values (bid
+ *  game, a game-forcing auction, or judge + partner's minimum >= GAME),
+ *  else pass. Before, the robots passed it as "Game reached". */
+export const THEIR_CONTRACT_DOUBLE = true;
+const OVER_THEIRS = 'Their contract; nothing more to show.';
+
+function isGameBid(call: string): boolean {
+  const st = strainOf(call);
+  return call === '3NT' || (levelOf(call) >= 4 && (st === 'H' || st === 'S' || st === 'NT'))
+    || (levelOf(call) >= 5 && (st === 'C' || st === 'D'));
+}
+
+function overTheirContract(ctx: Ctx, values: boolean): Decision {
+  if (values && ctx.ok('X')) return ['X', 'Penalty: our side has the values for game.'];
+  return ['Pass', OVER_THEIRS];
+}
+
 function continuation(ctx: Ctx): Decision {
   const seq = ctx.seq;
   const h = ctx.h;
@@ -1565,13 +1583,19 @@ function continuation(ctx: Ctx): Decision {
   if (fits.length) fit = maxBy(fits, (s) => [isMajor(s) ? 1 : 0, plen[s] + h.len[s], idx(s)]);
 
   if (partnerLast && levelOf(partnerLast) >= 6) return ['Pass', 'Partner placed the contract.'];
+  const hb = ctx.auction.highestBid;
+  const theirsHold = THEIR_CONTRACT_DOUBLE && !!hb && hb[2] !== ctx.me && hb[2] !== ctx.pd;
+  const values = gf || comb >= GAME || seq.some((c) => isGameBid(c));
   if (fit) {
     if (trump === fit && comb >= SLAM && ctx.ok('4NT') && curRank < rankOf('4NT') && !seq.includes('4NT')) {
       return ['4NT', `Keycard Blackwood for ${SYM[fit]}. Artificial.`];
     }
     if (isMajor(fit)) {
       if (comb >= GAME || gf) {
-        if (curRank >= rankOf(`4${fit}`)) return ['Pass', 'Game reached.'];
+        if (curRank >= rankOf(`4${fit}`)) {
+          if (theirsHold) return overTheirContract(ctx, values);
+          return ['Pass', 'Game reached.'];
+        }
         return [`4${fit}`, TO_PLAY];
       }
       const call = ctx.cheapest(fit, 2);
@@ -1584,6 +1608,7 @@ function continuation(ctx: Ctx): Decision {
       if (curRank < rankOf('3NT') && h.balanced) return ['3NT', TO_PLAY];
       if (comb >= 29 && curRank < rankOf(`5${fit}`)) return [`5${fit}`, TO_PLAY];
       if (curRank < rankOf('3NT')) return ['3NT', TO_PLAY];
+      if (theirsHold) return overTheirContract(ctx, values);
       return ['Pass', 'Game reached.'];
     }
     if (partnerLast && strainOf(partnerLast) === fit) return ['Pass', 'No game.'];
@@ -1592,7 +1617,10 @@ function continuation(ctx: Ctx): Decision {
     return ['Pass', 'No game.'];
   }
 
-  if ((current && levelOf(current) >= 4) || current === '3NT') return ['Pass', 'Game reached.'];
+  if ((current && levelOf(current) >= 4) || current === '3NT') {
+    if (theirsHold) return overTheirContract(ctx, values);
+    return ['Pass', 'Game reached.'];
+  }
   if (gf || comb >= GAME) {
     for (const s of SUITS) {
       if (h.len[s] >= 6 && !mylen[s]) {

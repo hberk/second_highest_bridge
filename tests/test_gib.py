@@ -507,6 +507,19 @@ def test_later_rounds_read_our_two_suiter_as_two_suits():
     assert gib._two_suiter_lengths(ctx.seq, 0, two) == {'C': 5, 'D': 0, 'H': 5, 'S': 0}
 
 
+def test_their_contract_is_not_our_game_reached():
+    """Deal 118: 1♠ (2♣) 2♠ (3♠) 4♣ (P) P (4♠): East passed 4♠ as "Game
+    reached" -- it was their contract, and it goes four down. With game
+    values shown, double for penalty; without them, pass and say why."""
+    call, why = bid('10S 2S AH QH 5H 4H JD 10D KC 9C 7C 4C 2C',
+                    '1S', '2C', 'Pass', '2S', '3S', '4C', 'Pass', 'Pass', '4S')
+    assert call == 'X' and 'Penalty' in why, (call, why)
+    # Deal 67: (1♦ by them) ... 2NT (3NT) with no game values of our own.
+    call, why = bid('QS 8S 5S 2S AH QH 6H 5H 4H 8D 5D QC 4C',
+                    '1D', '2C', 'X', 'Pass', '2NT', '3NT', dealer='East')
+    assert call == 'Pass' and 'Game reached' not in why, (call, why)
+
+
 def test_opener_splinters_after_a_single_raise():
     """Roadmap 3.8, the user's call: 1♥-2♥-3♠ is a splinter, a singleton or
     void in spades and a hand good enough to force game."""
