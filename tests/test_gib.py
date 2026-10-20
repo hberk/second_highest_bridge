@@ -520,6 +520,22 @@ def test_their_contract_is_not_our_game_reached():
     assert call == 'Pass' and 'Game reached' not in why, (call, why)
 
 
+def test_our_two_club_overcall_is_not_a_strong_two_club_opening():
+    """Deal 67: (1♦) 2♣ (X) P (2NT): South, 10 HCP, read its own overcall as
+    a strong 2♣, game forcing, bid 3NT and went six down. Now it passes."""
+    call, why = bid('4S 3S 8H 2H QD JD 10D 3D AC KC 10C 6C 3C',
+                    '1D', '2C', 'X', 'Pass', '2NT', dealer='East')
+    assert call == 'Pass', (call, why)
+    ctx = gib.Ctx('North', hand('KS 10S 9S 7S 6S 9H 7H 3H AD 9D 2D 9C 7C'),
+                  after('1D', '2C', 'Pass', dealer='East'))
+    assert gib._our_two_level_overcall(ctx) == ('C', None)
+    assert not gib._game_forced(['2C'], ctx)
+    # Over 1NT, 2♣ is artificial: not read as a natural overcall.
+    ctx = gib.Ctx('North', hand('KS 10S 9S 7S 6S 9H 7H 3H AD 9D 2D 9C 7C'),
+                  after('1NT', '2C', 'Pass', dealer='East'))
+    assert gib._our_two_level_overcall(ctx) is None
+
+
 def test_opener_splinters_after_a_single_raise():
     """Roadmap 3.8, the user's call: 1♥-2♥-3♠ is a splinter, a singleton or
     void in spades and a hand good enough to force game."""

@@ -1470,6 +1470,7 @@ function shownLengths(seq: string[], parity: number): Record<Suit, number> {
 
 function gameForced(seq: string[], ctx: Ctx): boolean {
   if (!seq.length) return false;
+  if (OVERCALL_READ && !ctx.weOpened && theirOpeningSuit(ctx)) return false;
   const first = seq[0];
   const x = strainOf(first);
   if (first === '2C') return !(seq.length > 2 && seq[1] === '2D' && seq[2] === '2NT');
@@ -1514,6 +1515,36 @@ function ourTwoSuiter(ctx: Ctx): [Suit, Suit | null] | null {
 
 /** Overcaller (parity 0): 5 in each shown suit, 6 once rebid, 4 in a new
  *  suit. Advancer: 3 in the suit preferred, 5 in a suit of their own. */
+/** Our natural two-level overcall, (1x) 2y, is 5+ y and 10-17 HCP. The later
+ *  rounds read it as an opening: (1♦) 2♣ as a strong 2♣, game forcing, so
+ *  on deal 67 South bid 3NT on 10 HCP over their 2NT and went six down; and
+ *  2♦/2♥/2♠ as a weak two. The opening's forcing rules apply only when we
+ *  opened. */
+export const OVERCALL_READ = true;
+
+/** Their opening's suit, when they opened at the one level in a suit. */
+function theirOpeningSuit(ctx: Ctx): Suit | null {
+  const first = ctx.calls.find(([, c]) => c !== 'Pass');
+  if (ctx.weOpened || !first || levelOf(first[1]) !== 1) return null;
+  const s = strainOf(first[1]);
+  return isSuit(s) ? s : null;
+}
+
+/** [y, null] when our first call was a natural, non-jump two-level suit
+ *  overcall straight over their one-level opening. */
+function ourTwoLevelOvercall(ctx: Ctx): [Suit, Suit | null] | null {
+  if (ctx.weOpened || !ctx.seq.length) return null;
+  const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
+  if (i < 0 || ctx.calls.length <= i + 1 || ctx.calls[i + 1][1] !== ctx.seq[0]) return null;
+  const opening = ctx.calls[i][1], call = ctx.seq[0];
+  const y = strainOf(call);
+  if (!theirOpeningSuit(ctx) || levelOf(call) !== 2 || !isSuit(y)
+    || y === strainOf(opening) || rankOf(`1${y}`) > rankOf(opening)) {
+    return null;
+  }
+  return [y, null];
+}
+
 function twoSuiterLengths(seq: string[], parity: number, two: [Suit, Suit | null]): Record<Suit, number> {
   const lengths: Record<Suit, number> = { C: 0, D: 0, H: 0, S: 0 };
   const shown = two.filter((t): t is Suit => t !== null);
@@ -1540,6 +1571,8 @@ function twoSuiterLengths(seq: string[], parity: number, two: [Suit, Suit | null
  *  else pass. Before, the robots passed it as "Game reached". */
 export const THEIR_CONTRACT_DOUBLE = true;
 const OVER_THEIRS = 'Their contract; nothing more to show.';
+/** ...and our side bidding to the four level counts as those values. */
+export const VALUES_AT_FOUR = true;
 
 function isGameBid(call: string): boolean {
   const st = strainOf(call);
@@ -1562,9 +1595,14 @@ function continuation(ctx: Ctx): Decision {
   let plen = shownLengths(seq, pParity);
   let mylen = shownLengths(seq, meParity);
   let trump = agreedTrump(seq);
-  const two = TWO_SUITER_READ ? ourTwoSuiter(ctx) : null;
+  let two = TWO_SUITER_READ ? ourTwoSuiter(ctx) : null;
+  let shows = TWO_SUITED_MIN;
+  if (!two && OVERCALL_READ) {
+    two = ourTwoLevelOvercall(ctx);
+    shows = OVERCALL_2[0];
+  }
   if (two) {
-    pmin = pParity === 0 ? TWO_SUITED_MIN : 0;
+    pmin = pParity === 0 ? shows : 0;
     plen = twoSuiterLengths(seq, pParity, two);
     mylen = twoSuiterLengths(seq, meParity, two);
     const p2 = plen, m2 = mylen;
@@ -1585,7 +1623,8 @@ function continuation(ctx: Ctx): Decision {
   if (partnerLast && levelOf(partnerLast) >= 6) return ['Pass', 'Partner placed the contract.'];
   const hb = ctx.auction.highestBid;
   const theirsHold = THEIR_CONTRACT_DOUBLE && !!hb && hb[2] !== ctx.me && hb[2] !== ctx.pd;
-  const values = gf || comb >= GAME || seq.some((c) => isGameBid(c));
+  const values = gf || comb >= GAME || seq.some((c) => isGameBid(c))
+    || (VALUES_AT_FOUR && seq.some((c) => levelOf(c) >= 4));
   if (fit) {
     if (trump === fit && comb >= SLAM && ctx.ok('4NT') && curRank < rankOf('4NT') && !seq.includes('4NT')) {
       return ['4NT', `Keycard Blackwood for ${SYM[fit]}. Artificial.`];

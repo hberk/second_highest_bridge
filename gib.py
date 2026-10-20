@@ -1545,6 +1545,8 @@ def _shown_lengths(seq: list[str], parity: int) -> dict:
 def _game_forced(seq: list[str], ctx: Ctx) -> bool:
     if not seq:
         return False
+    if OVERCALL_READ and not ctx.we_opened and _their_opening_suit(ctx):
+        return False                 # an opening's forcing rules, not an overcall's
     first = seq[0]
     x = strain_of(first)
     if first == '2C':
@@ -1589,6 +1591,39 @@ def _our_two_suiter(ctx: Ctx) -> tuple | None:
     return _two_suits_shown(ctx, ctx.seq[0], ctx.calls[i][1])
 
 
+#: Our natural two-level overcall, (1x) 2y, is 5+ y and 10-17 HCP. The later
+#: rounds read it as an opening: (1♦) 2♣ as a strong 2♣, game forcing, so
+#: on deal 67 South bid 3NT on 10 HCP over their 2NT and went six down; and
+#: 2♦/2♥/2♠ as a weak two. The opening's forcing rules apply only when we
+#: opened.
+OVERCALL_READ = True
+
+
+def _their_opening_suit(ctx: Ctx) -> str | None:
+    """Their opening's suit, when they opened at the one level in a suit."""
+    first = next(((w, c) for w, c in ctx.calls if c != 'Pass'), None)
+    if ctx.we_opened or first is None or level_of(first[1]) != 1:
+        return None
+    s = strain_of(first[1])
+    return s if s in SUITS else None
+
+
+def _our_two_level_overcall(ctx: Ctx) -> tuple | None:
+    """(y, None) when our first call was a natural, non-jump two-level suit
+    overcall straight over their one-level opening."""
+    if ctx.we_opened or not ctx.seq:
+        return None
+    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None or len(ctx.calls) <= i + 1 or ctx.calls[i + 1][1] != ctx.seq[0]:
+        return None
+    opening, call = ctx.calls[i][1], ctx.seq[0]
+    y = strain_of(call)
+    if not _their_opening_suit(ctx) or level_of(call) != 2 or y not in SUITS \
+            or y == strain_of(opening) or rank_of(f"1{y}") > rank_of(opening):
+        return None
+    return (y, None)
+
+
 def _two_suiter_lengths(seq: list[str], parity: int, two: tuple) -> dict:
     """Overcaller (parity 0): 5 in each shown suit, 6 once rebid, 4 in a new
     suit. Advancer: 3 in the suit preferred, 5 in a suit of their own."""
@@ -1615,6 +1650,8 @@ def _two_suiter_lengths(seq: list[str], parity: int, two: tuple) -> dict:
 #: else pass. Before, the robots passed it as "Game reached".
 THEIR_CONTRACT_DOUBLE = True
 OVER_THEIRS = "Their contract; nothing more to show."
+#: ...and our side bidding to the four level counts as those values.
+VALUES_AT_FOUR = True
 
 
 def _is_game_bid(call: str) -> bool:
@@ -1642,8 +1679,12 @@ def continuation(ctx: Ctx) -> tuple:
     mylen = _shown_lengths(seq, me_parity)
     trump = agreed_trump(seq)
     two = _our_two_suiter(ctx) if TWO_SUITER_READ else None
+    shows = TWO_SUITED_MIN
+    if not two and OVERCALL_READ:
+        two = _our_two_level_overcall(ctx)
+        shows = OVERCALL_2[0]
     if two:
-        pmin = TWO_SUITED_MIN if p_parity == 0 else 0
+        pmin = shows if p_parity == 0 else 0
         plen = _two_suiter_lengths(seq, p_parity, two)
         mylen = _two_suiter_lengths(seq, me_parity, two)
         trump = next((s for s in SUITS if plen[s] and mylen[s]
@@ -1665,7 +1706,8 @@ def continuation(ctx: Ctx) -> tuple:
         return 'Pass', "Partner placed the contract."
     hb = ctx.auction.highest_bid
     theirs_hold = THEIR_CONTRACT_DOUBLE and hb is not None and hb[2] not in (ctx.me, ctx.pd)
-    values = gf or comb >= GAME or any(_is_game_bid(c) for c in seq)
+    values = gf or comb >= GAME or any(_is_game_bid(c) for c in seq) \
+        or (VALUES_AT_FOUR and any(level_of(c) >= 4 for c in seq))
     if fit:
         if trump == fit and comb >= SLAM and ctx.ok('4NT') and cur_rank < rank_of('4NT') \
                 and '4NT' not in seq:

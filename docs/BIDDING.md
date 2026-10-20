@@ -144,6 +144,29 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   (-170 twice), where their 4♥ makes. Deal 67 still passes 3NT that goes
   down five: opener's 2NT rebid is not credited as 18-19, so E/W never see
   game values.
+- **Our natural overcall is not an opening** (`OVERCALL_READ`,
+  `_their_opening_suit`, `_our_two_level_overcall`; with `VALUES_AT_FOUR`;
+  the user's call, 2026-10-20). `continuation` read our first call with an
+  opening's meaning: (1♦) 2♣ as a strong 2♣ and game forcing, 2♦/2♥/2♠ as a
+  weak two, and a one-level overcall's later bids with 2/1 game-force rules.
+  Deal 67 (corrected: E/W's 2NT there answers the negative double, it is not
+  18-19): South, 10 HCP, overcalled 2♣ and then bid 3NT over their 2NT, six
+  down; now it passes. Now, after their one-level suit opening, the
+  opening's forcing rules don't apply to us, and a natural non-jump
+  two-level overcall reads as 5+ cards and 10+ HCP (`OVERCALL_2`), with
+  advancer's suit bids as support (3) or a suit of their own (5) -- the
+  two-suiter's reading with one suit. Over 1NT nothing changes (2♣ there is
+  artificial).
+  - The old misreading had been feeding `THEIR_CONTRACT_DOUBLE`: the
+    overcalling side "saw" game values and doubled. `VALUES_AT_FOUR` counts
+    our side bidding to the four level as values instead (deal 118: we
+    competed to 4♣, their 4♠ doubled is four down). It changes nothing on
+    its own.
+  - Head to head, both together: **+3.42 per board, t = +3.58, 81 of 1,600
+    auctions changed** (62 better, 17 worse). `OVERCALL_READ` alone +2.05
+    (t = +1.73). The worst losses -- 109, 125, 235 -- are boards where the
+    misread side bid 3NT on values it didn't have and the opponents then ran
+    into a doubled contract.
 - **After a single raise, 1M-2M** (`_game_try`, `responder_rebid`; roadmap
   3.7 and 3.8, both the user's call, 2026-10-19).
   - **Opener's splinter** (`SELF_SPLINTER`, `SELF_SPLINTER_MIN = 18`):
