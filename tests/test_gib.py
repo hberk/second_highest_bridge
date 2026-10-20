@@ -456,6 +456,86 @@ def test_responder_chooses_between_3nt_and_four_of_the_major():
     assert call == '4H', call
 
 
+def test_opener_splinters_in_their_suit_after_they_overcall_the_response():
+    """Deal 329: 1♣ (P) 1♥ (2♦) with ♠K752 ♥Q753 ♦— ♣AKQ63 raised to 2♥,
+    and 3♦ ended it; 7♥ makes. Four trumps, 0-1 in their suit and 19+
+    with dummy points (void 5, singleton 3) jump in their suit, game forcing."""
+    gib.ILLEGAL.clear()
+    call, why = bid('KS 7S 5S 2S QH 7H 5H 3H AC KC QC 6C 3C', '1C', 'Pass', '1H', '2D')
+    assert call == '4D' and 'Splinter' in why and 'Game forcing' in why, (call, why)
+    # A singleton needs 16 HCP: 15 raises with a jump instead.
+    assert bid('KS 7S 5S 2S KH 7H 5H 3H 4D AC KC QC 3C', '1C', 'Pass', '1H', '2D')[0] == '3H'
+    assert bid('AS 7S 5S 2S KH 7H 5H 3H 4D AC KC QC 3C', '1C', 'Pass', '1H', '2D')[0] == '4D'
+    # No splinter above game: 4♠ over 1♥ (2♠), nor for a minor.
+    assert bid('9S AH KH 7H 5H AD KD 7D 2D AC QC 6C 3C', '1C', 'Pass', '1H', '2S')[0] != '4S'
+    # Responder bids game over it.
+    call, _ = bid('AS KH JH 10H 6H 4H 10D 4D 10C 9C 8C 7C 2C',
+                  '1C', 'Pass', '1H', '2D', '4D', 'Pass')
+    assert call == '4H', call
+    assert not gib.ILLEGAL, gib.ILLEGAL
+
+
+def test_responder_bids_game_over_a_three_level_jump_overcall():
+    """Deal 346: ♠AK96 ♥K ♦QJ10432 ♣J6 passed 1♠ (3♥): the cuebid is above
+    three, 3♠ shows 6-9, and nothing else fit. 3+ support and 11+ bids game."""
+    assert bid('AS KS 9S 6S KH QD JD 10D 4D 3D 2D JC 6C', '1S', '3H')[0] == '4S'
+    # 10 HCP still does not: deals 1 and 381 went down in game.
+    assert bid('9S 6S 4S KH QH 8H 6H 3H AD 4D 3D JC 2C', '1H', '3D')[0] != '4H'
+    # Weak hands still raise to three.
+    assert bid('9S 6S 4S KH QH 6H 3H JD 4D 3D 8C 6C 2C', '1H', '3D')[0] == '3H'
+
+
+def test_advancer_bids_game_over_a_two_suited_overcall():
+    """Deal 163: (1♦) 2NT (P) with ♠Q2 ♥2 ♦Q10974 ♣KQJ96 chose 3♣, the same
+    call as with two clubs, and N/S defended 4♦ where 7♣ makes. 3+ in one
+    of partner's suits and game values bids game."""
+    call, why = bid('QS 2S 2H QD 10D 9D 7D 4D KC QC JC 9C 6C', '1D', '2NT', 'Pass', dealer='West')
+    assert call == '5C' and 'game values' in why, (call, why)
+    # A weak hand still takes the cheapest preference.
+    assert bid('8S 2S 2H 9D 8D 7D 5D 4D 10C 9C 6C 3C 2C', '1D', '2NT', 'Pass',
+               dealer='West')[0] == '3C'
+
+
+def test_later_rounds_read_our_two_suiter_as_two_suits():
+    """After (1♦) 2NT, partner's 3♣ is a preference, not Stayman over a 2NT
+    opening: the overcaller sees the club fit."""
+    ctx = gib.Ctx('North', hand('KS JS 9S AH QH 9H 7H 3H AC 8C 7C 5C 4C'),
+                  after('1D', '2NT', 'Pass', '3C', 'Pass', dealer='West'))
+    two = gib._our_two_suiter(ctx)
+    assert two == ('C', 'H'), two
+    assert gib._two_suiter_lengths(ctx.seq, 1, two)['C'] == 3
+    assert gib._two_suiter_lengths(ctx.seq, 0, two) == {'C': 5, 'D': 0, 'H': 5, 'S': 0}
+
+
+def test_their_contract_is_not_our_game_reached():
+    """Deal 118: 1♠ (2♣) 2♠ (3♠) 4♣ (P) P (4♠): East passed 4♠ as "Game
+    reached" -- it was their contract, and it goes four down. With game
+    values shown, double for penalty; without them, pass and say why."""
+    call, why = bid('10S 2S AH QH 5H 4H JD 10D KC 9C 7C 4C 2C',
+                    '1S', '2C', 'Pass', '2S', '3S', '4C', 'Pass', 'Pass', '4S')
+    assert call == 'X' and 'Penalty' in why, (call, why)
+    # Deal 67: (1♦ by them) ... 2NT (3NT) with no game values of our own.
+    call, why = bid('QS 8S 5S 2S AH QH 6H 5H 4H 8D 5D QC 4C',
+                    '1D', '2C', 'X', 'Pass', '2NT', '3NT', dealer='East')
+    assert call == 'Pass' and 'Game reached' not in why, (call, why)
+
+
+def test_our_two_club_overcall_is_not_a_strong_two_club_opening():
+    """Deal 67: (1♦) 2♣ (X) P (2NT): South, 10 HCP, read its own overcall as
+    a strong 2♣, game forcing, bid 3NT and went six down. Now it passes."""
+    call, why = bid('4S 3S 8H 2H QD JD 10D 3D AC KC 10C 6C 3C',
+                    '1D', '2C', 'X', 'Pass', '2NT', dealer='East')
+    assert call == 'Pass', (call, why)
+    ctx = gib.Ctx('North', hand('KS 10S 9S 7S 6S 9H 7H 3H AD 9D 2D 9C 7C'),
+                  after('1D', '2C', 'Pass', dealer='East'))
+    assert gib._our_two_level_overcall(ctx) == ('C', None)
+    assert not gib._game_forced(['2C'], ctx)
+    # Over 1NT, 2♣ is artificial: not read as a natural overcall.
+    ctx = gib.Ctx('North', hand('KS 10S 9S 7S 6S 9H 7H 3H AD 9D 2D 9C 7C'),
+                  after('1NT', '2C', 'Pass', dealer='East'))
+    assert gib._our_two_level_overcall(ctx) is None
+
+
 def test_opener_splinters_after_a_single_raise():
     """Roadmap 3.8, the user's call: 1♥-2♥-3♠ is a splinter, a singleton or
     void in spades and a hand good enough to force game."""

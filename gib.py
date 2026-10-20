@@ -1545,6 +1545,8 @@ def _shown_lengths(seq: list[str], parity: int) -> dict:
 def _game_forced(seq: list[str], ctx: Ctx) -> bool:
     if not seq:
         return False
+    if OVERCALL_READ and not ctx.we_opened and _their_opening_suit(ctx):
+        return False                 # an opening's forcing rules, not an overcall's
     first = seq[0]
     x = strain_of(first)
     if first == '2C':
@@ -1569,6 +1571,100 @@ def _game_forced(seq: list[str], ctx: Ctx) -> bool:
     return False
 
 
+#: Our two-suited overcall (Unusual 2NT, Michaels), 8+ HCP and 5-5:
+#: advancer with 3+ in one of the suits and game values (judge + 8 >= 25)
+#: bids game in it instead of the cheapest preference (deal 163).
+TWO_SUITER_GAME = True
+#: ...and the later rounds read it as two suits, not as a 2NT opening
+#: whose next bids are Stayman and transfers.
+TWO_SUITER_READ = True
+
+
+def _our_two_suiter(ctx: Ctx) -> tuple | None:
+    """The suits our first call showed, when it was a two-suited overcall
+    straight over their one-level opening."""
+    if ctx.we_opened or not ctx.seq:
+        return None
+    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None or len(ctx.calls) <= i + 1 or ctx.calls[i + 1][1] != ctx.seq[0]:
+        return None
+    return _two_suits_shown(ctx, ctx.seq[0], ctx.calls[i][1])
+
+
+#: Our natural two-level overcall, (1x) 2y, is 5+ y and 10-17 HCP. The later
+#: rounds read it as an opening: (1♦) 2♣ as a strong 2♣, game forcing, so
+#: on deal 67 South bid 3NT on 10 HCP over their 2NT and went six down; and
+#: 2♦/2♥/2♠ as a weak two. The opening's forcing rules apply only when we
+#: opened.
+OVERCALL_READ = True
+
+
+def _their_opening_suit(ctx: Ctx) -> str | None:
+    """Their opening's suit, when they opened at the one level in a suit."""
+    first = next(((w, c) for w, c in ctx.calls if c != 'Pass'), None)
+    if ctx.we_opened or first is None or level_of(first[1]) != 1:
+        return None
+    s = strain_of(first[1])
+    return s if s in SUITS else None
+
+
+def _our_two_level_overcall(ctx: Ctx) -> tuple | None:
+    """(y, None) when our first call was a natural, non-jump two-level suit
+    overcall straight over their one-level opening."""
+    if ctx.we_opened or not ctx.seq:
+        return None
+    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None or len(ctx.calls) <= i + 1 or ctx.calls[i + 1][1] != ctx.seq[0]:
+        return None
+    opening, call = ctx.calls[i][1], ctx.seq[0]
+    y = strain_of(call)
+    if not _their_opening_suit(ctx) or level_of(call) != 2 or y not in SUITS \
+            or y == strain_of(opening) or rank_of(f"1{y}") > rank_of(opening):
+        return None
+    return (y, None)
+
+
+def _two_suiter_lengths(seq: list[str], parity: int, two: tuple) -> dict:
+    """Overcaller (parity 0): 5 in each shown suit, 6 once rebid, 4 in a new
+    suit. Advancer: 3 in the suit preferred, 5 in a suit of their own."""
+    lengths = {s: 0 for s in SUITS}
+    shown = [s for s in two if s]
+    for i in range(parity, len(seq), 2):
+        s = strain_of(seq[i])
+        if parity == 0:
+            if i == 0:
+                for t in shown:
+                    lengths[t] = 5
+            elif s in shown:
+                lengths[s] = 6
+            elif s in SUITS:
+                lengths[s] = max(lengths[s], 4)
+        elif s in SUITS:
+            lengths[s] = max(lengths[s], 3 if s in shown else 5)
+    return lengths
+
+
+#: When THEY hold the contract at 3NT or the four level, it is not our game
+#: reached: double for penalty if our side has shown game values (bid
+#: game, a game-forcing auction, or judge + partner's minimum >= GAME),
+#: else pass. Before, the robots passed it as "Game reached".
+THEIR_CONTRACT_DOUBLE = True
+OVER_THEIRS = "Their contract; nothing more to show."
+#: ...and our side bidding to the four level counts as those values.
+VALUES_AT_FOUR = True
+
+
+def _is_game_bid(call: str) -> bool:
+    return call == '3NT' or (level_of(call) >= 4 and strain_of(call) in ('H', 'S', 'NT')) \
+        or (level_of(call) >= 5 and strain_of(call) in ('C', 'D'))
+
+
+def _over_their_contract(ctx: Ctx, values: bool) -> tuple:
+    if values and ctx.ok('X'):
+        return 'X', "Penalty: our side has the values for game."
+    return 'Pass', OVER_THEIRS
+
+
 def continuation(ctx: Ctx) -> tuple:
     """Anything the explicit tables above do not cover: find the fit, then
     the level -- game forced, invited, or a partscore."""
@@ -1581,11 +1677,22 @@ def continuation(ctx: Ctx) -> tuple:
     pmin = _partner_min(seq, p_parity)
     plen = _shown_lengths(seq, p_parity)
     mylen = _shown_lengths(seq, me_parity)
+    trump = agreed_trump(seq)
+    two = _our_two_suiter(ctx) if TWO_SUITER_READ else None
+    shows = TWO_SUITED_MIN
+    if not two and OVERCALL_READ:
+        two = _our_two_level_overcall(ctx)
+        shows = OVERCALL_2[0]
+    if two:
+        pmin = shows if p_parity == 0 else 0
+        plen = _two_suiter_lengths(seq, p_parity, two)
+        mylen = _two_suiter_lengths(seq, me_parity, two)
+        trump = next((s for s in SUITS if plen[s] and mylen[s]
+                      and plen[s] + mylen[s] >= 8), None)
     comb = h.judge + pmin
-    gf = _game_forced(seq, ctx)
+    gf = _game_forced(seq, ctx) and not two
     current = ctx.current()
     cur_rank = rank_of(current) if current else -1
-    trump = agreed_trump(seq)
     partner_last = ctx.partners()[-1] if ctx.partners() else None
 
     fits = [s for s in SUITS if plen[s] and plen[s] + h.len[s] >= 8]
@@ -1597,6 +1704,10 @@ def continuation(ctx: Ctx) -> tuple:
 
     if partner_last and level_of(partner_last) >= 6:
         return 'Pass', "Partner placed the contract."
+    hb = ctx.auction.highest_bid
+    theirs_hold = THEIR_CONTRACT_DOUBLE and hb is not None and hb[2] not in (ctx.me, ctx.pd)
+    values = gf or comb >= GAME or any(_is_game_bid(c) for c in seq) \
+        or (VALUES_AT_FOUR and any(level_of(c) >= 4 for c in seq))
     if fit:
         if trump == fit and comb >= SLAM and ctx.ok('4NT') and cur_rank < rank_of('4NT') \
                 and '4NT' not in seq:
@@ -1604,6 +1715,8 @@ def continuation(ctx: Ctx) -> tuple:
         if fit in MAJORS:
             if comb >= GAME or gf:
                 if cur_rank >= rank_of(f"4{fit}"):
+                    if theirs_hold:
+                        return _over_their_contract(ctx, values)
                     return 'Pass', "Game reached."
                 return f"4{fit}", TO_PLAY
             call = ctx.cheapest(fit, 2)
@@ -1621,6 +1734,8 @@ def continuation(ctx: Ctx) -> tuple:
                 return f"5{fit}", TO_PLAY
             if cur_rank < rank_of('3NT'):
                 return '3NT', TO_PLAY
+            if theirs_hold:
+                return _over_their_contract(ctx, values)
             return 'Pass', "Game reached."
         if partner_last and strain_of(partner_last) == fit:
             return 'Pass', "No game."
@@ -1630,6 +1745,8 @@ def continuation(ctx: Ctx) -> tuple:
         return 'Pass', "No game."
 
     if current and level_of(current) >= 4 or current in ('3NT',):
+        if theirs_hold:
+            return _over_their_contract(ctx, values)
         return 'Pass', "Game reached."
     if gf or comb >= GAME:
         for s in SUITS:
@@ -1701,6 +1818,9 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
     reopen = _reopening(ctx) or _answer_reopening(ctx) or _answer_extras_double(ctx)
     if reopen:
         return reopen
+    splintered = _answer_competed_splinter(ctx)
+    if splintered:
+        return splintered
     support = _after_support_double(ctx)
     if support:
         return support
@@ -1738,6 +1858,42 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
 #: Opener after 1x (P) 1y (2z): a new suit shows extras; 2NT is 18-19.
 REBID_NEW_SUIT_HCP = 16
 REBID_2NT = (18, 19)
+#: ...and with four of partner's major and 0-1 of their suit, a jump in
+#: their suit (4z) is a splinter, game forcing: HCP plus dummy points for
+#: the shortness (void 5, singleton 3) reach 19. Deal 329: 1♣ (P) 1♥ (2♦)
+#: with ♠K752 ♥Q753 ♦— ♣AKQ63 raised to 2♥ and defended 3♦; 7♥ makes.
+COMPETED_SPLINTER = True
+COMPETED_SPLINTER_MIN = 19
+SHORT_POINTS = {0: 5, 1: 3}
+
+
+def _competed_splinter_call(y: str, z: str) -> str | None:
+    """1x (P) 1y (2z) 4z: the splinter for major y in their suit z, when it
+    sits below game in y."""
+    if y not in MAJORS or z not in SUITS:
+        return None
+    call = f"4{z}"
+    return call if rank_of(call) < rank_of(f"4{y}") else None
+
+
+def _answer_competed_splinter(ctx: Ctx) -> tuple | None:
+    """Responder after 1x (P) 1y (2z) 4z: partner's splinter, game forcing.
+    Bid game in y. If they have bid over it, leave it to the fallback."""
+    if ctx.i_am_opener() or len(ctx.seq) != 3:
+        return None
+    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None or len(ctx.calls) < i + 5:
+        return None
+    (w0, c0), (_, c1), (w2, c2), (_, c3), (w4, c4) = ctx.calls[i:i + 5]
+    y, z = strain_of(c2), strain_of(c3)
+    if (w0 != ctx.pd or w2 != ctx.me or w4 != ctx.pd or level_of(c0) != 1
+            or c1 != 'Pass' or level_of(c2) != 1 or level_of(c3) != 2
+            or c4 != _competed_splinter_call(y, z)):
+        return None
+    game = f"4{y}"
+    if ctx.ok(game):
+        return game, TO_PLAY
+    return None
 
 
 def _rebid_over_their_overcall(ctx: Ctx) -> tuple | None:
@@ -1759,6 +1915,11 @@ def _rebid_over_their_overcall(ctx: Ctx) -> tuple | None:
     h = ctx.h
     if h.len[y] == 3:
         return None
+    splinter = _competed_splinter_call(y, z)
+    if (COMPETED_SPLINTER and splinter and h.len[y] >= 4 and h.len[z] <= 1
+            and h.hcp + SHORT_POINTS[h.len[z]] >= COMPETED_SPLINTER_MIN
+            and ctx.ok(splinter)):
+        return splinter, f"Splinter: 4+ {SYM[y]}, 0-1 {SYM[z]}. Game forcing."
     if h.len[y] >= 4:
         cheap = ctx.cheapest(y, 2)
         if cheap and (level_of(cheap) <= 3 or h.hcp >= NEG_COMPETED_JUMP_HCP):
@@ -1972,6 +2133,12 @@ def _cuebid_raise_reply(ctx: Ctx) -> tuple | None:
     return None
 
 
+#: Responder over 1M (3x), a three-level overcall: with 3+ support and 11+
+#: HCP the cuebid is above three and 3M shows 6-9, so bid game. Before,
+#: these hands passed (deal 346: ♠AK96 ♥K ♦QJ10432 ♣J6 over 1♠ (3♥)).
+JUMP_OVERCALL_GAME = True
+
+
 def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
     h = ctx.h
     hcp = h.hcp
@@ -2043,6 +2210,9 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
         call = ctx.cheapest(x, 2)
         if call and level_of(call) <= 3 and (hcp <= 9 or cue_too_high):
             return call, f"3+ {SYM[x]}, 6+ HCP."
+    if (JUMP_OVERCALL_GAME and x in MAJORS and lvl == 3 and their in SUITS
+            and sup >= 3 and hcp >= 11 and ctx.ok(f"4{x}")):
+        return f"4{x}", f"3+ {SYM[x]}, 11+ HCP. To play."
     for s in sorted(SUITS, key=lambda s: (h.len[s], SUITS.index(s)), reverse=True):
         if s in (x, their):
             continue
@@ -2456,6 +2626,10 @@ def _advance(ctx: Ctx) -> tuple | None:
             choice = a if h.len[a] >= 2 else max(MINORS, key=lambda s: (h.len[s], SUITS.index(s)))
         else:
             choice = max((a, b), key=lambda s: (h.len[s], SUITS.index(s)))
+        game = f"{4 if choice in MAJORS else 5}{choice}"
+        if (TWO_SUITER_GAME and choice in (a, b) and h.len[choice] >= 3
+                and h.judge + TWO_SUITED_MIN >= GAME and ctx.ok(game)):
+            return game, f"3+ {SYM[choice]}, game values. To play."
         call = ctx.cheapest(choice, 2)
         if call and level_of(call) <= 5:
             return call, "Choosing between partner's two suits."
