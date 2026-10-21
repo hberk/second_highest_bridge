@@ -10,6 +10,9 @@ untouched (card play only), so each pair is the same contract.
 
     python research/card_play_seated.py SHOWOUT_MIDDLE
     python research/card_play_seated.py SHOWOUT_MIDDLE AUCTION_IN_PLAY --deals 100
+    python research/card_play_seated.py DEEP_ENDGAME_CARDS=5   # a value, not a switch:
+                                       # the switched side plays with 5, the other with
+                                       # the shipped value
     python research/card_play_seated.py X --shard 0/2 --dump a.json   # split across
     python research/card_play_seated.py X --shard 1/2 --dump b.json   # processes,
     python research/card_play_seated.py --merge a.json b.json         # then merge
@@ -53,7 +56,9 @@ def paired(per_deal: list) -> str:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument('flags', nargs='*', help="ai switches the switched side plays with")
+    parser.add_argument('flags', nargs='*',
+                        help="ai switches the switched side plays with, or NAME=VALUE "
+                             "for a numeric setting the switched side alone plays with")
     parser.add_argument('--deals', type=int, default=None)
     parser.add_argument('--shard', default=None, metavar='I/N', help="play every Nth deal from I")
     parser.add_argument('--dump', default=None, help="write the per-deal results to this file")
@@ -67,9 +72,16 @@ def main(argv=None) -> int:
         print(f"  switched side's tricks: {paired([d for p in parts for d in p['tricks']])}")
         print(f"  switched side's score:  {paired([d for p in parts for d in p['points']])}")
         return 0
+    values = {}
     for flag in args.flags:
-        if not isinstance(getattr(ai, flag, None), bool):
-            print(f"ai has no switch {flag}")
+        name, eq, raw = flag.partition('=')
+        current = getattr(ai, name, None)
+        if eq and isinstance(current, int) and not isinstance(current, bool) and raw.isdigit():
+            values[name] = (current, int(raw))          # (everyone else, switched side)
+        elif not eq and isinstance(current, bool):
+            values[name] = (False, True)
+        else:
+            print(f"ai has no switch or numeric setting {flag}")
             return 1
     for setting in args.set:
         name, _, raw = setting.partition('=')
@@ -84,8 +96,8 @@ def main(argv=None) -> int:
 
     def play(seat, *a, **k):
         on = PARTNERSHIP[seat] == switched['side']
-        for flag in args.flags:
-            setattr(ai, flag, on)
+        for name, (off_value, on_value) in values.items():
+            setattr(ai, name, on_value if on else off_value)
         return real_play(seat, *a, **k)
 
     challenge.ai_play = play

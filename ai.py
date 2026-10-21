@@ -1318,6 +1318,21 @@ DEEP_ENDGAME_CARDS = 4
 # cards are played, faster.
 
 _SUIT_BITS = [((1 << 13) - 1) << (13 * i) for i in range(4)]
+
+#: One memory of searched positions for every search, every robot, every
+#: board: a position's value in N/S tricks is the same whoever is looking and
+#: whichever layout led there (measurement switch). One table per trump suit,
+#: bounded, so it can't grow without end.
+SHARED_POSITIONS = True
+_POSITION_MEMO: dict = {}
+_POSITION_MEMO_MAX = 600_000
+
+
+def _position_memo(trump: int | None) -> dict:
+    table = _POSITION_MEMO.setdefault(trump, {})
+    if len(table) > _POSITION_MEMO_MAX:
+        table.clear()
+    return table
 _NS_SEATS = (0, 2)                         # North, South in PLAYERS order
 
 
@@ -1537,13 +1552,14 @@ def _endgame_totals(player: str, hand: list[Card], trick: list[tuple[str, Card]]
         masks = [sum(1 << _bit(c) for c in held[p]) for p in PLAYERS]
         bits_trick = tuple((PLAYERS.index(p), _bit(c)) for p, c in trick)
         trump_bit = SUITS.index(trump) if trump in SUITS else None
-        memo: dict = {}
+        memo = _position_memo(trump_bit) if SHARED_POSITIONS else {}
         me = PLAYERS.index(player)
+        left = (sum(bin(m).count('1') for m in masks) + len(trick)) // 4
         for card in legal:
             masks[me] ^= 1 << _bit(card)
-            totals[card] += _bit_search(masks, bits_trick + ((me, _bit(card)),),
-                                        PLAYERS.index(leader), trump_bit,
-                                        side == 'N/S', memo)
+            ns = _bit_search(masks, bits_trick + ((me, _bit(card)),),
+                             PLAYERS.index(leader), trump_bit, True, memo)
+            totals[card] += ns if side == 'N/S' else left - ns
             masks[me] ^= 1 << _bit(card)
     return totals if layouts else None
 
