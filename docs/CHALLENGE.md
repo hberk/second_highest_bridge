@@ -103,7 +103,23 @@ card-play gain measured here. Two things learned on the way:
 - A sampled search from five or six cards (eight seeded layouts) was tried
   first and dropped: on deal 0 it put up the K♦ third in hand where the 6♦
   takes three more tricks, because whether the king wins turns on one of
-  East's cards. Every layout from five cards took ~16 s a board.
+  East's cards. Every layout from five cards took ~16 s a board -- until
+  the shared memory below.
+- **One memory for every search** (`ai.SHARED_POSITIONS`, `_position_memo`;
+  the user's call, 2026-10-21): positions are kept in N/S tricks, one table
+  per trump suit, across every layout, robot and board -- a position's value
+  doesn't depend on who looks or which layout led there. Same play, half the
+  time: **0.10 s a board at four cards** (from 0.20).
+- **Five cards is measured and waiting** for the compiled solver: against
+  four, seated, **+0.204 tricks and +22.8 points per board, t = +9.34 over
+  398 deals, 2,564 boards changed** -- the fifth card pays as much as the
+  fourth. With the shared memory it costs 0.77 s a board, fine at the table
+  but too slow for the test suites (the Python suite took 19 minutes, the
+  fixture export 16, and the TS replay over an hour, since the TS search has
+  no bit patterns). Six cards took 22 s a board (over 900 layouts). Both wait
+  on `research/solver-rs` reaching the apps (a Python extension and WASM).
+- Tried and dropped: trying the remembered best card first (0.87 s against
+  0.77 s at five cards, no gain).
 **Second hand covers to promote a visible partner** (`_cover_for_partner`):
 when partner plays last and partner's hand is in view (declarer and dummy),
 each card is scored by how many of the third player's possible cards -- drawn

@@ -712,6 +712,19 @@ export const ENDGAME_CARDS = 3;
 /** Search every layout from DEEP_ENDGAME_CARDS a hand (see ai.py). */
 export const DEEP_ENDGAME = true;
 export const DEEP_ENDGAME_CARDS = 4;
+/** One memory of searched positions (N/S tricks) for every search, robot and
+ *  board, one table per trump suit, bounded (see ai.py). */
+export const SHARED_POSITIONS = true;
+const POSITION_MEMO = new Map<string, Map<string, [number, number]>>();
+const POSITION_MEMO_MAX = 600_000;
+
+function positionMemo(trump: string | null): Map<string, [number, number]> {
+  const k = trump ?? 'NT';
+  let table = POSITION_MEMO.get(k);
+  if (!table) { table = new Map(); POSITION_MEMO.set(k, table); }
+  if (table.size > POSITION_MEMO_MAX) table.clear();
+  return table;
+}
 
 const cardOrder = (c: Card): number[] => [suitIndex(c.suit), value(c)];
 
@@ -919,11 +932,15 @@ function endgameTotals(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     for (const [seat, cards] of Object.entries(known)) hands[seat] = [...cards];
     hands[first] = a;
     hands[second] = b;
-    const bounds = new Map<string, [number, number]>();
+    const bounds = SHARED_POSITIONS ? positionMemo(trump) : new Map<string, [number, number]>();
+    let cardsLeft = trick.length;
+    for (const p of PLAYERS) cardsLeft += hands[p].length;
+    const left = cardsLeft / 4;
     for (const c of legal) {
       const at = hands[player].findIndex((x) => cardKey(x) === cardKey(c));
       hands[player].splice(at, 1);
-      totals.set(cardKey(c), totals.get(cardKey(c))! + fastSearch(hands, [...trick, [player, c]], leader, trump, side, bounds));
+      const ns = fastSearch(hands, [...trick, [player, c]], leader, trump, 'N/S', bounds);
+      totals.set(cardKey(c), totals.get(cardKey(c))! + (side === 'N/S' ? ns : left - ns));
       hands[player].splice(at, 0, c);
     }
   }
