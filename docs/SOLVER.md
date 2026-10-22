@@ -28,6 +28,10 @@ python tests/fixtures/generate_endings.py
 # Build the Rust engine once (see Solver invariants below for why it exists)
 cd research/solver-rs && cargo build --release && cargo test --release && cd ../..
 
+# The same engine as WebAssembly for the web app's History replayer
+# (research/solver-rs/wasm; see FRONTEND.md, "Double dummy in the History replayer")
+cd frontend && npm run wasm
+
 # Double dummy dataset for fitting bidding (resumable, just rerun to continue)
 python research/dd_dataset.py --deals 25                            # pure Python
 python research/dd_dataset.py --deals 300 --engine rust --workers 6  # ~67x faster per solve

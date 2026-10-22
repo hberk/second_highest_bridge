@@ -5,7 +5,7 @@ Head-to-head boards against an all-robot table, graded against double dummy, and
 Moved verbatim from `CLAUDE.md` on 2026-10-13, so it is read when the work needs it instead of loading into every session. [CLAUDE.md](../CLAUDE.md) keeps the guardrails and links here.
 
 **`challenge.py`** — head-to-head mode: the same deal played by the human and by
-an all-robot table, then graded. Pure domain logic, no Streamlit. It runs on
+an all-robot table, then graded. Pure domain logic, no UI. It runs on
 `data/solved_deals.json` (written by `research/export_challenge_deals.py`): the
 **400 deals, every one solved in all five strains for both declaring sides**. That
 completeness is the whole point — whatever contract an auction reaches, its

@@ -105,8 +105,8 @@ Follow-ups from the redesign:
 - [ ] **2.9 Bid meanings run on the main thread** (`callMeanings`, 4,000
   sampled hands, ~100 ms on a laptop) just after the pad appears. If a phone
   shows a stutter, move it to a Web Worker.
-- [ ] **2.10 Streamlit** has no bid meanings or two-tap box; it stays the
-  reference engine with its old look unless the user asks.
+- [x] **2.10 Streamlit** (2026-10-21): retired once the web app had double
+  dummy analysis; the Python engine stays the reference.
 
 The original notes, from screenshots of the old built site (desktop
 1400x1000, phone 390x844):
@@ -141,9 +141,7 @@ The original notes, from screenshots of the old built site (desktop
   after 2.1.
 
 For each: `npm run check`, `npm test` (`game.test.ts` renders every view at
-every step), then a fresh screenshot at both sizes. UI changes go to the
-Svelte app; the Streamlit app is the reference engine and needs matching UI
-changes only where the user asks.
+every step), then a fresh screenshot at both sizes.
 
 ## 3. Housekeeping (small)
 
@@ -221,9 +219,11 @@ Still open, **each the user's call**:
 
 ## 4. Bigger projects (only when the user asks)
 
-- **Double dummy panel in the web app.** Compile `research/solver-rs` to
-  WebAssembly; don't port `bridge/solver`. Interactive per-card analysis is
-  viable for roughly the last six tricks (see [SOLVER.md](SOLVER.md)).
+- [x] **Double dummy panel in the web app** (2026-10-21): `research/solver-rs`
+  as WebAssembly in the History replayer, tricks 3-13 at once and 1-2 on a
+  tap. See "Double dummy in the History replayer" in [FRONTEND.md](FRONTEND.md).
+  Next on the same build: the robots' deeper endgame search (5 cards measured
+  at +22.8 points a board, CHALLENGE.md), which needs a Python extension too.
 - **Online play with friends.** Designed in [ONLINE_PLAN.md](ONLINE_PLAN.md)
   and [HOSTING_AND_LOCAL_SAVES.md](HOSTING_AND_LOCAL_SAVES.md). Blocked on a
   user decision (accounts on Supabase or Cloudflare). Suggested waiting
@@ -231,8 +231,11 @@ Still open, **each the user's call**:
 
 ## For the user, outside the code
 
-- Merge Dependabot PRs once their checks are green (#6 Streamlit and #7
-  frontend were open on 2026-10-14).
+- Merge Dependabot PRs once their checks are green. The open pip PR for
+  Streamlit can be closed: Streamlit is retired, and Dependabot no longer
+  watches pip.
+- Stop the Streamlit Community Cloud deployment (its dashboard), since the
+  app it ran is gone from the repository.
 - GitHub settings, if not done: CodeQL default setup, private vulnerability
   reporting and Dependabot security updates (Settings → Advanced Security);
   a ruleset on the default branch blocking force pushes and deletion; "Keep

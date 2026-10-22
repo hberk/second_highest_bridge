@@ -1,23 +1,25 @@
 # Svelte front end (`frontend/`)
 
-The static Svelte 5 + Vite port of the Streamlit app: how it is held to the Python engine, and the features both apps share.
+The game: a static Svelte 5 + Vite app, how it is held to the Python engine, and its features.
 
 Moved verbatim from `CLAUDE.md` on 2026-10-13, so it is read when the work needs it instead of loading into every session. [CLAUDE.md](../CLAUDE.md) keeps the guardrails and links here.
 
 ```bash
 cd frontend
 npm install
+rustup target add wasm32-unknown-unknown   # once, for the double dummy solver
 npm run fixtures   # export the Python engine's behaviour (needs Python 3.12+)
-npm test           # TS engine parity with Python + headless table flow
+npm test           # TS engine parity with Python + headless table flow + WASM solver
 npm run check      # svelte-check
 npm run dev        # local dev server
 npm run build      # static site in frontend/dist, deployed to GitHub Pages
 ```
 
-A static Svelte 5 + Vite port of the Streamlit app, hosted on GitHub Pages:
-no server, everything runs in the browser, ~105 KB gzipped including the deal
-library. `app.py` and the Python engine stay as they are and remain the
-reference.
+The game, hosted on GitHub Pages: no server, everything runs in the browser,
+~105 KB gzipped including the deal library, plus 21 KB for the double dummy
+solver. It began as a port of a Streamlit app (`app.py`, `web/`), retired on
+2026-10-21 once this one did everything it did; the Python engine stays and
+remains the reference.
 - `frontend/src/lib/engine/` is a **line-for-line TypeScript port** of
   `card.py`, `bridge/` (auction, trick, scoring; the trick rules `legalPlays` and
   `resolveTrick` live in `auction.ts`, there is no `trick.ts`) and
@@ -31,10 +33,10 @@ reference.
   CI regenerates the fixtures on every run. Port details that matter: Python's
   `max`/`min` keep the first of tied items (`maxBy`/`minBy`), and 3.12's
   compensated `sum()` (`pythonSum`).
-- `frontend/src/lib/game.svelte.ts` is `app.py`'s state machine. The auction is
+- `frontend/src/lib/game.svelte.ts` is the table's state machine. The auction is
   rebuilt from the call list rather than stored, so there is one source of truth.
   `game.test.ts` drives it through free and challenge boards, rendering every
-  view at every step -- the counterpart of `tests/test_app_flow.py`.
+  view at every step.
   `new Game(storage, random)` takes the random source that deals and picks
   challenge deals; every test passes a seeded one (`prng` from `meanings.ts`),
   since an unseeded "at least once in ten boards" check failed CI by chance.
@@ -89,23 +91,19 @@ reference.
   so the fixtures don't cover it, and `ai.py` stays free of any RNG: the
   sampler's is its own.
 - Styles: `felt.css` holds the Felt design and its colour tokens, loaded
-  last, so the older sheets (`table.css`, ported from `styles.css` with
-  Streamlit selectors dropped, and `app-shell.css`) take on its colours where
+  last, so the older sheets (`table.css`, ported from the Streamlit app's
+  stylesheet, and `app-shell.css`) take on its colours where
   History and Challenge still use them. `mobile.css` now only tightens How to
-  play's felt diagrams on phones. Svelte escapes all text,
-  so the `unsafe_allow_html` audit ([ARCHITECTURE.md](ARCHITECTURE.md)) has no equivalent here: no `{@html}`
+  play's felt diagrams on phones. Svelte escapes all text, and no `{@html}`
   is used anywhere.
-- **Self-alerts** (both apps): the bidding box has an alert field (in the
-  Svelte app, "Add an alert" in the box a first tap opens); the
-  text goes with the next call (`Game.humanBids(call, alert)`, `human_bids` in
-  `app.py`), is cleaned by `cleanAlert` / `clean_alert` (one line, at most 70
-  characters), and is shown live even on a pass, while robot pass reasons stay
-  hidden. The robots don't read it. Streamlit can't clear a text box from the
-  run that read it, so its key includes the auction's length
-  (`self_alert_<board>_<calls>`): each call gets a fresh box. Because the
-  Svelte app takes free text, `lin.test.ts` fails if `{@html}` appears in any
-  component; for Streamlit see the `unsafe_allow_html` review in [ARCHITECTURE.md](ARCHITECTURE.md).
-- **LIN** (`bridge/lin.py` and `frontend/src/lib/lin.ts`, both apps): BBO's
+- **Self-alerts**: "Add an alert" in the box a first tap opens; the text goes
+  with the next call (`Game.humanBids(call, alert)`), is cleaned by
+  `cleanAlert` (one line, at most 70 characters; `clean_alert` in
+  `bridge/auction.py` is its Python twin), and is shown live even on a pass,
+  while robot pass reasons stay hidden. The robots don't read it. Because the
+  app takes free text, `lin.test.ts` fails if `{@html}` appears in any
+  component.
+- **LIN** (`frontend/src/lib/lin.ts`, and `bridge/lin.py` in Python): BBO's
   hand-record format, exported and imported in the History tab. **The two
   write byte-identical LIN**: `export_ts_fixtures.py` writes Python's LIN for
   300 boards to `lin.json`, and `lin.test.ts` must parse each to Python's
@@ -126,10 +124,9 @@ reference.
   nothing to score. It reads BBO's variants (a missing fourth hand,
   `mc` claims, lower case, `!S` suit symbols). `|` in an alert becomes `/`,
   the one lossy step. BBO's own viewer applies ordinary rules, so it shows our
-  tricks going to the wrong hands. In Streamlit, a board that ended in a claim
-  skips the double dummy panel, which needs all 13 tricks.
-- **Table conveniences** (both apps; `qol.test.ts`, `tests/test_app_flow.py`;
-  Streamlit: sidebar checkboxes and `web/session_view.py`): **Last trick** on the
+  tricks going to the wrong hands. A board that ended in a claim gets double
+  dummy values for the tricks that were played.
+- **Table conveniences** (`qol.test.ts`): **Last trick** on the
   felt from trick 2 on (the peek is keyed to the moment it was asked for, so
   any card played drops it); **auto-play forced cards** (`settings.autoPlay`,
   off by default, and `Game.autoPlayForced` defaults to false so the
@@ -137,20 +134,42 @@ reference.
   play** (`settings.fastPlay`, next trick after 1.2 s); a **session
   scoreboard** (`SessionScore.svelte`) on the home page: N/S total, made and
   set counts, a board-by-board running total, and the margin against the
-  robots on challenge boards. Passed-out boards count (`Game.passedOutCount`,
-  `passed_out_count`); boards imported from LIN don't (`imported`). Auto-play
-  is off by default in both apps (since 2026-10-15), and `test_app_flow`'s
-  `_start_play_as` switches it on only when a test asks: the others click
-  every card themselves. Last trick and the auction are buttons beside your
-  hand in the Svelte app. Fast play in Streamlit
-  sleeps 1.2 s after the trick is drawn, then reruns.
-- **The challenge review renders the history view a second time in the same
-  run**, so `render_history_tab(..., key=)` prefixes every widget key (`hist`
-  for the History tab, `chal` for the review), including the double dummy
-  panel's (`hist_dd_on_<board>`). Before this, both used `hist_board_sel`.
-- **Not ported: the double dummy analysis panel** (`web/analysis_view.py`). The
-  route for it is `research/solver-rs` compiled to WebAssembly, not a port of
-  `bridge/solver`.
+  robots on challenge boards. Passed-out boards count (`Game.passedOutCount`);
+  boards imported from LIN don't (`imported`). Auto-play is off by default
+  (since 2026-10-15). Last trick and the auction are buttons beside your
+  hand.
+- **Double dummy in the History replayer** (2026-10-21; `src/lib/dd/`,
+  `dd.test.ts`). `research/solver-rs` compiled to WebAssembly
+  (`research/solver-rs/wasm`, 50 KB), not a port of `bridge/solver`. At each
+  step, every legal card of the seat to play carries how the contract ends if
+  it's played and both sides play perfectly after: **−n** (red) down n, **=**
+  (grey) exactly, **+n** (green) n overtricks; the card played is underlined.
+  Signed as well as coloured, for colour-blind players, and measured against
+  the contract on a defender's turn too (the user's choices, from a mock).
+  The History tab only (`analysis` prop), not the challenge review.
+  - **It runs in a worker**, one per board shown (`worker.ts`, terminated on
+    leaving the board, which frees the table), and fills in from the last
+    trick back with one `Search` kept through the board: the endgame is
+    instant and fills the table the earlier tricks reuse.
+  - **Depth.** Tricks 3-13 at once (`AUTO_CARDS = 11`); tricks 1-2 on a tap.
+    Measured on 38 library boards, WebAssembly in Node on the laptop, table
+    capped at 1M entries: the last 10 tricks 0.28 s median, 2.0 s worst; the
+    last 11, 0.87 s and 4.9 s. The whole hand, tricks 1-2 included: 31 s
+    median, over a minute on 13 of the 38 boards and up to 7 minutes (the
+    1M cap evicts on hard deals; uncapped natively, 11 s median and 47 s at
+    worst). Phones will be slower. WebAssembly ran at native speed at every
+    depth measured, with every value identical to the native solver.
+  - **Memory.** `TABLE_LIMIT = 1_000_000` entries, ~130 MB of WebAssembly
+    memory at the peak. The native limit (50M, gigabytes) would kill a phone
+    tab. A smaller table costs time, never a different value (`dd.test.ts`
+    also runs with 7 entries).
+  - **Checked against the Python solver** (`export_ts_fixtures.py` writes
+    `dd.json`: every decision of the last five tricks of 16 boards, 320 in
+    all), value for value, and against the native build on 38 stored robot
+    lines in the spike (every card of every decision, identical).
+  - **No fallback.** `npm run wasm` (run before dev, test and build) needs
+    Rust with the `wasm32-unknown-unknown` target and fails without it; CI
+    adds the target. The page's CSP allows `'wasm-unsafe-eval'` for it.
 - **Saved games** (`frontend/src/lib/saves.ts`, `saves.test.ts`): finished
   boards, challenge results and the passed-out count are kept in `localStorage`
   under `shb-games-v1` (newest 500 boards) and restored by `new Game()`, which

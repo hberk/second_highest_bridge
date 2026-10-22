@@ -1,7 +1,6 @@
 // Drives the table's state machine the way a player would -- free boards and
 // challenge boards, start to finish -- and renders every view at every step,
 // so a template error or a stuck phase fails here rather than in the browser.
-// The counterpart of tests/test_app_flow.py.
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import { Game } from './game.svelte';

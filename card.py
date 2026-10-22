@@ -46,11 +46,11 @@ class Card:
         return str(self)
 
     def __eq__(self, other: object) -> bool:
-        # Compared by class NAME, not identity: Streamlit re-imports every
-        # project module when a source file changes, so a board dealt before
-        # the reload holds instances of the old Card class. An isinstance test
-        # made those unequal to every new Card, and the double dummy panel
-        # then rejected every recorded play as "not legal".
+        # Compared by class NAME, not identity, so a Card made before a module
+        # reload still equals one made after. The Streamlit app (retired
+        # 2026-10-21) re-imported every module on a source change, and an
+        # isinstance test made its double dummy panel reject every recorded
+        # play as "not legal". Kept: harmless, and test_solver_replay checks it.
         if type(other).__name__ != 'Card':
             return NotImplemented
         return self.suit == other.suit and self.rank == other.rank

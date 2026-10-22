@@ -1,5 +1,6 @@
-# Rust build artifacts: 49 MB, and nothing outside research/solver-rs needs
-# them. The engine is rebuilt with `cargo build --release` (see docs/SOLVER.md).
+# Rust build artifacts: 49 MB. The engine is rebuilt with `cargo build
+# --release` (see docs/SOLVER.md); its WebAssembly build has its own
+# research/solver-rs/wasm/.gitignore and is copied into frontend/ by npm run wasm.
 research/solver-rs/target/
 
 # Virtual environments
@@ -11,9 +12,6 @@ env/
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Streamlit secrets -- never commit these
-.streamlit/secrets.toml
 
 # Personal Claude Code settings (local permissions)
 .claude/settings.local.json

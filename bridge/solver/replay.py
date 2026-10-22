@@ -10,7 +10,9 @@ a caller on a time budget gets the endgame immediately and gives up only on the
 early tricks, which is the right way round: it is also where a post-mortem is
 most likely to find something actionable.
 
-No Streamlit here. The progressive-fill UI lives in web/analysis_view.py.
+No UI here. The web app's History replayer does the same backwards fill on
+the WebAssembly build of research/solver-rs (frontend/src/lib/dd/), checked
+against this module's values by dd.test.ts.
 """
 from __future__ import annotations
 from typing import Dict, List, NamedTuple, Optional, Sequence

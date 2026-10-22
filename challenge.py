@@ -20,7 +20,8 @@ Those two numbers answer "how good is the robot at bidding" and "how good is it
 at declaring" separately, which a single score cannot. The identity is exact and
 `tests/test_challenge.py` asserts it.
 
-Nothing here imports streamlit; the UI layer renders what these functions return.
+No UI here: the web app runs frontend/src/lib/engine/challenge.ts, a port held
+to this module by fixtures.
 """
 from __future__ import annotations
 
@@ -203,8 +204,9 @@ def robot_table(deal_id: int, dealer: str, vulnerability: str = 'None') -> dict:
 def as_history_record(table: dict, board_num, label: str) -> dict:
     """Shape a robot table's result like a hand-history entry.
 
-    The replayer in `web/replayer_view.py` renders any record of this shape, so
-    a robot board becomes steppable without the replayer knowing it exists.
+    The replayer renders any record of this shape, so a robot board becomes
+    steppable without the replayer knowing it exists. The web app's twin is
+    `asHistoryRecord` in frontend/src/lib/game.svelte.ts.
     """
     return {
         'board_num': board_num,

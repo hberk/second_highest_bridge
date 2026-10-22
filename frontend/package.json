@@ -4,10 +4,14 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "wasm": "node scripts/build-wasm.mjs",
+    "predev": "npm run wasm",
     "dev": "vite",
+    "prebuild": "npm run wasm",
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
+    "pretest": "npm run wasm",
     "test": "vitest run",
     "fixtures": "python ../tests/fixtures/export_ts_fixtures.py"
   },

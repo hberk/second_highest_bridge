@@ -2,8 +2,8 @@
 
 Status: **agreed design, nothing built yet.** Backend: Supabase. Front end: the
 existing Svelte app in `frontend/`, deployed to GitHub Pages.
-The Streamlit app stays offline as the research/reference app and gets no
-accounts.
+The Streamlit app this plan left offline was retired on 2026-10-21; the
+Python engine stays as the reference and gets no accounts.
 
 > **Changes since this plan (2026-10-13), see
 > [HOSTING_AND_LOCAL_SAVES.md](HOSTING_AND_LOCAL_SAVES.md):**
@@ -33,7 +33,7 @@ exactly as at a real table.
 | Trust between friends | **Not trusted** | At a shared table the server deals, holds the hands and validates every call and card |
 | Human alerts | Humans alert their own calls | Alerts are a hidden-information channel, stored apart from the event log |
 | History visibility | Private by default | `boards` readable by the owner only; sharing is explicit |
-| Streamlit app | Stays offline | No changes to `app.py` |
+| Streamlit app | Retired (2026-10-21) | The Python engine stays the reference |
 
 ## Principles
 
@@ -215,11 +215,9 @@ that.
 ## Security notes
 
 - **More free-text input arrives** (username, display name). The apps
-  already take some: self-alerts and LIN import. The Streamlit app escapes
-  every string it renders and reviews each input (`REVIEWED_INPUTS` in
-  `tests/test_web_escaping.py`); the Svelte app has no `{@html}`, so Svelte's
-  escaping covers it, and `lin.test.ts` fails if `{@html}` appears in any
-  component. Keep both that way.
+  already takes some: self-alerts and LIN import. It has no `{@html}`, so
+  Svelte's escaping covers it, and `lin.test.ts` fails if `{@html}` appears in
+  any component. Keep it that way.
 - **CSP** (the `<meta>` in `frontend/index.html`): `connect-src` adds
   `https://<project>.supabase.co` and `wss://<project>.supabase.co`. Magic
   links are plain navigation, so nothing else changes.

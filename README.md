@@ -36,27 +36,29 @@ and many of bridge's instincts point the wrong way.
   so a board played under ordinary rules will usually be refused.
 - **A double dummy solver** for the variant, which is how the library was
   solved. How many tricks a deal is worth with perfect play wasn't known for
-  this game.
+  this game. The hand history runs it in your browser: step through a board
+  and every card shows how the contract would end if it were played.
 
 ## Running it yourself
 
-There are two front ends over one rules engine:
+The web app is in `frontend/` (Svelte). It needs Node and, for the double
+dummy solver, Rust with the WebAssembly target:
 
 ```bash
-# The web app (Svelte), as deployed
+rustup target add wasm32-unknown-unknown
 cd frontend
 npm install
 npm run dev
-
-# The original Streamlit app (Python 3.12), the reference implementation
-pip install -r requirements.txt
-streamlit run app.py
 ```
+
+The Python code at the top level is the reference engine the web app is ported
+from: rules, scoring, robot bidding and play, the solver and the research
+tooling. It needs Python 3.12 and nothing else to install.
 
 Tests:
 
 ```bash
-python tests/run_all.py     # the Python engine, solver and Streamlit app
+python tests/run_all.py     # the Python engine and solver
 cd frontend && npm test     # the web app, held to the Python engine call for call
 ```
 

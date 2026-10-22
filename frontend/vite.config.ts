@@ -12,6 +12,9 @@ export default defineConfig({
   // (/second_highest_bridge/), and the same build works at any other address.
   base: './',
   plugins: [svelte()],
+  // The double dummy solver: a plain asset (fetched by the worker, inlined
+  // for dd.test.ts), never Vite's own WebAssembly import.
+  assetsInclude: ['**/*.wasm'],
   resolve: { alias: { $root: root } },
   server: { fs: { allow: [root] } },
   test: { include: ['src/**/*.test.ts'], testTimeout: 60000 },

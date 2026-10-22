@@ -1,5 +1,5 @@
-/* Page chrome and controls. These replace the rules in ../styles.css that
-   restyled Streamlit's own widgets; the look is kept the same. */
+/* Page chrome and controls, in the look of the retired Streamlit app's theme
+   (table.css). */
 
 :root {
     --suit-nt: #101820;
@@ -357,8 +357,17 @@ select {
 input[type="range"] { width: 100%; accent-color: var(--gold); }
 
 .replay-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-.trick-jumps { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
-.trick-jumps .btn { padding: 4px 8px; font-size: 12px; min-width: 38px; }
+/* Double dummy status and legend above the replayer (marks: table.css). */
+.dd-status {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+    border: 1px solid var(--line-2); border-radius: 10px;
+    padding: 8px 12px; margin: 0 0 8px; font-size: 13px;
+}
+.dd-status .btn { padding: 4px 10px; font-size: 12px; }
+.dd-dim { color: var(--dim); }
+.dd-error { color: var(--suit-h-lt); }
+.dd-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 12px; font-size: 12px; color: var(--dim); }
+.dd-legend > span { display: inline-flex; align-items: center; gap: 5px; }
 .replay-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr) minmax(0, 1fr);

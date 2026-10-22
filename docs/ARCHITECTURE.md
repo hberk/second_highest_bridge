@@ -1,10 +1,14 @@
 # Architecture
 
-How the Python codebase is layered: the domain engine, the Streamlit presentation, robot alerts and the HTML-escaping audit, and deploying the Streamlit app.
+How the Python codebase is layered: the domain engine the web app is ported from and held to, the solver, research tooling, and the rules for robot alerts.
 
 Moved verbatim from `CLAUDE.md` on 2026-10-13, so it is read when the work needs it instead of loading into every session. [CLAUDE.md](../CLAUDE.md) keeps the guardrails and links here.
 
-The codebase is cleanly layered into pure domain engine, web presentation, styles, and tests:
+The Python code is the engine and nothing else: no UI. It is the reference the web app's
+TypeScript port (`frontend/`, see [FRONTEND.md](FRONTEND.md)) is held to by fixtures, and
+what every robot change is made and measured in first. The Streamlit app that used to sit
+on it (`app.py`, `web/`, `styles.css`) was retired on 2026-10-21, once the web app had
+everything it did, double dummy analysis included.
 
 **`bridge/`** — pure domain logic (zero UI dependencies):
 - `bridge/auction.py`: `AuctionState`, seating order, bidding ladder legal calls, pass-outs, declarer determination.
@@ -20,8 +24,9 @@ The codebase is cleanly layered into pure domain engine, web presentation, style
   `Card` and strain strings; validates positions and refuses malformed ones rather than
   answering them. `solve_deal`, `card_values`, `best_cards`, `single_dummy`.
 - `bridge/solver/replay.py`: turns a finished board into the decisions worth
-  reviewing, latest trick first, and analyses each through `api`. Used by the
-  Streamlit analysis panel; tested by `tests/test_solver_replay.py`.
+  reviewing, latest trick first, and analyses each through `api`. The values
+  the web app's WebAssembly solver is checked against (`export_ts_fixtures.py`
+  writes them for `dd.test.ts`); tested by `tests/test_solver_replay.py`.
 - `bridge/solver/search.py`: the fast solver — zero-window alpha-beta, transposition table, rank-equivalence reduction, move ordering. Every reduction is sound, and each is independently switchable so a disagreement can be bisected.
 
 **`research/`** — tooling that informs the engine, not the app:
@@ -31,7 +36,7 @@ The codebase is cleanly layered into pure domain engine, web presentation, style
   bidding policies, plus what the current `ai_bid` scores over the same deals. Read-only
   analysis; it never writes to the dataset. Conclusions are recorded under "Hand
   evaluation and bidding research" in [BIDDING.md](BIDDING.md) so they survive without re-running it.
-- `research/solver-rs/`: a Rust port of `bridge/solver`'s production search (bitstate + search, hard-coded to the winning ablation settings — no `use_table`/`ordering` switches), built as a standalone CLI (`src/main.rs`) that `dd_dataset.py --engine rust` shells out to per (deal, strain) task. Not a redesign — same algorithm, same transposition table, same trick-first ordering. **Measured 63-72x faster** than the Python engine (identical answers; see Solver invariants in [SOLVER.md](SOLVER.md)). Build with `cargo build --release` in that directory; nothing else in the project builds or requires it, and the app never touches it. `tests/test_solver_rust.py` cross-validates it against the trusted Python search past the frozen fixture's depth, and skips cleanly (not a failure) if it isn't built.
+- `research/solver-rs/`: a Rust port of `bridge/solver`'s production search (bitstate + search, hard-coded to the winning ablation settings — no `use_table`/`ordering` switches), built as a standalone CLI (`src/main.rs`) that `dd_dataset.py --engine rust` shells out to per (deal, strain) task. Not a redesign — same algorithm, same transposition table, same trick-first ordering. **Measured 63-72x faster** than the Python engine (identical answers; see Solver invariants in [SOLVER.md](SOLVER.md)). Build with `cargo build --release` in that directory. Its search also ships, as WebAssembly: `research/solver-rs/wasm` is the web app's History replayer solver (`npm run wasm`, [FRONTEND.md](FRONTEND.md)). The Python code never imports any of it. `tests/test_solver_rust.py` cross-validates it against the trusted Python search past the frozen fixture's depth, and skips cleanly (not a failure) if it isn't built.
 
 **`card.py`** — pure card & deck primitives (`Card`, `deal()`, constants `SUITS`, `STRAINS`, `RANKS`, `bid_index`, `parse_bid`).
 
@@ -48,117 +53,51 @@ and `tests/test_sim.py` exercises only it; the auction-driven game is covered by
 
 **`ai.py`** — AI decision making (`eval_hand_sh` hand valuation, `ai_play` trick strategy, and `ai_bid`: GIB first, then the previous system's logic as the fallback for contested auctions).
 
-**`web/`** — Streamlit presentation components:
-- Robot bids are **alerted**: `ai.ai_bid_explained` returns `(call, explanation)`
-  alongside `ai_bid`'s bare call, `app.py` stores each explanation against its index
-  in the auction, and `call_badge(call, alert=...)` renders a marker plus a hover
-  tooltip. The explanation is generated on the decision path itself, not
-  reconstructed afterwards, so it cannot drift from what the AI actually did.
-  Alert text reaches the page through `unsafe_allow_html` and is escaped in
-  `call_badge`; `tests/test_bidding_calibration.py` guards both the escaping and
-  that every branch produces an explanation naming the suit it bid.
-  Alerts are written in the style of a real system card ("5+ ♠, 10+ points.") and
-  state what the call SHOWS, never what the hand holds — an earlier version said
-  "Opening — 5 spades, 14 points", which handed the reader partner's and the
-  opponents' actual cards. Two rules are machine-checked, because both were
-  broken by hand at some point:
-  - **Every number an alert quotes must be true of the bidding hand.**
-    `test_every_number_an_alert_quotes_is_true_of_the_hand` parses each alert
-    back out (length floors, point floors, ranges, "fewer than" and "or fewer"
-    forms) and checks it against the hand. It caught a simple raise claiming the
-    card's "6-9 points" on an 11-point hand 29 times, and a length-based rebid
-    claiming "12+ points" on 9 points 19 times. An alert may quote a floor the
-    branch **enforces**; it may not quote a range the branch does not. Where the
-    call cannot distinguish two of the card's tiers (12-15 against 16-17 for a
-    rebid), the alert quotes the floor — saying "16+" would leak strength the bid
-    itself never showed.
-  - **A bid's alert depends only on the auction and the call, never on the
-    hand.** `test_a_bid_alert_depends_only_on_the_auction_and_the_call` plays
-    1,500 auctions and fails if the same call in the same auction ever reads
-    two ways. It found five leaks at once: a rebid alerted "6+" or "12+" by
-    branch, 1m alerted "3+/4+/5+" by the real minor lengths, a contested
-    two-level bid "Forcing" or "Free bid", and an answer to a takeout double
-    quoting the actual length and band. Each now quotes the floor every hand
-    making that call shares. The Svelte app's bidding box depends on this:
-    it explains any call by sampling hands and reading the robots' alert for
-    it (`frontend/src/lib/meanings.ts`, see [FRONTEND.md](FRONTEND.md)), so a
-    hand-dependent alert would show a player a meaning that is only true of
-    some hands.
-  - **Pass reasons are hidden while the board is live** (`live_alerts` in
-    `web/auction_view.py`, `Game.liveAlerts` in the port). "Fewer than 6
-    points" versus "Fewer than 3 ♠ and no five-card suit" reads a robot's cards
-    out, and a real table never alerts a natural pass. They stay in
-    `bid_alerts` and appear on the result screen and in history.
-  - Alerts stay under 70 characters so they fit a tooltip.
-- **`unsafe_allow_html` and why it is currently safe** (`tests/test_web_escaping.py`).
-  The app renders its own markup: 42 `unsafe_allow_html` sites and 1,256 lines of
-  hand-written CSS (counted 2026-10-18). A few sites are static literals; the
-  rest build HTML from data.
-  **No current vulnerability exists, and the reason is structural, not careful
-  coding.** Until self-alerts and LIN import, the app had no text input at all.
-  It now has exactly three, each reviewed (`REVIEWED_INPUTS`): the self-alert
-  `text_input`, and LIN import's `text_area` and `file_uploader`. Both features
-  deliver only **alert text** to the page, and only through `call_badge`,
-  which escapes it. `from_lin` rebuilds every other field from a fixed
-  vocabulary (seats, the 52 cards, legal calls, vulnerabilities) or an
-  integer, and reads past LIN player names and board titles. LIN parse errors
-  can quote the input, so they are shown with `st.code`. Everything else
-  interpolated is still a seat name from a fixed list, a `Card` from a fixed
-  deck, an integer, or alert text that `ai.py` generates.
-  That is a snapshot, not a guarantee, so it is now enforced:
-  - Every caller-supplied string that reaches markup is escaped with
-    `html.escape(value, quote=True)`. Writing the test found **two genuinely
-    unescaped paths** that the audit by eye had missed — `_call_inner`'s fallback
-    branch (`<span class="bid-pill">{call}</span>`) and `seat_box_html`'s seat and
-    role — plus raw ranks in `hand_diagram_html` and `felt_table`. None was
-    reachable with hostile data; all are escaped now.
-  - Values from a dict lookup keyed by suit (colours, pips, suit names) are
-    deliberately NOT escaped: an unknown suit raises `KeyError`, which fails closed.
-  - `test_every_free_text_input_has_been_reviewed` fails the moment an input
-    widget appears that is not in `REVIEWED_INPUTS`: each new one needs its own
-    trace through the data-driven sites. Two end-to-end tests type hostile
-    payloads into the self-alert box and into an imported LIN (as alerts and as
-    player names) in the running app, and check the page.
-  - The escaping test asserts on **tag openings** (`<script`, `<img`, …), not on
-    keywords. An earlier version banned `onerror=` and failed on correctly-escaped
-    output — once `<` and `"` are entities, `onerror=alert(1)` is inert text. An
-    over-strict security test is one that gets switched off.
-- `web/card_component.py`: styled card chips, static hands, and interactive hand clickers.
-- `web/auction_view.py`: the auction grid, the bidding box, and `live_alerts`.
-- `web/analysis_view.py`: the double dummy post-mortem panel (see the deployment
-  note at the end).
-- `web/challenge_view.py`: the Challenge tab's grade tables and captions.
-- `web/session_view.py`: the session scoreboard (imported boards left out).
-- `web/felt_table.py`: central green felt table canvas, card slots, and dynamic role badges.
-- `web/replayer_view.py`: hand history selector, compass deal diagram, card-by-card
-  replayer controls, and trick log. It renders any record of the hand-history
-  shape, which is why challenge mode can step through a ROBOT board with no
-  changes here: `challenge.as_history_record` shapes one identically, and a
-  record may carry its own `label` so "your board" and "the robots' board" sit
-  in the same selector on the same deal. It was also dropping `bid_alerts` when
-  it drew the auction, so a reviewed board showed a grid of calls with no
-  explanation — the alerts are passed through now, on both human and robot
-  boards.
-
-**`app.py`** — primary Streamlit web application state machine orchestrating game phases and rendering tabs.
-
-**`styles.css`** — CSS theme for card chips, green felt canvas, auction badges, and responsive tables.
-
 **`tests/`** — modular test suite. `tests/fixtures/endings.json` is frozen ground truth for the solver, rebuilt only by `tests/fixtures/generate_endings.py`.
 
-## Deploying the Streamlit app
+## Robot alerts
 
-**Deployment.** The app's only third-party dependency is `streamlit`
-(`requirements.txt`); it writes nothing to disk, keeps all game state in
-`st.session_state`, so concurrent players cannot interfere. Two pieces of
-module-level state are shared and both stay small: `gib.ILLEGAL`, which a
-test sweep (robots alone and with a random human) keeps empty, and the
-analysis cache below. The deployable footprint is about 420 KB (the deal library grew from 96 to 130 KB at 400 deals) — `research/` is
-not imported by the app and `research/solver-rs/target/` (49 MB) is gitignored.
-`web/analysis_view.py` runs the double dummy solver interactively, so it is
-bounded for a public server (2026-10-18): the depth stops at 8 cards a hand
-(~15 s a board; `SHB_ANALYSIS_MAX_CARDS=10` on your own machine offers 9 and 10,
-up to ~5 minutes), and its results live in a cache that every session shares,
-capped at `CACHE_ENTRIES` decisions with the least recently used dropped first.
-One 8-card decision still holds the script thread for its slice, so the table
-pauses while a board is analysed.
+Robot bids are **alerted**: `ai.ai_bid_explained` returns `(call, explanation)`
+alongside `ai_bid`'s bare call, and the web app stores each explanation against
+its index in the auction and shows it on the call. The explanation is generated
+on the decision path itself, not reconstructed afterwards, so it cannot drift
+from what the AI actually did. `tests/test_bidding_calibration.py` checks that
+every branch produces an explanation naming the suit it bid.
+
+Alerts are written in the style of a real system card ("5+ ♠, 10+ points.") and
+state what the call SHOWS, never what the hand holds — an earlier version said
+"Opening — 5 spades, 14 points", which handed the reader partner's and the
+opponents' actual cards. Two rules are machine-checked, because both were
+broken by hand at some point:
+- **Every number an alert quotes must be true of the bidding hand.**
+  `test_every_number_an_alert_quotes_is_true_of_the_hand` parses each alert
+  back out (length floors, point floors, ranges, "fewer than" and "or fewer"
+  forms) and checks it against the hand. It caught a simple raise claiming the
+  card's "6-9 points" on an 11-point hand 29 times, and a length-based rebid
+  claiming "12+ points" on 9 points 19 times. An alert may quote a floor the
+  branch **enforces**; it may not quote a range the branch does not. Where the
+  call cannot distinguish two of the card's tiers (12-15 against 16-17 for a
+  rebid), the alert quotes the floor — saying "16+" would leak strength the bid
+  itself never showed.
+- **A bid's alert depends only on the auction and the call, never on the
+  hand.** `test_a_bid_alert_depends_only_on_the_auction_and_the_call` plays
+  1,500 auctions and fails if the same call in the same auction ever reads
+  two ways. It found five leaks at once: a rebid alerted "6+" or "12+" by
+  branch, 1m alerted "3+/4+/5+" by the real minor lengths, a contested
+  two-level bid "Forcing" or "Free bid", and an answer to a takeout double
+  quoting the actual length and band. Each now quotes the floor every hand
+  making that call shares. The Svelte app's bidding box depends on this:
+  it explains any call by sampling hands and reading the robots' alert for
+  it (`frontend/src/lib/meanings.ts`, see [FRONTEND.md](FRONTEND.md)), so a
+  hand-dependent alert would show a player a meaning that is only true of
+  some hands.
+- **Pass reasons are hidden while the board is live** (`Game.liveAlerts` in
+  the web app, tested in `lin.test.ts`). "Fewer than 6
+  points" versus "Fewer than 3 ♠ and no five-card suit" reads a robot's cards
+  out, and a real table never alerts a natural pass. They stay in
+  `bid_alerts` and appear on the result screen and in history.
+- Alerts stay under 70 characters so they fit a tooltip.
+
+Alert text reaches the page only as text: the web app renders no raw HTML
+(`{@html}` is banned by `lin.test.ts`), so Svelte escapes it. The same holds for
+the self-alert box and LIN import, the two places the app accepts text.
