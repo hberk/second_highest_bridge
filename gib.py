@@ -228,6 +228,7 @@ def gib_bid(player: str, cards: list[Card], auction: AuctionState) -> tuple | No
     if not ctx.legal:
         return None
     decision = _decide(ctx)
+    decision = _total_tricks(ctx, decision) or decision
     if decision is None:
         return None
     if decision[0] not in ctx.legal:
@@ -469,7 +470,8 @@ def opener_rebid(ctx: Ctx, x: str, r: str) -> tuple:
     if r == f"2{x}" and x in MAJORS:
         return _game_try(ctx, x)
     if r == f"3{x}" and x in MAJORS:
-        return (f"4{x}", TO_PLAY) if hcp >= 14 else ('Pass', "Declining the invitation.")
+        return (f"4{x}", TO_PLAY) if hcp + _fit_bonus(h, x, 4) >= 14 \
+            else ('Pass', "Declining the invitation.")
     if r == f"4{x}" or r == '3NT':
         return 'Pass', "Partner placed the contract."
     if x in MINORS and r == f"2{x}":
@@ -531,14 +533,15 @@ def _game_try(ctx: Ctx, x: str) -> tuple:
     h = ctx.h
     hcp = h.hcp
     short = h.short(x)
-    if hcp <= 14:
+    fit = hcp + _fit_bonus(h, x, 3)
+    if hcp <= 14 and fit < 18:
         return 'Pass', "Minimum."
     if SELF_SPLINTER and hcp >= SELF_SPLINTER_MIN and short:
         s = short[0]
         call = _splinter_call(x, s)
         if ctx.ok(call):
             return call, f"Splinter: short {SYM[s]}, {SELF_SPLINTER_MIN}+ HCP. Game forcing."
-    if hcp >= 18 or (hcp >= 17 and not short):
+    if hcp >= 18 or fit >= 18 or (hcp >= 17 and not short):
         return f"4{x}", TO_PLAY
     if short:
         step = '2S' if x == 'H' else '2NT'
@@ -735,6 +738,7 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
             return (f"3{x}", "Invitational.") if hcp >= 11 else (f"2{x}", "Sign-off.")
         return 'Pass', "Partner placed the contract."
     if r == f"2{x}" and x in MAJORS:                     # after a game try
+        fit = hcp + _fit_bonus(h, x, 5)
         if _is_splinter(x, o):                           # opener's splinter: game forcing
             return f"4{x}", TO_PLAY
         if o == '3NT':                                   # a choice of games (roadmap 3.7)
@@ -742,12 +746,12 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
                 return f"4{x}", "Choice of games: a fourth trump or a short suit."
             return 'Pass', "Choice of games: three trumps, no short suit."
         if o in ('2S', '2NT') and o != f"2{x}":
-            return (f"4{x}", TO_PLAY) if hcp >= 9 else (f"3{x}", "Declining the game try.")
+            return (f"4{x}", TO_PLAY) if fit >= 9 else (f"3{x}", "Declining the game try.")
         if ol == 3 and os_ in SUITS and os_ != x:
-            accept = hcp >= 9 or (hcp >= 8 and (h.len[os_] <= 1 or h.top(os_, ('A', 'K', 'Q')) >= 1))
+            accept = fit >= 9 or (fit >= 8 and (h.len[os_] <= 1 or h.top(os_, ('A', 'K', 'Q')) >= 1))
             return (f"4{x}", TO_PLAY) if accept else (f"3{x}", "Declining the game try.")
         if o == f"3{x}":
-            return (f"4{x}", TO_PLAY) if hcp >= 9 else ('Pass', "Declining the invitation.")
+            return (f"4{x}", TO_PLAY) if fit >= 9 else ('Pass', "Declining the invitation.")
         return 'Pass', "Partner placed the contract."
     if x in MINORS and r == f"2{x}":                     # inverted
         if o == '2NT':
@@ -769,9 +773,10 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
                 return '4NT', f"Keycard Blackwood for {SYM[y]}. Artificial."
             if ol >= 4:
                 return 'Pass', "Partner placed the contract."
-            if hcp + lo >= GAME:
+            fit = hcp + _fit_bonus(h, y, 4)
+            if fit + lo >= GAME:
                 return f"4{y}", TO_PLAY
-            if hcp + hi >= GAME and ol == 2:
+            if fit + hi >= GAME and ol == 2:
                 return f"3{y}", "Invitational."
             return 'Pass', "No game."
         if hcp + lo >= GAME:
@@ -1659,6 +1664,112 @@ def _is_game_bid(call: str) -> bool:
         or (level_of(call) >= 5 and strain_of(call) in ('C', 'D'))
 
 
+#: Count the fit (the user's call, 2026-10-22). Here tricks follow the trumps
+#: the partnership holds together, about 0.8 a card, against 0.12 a
+#: judgement point: on the library an 8-card fit makes game 18% of the time,
+#: a 10-card fit 51%. Once a fit is known, game is judged on judgement points
+#: plus FIT_POINTS for each trump the two hands are known to hold past
+#: FIT_BASE, minus as many for each trump short of it, plus VOID_POINTS for a
+#: side void in a hand with three or more trumps. Only where a call is
+#: judged, never in a range a call shows. Head to head it pays by stopping
+#: short on 8- and 9-card fits: a FIT_BASE of 8, which only adds, lost
+#: 1.5-2.0 points a board (t = -3.4 to -4.3).
+FIT_COUNT = True
+FIT_POINTS = 3
+FIT_BASE = 10
+VOID_POINTS = 3
+
+
+def _fit_bonus(h: Hand, trump: str | None, partner_len: int) -> int:
+    """Judgement points the known fit in `trump` is worth to this hand."""
+    if not FIT_COUNT or trump not in SUITS or not partner_len:
+        return 0
+    bonus = FIT_POINTS * (h.len[trump] + partner_len - FIT_BASE)
+    if h.len[trump] >= 3 and any(h.len[s] == 0 for s in SUITS if s != trump):
+        bonus += VOID_POINTS
+    return bonus
+
+
+#: The Law of Total Tricks in competition (the user's call, 2026-10-22):
+#: when they hold the contract and we would pass, bid our fit to the level
+#: of the trumps we hold together (8 trumps the two level, 9 the three,
+#: 10 the four), never past LOTT_MAX. In this game the law is close to
+#: exact: a fit of 8, 9 and 10 takes 8.3, 9.0 and 9.9 tricks on the library.
+#: A raise of partner's suit keeps to GIB's free raise, LOTT_RAISE HCP, so
+#: it reads as the raise GIB's own branches make (a weaker or a stronger
+#: hand bidding it would make their "6+" or "6-9 HCP" untrue); a hand
+#: rebidding its own suit needs only to have bid it.
+LOTT = True
+LOTT_MAX = 4
+LOTT_RAISE = (6, 9)
+LOTT_ALERT = "Competing to the level of our fit."
+
+
+def _partner_length(ctx: Ctx, s: str) -> int:
+    """The fewest cards in `s` partner's natural bids have shown."""
+    theirs = _their_suits(ctx)
+    if s in theirs:
+        return 0
+    n = 0
+    mine_first = None
+    for i, (who, call) in enumerate(ctx.ours):
+        if shown_suit(ctx.seq, i) != s:
+            continue
+        if who == ctx.me:
+            mine_first = i if mine_first is None else mine_first
+            continue
+        if n:
+            n += 1                       # partner bid it again
+        elif mine_first is not None:
+            n = 3                        # a raise of my suit
+        elif i == 0:
+            lvl = level_of(call)
+            if ctx.we_opened:
+                n = {1: 5 if s in MAJORS else 3, 2: 6}.get(lvl, 7)
+            else:
+                n = 6 if _jump(ctx, i) else 5    # an overcall
+        else:
+            n = 4                        # a new suit
+    return n
+
+
+def _jump(ctx: Ctx, i: int) -> bool:
+    """Was our side's call i a jump over the bid before it?"""
+    who, call = ctx.ours[i]
+    at = next(k for k, (w, c) in enumerate(ctx.calls) if w == who and c == call)
+    before = [c for _, c in ctx.calls[:at] if level_of(c)]
+    if not before:
+        return False
+    s = strain_of(call)
+    need = next(lvl for lvl in range(1, 8) if rank_of(f"{lvl}{s}") > rank_of(before[-1]))
+    return level_of(call) > need
+
+
+def _total_tricks(ctx: Ctx, decision: tuple | None) -> tuple | None:
+    if not LOTT or not ctx.theirs or (decision and decision[0] != 'Pass'):
+        return None
+    hb = ctx.auction.highest_bid
+    if hb is None or hb[2] in (ctx.me, ctx.pd) or ctx.auction.doubled != 'None':
+        return None
+    best = None
+    for s in SUITS:
+        p = _partner_length(ctx, s)
+        n = ctx.h.len[s] + p
+        if not p or n < 8:
+            continue
+        mine = any(w == ctx.me and shown_suit(ctx.seq, i) == s
+                   for i, (w, _) in enumerate(ctx.ours))
+        if not mine and not LOTT_RAISE[0] <= ctx.h.hcp <= LOTT_RAISE[1]:
+            continue
+        call = ctx.cheapest(s, 1)
+        if call is None or level_of(call) > min(n - 6, LOTT_MAX):
+            continue
+        key = (n, s in MAJORS, SUITS.index(s))
+        if best is None or key > best[0]:
+            best = (key, call)
+    return (best[1], LOTT_ALERT) if best else None
+
+
 def _over_their_contract(ctx: Ctx, values: bool) -> tuple:
     if values and ctx.ok('X'):
         return 'X', "Penalty: our side has the values for game."
@@ -1712,6 +1823,7 @@ def continuation(ctx: Ctx) -> tuple:
         if trump == fit and comb >= SLAM and ctx.ok('4NT') and cur_rank < rank_of('4NT') \
                 and '4NT' not in seq:
             return '4NT', f"Keycard Blackwood for {SYM[fit]}. Artificial."
+        comb += _fit_bonus(h, fit, plen[fit])
         if fit in MAJORS:
             if comb >= GAME or gf:
                 if cur_rank >= rank_of(f"4{fit}"):

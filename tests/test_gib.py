@@ -485,6 +485,41 @@ def test_responder_bids_game_over_a_three_level_jump_overcall():
     assert bid('9S 6S 4S KH QH 6H 3H JD 4D 3D 8C 6C 2C', '1H', '3D')[0] == '3H'
 
 
+def test_competes_to_the_level_of_the_fit():
+    """Deal 354: 3♥ (X) P (4♣) P (P) with ♠A985 ♥1073 ♦962 ♣KQ4. Partner's
+    pre-empt shows seven, so ten trumps: the Law of Total Tricks bids 4♥,
+    which makes, where the robots used to defend 4♣."""
+    north = 'AS 9S 8S 5S 10H 7H 3H 9D 6D 2D KC QC 4C'
+    auction = ('3H', 'X', 'Pass', '4C', 'Pass', 'Pass')
+    call, why = bid(north, *auction, dealer='South')
+    assert (call, why) == ('4H', 'Competing to the level of our fit, ♥.'), (call, why)
+    gib.LOTT = False
+    try:
+        assert bid(north, *auction, dealer='South')[0] == 'Pass'
+    finally:
+        gib.LOTT = True
+    # Nine trumps compete to three, not four.
+    assert bid('AS 9S 8S 5S 10H 7H 9D 6D 3D 2D KC QC 4C', *auction,
+               dealer='South')[0] == 'Pass'
+
+
+def test_game_is_judged_on_the_fit():
+    """Deal 248: 1♣ (P) 1♠ (P) 2♠ (P) with ♠Q985 ♥KQ9 ♦J10965 ♣10. Opener's
+    raise shows four, so eight trumps, two short of the ten a game wants
+    here: the hand passes 2♠ (ten tricks were not there) instead of 4♠."""
+    north = 'QS 9S 8S 5S KH QH 9H JD 10D 9D 6D 5D 10C'
+    auction = ('Pass', '1C', 'Pass', '1S', 'Pass', '2S', 'Pass')
+    assert bid(north, *auction, dealer='East')[0] == 'Pass'
+    gib.FIT_COUNT = False
+    try:
+        assert bid(north, *auction, dealer='East')[0] == '4S'
+    finally:
+        gib.FIT_COUNT = True
+    # A void opposite the fit counts too.
+    assert gib._fit_bonus(gib.Hand(hand(north)), 'S', 4) == -6
+    assert gib._fit_bonus(gib.Hand(hand('QS 9S 8S 5S 4S KH QH 9H JD 10D 9D 6D 5D')), 'S', 5) == 3
+
+
 def test_advancer_bids_game_over_a_two_suited_overcall():
     """Deal 163: (1♦) 2NT (P) with ♠Q2 ♥2 ♦Q10974 ♣KQJ96 chose 3♣, the same
     call as with two clubs, and N/S defended 4♦ where 7♣ makes. 3+ in one

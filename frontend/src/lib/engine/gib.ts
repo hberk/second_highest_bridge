@@ -237,6 +237,7 @@ export function gibBid(player: Seat, cards: Card[], auction: AuctionState): Deci
   const ctx = new Ctx(player, cards, auction);
   if (!ctx.legal.length) return null;
   let decision = decide(ctx);
+  decision = totalTricks(ctx, decision) ?? decision;
   if (decision === null) return null;
   if (!ctx.legal.includes(decision[0] as string)) {
     ILLEGAL.push([ctx.calls, decision]);
@@ -458,7 +459,7 @@ function openerRebid(ctx: Ctx, x: Suit, r: string): Decision {
   }
   if (r === `2${x}` && isMajor(x)) return gameTry(ctx, x);
   if (r === `3${x}` && isMajor(x)) {
-    return hcp >= 14 ? [`4${x}`, TO_PLAY] : ['Pass', 'Declining the invitation.'];
+    return hcp + fitBonus(h, x, 4) >= 14 ? [`4${x}`, TO_PLAY] : ['Pass', 'Declining the invitation.'];
   }
   if (r === `4${x}` || r === '3NT') return ['Pass', 'Partner placed the contract.'];
   if (isMinor(x) && r === `2${x}`) return invertedRebid(ctx, x);
@@ -516,13 +517,14 @@ function gameTry(ctx: Ctx, x: Suit): Decision {
   const h = ctx.h;
   const hcp = h.hcp;
   const short = h.short(x);
-  if (hcp <= 14) return ['Pass', 'Minimum.'];
+  const fit = hcp + fitBonus(h, x, 3);
+  if (hcp <= 14 && fit < 18) return ['Pass', 'Minimum.'];
   if (SELF_SPLINTER && hcp >= SELF_SPLINTER_MIN && short.length) {
     const s = short[0];
     const call = splinterCall(x, s);
     if (ctx.ok(call)) return [call, `Splinter: short ${SYM[s]}, ${SELF_SPLINTER_MIN}+ HCP. Game forcing.`];
   }
-  if (hcp >= 18 || (hcp >= 17 && !short.length)) return [`4${x}`, TO_PLAY];
+  if (hcp >= 18 || fit >= 18 || (hcp >= 17 && !short.length)) return [`4${x}`, TO_PLAY];
   if (short.length) {
     const step = x === 'H' ? '2S' : '2NT';
     return [step, 'Short-suit game try. Artificial.'];
@@ -701,20 +703,21 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
     return ['Pass', 'Partner placed the contract.'];
   }
   if (r === `2${x}` && isMajor(x)) {
+    const fit = hcp + fitBonus(h, x, 5);
     if (isSplinter(x, o)) return [`4${x}`, TO_PLAY];   // opener's splinter: game forcing
     if (o === '3NT') {                                // a choice of games (roadmap 3.7)
       if (h.len[x] >= 4 || h.short(x).length) return [`4${x}`, 'Choice of games: a fourth trump or a short suit.'];
       return ['Pass', 'Choice of games: three trumps, no short suit.'];
     }
     if ((o === '2S' || o === '2NT') && o !== `2${x}`) {
-      return hcp >= 9 ? [`4${x}`, TO_PLAY] : [`3${x}`, 'Declining the game try.'];
+      return fit >= 9 ? [`4${x}`, TO_PLAY] : [`3${x}`, 'Declining the game try.'];
     }
     if (ol === 3 && isSuit(os) && os !== x) {
-      const accept = hcp >= 9
-        || (hcp >= 8 && (h.len[os as Suit] <= 1 || h.top(os as Suit, ['A', 'K', 'Q']) >= 1));
+      const accept = fit >= 9
+        || (fit >= 8 && (h.len[os as Suit] <= 1 || h.top(os as Suit, ['A', 'K', 'Q']) >= 1));
       return accept ? [`4${x}`, TO_PLAY] : [`3${x}`, 'Declining the game try.'];
     }
-    if (o === `3${x}`) return hcp >= 9 ? [`4${x}`, TO_PLAY] : ['Pass', 'Declining the invitation.'];
+    if (o === `3${x}`) return fit >= 9 ? [`4${x}`, TO_PLAY] : ['Pass', 'Declining the invitation.'];
     return ['Pass', 'Partner placed the contract.'];
   }
   if (isMinor(x) && r === `2${x}`) {
@@ -731,8 +734,9 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
     if (isMajor(y)) {
       if (hcp + lo >= SLAM && ctx.ok('4NT')) return ['4NT', `Keycard Blackwood for ${SYM[y]}. Artificial.`];
       if (ol >= 4) return ['Pass', 'Partner placed the contract.'];
-      if (hcp + lo >= GAME) return [`4${y}`, TO_PLAY];
-      if (hcp + hi >= GAME && ol === 2) return [`3${y}`, 'Invitational.'];
+      const fit = hcp + fitBonus(h, y, 4);
+      if (fit + lo >= GAME) return [`4${y}`, TO_PLAY];
+      if (fit + hi >= GAME && ol === 2) return [`3${y}`, 'Invitational.'];
       return ['Pass', 'No game.'];
     }
     if (hcp + lo >= GAME) return placed(ctx, ['3NT', TO_PLAY]);
@@ -1580,6 +1584,97 @@ function isGameBid(call: string): boolean {
     || (levelOf(call) >= 5 && (st === 'C' || st === 'D'));
 }
 
+/** Count the fit (the user's call, 2026-10-22). Here tricks follow the trumps
+ *  the partnership holds together, about 0.8 a card, against 0.12 a
+ *  judgement point: on the library an 8-card fit makes game 18% of the time,
+ *  a 10-card fit 51%. Once a fit is known, game is judged on judgement points
+ *  plus FIT_POINTS for each trump the two hands are known to hold past
+ *  FIT_BASE, minus as many for each trump short of it, plus VOID_POINTS for a
+ *  side void in a hand with three or more trumps. Only where a call is
+ *  judged, never in a range a call shows. Head to head it pays by stopping
+ *  short on 8- and 9-card fits: a FIT_BASE of 8, which only adds, lost
+ *  1.5-2.0 points a board (t = -3.4 to -4.3). */
+export const FIT_COUNT = true;
+const FIT_POINTS = 3;
+const FIT_BASE = 10;
+const VOID_POINTS = 3;
+
+/** Judgement points the known fit in `trump` is worth to this hand. */
+function fitBonus(h: Hand, trump: string | null, partnerLen: number): number {
+  if (!FIT_COUNT || !isSuit(trump) || !partnerLen) return 0;
+  let bonus = FIT_POINTS * (h.len[trump] + partnerLen - FIT_BASE);
+  if (h.len[trump] >= 3 && SUITS.some((s) => s !== trump && h.len[s] === 0)) bonus += VOID_POINTS;
+  return bonus;
+}
+
+/** The Law of Total Tricks in competition (the user's call, 2026-10-22):
+ *  when they hold the contract and we would pass, bid our fit to the level
+ *  of the trumps we hold together (8 trumps the two level, 9 the three,
+ *  10 the four), never past LOTT_MAX. In this game the law is close to
+ *  exact: a fit of 8, 9 and 10 takes 8.3, 9.0 and 9.9 tricks on the library.
+ *  A raise of partner's suit keeps to GIB's free raise, LOTT_RAISE HCP, so
+ *  it reads as the raise GIB's own branches make (a weaker or a stronger
+ *  hand bidding it would make their "6+" or "6-9 HCP" untrue); a hand
+ *  rebidding its own suit needs only to have bid it. */
+export const LOTT = true;
+const LOTT_MAX = 4;
+const LOTT_RAISE = [6, 9];
+const LOTT_ALERT = 'Competing to the level of our fit.';
+
+/** The fewest cards in `s` partner's natural bids have shown. */
+function partnerLength(ctx: Ctx, s: Suit): number {
+  if (theirSuits(ctx).includes(s)) return 0;
+  let n = 0;
+  let mineFirst: number | null = null;
+  for (let i = 0; i < ctx.ours.length; i++) {
+    const [who, call] = ctx.ours[i];
+    if (shownSuit(ctx.seq, i) !== s) continue;
+    if (who === ctx.me) {
+      if (mineFirst === null) mineFirst = i;
+      continue;
+    }
+    if (n) n += 1;                       // partner bid it again
+    else if (mineFirst !== null) n = 3;  // a raise of my suit
+    else if (i === 0) {
+      const lvl = levelOf(call);
+      if (ctx.weOpened) n = lvl === 1 ? (isMajor(s) ? 5 : 3) : lvl === 2 ? 6 : 7;
+      else n = jump(ctx, i) ? 6 : 5;    // an overcall
+    } else n = 4;                        // a new suit
+  }
+  return n;
+}
+
+/** Was our side's call i a jump over the bid before it? */
+function jump(ctx: Ctx, i: number): boolean {
+  const [who, call] = ctx.ours[i];
+  const at = ctx.calls.findIndex(([w, c]) => w === who && c === call);
+  const before = ctx.calls.slice(0, at).map(([, c]) => c).filter((c) => levelOf(c));
+  if (!before.length) return false;
+  const s = strainOf(call);
+  let need = 1;
+  while (rankOf(`${need}${s}`) <= rankOf(before[before.length - 1])) need++;
+  return levelOf(call) > need;
+}
+
+function totalTricks(ctx: Ctx, decision: Decision | null): Decision | null {
+  if (!LOTT || !ctx.theirs.length || (decision && decision[0] !== 'Pass')) return null;
+  const hb = ctx.auction.highestBid;
+  if (!hb || hb[2] === ctx.me || hb[2] === ctx.pd || ctx.auction.doubled !== 'None') return null;
+  let best: [number[], string] | null = null;
+  for (const s of SUITS) {
+    const p = partnerLength(ctx, s);
+    const n = ctx.h.len[s] + p;
+    if (!p || n < 8) continue;
+    const mine = ctx.ours.some(([w], i) => w === ctx.me && shownSuit(ctx.seq, i) === s);
+    if (!mine && !(LOTT_RAISE[0] <= ctx.h.hcp && ctx.h.hcp <= LOTT_RAISE[1])) continue;
+    const call = ctx.cheapest(s, 1);
+    if (call === null || levelOf(call) > Math.min(n - 6, LOTT_MAX)) continue;
+    const key = [n, isMajor(s) ? 1 : 0, idx(s)];
+    if (best === null || cmpTuple(key, best[0]) > 0) best = [key, call];
+  }
+  return best ? [best[1], LOTT_ALERT] : null;
+}
+
 function overTheirContract(ctx: Ctx, values: boolean): Decision {
   if (values && ctx.ok('X')) return ['X', 'Penalty: our side has the values for game.'];
   return ['Pass', OVER_THEIRS];
@@ -1608,7 +1703,7 @@ function continuation(ctx: Ctx): Decision {
     const p2 = plen, m2 = mylen;
     trump = SUITS.find((s) => p2[s] && m2[s] && p2[s] + m2[s] >= 8) ?? null;
   }
-  const comb = h.judge + pmin;
+  let comb = h.judge + pmin;
   const gf = gameForced(seq, ctx) && !two;
   const current = ctx.current();
   const curRank = current ? rankOf(current) : -1;
@@ -1629,6 +1724,7 @@ function continuation(ctx: Ctx): Decision {
     if (trump === fit && comb >= SLAM && ctx.ok('4NT') && curRank < rankOf('4NT') && !seq.includes('4NT')) {
       return ['4NT', `Keycard Blackwood for ${SYM[fit]}. Artificial.`];
     }
+    comb += fitBonus(h, fit, plen[fit]);
     if (isMajor(fit)) {
       if (comb >= GAME || gf) {
         if (curRank >= rankOf(`4${fit}`)) {
