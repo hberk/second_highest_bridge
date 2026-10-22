@@ -123,9 +123,17 @@ card-play gain measured here. Two things learned on the way:
   (`bitSearch`; four 13-bit suit masks a hand, since JS bit operators are
   32-bit): **0.18 s a board at five cards (0.9 s worst)**, against 0.14 s
   for the old port at four; 240 boards played card for card identical to
-  the card-list search. Python, the reference, takes ~1.0 s a board (6 s
-  worst) against 0.11 s at four, so the Python suite went from 3 to about
-  24 minutes. Six cards took 22 s a board in Python (over 900 layouts).
+  the card-list search. The memory's key renumbers each suit's unplayed
+  cards from the lowest (`_relative`, `relativeKey`): a position's value
+  depends only on how the cards still out rank each other, so ♠QJ against
+  ♠K, once the cards between are gone, is solved once with ♠98 against ♠10.
+  Same play (160 boards replayed identical, fixtures byte for byte), and
+  Python, the reference, goes from ~1.0 to ~0.67 s a board at five cards
+  (0.11 s at four); the TS port to ~0.10 s. To keep CI near its old length,
+  `tests/run_all.py` runs one test per process and the fixture export plays
+  its boards on every core: here (4 cores) the Python suite takes ~5
+  minutes, the export ~8, npm test ~4. Six cards took 22 s a board in
+  Python (over 900 layouts).
 - **Six cards is measured and left off** (the user's call, 2026-10-22): over
   five, seated in the TS engine on 100 deals, **+0.26 tricks and +26.8
   points a board, t = +4.35, 824 of 1,600 boards changed** -- but 4.6 s a

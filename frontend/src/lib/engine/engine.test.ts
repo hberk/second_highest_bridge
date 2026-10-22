@@ -46,7 +46,7 @@ describe('hand evaluation', () => {
   });
 });
 
-// The two replays below are the slowest tests by far: about 325s and 140s alone
+// The two replays below are the slowest tests by far: minutes, not seconds,
 // since the endgame search starts at five cards (2026-10-22; 40s and 20s at
 // four), and npm test runs the test files in parallel, so the global 60s limit
 // failed them on a busy machine. Their own limit keeps the global one tight

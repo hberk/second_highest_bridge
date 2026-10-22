@@ -851,6 +851,28 @@ function bitWinner(trick: number[], trump: number): number {
   return second >= 0 ? secondSeat : topSeat;
 }
 
+/** The memory's key: the leader and each suit's unplayed cards renumbered
+ *  0, 1, 2, ... from the lowest, since a position's value depends only on how
+ *  the cards still out rank against each other (see ai.py `_relative`). */
+function relativeKey(leader: number, hands: BitHands): string {
+  const out = new Array<number>(16).fill(0);
+  for (let suit = 0; suit < 4; suit++) {
+    const m0 = hands[suit], m1 = hands[4 + suit], m2 = hands[8 + suit], m3 = hands[12 + suit];
+    let left = m0 | m1 | m2 | m3;
+    let bit = 1;
+    while (left) {
+      const low = left & -left;
+      left ^= low;
+      if (m0 & low) out[suit] |= bit;
+      else if (m1 & low) out[4 + suit] |= bit;
+      else if (m2 & low) out[8 + suit] |= bit;
+      else out[12 + suit] |= bit;
+      bit <<= 1;
+    }
+  }
+  return String.fromCharCode(leader, ...out);
+}
+
 /** Tricks for N/S from here, both sides perfect (see ai.py `_bit_search`).
  *  The memo holds (lo, hi) bounds packed as lo * 16 + hi; `trump` is -1 in NT. */
 function bitSearch(hands: BitHands, trick: number[], leader: number, trump: number,
@@ -864,7 +886,7 @@ function bitSearch(hands: BitHands, trick: number[], leader: number, trump: numb
   }
   let key: string | null = null;
   if (!trick.length) {
-    key = String.fromCharCode(leader, ...hands);
+    key = relativeKey(leader, hands);
     const hit = memo.get(key) ?? 13;
     const lo = hit >> 4, hi = hit & 15;
     if (lo >= beta || lo === hi) return lo; // known exactly: never search an empty window

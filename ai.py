@@ -1365,6 +1365,32 @@ def _bit_winner(trick: tuple, trump: int | None) -> int:
     return second_seat if second >= 0 else top_seat
 
 
+def _relative(hands: list) -> tuple:
+    """The four hands with each suit's unplayed cards renumbered 0, 1, 2, ...
+    from the lowest: a position's value depends only on how the cards still
+    out rank against each other, so ♠QJ against ♠K is ♠98 against ♠10 once
+    the cards between have gone. The memory's key, so those positions are
+    solved once."""
+    out = [0, 0, 0, 0]
+    for shift in (0, 13, 26, 39):
+        m0, m1, m2, m3 = ((h >> shift) & 0x1FFF for h in hands)
+        left = m0 | m1 | m2 | m3
+        bit = 1 << shift
+        while left:
+            low = left & -left
+            left ^= low
+            if m0 & low:
+                out[0] |= bit
+            elif m1 & low:
+                out[1] |= bit
+            elif m2 & low:
+                out[2] |= bit
+            else:
+                out[3] |= bit
+            bit <<= 1
+    return tuple(out)
+
+
 def _bit_search(hands: list, trick: tuple, leader: int, trump: int | None,
                 ns: bool, memo: dict, alpha: int = -1, beta: int = 14) -> int:
     """Tricks for N/S (`ns`) or E/W from here, both sides perfect: `_fast_search`
@@ -1378,7 +1404,7 @@ def _bit_search(hands: list, trick: tuple, leader: int, trump: int | None,
                                  alpha - won, beta - won)
     key = None
     if not trick:
-        key = (leader, hands[0], hands[1], hands[2], hands[3])
+        key = (leader,) + _relative(hands)
         lo, hi = memo.get(key, (0, 13))
         if lo >= beta or lo == hi:
             return lo                 # known exactly: never search an empty window
