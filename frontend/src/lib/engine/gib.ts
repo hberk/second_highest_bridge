@@ -1620,6 +1620,15 @@ export const LOTT = true;
 const LOTT_MAX = 4;
 const LOTT_RAISE = [6, 9];
 const LOTT_ALERT = 'Competing to the level of our fit.';
+/** ...and below LOTT_RAISE, a raise with 3+ trumps and a side singleton or
+ *  void (the user's call: a weak raise is fine with distribution). GIB's free
+ *  raises, the same call in the same auctions, then read COMPETITIVE_RAISE
+ *  instead of quoting HCP, so one alert stays true of both. */
+export const LOTT_SHORT = true;
+
+function raiseAlert(x: Suit, text: string): string {
+  return LOTT && LOTT_SHORT ? `3+ ${SYM[x]}, competitive.` : text;
+}
 
 /** The fewest cards in `s` partner's natural bids have shown. */
 function partnerLength(ctx: Ctx, s: Suit): number {
@@ -1666,13 +1675,19 @@ function totalTricks(ctx: Ctx, decision: Decision | null): Decision | null {
     const n = ctx.h.len[s] + p;
     if (!p || n < 8) continue;
     const mine = ctx.ours.some(([w], i) => w === ctx.me && shownSuit(ctx.seq, i) === s);
-    if (!mine && !(LOTT_RAISE[0] <= ctx.h.hcp && ctx.h.hcp <= LOTT_RAISE[1])) continue;
+    const weak = LOTT_SHORT && ctx.h.hcp < LOTT_RAISE[0] && ctx.h.len[s] >= 3
+      && ctx.h.short(s).length > 0;
+    if (!mine && !weak && !(LOTT_RAISE[0] <= ctx.h.hcp && ctx.h.hcp <= LOTT_RAISE[1])) continue;
     const call = ctx.cheapest(s, 1);
     if (call === null || levelOf(call) > Math.min(n - 6, LOTT_MAX)) continue;
     const key = [n, isMajor(s) ? 1 : 0, idx(s)];
     if (best === null || cmpTuple(key, best[0]) > 0) best = [key, call];
   }
-  return best ? [best[1], LOTT_ALERT] : null;
+  if (best === null) return null;
+  const s = strainOf(best[1]) as Suit;
+  const mine = ctx.ours.some(([w], i) => w === ctx.me && shownSuit(ctx.seq, i) === s);
+  if (!mine && ctx.h.len[s] >= 3) return [best[1], raiseAlert(s, LOTT_ALERT)];
+  return [best[1], LOTT_ALERT];
 }
 
 function overTheirContract(ctx: Ctx, values: boolean): Decision {
@@ -2183,7 +2198,7 @@ function respondOverInterference(ctx: Ctx, x: Suit): Decision {
   }
   if (sup >= 3 && hcp >= 6) {
     const call = ctx.cheapest(x, 2);
-    if (call && levelOf(call) <= 3 && (hcp <= 9 || cueTooHigh)) return [call, `3+ ${SYM[x]}, 6+ HCP.`];
+    if (call && levelOf(call) <= 3 && (hcp <= 9 || cueTooHigh)) return [call, raiseAlert(x, `3+ ${SYM[x]}, 6+ HCP.`)];
   }
   if (JUMP_OVERCALL_GAME && isMajor(x) && lvl === 3 && isSuit(their)
     && sup >= 3 && hcp >= 11 && ctx.ok(`4${x}`)) {
@@ -2624,7 +2639,7 @@ function advance(ctx: Ctx): Decision | null {
     }
     if (sup >= 3 && hcp >= 6 && hcp <= 9) {
       const call = ctx.cheapest(ps, 2);
-      if (call && levelOf(call) <= 3) return [call, `3+ ${SYM[ps]}, 6-9 HCP.`];
+      if (call && levelOf(call) <= 3) return [call, raiseAlert(ps as Suit, `3+ ${SYM[ps as Suit]}, 6-9 HCP.`)];
     }
     if (isSuit(their) && h.stopper(their) && h.balanced) {
       if (hcp >= 8 && hcp <= 11 && ctx.ok('1NT')) return ['1NT', `8-11 HCP, ${SYM[their]} stopper.`];

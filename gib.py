@@ -1703,6 +1703,15 @@ LOTT = True
 LOTT_MAX = 4
 LOTT_RAISE = (6, 9)
 LOTT_ALERT = "Competing to the level of our fit."
+#: ...and below LOTT_RAISE, a raise with 3+ trumps and a side singleton or
+#: void (the user's call: a weak raise is fine with distribution). GIB's free
+#: raises, the same call in the same auctions, then read COMPETITIVE_RAISE
+#: instead of quoting HCP, so one alert stays true of both.
+LOTT_SHORT = True
+
+
+def _raise_alert(x: str, text: str) -> str:
+    return f"3+ {SYM[x]}, competitive." if LOTT and LOTT_SHORT else text
 
 
 def _partner_length(ctx: Ctx, s: str) -> int:
@@ -1759,7 +1768,9 @@ def _total_tricks(ctx: Ctx, decision: tuple | None) -> tuple | None:
             continue
         mine = any(w == ctx.me and shown_suit(ctx.seq, i) == s
                    for i, (w, _) in enumerate(ctx.ours))
-        if not mine and not LOTT_RAISE[0] <= ctx.h.hcp <= LOTT_RAISE[1]:
+        weak = LOTT_SHORT and ctx.h.hcp < LOTT_RAISE[0] and ctx.h.len[s] >= 3 \
+            and ctx.h.short(s)
+        if not mine and not weak and not LOTT_RAISE[0] <= ctx.h.hcp <= LOTT_RAISE[1]:
             continue
         call = ctx.cheapest(s, 1)
         if call is None or level_of(call) > min(n - 6, LOTT_MAX):
@@ -1767,7 +1778,13 @@ def _total_tricks(ctx: Ctx, decision: tuple | None) -> tuple | None:
         key = (n, s in MAJORS, SUITS.index(s))
         if best is None or key > best[0]:
             best = (key, call)
-    return (best[1], LOTT_ALERT) if best else None
+    if best is None:
+        return None
+    s = strain_of(best[1])
+    mine = any(w == ctx.me and shown_suit(ctx.seq, i) == s for i, (w, _) in enumerate(ctx.ours))
+    if not mine and ctx.h.len[s] >= 3:
+        return best[1], _raise_alert(s, LOTT_ALERT)
+    return best[1], LOTT_ALERT
 
 
 def _over_their_contract(ctx: Ctx, values: bool) -> tuple:
@@ -2321,7 +2338,7 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
     if sup >= 3 and hcp >= 6:
         call = ctx.cheapest(x, 2)
         if call and level_of(call) <= 3 and (hcp <= 9 or cue_too_high):
-            return call, f"3+ {SYM[x]}, 6+ HCP."
+            return call, _raise_alert(x, f"3+ {SYM[x]}, 6+ HCP.")
     if (JUMP_OVERCALL_GAME and x in MAJORS and lvl == 3 and their in SUITS
             and sup >= 3 and hcp >= 11 and ctx.ok(f"4{x}")):
         return f"4{x}", f"3+ {SYM[x]}, 11+ HCP. To play."
@@ -2771,7 +2788,7 @@ def _advance(ctx: Ctx) -> tuple | None:
         if sup >= 3 and 6 <= hcp <= 9:
             call = ctx.cheapest(ps, 2)
             if call and level_of(call) <= 3:
-                return call, f"3+ {SYM[ps]}, 6-9 HCP."
+                return call, _raise_alert(ps, f"3+ {SYM[ps]}, 6-9 HCP.")
         if their in SUITS and h.stopper(their) and h.balanced:
             if 8 <= hcp <= 11 and ctx.ok('1NT'):
                 return '1NT', f"8-11 HCP, {SYM[their]} stopper."

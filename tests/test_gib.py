@@ -413,7 +413,7 @@ def test_a_three_level_cuebid_raise_needs_more():
     same user's board went two down; the hand now raises to 2H instead."""
     west = '7S 6S 5S 3S AH KH 4H 10D 8D 4D QC JC 9C'
     call, why = bid(west, 'Pass', '1H', '2C', dealer='North')
-    assert call == '2H' and why == "3+ \u2665, 6+ HCP.", (call, why)
+    assert call == '2H' and why == "3+ \u2665, competitive.", (call, why)
     # Four trumps still cuebid.
     four = '7S 6S 5S AH KH 4H 3H 10D 8D 4D QC JC 9C'
     call, why = bid(four, 'Pass', '1H', '2C', dealer='North')
@@ -492,12 +492,21 @@ def test_competes_to_the_level_of_the_fit():
     north = 'AS 9S 8S 5S 10H 7H 3H 9D 6D 2D KC QC 4C'
     auction = ('3H', 'X', 'Pass', '4C', 'Pass', 'Pass')
     call, why = bid(north, *auction, dealer='South')
-    assert (call, why) == ('4H', 'Competing to the level of our fit, ♥.'), (call, why)
+    assert (call, why) == ('4H', '3+ ♥, competitive.'), (call, why)
     gib.LOTT = False
     try:
         assert bid(north, *auction, dealer='South')[0] == 'Pass'
     finally:
         gib.LOTT = True
+    # Deal 333: (1♣) 1♠ (3♣) with ♠109875 ♥J74 ♦Q1093 ♣7, 3 HCP: ten trumps
+    # and a singleton raise to 3♠, and GIB's free raise reads the same.
+    weak = '10S 9S 8S 7S 5S JH 7H 4H QD 10D 9D 3D 7C'
+    assert bid(weak, '1C', '1S', '3C', dealer='West') == ('3S', '3+ ♠, competitive.')
+    gib.LOTT_SHORT = False
+    try:
+        assert bid(weak, '1C', '1S', '3C', dealer='West')[0] == 'Pass'
+    finally:
+        gib.LOTT_SHORT = True
     # Nine trumps compete to three, not four.
     assert bid('AS 9S 8S 5S 10H 7H 9D 6D 3D 2D KC QC 4C', *auction,
                dealer='South')[0] == 'Pass'

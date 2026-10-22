@@ -206,6 +206,15 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   (`research/gib_h2h.py LOTT`): **+3.56 per board, t = +4.49, 71 of 1,600
   auctions changed**. `LOTT_MAX` 3 measured +3.50 (t = +5.60, 50 changed);
   5 the same as 4.
+  - **A weak raise with distribution** (`LOTT_SHORT`, the user's call: weaker
+    raises are fine with shape). Under 6 HCP, a raise needs 3+ trumps and a
+    side singleton or void. GIB's free raises in the same auctions
+    (`_respond_over_interference`'s 6+, advancer's 6-9) and every LoTT raise
+    with 3+ trumps now alert "3+ ♥, competitive." (`_raise_alert`), so the one
+    alert is true of both. Deal 333: (1♣) 1♠ (3♣) with ♠109875 ♥J74 ♦Q1093 ♣7
+    raises to 3♠ on 3 HCP, and partner competes to 4♠ over 4♣. Head to head
+    against LoTT without it: **+0.27 per board, t = +1.89, 7 auctions changed**.
+    LoTT with it, against neither: +3.82 (t = +4.76, 78 changed).
 - **Count the fit** (`FIT_COUNT`, `_fit_bonus`; the user's call, 2026-10-22).
   Where GIB judges game once a fit is known -- opener after 1M-2M and 1M-3M,
   responder after a game try and after opener's raise, and `continuation`'s
@@ -222,7 +231,8 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   *known* 9-card fit loses here, as the table above predicts (9-card fits make
   game 28%). Known lengths are minimums, which is why the base sits above the
   trick fit's ~9.7.
-  - Both together: **+4.39 per board, t = +5.23, 106 auctions changed.**
+  - All three switches together: **+4.66 per board, t = +5.48, 113 auctions
+    changed** (`FIT_COUNT` and `LOTT` alone: +4.39, t = +5.23, 106).
 
 ## The previous system (`ai.USE_GIB = False`)
 
