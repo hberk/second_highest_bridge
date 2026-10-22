@@ -1,8 +1,9 @@
 <!-- Hand history: pick a board, review the auction, step through the play
-     card by card, with double dummy values (`analysis`). Renders any record of the
-     history shape, which is how challenge mode shows the robots' board too. -->
+     card by card, with double dummy values and the cards that lost tricks
+     (`analysis`). Renders any record of the history shape, which is how
+     challenge mode shows your board and the robots' side by side. -->
 <script lang="ts">
-  import { STRAIN_SYMBOLS, SUIT_NAMES, SUIT_SYMBOLS, sameCard, type Card, type Seat } from '../engine/card';
+  import { STRAIN_SYMBOLS, SUIT_NAMES, SUIT_SYMBOLS, cardKey as key, parseCard, sameCard, type Card, type Seat } from '../engine/card';
   import { PARTNERSHIP, PLAYERS, type Contract, type Play } from '../engine/auction';
   import type { HistoryRecord } from '../game.svelte';
   import AuctionGrid from '../components/AuctionGrid.svelte';
@@ -14,7 +15,7 @@
   import { AUTO_CARDS, DdAnalysis } from '../dd/analysis.svelte';
 
   /** `onimport` adds the boards it hasn't already got and says how many.
-   *  `analysis` shows double dummy values on the replayer (the History tab). */
+   *  `analysis` shows double dummy values on the replayer (History and Challenge). */
   let { records, onimport, analysis = false }:
     { records: HistoryRecord[]; onimport?: (boards: HistoryRecord[]) => number; analysis?: boolean } = $props();
 
@@ -138,6 +139,7 @@
   /** The seat to play next at this step, with its marks (null while pending). */
   const toPlay = $derived(dd && step < total ? { seat: flat[step].p, marks: dd.marks(step), played: dd.played(step) } : null);
   const firstTrick = $derived(Math.ceil(total / 4));
+  const losses = $derived(dd ? dd.losses : []);
 
   function boxProps(seat: Seat) {
     return toPlay && toPlay.seat === seat ? { marks: toPlay.marks, played: toPlay.played } : {};
@@ -147,6 +149,8 @@
     return plays.find(([s]) => s === p)?.[1];
   }
 </script>
+
+{#snippet card(x: Card)}<span style:color="var(--suit-{x.suit.toLowerCase()}-lt)">{x.rank}<span aria-hidden="true">{SUIT_SYMBOLS[x.suit]}</span><span class="sr-only"> of {SUIT_NAMES[x.suit]}</span></span>{/snippet}
 
 {#if onimport}
   <details class="expander">
@@ -197,10 +201,6 @@
       </div>
     </div>
 
-    {#if !analysis}
-      <p class="caption">Double dummy values are in the History tab.</p>
-    {/if}
-
     <details class="expander" open>
       <summary>📋 Auction Sequence</summary>
       <div class="expander-body"><AuctionGrid dealer={hb.dealer} calls={hb.auction_calls} alerts={hb.bid_alerts} /></div>
@@ -244,6 +244,32 @@
       <div class="east"><SeatBox seat="East" role={role(c, 'East')} hand={view.remaining.East} {...boxProps('East')} /></div>
       <div class="south"><SeatBox seat="South" role={role(c, 'South')} hand={view.remaining.South} {...boxProps('South')} /></div>
     </div>
+
+    {#if dd && !dd.error && dd.doneFrom <= firstTrick}
+      <div class="dd-losses">
+        <h4>Where tricks were lost</h4>
+        {#if losses.length}
+          <ul>
+            {#each losses as l (l.i)}
+              {@const m = dd.marks(l.i)}
+              <li>
+                <button class="dd-loss" class:dd-loss-here={step === l.i} onclick={() => (step = l.i)}>
+                  <span class="dd-loss-trick">Trick {Math.floor(l.i / 4) + 1}</span>
+                  <span>{l.seat} ({role(c, l.seat).toLowerCase()}) played {@render card(l.card)}, giving away {l.cost} trick{l.cost === 1 ? '' : 's'}</span>
+                  {#if m}<span class="dd-loss-swing"><span class="dd-mark dd-{m[l.best[0]].tone}">{m[l.best[0]].text}</span> → <span class="dd-mark dd-{m[key(l.card)].tone}">{m[key(l.card)].text}</span></span>{/if}
+                  <span class="dd-dim">Best: {#each l.best as b, k}{k ? ', ' : ''}{@render card(parseCard(b))}{/each}</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {:else}
+          <p class="caption">No card cost a trick{dd.doneFrom > 1 ? ` from trick ${dd.doneFrom} on` : ''}.</p>
+        {/if}
+        {#if dd.doneFrom > 1}
+          <p class="caption">{dd.running ? 'Still analysing: earlier tricks are added as they finish.' : `Tricks 1–${dd.doneFrom - 1} aren't analysed yet.`}</p>
+        {/if}
+      </div>
+    {/if}
 
     <details class="expander">
       <summary>📊 Full Trick Log</summary>

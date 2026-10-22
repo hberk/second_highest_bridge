@@ -139,7 +139,7 @@ remains the reference.
   boards imported from LIN don't (`imported`). Auto-play is off by default
   (since 2026-10-15). Last trick and the auction are buttons beside your
   hand.
-- **Double dummy in the History replayer** (2026-10-21; `src/lib/dd/`,
+- **Double dummy in the replayer** (2026-10-21; `src/lib/dd/`,
   `dd.test.ts`). `research/solver-rs` compiled to WebAssembly
   (`research/solver-rs/wasm`, 50 KB), not a port of `bridge/solver`. At each
   step, every legal card of the seat to play carries how the contract ends if
@@ -147,7 +147,15 @@ remains the reference.
   (grey) exactly, **+n** (green) n overtricks; the card played is underlined.
   Signed as well as coloured, for colour-blind players, and measured against
   the contract on a defender's turn too (the user's choices, from a mock).
-  The History tab only (`analysis` prop), not the challenge review.
+  On in History and in the challenge review (`analysis` prop; the challenge
+  review had it off until 2026-10-22), so the robots' line can be checked
+  card by card. Under the replayer, **Where tricks were lost** lists every
+  analysed card that was worse for its side than the best card held
+  (`tricksLost`): trick, seat, how the contract moved (e.g. −1 → =) and the
+  card(s) that kept it; a tap jumps the replayer there. It grows as earlier
+  tricks are analysed. `dd.test.ts` checks the list accounts for every trick:
+  from the first decision analysed, N/S's tricks are the best they could force,
+  less what N/S gave away, plus what E/W gave away.
   - **It runs in a worker**, one per board shown (`worker.ts`, terminated on
     leaving the board, which frees the table), and fills in from the last
     trick back with one `Search` kept through the board: the endgame is
