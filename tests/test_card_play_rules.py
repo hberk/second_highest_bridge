@@ -1,7 +1,7 @@
-"""The four card-play rules from the user's review of deals 92, 156 and 174.
+"""The card-play rules from the user's review of deals 43, 92, 156 and 174.
 
 Each is a switch in ai.py (SURE_LEAD_DECLARER, RUFF_LEAD, FORCE_DUMMY,
-DEAD_CARD_LAST). Every test sets the switches it needs and puts them back, so
+DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT). Every test sets the switches it needs and puts them back, so
 the result doesn't depend on which rules are adopted.
 """
 from __future__ import annotations
@@ -16,7 +16,8 @@ import ai
 import challenge
 from card import Card
 
-RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST')
+RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
+         'LIVE_LEAD', 'NT_SET_UP_SUIT')
 
 
 @contextmanager
@@ -173,6 +174,48 @@ def test_dead_card_last_still_takes_a_trick_it_can_win():
     with rules(DEAD_CARD_LAST=True):
         # 8C under the 9C makes the 8 second-highest: North's own trick.
         assert ai._play_last(hand, trick, None, hand, []) == C('8C')
+
+
+# Deal 43, 3NT by West, dummy East. North led the 10H, won by East's 7H.
+DEAL_43 = ['N:10H E:7H S:4H W:3H']
+
+
+def _lead_43(seat: str, tricks: list[str]):
+    hands, played, history = replay(43, tricks)
+    view = ai.visible_hands(seat, {'declarer': 'West', 'dummy': 'East'}, hands)
+    return ai.ai_play(seat, hands[seat], [], None, played, view, history)
+
+
+def test_deal_43_dummy_led_spades_from_ace_king():
+    with rules():
+        assert _lead_43('East', DEAL_43) == C('KS')
+
+
+def test_deal_43_declarer_sets_up_the_club_suit():
+    """The user's point: set up the long suit. Q65 opposite K10982; the QC is
+    double dummy's best card (E/W keep 7 tricks; the KS left them 4)."""
+    with rules(NT_SET_UP_SUIT=True):
+        assert _lead_43('East', DEAL_43) == C('QC')
+
+
+def test_deal_43_no_lead_from_ace_king_queen():
+    """Trick 3: West led the KH from AKQ3 and North's 9H won. Every heart
+    above the king is West's own, so it can never be second-highest."""
+    tricks = DEAL_43 + ['E:KS S:JS W:QS N:3S']
+    with rules():
+        assert _lead_43('West', tricks) == C('KH')
+    with rules(LIVE_LEAD=True):
+        got = _lead_43('West', tricks)
+        assert got.suit != 'H', got
+
+
+def test_a_live_lead_still_leads_a_dead_card_when_every_suit_is_dead():
+    """With nothing live to lead, the rule changes nothing."""
+    hand = [C('AS'), C('KS'), C('AH'), C('KH')]
+    with rules():
+        before = ai._lead(hand, None, [])
+    with rules(LIVE_LEAD=True):
+        assert ai._lead(hand, None, []) == before
 
 
 if __name__ == '__main__':

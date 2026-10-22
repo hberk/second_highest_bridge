@@ -214,16 +214,6 @@ button { touch-action: manipulation; }
 .tally strong { font-size: 15px; color: var(--text); }
 .tally strong.accent { color: var(--accent); }
 
-.xray {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
-    gap: 8px;
-    margin-top: 10px;
-}
-.mini-hand { font-size: 13px; line-height: 1.45; color: var(--dim-2); }
-.mini-who { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
-.mini-sym { display: inline-block; width: 16px; }
-
 /* ── Cards in a fan ──────────────────────────────────────────────────────── */
 
 .fan {
@@ -796,8 +786,6 @@ button { touch-action: manipulation; }
     background: repeating-linear-gradient(45deg, var(--felt-line) 0 3px, var(--panel-2) 3px 6px);
 }
 .seat-card-backs span:first-child { margin-left: 0; }
-.seat-card-lines { display: grid; gap: 2px; text-align: left; font-size: 15px; font-weight: 600; letter-spacing: 0.04em; }
-.seat-card-lines span[aria-hidden] { display: inline-block; width: 18px; }
 .seat-card-count { font-size: 13px; color: var(--dim); }
 .seat-card-count strong { color: var(--text); }
 

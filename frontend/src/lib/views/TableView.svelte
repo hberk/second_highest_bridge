@@ -14,7 +14,6 @@
   import BidPad from '../components/BidPad.svelte';
   import TrickFelt from '../components/TrickFelt.svelte';
   import Fan from '../components/Fan.svelte';
-  import MiniHand from '../components/MiniHand.svelte';
   import SideHand from '../components/SideHand.svelte';
   import Strain from '../components/Strain.svelte';
   import Scoreline from '../components/Scoreline.svelte';
@@ -35,7 +34,6 @@
   const displayTrump = $derived(m.displayTrump);
   const usVul = $derived(m.usVul);
   const topSeat = $derived(m.topSeat);
-  const xray = $derived(m.xray);
   const labels = $derived(m.labels);
   const lastTrick = $derived(m.lastTrick);
   const peeking = $derived(m.peeking);
@@ -120,10 +118,6 @@
       <AuctionFelt calls={game.calls} alerts={game.liveAlerts} dealer={game.dealer}
         turn={auction.isComplete ? null : auction.currentPlayer()} />
 
-      {#if xray.length}
-        <div class="xray">{#each xray as p (p)}<MiniHand seat={p} cards={game.hands[p]} />{/each}</div>
-      {/if}
-
       <section class="hand-zone">
         <div class="hand-head">
           <span class="eyebrow">Your hand</span>
@@ -203,10 +197,6 @@
         {:else}
           <p class="trick-line dim">{who === 'South' ? 'Your lead.' : who ? `Lead from ${who}'s hand.` : ''}</p>
         {/if}
-      {/if}
-
-      {#if xray.length}
-        <div class="xray">{#each xray as p (p)}<MiniHand seat={p} cards={game.hands[p]} trump={displayTrump} />{/each}</div>
       {/if}
 
       <section class="hand-zone">

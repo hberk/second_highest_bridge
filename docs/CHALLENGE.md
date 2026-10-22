@@ -23,17 +23,20 @@ which a single score cannot answer. Measured 2026-10-19, with every card-play ru
 `research/challenge_losses.py` over all 400 deals at all 16 board positions
 (6,356 boards with a contract, 44 passed out), graded from N/S as the app
 grades, so this is what the "Robots" column of the match table averages to.
-The captions in both apps quote this table; rerun the script after a robot
-change and update all three together:
+The web app's Challenge caption quotes this table; rerun the script after a
+robot change and update both together. Measured 2026-10-21, with every robot
+change through the four-card endgame search:
 
 | | mean per board | median |
 |---|---|---|
-| lost in the auction | **233.9** | 200.0 |
-| lost in the card play | **7.1** | **0.0** |
+| lost in the auction | **234.9** | 200.0 |
+| lost in the card play | **6.9** | **0.0** |
 
-Graded from the declaring side instead: 220.5 in the auction and **-45.7** in
-the card play (median -20.0), so the declaring side's play beats double dummy on
-average, on the defence's mistakes. The figures before this (143.7 / 31.8 over
+Graded from the declaring side instead: 215.8 in the auction and **-33.3** in
+the card play (median 0.0), so the declaring side's play beats double dummy on
+average, on the defence's mistakes. (On 2026-10-19, before the Oct 20-21
+changes: 233.9 and 7.1 from N/S; 220.5 and -45.7, median -20.0, from the
+declaring side.) The figures before this (143.7 / 31.8 over
 372 boards) were one auction per deal and predate every card-play change
 below, so they aren't comparable: the 16 board positions include vulnerable
 boards, where par is worth far more (not measured separately).
@@ -299,6 +302,25 @@ both sides netted; see below for one side at a time).
   let dummy underplay with the 3♣) are right on their deals but not on the
   library, so both stay off. Their code stays in both engines behind the
   switches.
+
+**Two more from deal 43, both off** (2026-10-19; 3NT by West). Dummy led the
+K♠ from AK9 at trick 2 where the Q♣ from Q65, opposite K10982, was double
+dummy's best card; West then led the K♥ from AKQ3 and North's 9♥ won it.
+
+- `LIVE_LEAD`: `_lead` passes over a suit whose lead card is dead. Measured
+  one side at a time, it is worse for both: declaring side **-0.122 declarer
+  tricks per board (t = -2.72)**, defence **+0.149 (t = +3.88)**, the
+  defence's loss; the net +0.037 was the two cancelling. A dead card never
+  takes a trick unless no one else can follow, so leading it spends a loser
+  and keeps the live cards; deal 43 is the exception, not the rule. `_gap`'s
+  liking for A-K holdings is, by accident, right.
+- `NT_SET_UP_SUIT`: in notrump, when no long suit runs cheaply, the declaring
+  side sets one up (`_run_long_suit` with no loser limit). It finds the Q♣ on
+  deal 43. **+0.041 declarer tricks per board (t = +0.95), +4.2 points**;
+  1,024 boards changed. Not proven, and left off until the boards where it
+  loses show how to narrow it, as the first sure-lead rule was narrowed.
+  Neither is ported to the Svelte engine: both are off, so its play is
+  unchanged.
 
 **A cuebid raise that forces the three level needs four trumps or 12+
 judgement points** (`gib.CUE_LIMIT_AT_3`), a small tightening of GIB's "limit

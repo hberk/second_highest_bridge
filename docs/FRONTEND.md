@@ -51,7 +51,8 @@ remains the reference.
   alert spelled out), the trick on the felt (`TrickFelt`) with a line under it
   saying who is winning and why (`trickText.ts`), your hand as an overlapping
   fan at the bottom (`Fan`; legal cards rise, the rest grey out), the dummy
-  above the felt once it's down, and X-ray hands as suit lines (`MiniHand`).
+  above the felt once it's down. There is no X-ray view of the robots' hands
+  (removed 2026-10-21, the user's call): the hand record in History shows them.
   The full auction is a sheet. **Wide screens (1200px and up,
   `viewport.svelte.ts`) get a desktop layout instead**: a header with the
   sections as tabs and the Display menu (`DeskHeader`), and

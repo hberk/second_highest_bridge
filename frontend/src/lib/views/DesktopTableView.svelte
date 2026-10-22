@@ -49,8 +49,6 @@
     if (c.dummy === p) return 'Dummy';
     return 'Defender · robot';
   }
-  /** West and East face up: the dummy is shown above the felt instead. */
-  const sideCards = (p: Seat) => (m.xray.includes(p) ? game.hands[p] : null);
   const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0');
 </script>
 
@@ -72,7 +70,7 @@
     <!-- An East or West dummy shows its cards on its own side of the table. -->
     <div class="seat-card dk-side-dummy"><SideHand cards={game.hands[p]} trump={m.displayTrump} title={m.labels[p]} /></div>
   {:else}
-    <SeatCard seat={p} role={role(p)} count={m.counts[p]} cards={sideCards(p)} trump={m.displayTrump} />
+    <SeatCard seat={p} role={role(p)} count={m.counts[p]} />
   {/if}
 {/snippet}
 
@@ -158,9 +156,6 @@
               turn={auction.isComplete ? null : auction.currentPlayer()} />
           </div>
         {/snippet}
-        {#if m.xray.includes('North')}
-          <section class="dk-panel dk-hand"><SeatCard seat="North" role="Partner · robot" count={m.counts.North} cards={game.hands.North} /></section>
-        {/if}
         {@render seats(auctionFelt)}
         <section class="dk-panel dk-hand">
           <div class="dk-hand-head">
@@ -183,8 +178,6 @@
               playable={m.who === m.topSeat} legal={m.legalFor(m.topSeat)}
               label="{m.topSeat}'s hand" onplay={(card) => game.humanPlays(m.topSeat!, card)} />
           </section>
-        {:else if m.xray.includes('North')}
-          <section class="dk-panel dk-hand"><SeatCard seat="North" role={role('North')} count={m.counts.North} cards={game.hands.North} trump={m.displayTrump} /></section>
         {/if}
 
         {#snippet trickFelt()}

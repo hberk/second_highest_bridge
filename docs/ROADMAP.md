@@ -212,10 +212,11 @@ Still open, **each the user's call**:
   head to head +0.003 tricks, t = +0.37, 88 of 6,356 boards changed). Still
   open: `_lead`/`_gap` count dummy's cards as an opponent's, a card-play
   change to measure with `research/card_play_h2h.py`.
-- [x] **3.12 The challenge loss figures** (2026-10-19): re-measured by the new
-  `research/challenge_losses.py` over all 16 board positions, 234 in the
-  auction and 7 in the play (with the card-play rules merged from main), now quoted by both apps' captions, the
-  Streamlit docstring and CHALLENGE.md. Rerun it after any robot change.
+- [x] **3.12 The challenge loss figures** (2026-10-19, rerun 2026-10-21):
+  `research/challenge_losses.py` over all 16 board positions, 234.9 in the
+  auction and 6.9 in the play, quoted by the web app's Challenge caption and
+  CHALLENGE.md. Rerun it after any robot change, and add a line to
+  ROBOT_PROGRESS.md's "Where the robots stand".
 
 ## 4. Bigger projects (only when the user asks)
 

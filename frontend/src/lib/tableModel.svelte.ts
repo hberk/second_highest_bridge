@@ -52,10 +52,6 @@ export class TableModel {
    *  reads the way it does in real life. Only ever played by a robot: when
    *  you declare, the dummy is North. */
   sideDummy = $derived(this.faceDummy === 'East' || this.faceDummy === 'West' ? this.faceDummy : null);
-  /** X-ray: every other hand not already on the table. */
-  xray = $derived(settings.showAll
-    ? (['West', 'North', 'East'] as Seat[]).filter((p) => p !== this.faceDummy && this.game.hands[p].length)
-    : []);
 
   labels = $derived(Object.fromEntries(SEATS.map((p) => [p, this.seatLabel(p)])) as Record<Seat, string>);
 

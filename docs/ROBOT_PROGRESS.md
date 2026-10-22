@@ -1,0 +1,143 @@
+# Robot progress
+
+Every measured improvement to the robots, oldest first, with what it was worth.
+Each figure is copied from the measurement recorded in
+[CHALLENGE.md](CHALLENGE.md) (card play) or [BIDDING.md](BIDDING.md)
+(bidding), where the method and the deals behind it are written up.
+
+**Read every number so that positive means the robots got better.** A defence
+rule is measured as fewer declarer tricks, so its sign is flipped here. The
+gains are not additive: each was measured against the robots of its day, and
+rules overlap (a trick one rule saves, another may have saved already).
+
+## Where the robots stand
+
+What the robots give away on the challenge library, measured by
+`research/challenge_losses.py` (all 400 deals at all 16 board positions,
+graded from N/S as the app grades):
+
+| measured | robots | lost in the auction | lost in the card play |
+|---|---|---|---|
+| 2026-10-21 | every rule below, through the four-card endgame search | **234.9** | **6.9** |
+| 2026-10-19 | every rule up to then | 233.9 | 7.1 |
+| 2026-10-19 | before `SURE_LEAD_DECLARER`, `DEAD_CARD_LAST` | 233.9 | 12.5 |
+
+Points a board against par, split by the identity par - actual = bidding loss +
+play loss. The card play is close to double dummy now; the auction is where the
+points are. (An older figure, 143.7 / 31.8, was one auction per deal before any
+card-play change below, so it isn't comparable.)
+
+The robot declarer against double dummy, before the head-to-head metric
+existed (397 library boards, GIB auctions, tricks below double dummy a board):
+
+| change | below double dummy |
+|---|---|
+| the robot table passes no visible hands | 0.471 |
+| declarer sees its own two hands, defenders see dummy | 0.310 |
+| the last three tricks searched single dummy | 0.199 |
+| second hand covers to promote a visible partner | **0.025** |
+
+## Card play
+
+Head to head (`research/card_play_h2h.py`): the robot table on all 400 deals
+at all 16 board positions with the switch off, then on, the boards paired.
+**Tricks** a board for the side the rule plays for; **t** across deals (about 2
+or more is a real effect); **points** a board.
+
+| date | change | for | tricks | t | points | status |
+|---|---|---|---|---|---|---|
+| by 10-12 | Fourth hand plays for the partnership, not just itself | declarer | **+0.43** | +7.2 | | on |
+| | | defence | **+0.21** | +5.2 | | |
+| 10-17 | Declarer draws trumps (unless dummy must ruff first) | declarer | **+0.171** | +3.19 | +17.1 | on |
+| 10-17 | Declarer runs a long suit | declarer | **+0.080** | +1.99 | +19.8 | on |
+| 10-17 | Defenders lead their long suit in notrump | defence | +0.086 | +1.85 | +6.3 | on (your call) |
+| 10-17 | A defender cashes a sure trick, seen through dummy | defence | **+0.174** | +4.53 | +18.6 | on |
+| 10-18 | Covering robot counts its own cards correctly | | 0 boards changed | | | on (bug fix) |
+| 10-19 | Sure lead for the declaring side: the 9♣ to dummy's 10♣ (deal 174) | declarer | **+0.165** | +3.81 | +17.8 | on |
+| 10-19 | Dead card when fourth hand can't win: A♣/K♣, not 5♣ (deal 156) | declarer | **+0.077** | +3.33 | +9.5 | on |
+| | | defence | +0.036 | +1.08 | +5.4 | |
+| 10-19 | A void robot keeps its trumps unless ruffing wins | both | +0.003 | +0.37 | +0.7 | on (your rule) |
+
+The two 2026-10-19 rules together: **+0.183 tricks, +20.5 points a board**
+(t = +3.37).
+
+From 2026-10-20, seated (`research/card_play_seated.py`): the switch on for
+one side only, against robots without it, sides swapped, scored from the
+switched side over all 400 deals x 16 boards. `card_play_h2h.py` switches all
+four seats, which nets out a change both declarer and defenders use.
+
+| date | change | tricks | t | points | boards changed | status |
+|---|---|---|---|---|---|---|
+| 10-20 | The opening leader no longer sees dummy before it goes down | | +1.39 | +0.24 | 24 | on (your call: correctness) |
+| 10-20 | Second and third hand drop suits the next opponent has shown out of | | -0.79 | -0.16 | 48 | on (your call: correctness) |
+| 10-20 | Play reads the bidding: lead partner's suit, layouts that fit the auction | | +0.38 | +0.43 | 492 | on (your call: correctness) |
+| 10-20 | The endgame search starts at four cards, not three | **+0.190** | +10.29 | **+19.8** | 2,092 | on |
+| 10-21 | One position memory for every search | | | | 0 (same play, half the time) | on |
+
+The three information rules together: +0.55 points a board, t = +0.48, 556
+boards changed. None is distinguishable from zero; they are kept because a
+robot should play only on what it could know.
+
+Tried and left off:
+
+| date | change | tricks | why |
+|---|---|---|---|
+| by 10-12 | Searching the last four tricks, not three | | 15 minutes for the library: too slow for the table (done on 10-20, above, once the search was rewritten) |
+| 10-17 | Notrump long-suit lead on the opening lead only | -0.019 | every lead did better |
+| 10-19 | Ruff lead for the declaring side (deal 174) | -0.020 | right on its deal, not on the library |
+| 10-19 | Defender forces dummy instead of leading a trump (deal 92) | -0.001 | no effect |
+| 10-19 | Never lead a dead card while a live one will do (deal 43) | declarer -0.122, defence -0.149 | worse for both sides: a dead card is a loser worth spending |
+| 10-19 | Declarer sets up its long suit in notrump (deal 43) | +0.041 (t = +0.95) | right direction, not proven; left off, to narrow first |
+| 10-20 | A sampled search from five or six cards (eight layouts) | | deal 0: the K♦ third in hand where the 6♦ takes three more; eight layouts misjudge one card |
+| 10-21 | The endgame search from five cards | **+0.204** (t = +9.34), +22.8 points, seated, over four cards | **waiting**: 0.77 s a board is fine at the table but too slow for the test suites; needs the compiled solver in the robots' play |
+| 10-21 | Trying the remembered best card first | | slower (0.87 s against 0.77 s a board at five cards), no gain |
+
+## Bidding
+
+Head to head: the variant at N/S against the robots without it at E/W, then
+swapped, each contract scored at its double dummy result (`research/gib_h2h.py`
+since 2026-10-14: 400 deals x 4 dealers, 1,600 auctions). **Points** a board
+from the variant's side; t as above.
+
+| date | change | points | t | auctions changed | status |
+|---|---|---|---|---|---|
+| by 10-12 | GIB 2/1 adopted in place of the fitted system | -6.6 | -2.99 | | on (your choice: the system players know) |
+| by 10-12 | GIB judges level on this game's card values (K=Q=3, A=10=9=1) | **+2.7** | +2.90 | | on |
+| by 10-12 | A cuebid raise that forces the three level needs four trumps or 12+ | +0.1 | +2.24 | | on |
+| 10-14 | Reopening double after 1x (y) P (P), and responder's answer | **+1.64** | +2.06 | 28 | on |
+| 10-14 | Opener bids the fit after they bid over a negative double | +0.40 | +1.58 | 18 | on |
+| 10-14 | Opener shows strength after they overcall the response | -0.07 | -1.22 | 4 | on (your choice: GIB-standard) |
+| 10-19 | Opener's splinter after a single raise (1♥-2♥-3♠) | +0.00 | | 1 | on (your call) |
+| 10-19 | 1M-2M-3NT is a choice of games | | | | on (answers a human opener; robots never bid it) |
+| 10-20 | Opener splinters in their suit after they overcall the response (deal 329) | +0.19 | +1.00 | 2 | on (your call) |
+| 10-20 | Responder bids game over a three-level jump overcall with 3+ support, 11+ HCP (deal 346) | **+0.76** | +1.93 | 9 | on (your call: 11, not 10) |
+| 10-20 | After our two-suited overcall: advancer bids game with a fit, and the later rounds read it (deal 163) | +0.23 | +1.43 | 3 | on (your call) |
+| 10-20 | Their contract is not our game reached: double for penalty with game values (deal 118) | **+2.99** | +3.48 | 20 | on (your call) |
+| 10-20 | Our natural overcall is read as an overcall, not an opening (deal 67), with values counted at the four level | **+3.42** | +3.58 | 81 | on (your call) |
+
+### The previous system (`ai_bid`)
+
+Still answers the contested auctions GIB's notes leave to judgement, and is the
+whole system behind `ai.USE_GIB = False`. Measured head to head against the
+version before each change, on 300 deals, points a board; all made before the
+first commit (2026-10-03):
+
+| change | points | t | deals moved |
+|---|---|---|---|
+| A simple raise is never vetoed by the level cap | **+4.0** | +2.19 | 42 of 300 |
+| A free bid of a long suit in competition | **+3.6** | +2.36 | |
+| A lone rebid is no longer clamped to the partscore | **+3.6** | +2.92 | 26 of 300 |
+| A length bonus of 0.25 a trump past the fourth | **+5.8** | +2.40 | |
+| The UMD system card, all of it, against the pre-card AI | **+13.3** | +3.92 | 153 of 300 |
+
+## Adding a row
+
+1. Put the change behind a switch in `ai.py` or `gib.py`.
+2. Measure it head to head: `python research/card_play_h2h.py SWITCH` for card
+   play, `python research/gib_h2h.py SWITCH` for bidding (a defence rule, or
+   one that plays for both sides, one side at a time if the net is unclear).
+3. Write it up where it belongs (CHALLENGE.md or BIDDING.md), then add the row
+   here with its date and status. A change that was measured and left off gets
+   a row too.
+4. After a change that's kept, rerun `python research/challenge_losses.py` and
+   add a line to "Where the robots stand".

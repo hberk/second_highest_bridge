@@ -35,7 +35,6 @@ interface Stored {
   deck: DeckName;
   trumpFirst: boolean;
   showStrength: boolean;
-  showAll: boolean;
   autoPlay: boolean;
   fastPlay: boolean;
 }
@@ -52,7 +51,6 @@ class Settings {
   deck = $state<DeckName>('four');
   trumpFirst = $state(false);
   showStrength = $state(true);
-  showAll = $state(false);
   /** Play a card for you when it's the only legal one. */
   autoPlay = $state(false);
   /** Move on to the next trick by itself after a short pause. */
@@ -63,7 +61,6 @@ class Settings {
     if (s.deck === 'four' || s.deck === 'classic') this.deck = s.deck;
     if (typeof s.trumpFirst === 'boolean') this.trumpFirst = s.trumpFirst;
     if (typeof s.showStrength === 'boolean') this.showStrength = s.showStrength;
-    if (typeof s.showAll === 'boolean') this.showAll = s.showAll;
     if (typeof s.autoPlay === 'boolean') this.autoPlay = s.autoPlay;
     if (typeof s.fastPlay === 'boolean') this.fastPlay = s.fastPlay;
   }
@@ -72,7 +69,7 @@ class Settings {
     try {
       localStorage.setItem(KEY, JSON.stringify({
         deck: this.deck, trumpFirst: this.trumpFirst,
-        showStrength: this.showStrength, showAll: this.showAll,
+        showStrength: this.showStrength,
         autoPlay: this.autoPlay, fastPlay: this.fastPlay,
       }));
     } catch {
