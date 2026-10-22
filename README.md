@@ -67,7 +67,8 @@ tests check that it reproduces the Python engine exactly: every call, alert
 and card over 1,200 full games, and all 400 library deals.
 
 Design notes and measurements live in [`docs/`](docs/), with
-[`CLAUDE.md`](CLAUDE.md) as the overview.
+[`CLAUDE.md`](CLAUDE.md) as the overview. Every improvement to the robots and
+what it was worth is in [`docs/ROBOT_PROGRESS.md`](docs/ROBOT_PROGRESS.md).
 
 ## Security
 

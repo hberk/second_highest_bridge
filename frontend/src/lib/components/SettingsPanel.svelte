@@ -39,10 +39,6 @@
       <input type="checkbox" bind:checked={settings.fastPlay} />
       <span>Fast play<small>The next trick starts by itself.</small></span>
     </label>
-    <label class="setting">
-      <input type="checkbox" bind:checked={settings.showAll} />
-      <span>Show all hands<small>X-ray: every hand face up.</small></span>
-    </label>
   </fieldset>
   <fieldset>
     <legend>Saved on this device</legend>

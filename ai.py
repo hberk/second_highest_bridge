@@ -1058,6 +1058,9 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                       if RUFF_LEAD else None)
                   or (_run_long_suit(player, hand, trump, played, visible, history, shown)
                       if RUN_LONG_SUIT else None)
+                  or (_run_long_suit(player, hand, trump, played, visible, history, shown,
+                                     max_losers=float('inf'))
+                      if NT_SET_UP_SUIT and trump not in SUITS else None)
                   or (_sure_lead(player, hand, trump, played, visible, history)
                       if SURE_LEAD else None)
                   or (_nt_long_lead(player, hand, trump, played, visible)
@@ -1791,6 +1794,12 @@ def _splits(player: str, hand: list[Card], suit: str, outstanding: list[int],
 
 #: Declaring side runs a long suit that usually can't lose (measurement switch).
 RUN_LONG_SUIT = True
+#: In notrump, when no long suit runs that cheaply, the declaring side sets
+#: one up anyway: the suit with the most tricks after its expected losers,
+#: led with the card `_run_long_suit` scores best (measurement switch). Deal
+#: 43, 3NT by West: dummy led the K♠ from AK9 where the Q♣ from Q65, opposite
+#: K10982, keeps the contract to one down instead of two (double dummy).
+NT_SET_UP_SUIT = False
 #: The most expected losers a suit may have and still be run.
 RUN_MAX_LOSERS = 0.5
 
@@ -1798,8 +1807,11 @@ RUN_MAX_LOSERS = 0.5
 def _run_long_suit(player: str, hand: list[Card], trump: str | None,
                    played: list[Card], visible: dict[str, list[Card]] | None,
                    history: list | None,
-                   shown: dict[str, dict[str, int]] | None = None) -> Card | None:
-    """A lead that runs the partnership's long suit without loss, or None."""
+                   shown: dict[str, dict[str, int]] | None = None,
+                   max_losers: float | None = None) -> Card | None:
+    """A lead that runs the partnership's long suit without loss, or None.
+
+    With `max_losers` raised, a suit that must lose tricks first: setting it up."""
     partner = PARTNERS[player]
     if not visible or partner not in visible:
         return None
@@ -1843,7 +1855,7 @@ def _run_long_suit(player: str, hand: list[Card], trump: str | None,
             expected, _, _, lead = min(scored, key=lambda t: t[:3])
         else:
             expected, lead = 0.0, cards[-1]
-        if expected > RUN_MAX_LOSERS:
+        if expected > (RUN_MAX_LOSERS if max_losers is None else max_losers):
             continue
         rank = (tricks - expected, -SUITS.index(suit))
         if best is None or rank > best[0]:
@@ -2252,6 +2264,14 @@ def _nt_long_lead(player: str, hand: list[Card], trump: str | None,
     return cards[1]
 
 
+#: `_lead` passes over a suit whose lead would be a dead card while another
+#: suit's would be live (measurement switch). Deal 43, 3NT by West: West led
+#: the K♥ from A-K-Q-3 and North's 9♥ won it. Every heart above the king was
+#: West's own, so no one could play one and make the king second-highest;
+#: `_gap` scored A-K the best holding of all, nothing between the top two.
+LIVE_LEAD = False
+
+
 def _lead(hand: list[Card], trump: str | None, played: list[Card]) -> Card:
     """
     Pick the best suit using gap analysis, then lead its 2nd-highest card.
@@ -2259,16 +2279,20 @@ def _lead(hand: list[Card], trump: str | None, played: list[Card]) -> Card:
     groups: dict[str, list[Card]] = {}
     for c in hand:
         groups.setdefault(c.suit, []).append(c)
+    gone = set(played)
+
+    def lead_from(s: str) -> Card:
+        cards = sorted(groups[s], key=lambda c: c.value(), reverse=True)
+        # Lead 2nd-highest — the card positioned to be 2nd in the trick
+        return cards[min(1, len(cards) - 1)]
 
     def suit_score(s: str) -> tuple:
         g = _gap(s, hand, played)
         is_trump_penalty = 1 if (trump in SUITS and s == trump) else 0
-        return (-g, -is_trump_penalty, len(groups[s]), SUITS.index(s))
+        dead = 1 if LIVE_LEAD and _dead(lead_from(s), hand, gone) else 0
+        return (-dead, -g, -is_trump_penalty, len(groups[s]), SUITS.index(s))
 
-    best  = max(groups, key=suit_score)
-    cards = sorted(groups[best], key=lambda c: c.value(), reverse=True)
-    # Lead 2nd-highest — the card positioned to be 2nd in the trick
-    return cards[min(1, len(cards) - 1)]
+    return lead_from(max(groups, key=suit_score))
 
 
 # ── Giving up a trick ────────────────────────────────────────────────────────
