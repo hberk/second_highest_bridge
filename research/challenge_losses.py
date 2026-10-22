@@ -14,7 +14,7 @@ grades each board two ways:
   split docs/CHALLENGE.md describes.
 
 Boards that pass out are left out, as they are of the figure the app quotes.
-This is the one source for that figure (the Streamlit and Svelte captions,
+This is the one source for that figure (the web app's Challenge caption,
 docs/CHALLENGE.md): rerun it after any robot change and quote what it prints.
 
     python research/challenge_losses.py

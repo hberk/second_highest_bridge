@@ -4,7 +4,7 @@
 
 export type DeckName = 'four' | 'classic';
 
-// Ink per suit, per deck -- web/card_component.py's DECKS. Every value clears
+// Ink per suit, per deck. Every value clears
 // WCAG AA against the surface it is drawn on.
 export const DECKS: Record<DeckName, Record<'face' | 'dim' | 'lt', Record<string, string>>> = {
   classic: {

@@ -193,22 +193,6 @@ def test_every_robot_bid_can_explain_itself():
     assert seen > 100, f"only exercised {seen} calls"
 
 
-def test_alert_text_is_escaped_before_it_reaches_the_page():
-    """Alerts are injected with unsafe_allow_html, so anything in them that
-    looks like markup has to be neutralised first."""
-    from web.card_component import call_badge
-
-    nasty = 'Shows <b>5+</b> spades & "values" <script>alert(1)</script>'
-    html = call_badge('1S', nasty)
-    assert '<script>' not in html
-    assert '<b>' not in html
-    assert '&lt;script&gt;' in html and '&amp;' in html and '&quot;' in html
-
-    plain = call_badge('1S')
-    assert 'bid-alerted' not in plain, "an unalerted call needs no alert markup"
-    assert 'bid-alert-tip' in call_badge('1S', 'Opening bid in spades.')
-
-
 def test_bids_that_name_a_strength_actually_have_it():
     """A points threshold has to gate on POINTS. The trick-count thresholds are
     met by length alone -- a card of length is worth about 1.15 tricks here -- so
@@ -535,7 +519,7 @@ def test_a_bid_alert_depends_only_on_the_auction_and_the_call():
     two-level bid "Forcing" or "Free bid", and an answer to a takeout double
     quoted the suit's real length and point band. Passes are exempt here: their
     reasons are hand-dependent by nature and are hidden from the live table by
-    `web.auction_view.live_alerts` (see the test below).
+    the web app (`Game.liveAlerts`, tested in frontend/src/lib/lin.test.ts).
     """
     random.seed(21)
     seen: dict = {}
@@ -553,14 +537,6 @@ def test_a_bid_alert_depends_only_on_the_auction_and_the_call():
                     f"hand out: {key}: {first!r} vs {why!r}")
             auction.apply_call(who, call)
     assert len(seen) > 1000, "too few bids exercised to mean anything"
-
-
-def test_the_live_table_hides_why_a_robot_passed():
-    from web.auction_view import live_alerts
-    calls = [('North', '1S'), ('East', 'Pass'), ('South', '2S'), ('West', 'Pass')]
-    alerts = {0: "5+ S", 1: "Fewer than 8 points.", 2: "3+ S support", 3: "No suit."}
-    assert live_alerts(calls, alerts) == {0: "5+ S", 2: "3+ S support"}
-    assert live_alerts(calls, None) == {}
 
 
 if __name__ == '__main__':

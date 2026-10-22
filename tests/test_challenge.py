@@ -124,7 +124,7 @@ def test_a_player_who_plays_like_the_robot_draws_level():
 def test_a_robot_board_is_replayable_like_a_human_one():
     """`as_history_record` must produce exactly what the replayer consumes.
 
-    The point of the shape match is that `web/replayer_view.py` needs no idea
+    The point of the shape match is that the replayer needs no idea
     robot boards exist -- it steps through one the same way it steps through
     yours, which is what lets the two sit side by side on the same deal.
     """

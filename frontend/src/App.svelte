@@ -65,7 +65,7 @@
   {:else if screen === 'howto'}
     <HowToPlayView />
   {:else}
-    <HistoryView records={game.history} onimport={(boards: HistoryRecord[]) => game.importBoards(boards)} />
+    <HistoryView records={game.history} analysis onimport={(boards: HistoryRecord[]) => game.importBoards(boards)} />
   {/if}
 {/snippet}
 

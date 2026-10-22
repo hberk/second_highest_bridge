@@ -19,13 +19,8 @@ updates:
       - dependency-name: typescript
         versions: [">=7"]
 
-  # The Streamlit app's only dependency.
-  - package-ecosystem: pip
-    directory: /
-    schedule:
-      interval: monthly
-
-  # research/solver-rs: serde, serde_json, rustc-hash. Never shipped.
+  # research/solver-rs: serde, serde_json, rustc-hash. The web app ships its
+  # search as WebAssembly (research/solver-rs/wasm), which uses rustc-hash.
   - package-ecosystem: cargo
     directory: /research/solver-rs
     schedule:

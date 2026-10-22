@@ -1,5 +1,5 @@
 <!-- Hand history: pick a board, review the auction, step through the play
-     card by card. Port of web/replayer_view.py. Renders any record of the
+     card by card, with double dummy values (`analysis`). Renders any record of the
      history shape, which is how challenge mode shows the robots' board too. -->
 <script lang="ts">
   import { STRAIN_SYMBOLS, SUIT_NAMES, SUIT_SYMBOLS, sameCard, type Card, type Seat } from '../engine/card';
@@ -11,9 +11,12 @@
   import Strain from '../components/Strain.svelte';
   import { MAX_LIN_BYTES, fromLinFile, toLin, toLinFile } from '../lin';
   import { MAX_SAVED_BOARDS } from '../saves';
+  import { AUTO_CARDS, DdAnalysis } from '../dd/analysis.svelte';
 
-  /** `onimport` adds the boards it hasn't already got and says how many. */
-  let { records, onimport }: { records: HistoryRecord[]; onimport?: (boards: HistoryRecord[]) => number } = $props();
+  /** `onimport` adds the boards it hasn't already got and says how many.
+   *  `analysis` shows double dummy values on the replayer (the History tab). */
+  let { records, onimport, analysis = false }:
+    { records: HistoryRecord[]; onimport?: (boards: HistoryRecord[]) => number; analysis?: boolean } = $props();
 
   // ── LIN in and out ──────────────────────────────────────────────────────────
   let linText = $state('');
@@ -68,7 +71,7 @@
     } else if (file) importLin(await file.text());
   }
 
-  // Newest first, as the Streamlit selector lists them.
+  // Newest first.
   const options = $derived([...records.keys()].reverse());
   let selected = $state<number | null>(null);
   const sel = $derived(selected !== null && selected < records.length ? selected : records.length - 1);
@@ -95,7 +98,7 @@
     c.declarer === s ? 'Declarer' : c.dummy === s ? 'Dummy' : 'Defender';
 
   const flat = $derived(hb ? hb.tricks_log.flatMap((t) =>
-    t.plays.map(([p, card]) => ({ num: t.trick_num, p, card }))) : []);
+    t.plays.map(([p, card]) => ({ p, card }))) : []);
   const total = $derived(flat.length);
 
   const view = $derived.by(() => {
@@ -118,18 +121,27 @@
     }
     const tally = { 'N/S': 0, 'E/W': 0 };
     for (const t of hb.tricks_log.slice(0, Math.floor(step / 4))) tally[PARTNERSHIP[t.winner]]++;
-    let text: string;
-    if (step === 0) text = 'Before opening lead — showing all original hands';
-    else if (step === total) text = hb.tricks_log.length < 13
-      ? `Hand complete — ${hb.tricks_log.length} tricks played, the rest claimed`
-      : 'Hand complete — all 13 tricks played';
-    else if (justCompleted) text = `Trick ${trickNum} complete — winner: ${winner}`;
-    else {
-      const last = flat[step - 1];
-      text = `Trick ${last.num}: ${last.p} played ${last.card.rank}${SUIT_SYMBOLS[last.card.suit]} (${trick.length}/4 cards)`;
-    }
-    return { remaining, trickNum, trick, winner, tally, text };
+    return { remaining, trickNum, trick, winner, tally };
   });
+
+  // ── Double dummy ────────────────────────────────────────────────────────────
+  // One analysis per board shown, started when the board is, stopped (and its
+  // worker's memory freed) when another board is picked or the view closes.
+  let dd = $state<DdAnalysis | null>(null);
+  $effect(() => {
+    if (!analysis || !hb?.contract || hb.passed_out) return;
+    const a = new DdAnalysis(hb);
+    dd = a;
+    a.start();
+    return () => a.stop();
+  });
+  /** The seat to play next at this step, with its marks (null while pending). */
+  const toPlay = $derived(dd && step < total ? { seat: flat[step].p, marks: dd.marks(step), played: dd.played(step) } : null);
+  const firstTrick = $derived(Math.ceil(total / 4));
+
+  function boxProps(seat: Seat) {
+    return toPlay && toPlay.seat === seat ? { marks: toPlay.marks, played: toPlay.played } : {};
+  }
 
   function cardOf(plays: Play[], p: Seat) {
     return plays.find(([s]) => s === p)?.[1];
@@ -185,7 +197,9 @@
       </div>
     </div>
 
-    <p class="caption">Double dummy post-mortem is not in the web version yet.</p>
+    {#if !analysis}
+      <p class="caption">Double dummy values are in the History tab.</p>
+    {/if}
 
     <details class="expander" open>
       <summary>📋 Auction Sequence</summary>
@@ -195,30 +209,40 @@
     <hr />
     <h3>🎬 Card-by-Card Replayer</h3>
     <div class="replay-controls">
-      <button class="btn" onclick={() => (step = 0)}>⏮ Start</button>
-      <button class="btn" disabled={step === 0} onclick={() => (step = Math.max(0, step - 1))}>◀ Prev</button>
-      <button class="btn" disabled={step >= total} onclick={() => (step = Math.min(total, step + 1))}>Next ▶</button>
-      <button class="btn" onclick={() => (step = total)}>⏭ End</button>
-    </div>
-    <label class="caption" for="replay-step">Step through cards played: Card {step} / {total}</label>
-    <input id="replay-step" type="range" min="0" max={total} bind:value={step} />
-    <div class="caption">Jump to trick:</div>
-    <div class="trick-jumps">
-      {#each { length: 13 } as _, i}
-        {#if i * 4 <= total}<button class="btn" onclick={() => (step = i * 4)}>T{i + 1}</button>{/if}
-      {/each}
+      <button class="btn" disabled={step === 0} onclick={() => (step = Math.max(0, step - 1))}>◀ Back</button>
+      <button class="btn" disabled={step >= total} onclick={() => (step = Math.min(total, step + 1))}>Next card ▶</button>
+      <button class="btn" disabled={step >= total} onclick={() => (step = Math.min(total, (Math.floor(step / 4) + 1) * 4))}>Next trick ⏭</button>
     </div>
 
-    <div class="notice info">📍 <strong>Step {step}/{total}</strong> — {view.text}</div>
+    {#if dd}
+      <div class="dd-status" aria-live="polite">
+        <strong>Double dummy</strong>
+        {#if dd.error}
+          <span class="dd-error">{dd.error}</span>
+        {:else}
+          <span>{dd.doneFrom > firstTrick ? 'Starting…' : dd.doneFrom === firstTrick ? `Trick ${firstTrick} analysed` : `Tricks ${dd.doneFrom}–${firstTrick} analysed`}</span>
+          {#if dd.running}<span class="dd-dim">· working on trick {dd.doneFrom - 1}…</span>{/if}
+          {#if !dd.deep && firstTrick > AUTO_CARDS && !dd.running}
+            <button class="btn" onclick={() => dd?.deeper()}>Analyse tricks 1–{13 - AUTO_CARDS} (can take minutes)</button>
+          {/if}
+        {/if}
+      </div>
+      <div class="dd-legend">
+        <span><span class="dd-mark dd-down">−1</span> down 1 if played</span>
+        <span><span class="dd-mark dd-even">=</span> makes exactly</span>
+        <span><span class="dd-mark dd-over">+2</span> 2 overtricks</span>
+        <span><span class="hd-played">Underlined</span>: the card played</span>
+      </div>
+    {/if}
 
     <div class="replay-grid">
-      <div class="north"><SeatBox seat="North" role={role(c, 'North')} hand={view.remaining.North} /></div>
-      <div class="west"><SeatBox seat="West" role={role(c, 'West')} hand={view.remaining.West} /></div>
+      <div class="north"><SeatBox seat="North" role={role(c, 'North')} hand={view.remaining.North} {...boxProps('North')} /></div>
+      <div class="west"><SeatBox seat="West" role={role(c, 'West')} hand={view.remaining.West} {...boxProps('West')} /></div>
       <div class="felt">
         <FeltTable trick={view.trick} winner={view.winner} displayNum={view.trickNum} contract={c} tricksTaken={view.tally} />
       </div>
-      <div class="east"><SeatBox seat="East" role={role(c, 'East')} hand={view.remaining.East} /></div>
-      <div class="south"><SeatBox seat="South" role={role(c, 'South')} hand={view.remaining.South} /></div>
+      <div class="east"><SeatBox seat="East" role={role(c, 'East')} hand={view.remaining.East} {...boxProps('East')} /></div>
+      <div class="south"><SeatBox seat="South" role={role(c, 'South')} hand={view.remaining.South} {...boxProps('South')} /></div>
     </div>
 
     <details class="expander">

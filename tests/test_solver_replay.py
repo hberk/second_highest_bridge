@@ -20,7 +20,7 @@ from bridge.solver import api, replay
 
 
 def synthetic_board(seed: int, strain: str = 'S', board_num: int = 1) -> dict:
-    """A fully played board in the shape app.py stores in hand_history."""
+    """A fully played board in the hand-history shape."""
     random.seed(seed)
     initial = {seat: list(cards) for seat, cards in deal().items()}
     hands = {seat: list(cards) for seat, cards in initial.items()}
@@ -180,10 +180,10 @@ def test_cache_key_is_stable_and_distinct():
 
 
 def test_cards_dealt_before_a_module_reload_still_compare_equal():
-    """Streamlit re-imports every project module when a source file changes.
-    A board dealt before that holds the OLD Card class; with an isinstance
-    test it equalled no new Card, and the analysis panel rejected all seven
-    of a user's decisions as "not legal"."""
+    """The Streamlit app (retired 2026-10-21) re-imported every project module
+    when a source file changed. A board dealt before that held the OLD Card
+    class; with an isinstance test it equalled no new Card, and the analysis
+    panel rejected all seven of a user's decisions as "not legal"."""
     import importlib
     import card
     old = card.Card('H', '2')

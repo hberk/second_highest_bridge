@@ -89,7 +89,7 @@ def eval_hand_sh(hand: list[Card]) -> dict:
     below are expressed in that unit -- tricks, not invented points.
 
     `total_pts` is the hand's value in its own best trump suit, kept under the old
-    name because app.py and the tests read it.
+    name because the tests (and the TypeScript port) read it.
 
     This replaces a hand-written evaluation that ranked A-K-Q highest and measured
     r = -0.035 (R^2 = 0.001) against actual tricks -- no predictive power at all.

@@ -35,6 +35,7 @@ import challenge  # noqa: E402
 from ai import ai_bid_explained, ai_play, eval_hand_sh, hcp, shown_lengths, visible_hands  # noqa: E402
 from bridge import lin  # noqa: E402
 from bridge.scoring import score_contract  # noqa: E402
+from bridge.solver import replay  # noqa: E402
 from card import Card, SUITS, RANKS, STRAINS  # noqa: E402
 from game import (AuctionState, DEALER_ROTATION, VUL_ROTATION,  # noqa: E402
                   clockwise_from, legal_plays, resolve_trick)
@@ -63,7 +64,7 @@ def random_deal(rng: random.Random) -> dict[str, list[Card]]:
 
 
 def play_game(hands, dealer, vul, rng: random.Random | None):
-    """One board the way app.py runs it. With `rng`, South is a random human:
+    """One board the way the web app runs it. With `rng`, South is a random human:
     that reaches auction and play states an all-robot table never produces
     (odd overcalls, doubles, ducked tricks), which is where a port goes wrong."""
     hands = {p: list(h) for p, h in hands.items()}
@@ -197,8 +198,8 @@ def export_challenge() -> list[dict]:
 
 
 def history_record(game: dict, board_num: int) -> dict:
-    """A games.json record in the hand-history shape app.py keeps, so
-    bridge.lin can write it."""
+    """A games.json record in the hand-history shape (`HistoryRecord` in
+    frontend/src/lib/game.svelte.ts), so bridge.lin can write it."""
     hands = {p: [Card(t[-1], t[:-1]) for t in text.split()] for p, text in game['hands'].items()}
     contract = game['contract']
     tricks_log = []
@@ -274,6 +275,28 @@ def export_hostile_lin(games: list[dict]) -> list[dict]:
     return out
 
 
+def export_dd(games: list[dict]) -> list[dict]:
+    """The Python solver's card values over the last five tricks of 16 boards.
+    The History replayer runs research/solver-rs as WebAssembly; dd.test.ts
+    checks it against these, an independent engine, value for value."""
+    out = []
+    for i, g in enumerate(games):
+        if len(out) == 16:
+            break
+        if g['contract'] is None or len(g['plays']) != 52:
+            continue
+        record = history_record(g, i + 1)
+        decisions = []
+        for d in replay.decisions(record, max_cards=5, skip_forced=False):
+            values = replay.analyse(d)['values']
+            decisions.append({'index': (d.trick_num - 1) * 4 + len(d.trick_so_far),
+                              'values': {tok(c): v for c, v in values.items()}})
+        out.append({'hands': g['hands'], 'leader': g['contract']['leader'],
+                    'strain': g['contract']['strain'], 'plays': g['plays'],
+                    'decisions': decisions})
+    return out
+
+
 def write(name: str, data) -> None:
     path = OUT / name
     path.write_text(json.dumps(data, separators=(',', ':'), ensure_ascii=False),
@@ -293,6 +316,7 @@ def main() -> None:
     write('challenge.json', export_challenge())
     write('lin.json', export_lin(games))
     write('lin_hostile.json', export_hostile_lin(games))
+    write('dd.json', export_dd(games))
 
 
 if __name__ == '__main__':

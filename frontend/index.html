@@ -17,8 +17,10 @@
          need 'unsafe-inline' for inline style attributes. frame-ancestors is
          ignored in a meta tag, so framing can't be blocked here. The two
          cloudflareinsights.com origins are Cloudflare Web Analytics (below):
-         its script, and where it sends page views. Nothing else is allowed. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; form-action 'none'" />
+         its script, and where it sends page views. 'wasm-unsafe-eval' lets the
+         History replayer compile its double dummy solver (src/lib/dd); it runs
+         WebAssembly only, never eval. Nothing else is allowed. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; form-action 'none'" />
     <meta name="referrer" content="no-referrer" />
     <title>Second-Highest Bridge</title>
     <!-- The second spade (public/favicon.svg; the PNGs and .ico are drawn

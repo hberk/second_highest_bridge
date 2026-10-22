@@ -8,8 +8,8 @@ doc for the area you're changing before you change it**; the guardrails below sa
 ## Commands
 
 ```bash
-# Run the Streamlit web app (primary interface)
-streamlit run app.py
+# The game is the web app in frontend/ (commands below). The Python code is
+# its reference engine, with no UI and no third-party dependencies.
 
 # Run every test and report all failures (doesn't stop at the first one)
 python tests/run_all.py
@@ -19,14 +19,12 @@ python tests/test_rules.py      # second-highest trick rule + follow-suit
 python tests/test_scoring.py    # duplicate scoring: minors, slams, doubled/redoubled
 python tests/test_bidding.py    # auction rules/errors, scoring basics, 40 seeded AI games
 python tests/test_sim.py        # smoke test: one seeded AI vs AI game with invariants
-python tests/test_app_flow.py   # drives app.py headlessly via streamlit AppTest
 python tests/test_bidding_calibration.py  # interim threshold calibration guards
 python tests/test_bidding_rebids.py       # agreed-suit rebids, minor-suit game
 python tests/test_gib.py                  # GIB 2/1 conventions, call by call
 python tests/test_lin.py                  # LIN hand records: round trips, BBO variants, refusals
 python tests/test_challenge.py            # challenge grading: par = bidding + play loss
 python tests/test_card_play_rules.py      # the card-play rules from deals 92, 156, 174
-python tests/test_web_escaping.py         # every string reaching unsafe_allow_html is escaped
 ```
 
 `run_all.py` reports a test that raises `unittest.SkipTest` as SKIP (the Rust
@@ -37,8 +35,10 @@ Solver, dataset and Rust engine commands: [docs/SOLVER.md](docs/SOLVER.md#comman
 ```bash
 cd frontend
 npm install
+rustup target add wasm32-unknown-unknown   # once: the History replayer's solver
+npm run wasm       # build it (dev, test and build run this first, and fail without Rust)
 npm run fixtures   # export the Python engine's behaviour (needs Python 3.12+)
-npm test           # TS engine parity with Python + headless table flow
+npm test           # TS engine parity with Python + headless table flow + WASM solver
 npm run check      # svelte-check
 npm run dev        # local dev server
 npm run build      # static site in frontend/dist, deployed to GitHub Pages
@@ -46,11 +46,10 @@ npm run build      # static site in frontend/dist, deployed to GitHub Pages
 
 ## Environment
 
-Python 3.9 or newer. Developed on 3.9.13, and the full suite (261 tests as of 2026-10-20,
-including `tests/test_app_flow.py`, which executes `app.py` headlessly) passes
-unchanged on **3.12.10** — no source edits were needed, because every file
-already starts with `from __future__ import annotations`. `.python-version`
-pins 3.12 for deployment, since Streamlit Community Cloud no longer offers 3.9.
+Python 3.9 or newer, standard library only. Developed on 3.9.13, and the full suite
+(234 tests as of 2026-10-21) passes unchanged on **3.12.10** — no source edits were
+needed, because every file already starts with `from __future__ import annotations`.
+`.python-version` pins 3.12, the reference (below) and what CI and the fixtures use.
 A 3.12 virtualenv lives in `.venv/` (gitignored); `./.venv/Scripts/python.exe`
 runs it on Windows.
 
@@ -78,9 +77,8 @@ Full Bridge Bidding (Auction) from 1♣ to 7NT with Pass, Double (X), and Redoub
 | `bridge/solver/` | double dummy solver | [SOLVER](docs/SOLVER.md) |
 | `gib.py`, `ai.py` | robot bidding (GIB first, the previous system as fallback), hand evaluation, card play | [BIDDING](docs/BIDDING.md), [CHALLENGE](docs/CHALLENGE.md) |
 | `challenge.py`, `data/solved_deals.json` | head-to-head mode on 400 solved deals | [CHALLENGE](docs/CHALLENGE.md) |
-| `app.py`, `web/`, `styles.css` | the Streamlit app | [ARCHITECTURE](docs/ARCHITECTURE.md) |
-| `frontend/` | the phone-first web app (Svelte), a static site | [FRONTEND](docs/FRONTEND.md) |
-| `research/` | dataset, fitting, the Rust solver; never imported by the app | [SOLVER](docs/SOLVER.md), [BIDDING](docs/BIDDING.md) |
+| `frontend/` | the game: the phone-first web app (Svelte), a static site | [FRONTEND](docs/FRONTEND.md) |
+| `research/` | dataset, fitting, the Rust solver; never imported by the Python app. The web app's History replayer runs `research/solver-rs/wasm` as WebAssembly | [SOLVER](docs/SOLVER.md), [BIDDING](docs/BIDDING.md), [FRONTEND](docs/FRONTEND.md) |
 | `tests/` | the Python suites; `tests/fixtures/endings.json` is frozen solver ground truth | |
 
 ## Key Invariants
@@ -88,7 +86,7 @@ Full Bridge Bidding (Auction) from 1♣ to 7NT with Pass, Double (X), and Redoub
 - `Card.__eq__` and `__hash__` are both defined (hashable, usable in sets/dicts).
 - All files start with `from __future__ import annotations` for Python 3.9 union type compatibility.
 - `deal()` returns hands already sorted high-to-low within each suit — don't re-sort in display code.
-- The `played` list passed to `ai_play` is cumulative across the full game; it grows after each completed trick in `next_trick()` / `main.py`'s game loop.
+- The `played` list passed to `ai_play` is cumulative across the full game; it grows after each completed trick in the game loop (`Game` in the web app, `main.py`, the tests).
 
 ## Guardrails
 
@@ -118,9 +116,8 @@ it before going against one.
   depends only on the auction and the call, it stays under 70 characters, and pass reasons are
   hidden while the board is live. The first two are machine-checked. The web app's bidding box
   explains every call by reading the robots' alerts, so it relies on the second.
-- Every string that reaches `unsafe_allow_html` is escaped. A new input widget must be added to
-  `REVIEWED_INPUTS` in `tests/test_web_escaping.py`, with its path traced. In Svelte, no `{@html}`.
-- Before exposing `web/analysis_view.py` publicly, cap its depth and bound its shared cache.
+- No `{@html}` in Svelte (a test bans it), so every string the app shows is escaped. The app
+  takes text in two places, the self-alert box and LIN import; a new one needs the same care.
 
 **Determinism** ([CHALLENGE](docs/CHALLENGE.md))
 - `ai.py` imports no RNG, so the robot table and the benchmark cannot drift. `hands_for`
@@ -129,13 +126,16 @@ it before going against one.
 **The Svelte port** ([FRONTEND](docs/FRONTEND.md))
 - `frontend/src/lib/engine/` is a line-for-line port held to the Python by fixtures, with exact
   equality, floats included. **Change `ai.py` or `gib.py` and the port fails until it follows.**
+- The History replayer's double dummy solver is `research/solver-rs` as WebAssembly, checked
+  against the Python solver (`dd.test.ts`). It has no fallback, and its table is capped for
+  phones (`TABLE_LIMIT`, ~130 MB); a smaller cap costs time, never a value.
 
 ## Docs
 
 | doc | read it when |
 |---|---|
 | [ROADMAP.md](docs/ROADMAP.md) | starting work without a specific request: the ordered list of next updates |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | changing the Python modules, the Streamlit app, alerts or escaping, or deploying Streamlit |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | changing the Python modules, alerts or escaping |
 | [BIDDING.md](docs/BIDDING.md) | touching `gib.py`, `ai_bid`, hand evaluation or any bidding constant |
 | [CHALLENGE.md](docs/CHALLENGE.md) | touching challenge mode, grading or robot card play |
 | [SOLVER.md](docs/SOLVER.md) | touching `bridge/solver/`, `research/solver-rs/` or the dataset |

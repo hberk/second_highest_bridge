@@ -1,4 +1,4 @@
-// The table's state machine -- the port of app.py's session-state logic.
+// The table's state machine (first ported from the retired Streamlit app's session state).
 //
 // State is plain reactive data. The auction is not stored as an object: it is
 // rebuilt from `calls` whenever it is read, so there is only one source of
@@ -120,9 +120,8 @@ export class Game {
   /** The alerts the table may see while the board is live: robot passes say
    *  WHY they passed, which reads the robot's cards out, and a real table never
    *  alerts a natural pass. The reasons stay in `alerts` for the post-mortem.
-   *  Port of `web.auction_view.live_alerts`, plus the human's own alerts, which
-   *  the Streamlit app has no way to make: a pass the player chose to alert
-   *  (a forcing pass, say) is shown like any other alerted call. */
+   *  The human's own alerts are shown, though: a pass the player chose to
+   *  alert (a forcing pass, say) is shown like any other alerted call. */
   liveAlerts = $derived.by(() => {
     const out: Record<number, string> = {};
     for (const [i, why] of Object.entries(this.alerts)) {
@@ -282,12 +281,12 @@ export class Game {
 
   /** `alert` is the player's own explanation of the call, as a self-alert on
    *  BBO. The robots don't read it; it goes into the record and the LIN. */
-  /** GIB's reading of each human call, by auction (see app.py). */
+  /** GIB's reading of each human call, by auction (`meanings.gib_alert` in Python). */
   private gibReadings = new Map<string, string | null>();
 
   /** The lengths the bidding showed, for the robots' play: a robot's call by
    *  its own alert, the human's by what GIB would mean by it (`callMeanings`)
-   *  -- the self-alert is free text the robots don't read (see app.py). */
+   *  -- the self-alert is free text the robots don't read (docs/CHALLENGE.md). */
   robotShown() {
     const alerts: Record<number, string> = {};
     for (const [i, why] of Object.entries(this.alerts)) {

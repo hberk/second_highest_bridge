@@ -111,7 +111,7 @@ describe('LIN', () => {
   });
 
   it('matches bridge/lin.py byte for byte, reading and writing', () => {
-    // The Streamlit app writes LIN with bridge/lin.py. One format, two
+    // bridge/lin.py is the Python engine's LIN. One format, two
     // implementations: each fixture is Python's LIN for a robot (or random
     // human) board, which must parse to Python's result and write back
     // unchanged.

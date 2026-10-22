@@ -17,13 +17,14 @@ reply as soon as I can, and credit you in the fix if you'd like.
   the bidding box, and LIN import in the History tab. No component renders
   raw HTML (`{@html}` is banned by a test), and the page's Content Security
   Policy allows scripts only from the site itself and Cloudflare's analytics
-  script.
-- **The Streamlit app** (`app.py`, `web/`). It renders some of its own HTML,
-  and every string that reaches it is escaped; `tests/test_web_escaping.py`
-  enforces that and lists each text input that has been reviewed.
+  script, plus WebAssembly compiled from the site's own double dummy solver
+  (`research/solver-rs/wasm`), which runs in a worker on boards from your own
+  history.
 
-`research/` holds offline tooling that neither app imports, so problems there
-are ordinary bugs rather than security issues.
+The Python code is the engine the web app is ported from and isn't deployed.
+`research/` holds offline tooling; apart from the solver's WebAssembly build,
+the site doesn't include it, so problems there are ordinary bugs rather than
+security issues.
 
 ## Supported versions
 

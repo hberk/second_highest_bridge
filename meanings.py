@@ -1,5 +1,6 @@
 """What a call means in the robots' system: frontend/src/lib/meanings.ts, in
-Python, for the Streamlit app.
+Python, so the Python engine and its measurements read a human's calls the
+same way the web app does.
 
 A robot's alert depends only on the auction and the call, never on its cards
 (tests/test_bidding_calibration.py checks it), so the meaning of any call is
