@@ -47,7 +47,7 @@ npm run build      # static site in frontend/dist, deployed to GitHub Pages
 ## Environment
 
 Python 3.9 or newer, standard library only. Developed on 3.9.13, and the full suite
-(234 tests as of 2026-10-21) passes unchanged on **3.12.10** — no source edits were
+(236 tests as of 2026-10-22) passes unchanged on **3.12.10** — no source edits were
 needed, because every file already starts with `from __future__ import annotations`.
 `.python-version` pins 3.12, the reference (below) and what CI and the fixtures use.
 A 3.12 virtualenv lives in `.venv/` (gitignored); `./.venv/Scripts/python.exe`

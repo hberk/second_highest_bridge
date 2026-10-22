@@ -180,6 +180,59 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     no singleton or void, and bids 4M with a fourth trump or a short suit.
     Robots never bid 3NT here; it answers a human opener, who used to be
     passed out in 3NT every time.
+- **Why the robots miss game and slam** (2026-10-22, all 400 library deals at
+  all 16 board positions, auctions only). Boards where one side can make game
+  are about 191 of the ~235 points a board lost in the auction. The largest
+  share, 99, is the opponents buying the hand, mostly on deals where both
+  sides have a fit; stopping in a partscore is 61. Tricks follow the combined
+  fit, not high cards: a fit of 7, 8, 9 and 10+ cards takes 7.0, 8.3, 9.0 and
+  9.9 tricks, almost whatever the HCP, and makes game 10%, 18%, 28% and 51% of
+  the time. GIB judges game on judgement points alone, so it bid game on 92%
+  of 7-card fits with 26+ HCP (15% make) and 14% of 10-card fits. A void
+  multiplies the slam rate by nine (15.6% against 1.7%); the slam hands average
+  22 HCP. Robot 3NT makes 23%. Two switches followed, both the user's call.
+- **The Law of Total Tricks in competition** (`LOTT`, `_total_tricks`,
+  `_partner_length`; the user's call, 2026-10-22). When they hold the
+  contract and GIB would pass (or hand off), bid our fit to the level of the
+  trumps we know we hold together: 8 the two level, 9 the three, 10 the four
+  (`LOTT_MAX`). Partner's length is read from their natural bids: a raise 3,
+  a one-level major opening or an overcall 5, a minor opening 3, a weak two
+  or a jump overcall 6, a higher pre-empt 7, a new suit 4, a rebid one more.
+  Not over a doubled contract. A raise of partner's suit needs 6-9 HCP
+  (`LOTT_RAISE`), GIB's free raise, so it never shares a call with GIB's
+  "3+, 6+ HCP" raise on a hand that branch would not make; that also keeps
+  the alert test. Deal 354: 3♥ (X) P (4♣) P (P), North with ♠A985 ♥1073 ♦962
+  ♣KQ4 now bids 4♥ on ten trumps, which makes. Head to head
+  (`research/gib_h2h.py LOTT`): **+3.56 per board, t = +4.49, 71 of 1,600
+  auctions changed**. `LOTT_MAX` 3 measured +3.50 (t = +5.60, 50 changed);
+  5 the same as 4.
+  - **A weak raise with distribution** (`LOTT_SHORT`, the user's call: weaker
+    raises are fine with shape). Under 6 HCP, a raise needs 3+ trumps and a
+    side singleton or void. GIB's free raises in the same auctions
+    (`_respond_over_interference`'s 6+, advancer's 6-9) and every LoTT raise
+    with 3+ trumps now alert "3+ ♥, competitive." (`_raise_alert`), so the one
+    alert is true of both. Deal 333: (1♣) 1♠ (3♣) with ♠109875 ♥J74 ♦Q1093 ♣7
+    raises to 3♠ on 3 HCP, and partner competes to 4♠ over 4♣. Head to head
+    against LoTT without it: **+0.27 per board, t = +1.89, 7 auctions changed**.
+    LoTT with it, against neither: +3.82 (t = +4.76, 78 changed).
+- **Count the fit** (`FIT_COUNT`, `_fit_bonus`; the user's call, 2026-10-22).
+  Where GIB judges game once a fit is known -- opener after 1M-2M and 1M-3M,
+  responder after a game try and after opener's raise, and `continuation`'s
+  fit branch -- judgement points gain `FIT_POINTS` (3) for each trump the two
+  hands are known to hold past `FIT_BASE` (10), lose as many for each short of
+  it, and gain `VOID_POINTS` (3) for a side void with three or more trumps.
+  Never in a range a call shows, so no alert changes. Head to head: **+0.83
+  per board, t = +2.93, 35 of 1,600 auctions changed**. It pays by stopping
+  short on known 8- and 9-card fits (deal 248: 1♣-1♠-2♠ with ♠Q985 ♥KQ9
+  ♦J10965 ♣10 passes instead of bidding a 4♠ that fails). The sweep, read as
+  a direction, not a fit: a base of 8, which only adds, lost **-1.5 to -2.0
+  (t = -3.4 to -4.3)** at 3-6 points a trump; a base of 9 scored -0.35 to
+  +0.29; 10 scored +0.23 at 6 points and +0.83 at 2-3. Promoting game on a
+  *known* 9-card fit loses here, as the table above predicts (9-card fits make
+  game 28%). Known lengths are minimums, which is why the base sits above the
+  trick fit's ~9.7.
+  - All three switches together: **+4.66 per board, t = +5.48, 113 auctions
+    changed** (`FIT_COUNT` and `LOTT` alone: +4.39, t = +5.23, 106).
 
 ## The previous system (`ai.USE_GIB = False`)
 

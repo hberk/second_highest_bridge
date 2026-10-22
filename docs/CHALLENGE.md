@@ -24,17 +24,18 @@ which a single score cannot answer. Measured 2026-10-19, with every card-play ru
 (6,356 boards with a contract, 44 passed out), graded from N/S as the app
 grades, so this is what the "Robots" column of the match table averages to.
 The web app's Challenge caption quotes this table; rerun the script after a
-robot change and update both together. Measured 2026-10-21, with every robot
-change through the four-card endgame search:
+robot change and update both together. Measured 2026-10-22, with every robot
+change through the Law of Total Tricks and the fit count:
 
 | | mean per board | median |
 |---|---|---|
-| lost in the auction | **234.9** | 200.0 |
-| lost in the card play | **6.9** | **0.0** |
+| lost in the auction | **235.4** | 200.0 |
+| lost in the card play | **6.1** | **0.0** |
 
-Graded from the declaring side instead: 215.8 in the auction and **-33.3** in
+Graded from the declaring side instead: 211.9 in the auction and **-37.2** in
 the card play (median 0.0), so the declaring side's play beats double dummy on
-average, on the defence's mistakes. (On 2026-10-19, before the Oct 20-21
+average, on the defence's mistakes. (On 2026-10-21: 234.9 and 6.9 from N/S,
+215.8 and -33.3 from the declaring side. On 2026-10-19, before the Oct 20-21
 changes: 233.9 and 7.1 from N/S; 220.5 and -45.7, median -20.0, from the
 declaring side.) The figures before this (143.7 / 31.8 over
 372 boards) were one auction per deal and predate every card-play change

@@ -18,13 +18,17 @@ graded from N/S as the app grades):
 
 | measured | robots | lost in the auction | lost in the card play |
 |---|---|---|---|
-| 2026-10-21 | every rule below, through the four-card endgame search | **234.9** | **6.9** |
+| 2026-10-22 | the Law of Total Tricks and the fit count (bidding) | **235.4** | **6.1** |
+| 2026-10-21 | every rule below, through the four-card endgame search | 234.9 | 6.9 |
 | 2026-10-19 | every rule up to then | 233.9 | 7.1 |
 | 2026-10-19 | before `SURE_LEAD_DECLARER`, `DEAD_CARD_LAST` | 233.9 | 12.5 |
 
 Points a board against par, split by the identity par - actual = bidding loss +
 play loss. The card play is close to double dummy now; the auction is where the
-points are. (An older figure, 143.7 / 31.8, was one auction per deal before any
+points are. The 2026-10-22 bidding changes moved the auction figure by
+nothing (235.4 against 234.9) although each wins +4.66 a board head to head:
+all four seats use them here, so what N/S gain E/W gain back; from the
+declaring side the auction loss fell from 215.8 to 211.9. (An older figure, 143.7 / 31.8, was one auction per deal before any
 card-play change below, so it isn't comparable.)
 
 The robot declarer against double dummy, before the head-to-head metric
@@ -115,6 +119,9 @@ from the variant's side; t as above.
 | 10-20 | After our two-suited overcall: advancer bids game with a fit, and the later rounds read it (deal 163) | +0.23 | +1.43 | 3 | on (your call) |
 | 10-20 | Their contract is not our game reached: double for penalty with game values (deal 118) | **+2.99** | +3.48 | 20 | on (your call) |
 | 10-20 | Our natural overcall is read as an overcall, not an opening (deal 67), with values counted at the four level | **+3.42** | +3.58 | 81 | on (your call) |
+| 10-22 | Law of Total Tricks: compete to the level of our fit (deal 354) | **+3.56** | +4.49 | 71 | on (your call) |
+| 10-22 | ...and a weak raise with a singleton or void (deal 333) | +0.27 | +1.89 | 7 | on (your call) |
+| 10-22 | Game judged on the known fit: 3 points a trump past ten, fewer costs the same (deal 248) | **+0.83** | +2.93 | 35 | on (your call) |
 
 ### The previous system (`ai_bid`)
 
