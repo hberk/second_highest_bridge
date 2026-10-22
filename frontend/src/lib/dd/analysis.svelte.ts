@@ -3,7 +3,7 @@
 // worker, so the endgame appears at once and the expensive early tricks come
 // last. Port of the idea in web/analysis_view.py, on the WebAssembly solver.
 import { PARTNERSHIP } from '../engine/auction';
-import { cardKey, type Card } from '../engine/card';
+import { cardKey, type Card, type Seat } from '../engine/card';
 import type { HistoryRecord } from '../game.svelte';
 import type { PlayedBoard } from './solver';
 
@@ -20,6 +20,38 @@ export interface Mark {
   label: string;
 }
 
+/** A card that cost its side tricks against the best card it held. */
+export interface Loss {
+  /** Decision index: cards played before it. */
+  i: number;
+  seat: Seat;
+  card: Card;
+  /** Tricks given away, at least 1. */
+  cost: number;
+  /** Keys of the cards that would have kept them. */
+  best: string[];
+}
+
+/** Every analysed decision where the card played was worse for its side than
+ *  the best one held, in play order. `seats[i]` and `plays[i]` are the seat and
+ *  card of decision i; `values` as on `DdAnalysis`. */
+export function tricksLost(seats: Seat[], plays: Card[], values: Record<number, Record<string, number>>): Loss[] {
+  const out: Loss[] = [];
+  for (let i = 0; i < plays.length; i++) {
+    const rest = values[i];
+    if (!rest) continue;
+    // N/S want the most N/S tricks, E/W the fewest.
+    const sign = PARTNERSHIP[seats[i]] === 'N/S' ? 1 : -1;
+    const top = Math.max(...Object.values(rest).map((v) => sign * v));
+    const cost = top - sign * rest[cardKey(plays[i])];
+    if (cost > 0) {
+      const best = Object.keys(rest).filter((k) => sign * rest[k] === top);
+      out.push({ i, seat: seats[i], card: plays[i], cost, best });
+    }
+  }
+  return out;
+}
+
 export class DdAnalysis {
   /** Decision index (cards played before it) -> card key -> N/S tricks for the rest. */
   values = $state<Record<number, Record<string, number>>>({});
@@ -30,10 +62,12 @@ export class DdAnalysis {
 
   private worker: Worker | null = null;
   private plays: Card[];
+  private seats: Seat[];
   private pending: number[] = [];
 
   constructor(private record: HistoryRecord) {
     this.plays = record.tricks_log.flatMap((t) => t.plays.map(([, c]) => c));
+    this.seats = record.tricks_log.flatMap((t) => t.plays.map(([p]) => p));
   }
 
   /** Decisions latest first, deepest last. */
@@ -123,6 +157,11 @@ export class DdAnalysis {
         : { text: '=', tone: 'even', label: 'makes exactly' };
     }
     return out;
+  }
+
+  /** The cards that gave tricks away, among the decisions analysed so far. */
+  get losses(): Loss[] {
+    return tricksLost(this.seats, this.plays, this.values);
   }
 
   /** The card actually played at decision `i`. */
