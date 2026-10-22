@@ -114,14 +114,33 @@ card-play gain measured here. Two things learned on the way:
   per trump suit, across every layout, robot and board -- a position's value
   doesn't depend on who looks or which layout led there. Same play, half the
   time: **0.10 s a board at four cards** (from 0.20).
-- **Five cards is measured and waiting** for the compiled solver: against
-  four, seated, **+0.204 tricks and +22.8 points per board, t = +9.34 over
-  398 deals, 2,564 boards changed** -- the fifth card pays as much as the
-  fourth. With the shared memory it costs 0.77 s a board, fine at the table
-  but too slow for the test suites (the Python suite took 19 minutes, the
-  fixture export 16, and the TS replay over an hour, since the TS search has
-  no bit patterns). Six cards took 22 s a board (over 900 layouts). Both wait
-  on `research/solver-rs` reaching the apps (a Python extension and WASM).
+- **The search now starts at five cards** (`DEEP_ENDGAME_CARDS = 5`, the
+  user's call, 2026-10-22). Against four, seated, **+0.204 tricks and +22.8
+  points per board, t = +9.34 over 398 deals, 2,564 boards changed**
+  (measured 2026-10-21; the play hasn't changed since) -- the fifth card pays
+  as much as the fourth. It had waited on speed: the TS port searched on
+  card lists, 1.6 s a board at five cards (10 s worst, desktop Node), on the
+  phone's main thread. The port now searches on bit patterns like ai.py
+  (`bitSearch`; four 13-bit suit masks a hand, since JS bit operators are
+  32-bit): **0.18 s a board at five cards (0.9 s worst)**, against 0.14 s
+  for the old port at four; 240 boards played card for card identical to
+  the card-list search. The memory's key renumbers each suit's unplayed
+  cards from the lowest (`_relative`, `relativeKey`): a position's value
+  depends only on how the cards still out rank each other, so ♠QJ against
+  ♠K, once the cards between are gone, is solved once with ♠98 against ♠10.
+  Same play (160 boards replayed identical, fixtures byte for byte), and
+  Python, the reference, goes from ~1.0 to ~0.67 s a board at five cards
+  (0.11 s at four); the TS port to ~0.10 s. To keep CI near its old length,
+  `tests/run_all.py` runs one test per process and the fixture export plays
+  its boards on every core: here (4 cores) the Python suite takes ~5
+  minutes, the export ~8, npm test ~4. Six cards took 22 s a board in
+  Python (over 900 layouts).
+- **Six cards is measured and left off** (the user's call, 2026-10-22): over
+  five, seated in the TS engine on 100 deals, **+0.26 tricks and +26.8
+  points a board, t = +4.35, 824 of 1,600 boards changed** -- but 4.6 s a
+  board and up to 17.5 s for a single robot move on a desktop (86 of 3,952
+  moves over a second), on the phone's main thread. It waits on a faster
+  search or robot play off the main thread.
 - Tried and dropped: trying the remembered best card first (0.87 s against
   0.77 s at five cards, no gain).
 **Second hand covers to promote a visible partner** (`_cover_for_partner`):
