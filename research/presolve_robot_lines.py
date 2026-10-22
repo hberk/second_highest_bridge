@@ -55,7 +55,8 @@ ROBOT_SOURCES = ('ai.py', 'gib.py', 'game.py', 'card.py', 'challenge.py',
 #: Memory per worker. Before the solver's table was capped, deal 197 (2NT by
 #: South) grew one process to 8.9 GB and two at once swapped the machine
 #: (2026-10-18). `MAX_TABLE_ENTRIES` in research/solver-rs/src/search.rs now
-#: holds a process to about 3.3 GB at worst (3.1 GB measured on that deal).
+#: holds a process to about 2.4 GB at worst (3.1 GB measured on that deal
+#: under the earlier, 50M-entry cap).
 GB_PER_WORKER = 4.0
 
 BOARDS = 16

@@ -160,8 +160,12 @@ remains the reference.
     1M cap evicts on hard deals; uncapped natively, 11 s median and 47 s at
     worst). Phones will be slower. WebAssembly ran at native speed at every
     depth measured, with every value identical to the native solver.
-  - **Memory.** `TABLE_LIMIT = 1_000_000` entries, ~130 MB of WebAssembly
-    memory at the peak. The native limit (50M, gigabytes) would kill a phone
+  - **Memory.** `TABLE_LIMIT = 4_194_304` slots of 24 bytes, allocated
+    when a board loads: 102 MB of WebAssembly memory, measured, and it never
+    grows (until 2026-10-22, a hash map of 1M entries, ~130 MB at the peak).
+    The fixed table made tricks 1-2 about 3x faster natively on 10 robot
+    lines (139 s median to 38 s; SOLVER.md), so the timings under Depth,
+    taken before it, are now pessimistic. The native limit (50M, gigabytes) would kill a phone
     tab. A smaller table costs time, never a different value (`dd.test.ts`
     also runs with 7 entries).
   - **Checked against the Python solver** (`export_ts_fixtures.py` writes

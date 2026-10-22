@@ -17,9 +17,9 @@
 //!
 //!   cargo run --release --example bench_cards -- [deals=10] [tricks=3] [modes=fresh,persistent,guided]
 //!
-//! Memory is an estimate: the transposition table's hashbrown buckets
-//! (a power of two at most 7/8 full) times 33 bytes, a 32-byte padded
-//! (u128, (i32, i32)) entry plus one control byte. Process overhead is extra.
+//! Memory is an estimate: the transposition table's slots (a power of two,
+//! at least 2^16, doubled before they're 3/4 full) times 24 bytes. Process
+//! overhead is extra.
 
 use serde_json::Value;
 use solver_rs::bitstate::{cards_in, Position, SecondHighest, NS_SEATS};
@@ -33,8 +33,11 @@ fn table_bytes(entries: usize) -> usize {
     if entries == 0 {
         return 0;
     }
-    let buckets = (entries * 8).div_ceil(7).next_power_of_two();
-    buckets * 33
+    let mut slots = 1usize << 16;
+    while entries * 4 > slots * 3 {
+        slots *= 2;
+    }
+    slots * 24
 }
 
 /// Every legal card for the seat to act, mapped to N/S tricks for the hand.

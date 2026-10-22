@@ -17,40 +17,135 @@ use crate::bitstate::{
     cards_in, legal_moves, resolve, suit_of, tricks_available, Position, SecondHighest,
     NS_SEATS, RANKS_PER_SUIT, SEAT_COUNT, SUIT_MASK,
 };
-use rustc_hash::FxHashMap;
 
-/// The most transposition-table entries a `Search` keeps.
+/// The most transposition-table slots a `Search` keeps.
 ///
 /// The table had no bound, and it grows by doubling: on challenge deal 197
 /// (2NT by South, every card of the hand scored by `line_values`) it reached
 /// 206 million entries and 8.9 GB, and two such deals at once swapped a 16 GB
-/// machine to a standstill. 50 million entries fit in 2^26 buckets, about
-/// 2.2 GB, so the table never grows past that (3.3 GB for the moment the
-/// last doubling copies). An entry holds a 16-byte key and its bounds, 32
-/// bytes with alignment, so storing tricks-left beside them costs nothing.
+/// machine to a standstill. 2^26 slots of 24 bytes are 1.6 GB, so the table
+/// never grows past that (2.4 GB for the moment the last doubling copies).
 ///
-/// When full, the shallow entries go and the deep ones stay (`evict`).
-/// Clearing the whole table instead made deal 197 more than six times slower:
-/// a deep position is expensive to search again, and the shallow ones are
-/// both the most numerous and the cheapest. Keeping the deep half, deal 197
-/// took 2,174s against 1,049s uncapped at a 3.1 GB peak (24 evictions); the
-/// next three largest lines (62-68M entries) 13-25% longer; lines under the
-/// limit, unchanged. Values identical on all 15 lines re-solved (2026-10-19). Either is sound: an entry only
-/// caches bounds on a position's value, so losing one costs search time,
-/// never a different answer -- `tests/fixture.rs` re-checks the fixture with
-/// tiny limits.
-pub const MAX_TABLE_ENTRIES: usize = 50_000_000;
+/// Once it is full, a new position overwrites the shallowest of the four in
+/// its bucket (`Table`): a deep position is the expensive one to search
+/// again. Sound for any size: an entry only caches bounds on a position's
+/// value, so losing one costs search time, never a different answer --
+/// `tests/fixture.rs` re-checks the fixture with tiny limits.
+pub const MAX_TABLE_ENTRIES: usize = 1 << 26;
+
+/// Slots in one bucket: where a position may be stored.
+const WAYS: usize = 4;
+
+/// The slots a table starts with, and grows from by doubling.
+const FIRST_SLOTS: usize = 1 << 16;
+
+/// The transposition table: bounds on N/S's tricks from a position, and its
+/// tricks left, at most `limit` slots in buckets of `WAYS`.
+///
+/// It replaced a hash map that, when full, dropped its shallow half
+/// (2026-10-22). In the History replayer's order (last trick first, one
+/// `Search` per board) on 10 stored robot lines, tricks 1-2 took 39 s median
+/// and 403 s at worst with 4M slots (100 MB), against 139 s and 906 s for the
+/// map capped at 1M entries (~130 MB), every card's value identical. The map
+/// emptied half of itself over 100 times on a hard board and rebuilt the
+/// rest each time; a full bucket here loses one shallow entry.
+///
+/// A slot is three words: the key's two halves, then the low bound, high
+/// bound and tricks left a byte each. Tricks left 0 marks an empty slot,
+/// since a stored position always has a trick to play, so a new table is
+/// zeroed memory.
+struct Table {
+    slots: Vec<[u64; 3]>,
+    limit: usize,
+    len: usize,
+}
+
+impl Table {
+    fn new(limit: usize, first: usize) -> Self {
+        let limit = limit.max(WAYS).next_power_of_two();
+        Table { slots: vec![[0; 3]; first.clamp(WAYS, limit).next_power_of_two()], limit, len: 0 }
+    }
+
+    /// The first slot of a key's bucket. The key's bits are packed by suit,
+    /// so they're mixed (MurmurHash3's finaliser) before any are taken: an
+    /// unmixed multiply left whole suits out of the index, and the search was
+    /// 3.6x slower for the collisions.
+    #[inline(always)]
+    fn bucket(&self, k0: u64, k1: u64) -> usize {
+        let mut h = k0 ^ k1.wrapping_mul(0xC2B2_AE3D_27D4_EB4F);
+        h ^= h >> 33;
+        h = h.wrapping_mul(0xFF51_AFD7_ED55_8CCD);
+        h ^= h >> 33;
+        h = h.wrapping_mul(0xC4CE_B9FE_1A85_EC53);
+        h ^= h >> 33;
+        (h as usize) & (self.slots.len() - WAYS)
+    }
+
+    /// The low and high bounds stored for a key.
+    #[inline(always)]
+    fn get(&self, key: u128) -> Option<(i32, i32)> {
+        let (k0, k1) = (key as u64, (key >> 64) as u64);
+        let b = self.bucket(k0, k1);
+        for slot in &self.slots[b..b + WAYS] {
+            if slot[0] == k0 && slot[1] == k1 && slot[2] >> 16 != 0 {
+                return Some(((slot[2] & 0xFF) as i32, (slot[2] >> 8 & 0xFF) as i32));
+            }
+        }
+        None
+    }
+
+    /// Store a key's bounds: in its own slot if it has one, else an empty
+    /// one, else over the bucket's shallowest. True when that overwrote
+    /// another position.
+    fn put(&mut self, key: u128, low: i32, high: i32, tricks_left: i32) -> bool {
+        if self.len * 4 >= self.slots.len() * 3 && self.slots.len() < self.limit {
+            self.grow();
+        }
+        let (k0, k1) = (key as u64, (key >> 64) as u64);
+        let b = self.bucket(k0, k1);
+        let mut target = b;
+        for i in b..b + WAYS {
+            let slot = &self.slots[i];
+            if slot[0] == k0 && slot[1] == k1 && slot[2] >> 16 != 0 {
+                target = i;
+                break;
+            }
+            if slot[2] >> 16 < self.slots[target][2] >> 16 {
+                target = i;
+            }
+        }
+        let old = self.slots[target];
+        let replaced = old[2] >> 16 != 0 && (old[0] != k0 || old[1] != k1);
+        if old[2] >> 16 == 0 {
+            self.len += 1;
+        }
+        self.slots[target] = [k0, k1, low as u64 | (high as u64) << 8 | (tricks_left as u64) << 16];
+        replaced
+    }
+
+    /// Double the slots and put every entry back.
+    fn grow(&mut self) {
+        let doubled = vec![[0; 3]; self.slots.len() * 2];
+        let old = std::mem::replace(&mut self.slots, doubled);
+        self.len = 0;
+        for slot in old {
+            if slot[2] >> 16 != 0 {
+                let key = slot[0] as u128 | (slot[1] as u128) << 64;
+                let depth = (slot[2] >> 16) as i32;
+                self.put(key, (slot[2] & 0xFF) as i32, (slot[2] >> 8 & 0xFF) as i32, depth);
+            }
+        }
+    }
+}
 
 pub struct Search<'a> {
     trump: Option<u32>,
     sh: &'a SecondHighest,
-    /// Bounds on N/S's tricks from a position, and its tricks left.
-    table: FxHashMap<u128, (i32, i32, i32)>,
-    limit: usize,
+    table: Table,
     pub nodes: u64,
     pub probes: u64,
     pub hits: u64,
-    /// Times the table reached `limit` and shed its shallow entries.
+    /// Times a full bucket lost a position to a new one.
     pub clears: u64,
 }
 
@@ -59,13 +154,25 @@ impl<'a> Search<'a> {
         Self::with_limit(trump, sh, MAX_TABLE_ENTRIES)
     }
 
-    /// A search whose table is cleared once it holds `limit` entries.
+    /// A search whose table holds at most `limit` slots (rounded up to a
+    /// power of two, at least 4). It starts small and doubles as it fills.
     pub fn with_limit(trump: Option<u32>, sh: &'a SecondHighest, limit: usize) -> Self {
+        Self::with_table(trump, sh, limit, FIRST_SLOTS)
+    }
+
+    /// As `with_limit`, but every slot is allocated at once, so memory never
+    /// passes the final size: growing copies the table, and for that moment
+    /// holds one and a half times it. For the browser, where memory is the
+    /// limit and a whole board fills the table anyway.
+    pub fn preallocated(trump: Option<u32>, sh: &'a SecondHighest, limit: usize) -> Self {
+        Self::with_table(trump, sh, limit, limit)
+    }
+
+    fn with_table(trump: Option<u32>, sh: &'a SecondHighest, limit: usize, first: usize) -> Self {
         Search {
             trump,
             sh,
-            table: FxHashMap::default(),
-            limit: limit.max(1),
+            table: Table::new(limit, first),
             nodes: 0,
             probes: 0,
             hits: 0,
@@ -73,8 +180,9 @@ impl<'a> Search<'a> {
         }
     }
 
+    /// Positions in the table.
     pub fn table_len(&self) -> usize {
-        self.table.len()
+        self.table.len
     }
 
     // ── Rank equivalence ────────────────────────────────────────────────
@@ -170,11 +278,19 @@ impl<'a> Search<'a> {
 
     // ── Move ordering ───────────────────────────────────────────────────
 
-    /// search.py's `_ordered` with ordering="trick".
-    fn ordered(&self, moves: u64, seat: u32, leader: u32, trick: &[u32]) -> Vec<u32> {
-        let cards: Vec<u32> = cards_in(moves).collect();
-        if cards.len() < 2 || trick.is_empty() {
-            return cards;
+    /// search.py's `_ordered` with ordering="trick": the cards that win the
+    /// trick for the seat's side so far first, each group low to high. Into
+    /// an array, not a Vec: allocating two per node was 15% of the search
+    /// (2026-10-22, same nodes).
+    fn ordered(&self, moves: u64, seat: u32, leader: u32, trick: &[u32]) -> ([u32; 13], usize) {
+        let mut out = [0u32; 13];
+        let mut n = 0;
+        if trick.is_empty() || moves.count_ones() < 2 {
+            for card in cards_in(moves) {
+                out[n] = card;
+                n += 1;
+            }
+            return (out, n);
         }
 
         let trump = self.trump;
@@ -202,8 +318,9 @@ impl<'a> Search<'a> {
         // Mirrors Python's `can_ruff = trump is not None and winning_suit != trump`
         let can_ruff = trump.is_some() && trump != Some(winning_suit);
 
-        let mut scored: Vec<(u32, u32)> = Vec::with_capacity(cards.len());
-        for &card in &cards {
+        let mut losing = [0u32; 13];
+        let mut lost = 0;
+        for card in cards_in(moves) {
             let winner = if can_ruff && suit_of(card) == trump.unwrap() {
                 seat
             } else if card >= base && card < ceiling {
@@ -217,11 +334,16 @@ impl<'a> Search<'a> {
             } else {
                 standing
             };
-            let priority = if (winner & 1) == side { 0 } else { 1 };
-            scored.push((priority, card));
+            if (winner & 1) == side {
+                out[n] = card;
+                n += 1;
+            } else {
+                losing[lost] = card;
+                lost += 1;
+            }
         }
-        scored.sort_unstable();
-        scored.into_iter().map(|(_, card)| card).collect()
+        out[n..n + lost].copy_from_slice(&losing[..lost]);
+        (out, n + lost)
     }
 
     // ── Zero-window search ──────────────────────────────────────────────
@@ -239,7 +361,7 @@ impl<'a> Search<'a> {
         let key = self.key(&hands, leader);
         let mut low = 0i32;
         let mut high = tricks_left;
-        if let Some(&(l, h, _)) = self.table.get(&key) {
+        if let Some((l, h)) = self.table.get(key) {
             low = l;
             high = h;
             if need <= low {
@@ -261,40 +383,10 @@ impl<'a> Search<'a> {
         } else if need - 1 < high {
             high = need - 1;
         }
-        if self.table.len() >= self.limit && !self.table.contains_key(&key) {
-            self.evict();
+        if self.table.put(key, low, high, tricks_left) {
+            self.clears += 1;
         }
-        self.table.insert(key, (low, high, tricks_left));
         result
-    }
-
-    /// Make room in a full table: keep the deepest entries, at most half the
-    /// limit, and drop the rest. Keeps the allocation, so there's no regrowth.
-    fn evict(&mut self) {
-        let mut at_depth = [0usize; 14];
-        for &(_, _, depth) in self.table.values() {
-            at_depth[depth.clamp(0, 13) as usize] += 1;
-        }
-        // The shallowest depth whose entries and everything deeper fit in half.
-        let mut keep_from = 14;
-        let mut kept = 0;
-        while keep_from > 0 && kept + at_depth[keep_from - 1] <= self.limit / 2 {
-            keep_from -= 1;
-            kept += at_depth[keep_from];
-        }
-        let keep_from = keep_from as i32;
-        // Drained and refilled, not `retain`ed: removing in place leaves
-        // deleted markers that count towards the table's load, so it doubled
-        // long before reaching the limit (6.2 GB measured on deal 197).
-        // `drain` keeps the allocation and resets every slot; the kept half
-        // waits in a Vec meanwhile (about 0.8 GB at the default limit).
-        let kept: Vec<(u128, (i32, i32, i32))> = self
-            .table
-            .drain()
-            .filter(|&(_, (_, _, depth))| depth >= keep_from)
-            .collect();
-        self.table.extend(kept);
-        self.clears += 1;
     }
 
     /// Play out the trick in progress. No table probes: mid-trick only.
@@ -322,9 +414,9 @@ impl<'a> Search<'a> {
         let moves = self.distinct_moves(&hands, seat as usize, moves, table);
 
         let maximizing = NS_SEATS.contains(&seat);
-        let ordered = self.ordered(moves, seat, leader, &trick[..trick_len]);
+        let (ordered, count) = self.ordered(moves, seat, leader, &trick[..trick_len]);
 
-        for card in ordered {
+        for &card in &ordered[..count] {
             let mut rest = hands;
             rest[seat as usize] &= !(1u64 << card);
             let mut buf = trick;

@@ -121,9 +121,9 @@ fn reproduces_the_whole_fixture() {
     eprintln!("reproduced {checked} fixture positions up to {max_cards} cards each");
 }
 
-/// A full table is cleared, never trusted past its limit: with the table
-/// cleared every few entries the whole fixture must come out the same, both
-/// as one value and as every card's value.
+/// A full table overwrites positions, never trusts one past its limit: with
+/// the table holding a handful of slots the whole fixture must come out the
+/// same, both as one value and as every card's value.
 #[test]
 fn a_cleared_table_changes_no_answer() {
     let sh = SecondHighest::build();
@@ -146,7 +146,7 @@ fn a_cleared_table_changes_no_answer() {
         checked += 1;
     }
     assert!(checked >= 100, "only checked {checked} positions");
-    assert!(clears > 0, "the limit never cleared the table, so this tested nothing");
+    assert!(clears > 0, "the limit never overwrote a position, so this tested nothing");
 }
 
 /// Every hand-crafted worst case by name, regardless of the depth cutoff above
