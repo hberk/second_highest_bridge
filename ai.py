@@ -1305,9 +1305,10 @@ def _search(hands: dict[str, list[Card]], trick: list[tuple[str, Card]],
 # wins depends on one card of East's, and eight layouts misjudge that often.
 
 #: Search every layout from DEEP_ENDGAME_CARDS a hand, not ENDGAME_CARDS
-#: (measurement switch).
+#: (measurement switch). Five, not four: +0.204 tricks a board seated
+#: (docs/CHALLENGE.md), the user's call, 2026-10-22.
 DEEP_ENDGAME = True
-DEEP_ENDGAME_CARDS = 4
+DEEP_ENDGAME_CARDS = 5
 
 
 # ── The same search on bit patterns ─────────────────────────────────────────

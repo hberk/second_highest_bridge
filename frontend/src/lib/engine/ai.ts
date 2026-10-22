@@ -711,17 +711,16 @@ function coverForPartner(player: Seat, hand: Card[], legal: Card[], trick: AnyPl
 export const ENDGAME_CARDS = 3;
 /** Search every layout from DEEP_ENDGAME_CARDS a hand (see ai.py). */
 export const DEEP_ENDGAME = true;
-export const DEEP_ENDGAME_CARDS = 4;
+export const DEEP_ENDGAME_CARDS = 5;
 /** One memory of searched positions (N/S tricks) for every search, robot and
  *  board, one table per trump suit, bounded (see ai.py). */
 export const SHARED_POSITIONS = true;
-const POSITION_MEMO = new Map<string, Map<string, [number, number]>>();
+const POSITION_MEMO = new Map<number, Map<string, number>>();
 const POSITION_MEMO_MAX = 600_000;
 
-function positionMemo(trump: string | null): Map<string, [number, number]> {
-  const k = trump ?? 'NT';
-  let table = POSITION_MEMO.get(k);
-  if (!table) { table = new Map(); POSITION_MEMO.set(k, table); }
+function positionMemo(trump: number): Map<string, number> {
+  let table = POSITION_MEMO.get(trump);
+  if (!table) { table = new Map(); POSITION_MEMO.set(trump, table); }
   if (table.size > POSITION_MEMO_MAX) table.clear();
   return table;
 }
@@ -827,58 +826,102 @@ function search(hands: Record<string, Card[]>, trick: AnyPlay[], leader: Seat,
   return best;
 }
 
-/** `search`'s answer, with alpha-beta, bounds per position and rank
- *  equivalence (see ai.py `_fast_search`). */
-function fastSearch(hands: Record<string, Card[]>, trick: AnyPlay[], leader: Seat,
-  trump: string | null, side: string, memo: Map<string, [number, number]>,
-  alpha = -1, beta = 14): number {
+// ── The same search on bit patterns (see ai.py `_bit_search`) ─────────────
+//
+// A hand is four 13-bit suit masks (rank 0 = the 2), so legal moves, rank
+// equivalence and position keys are integer operations. JS bit operators are
+// 32-bit, so a 52-bit hand as in ai.py doesn't fit one number; four masks do.
+// Same answers as `search`, so the same cards are played, faster.
+
+/** hands[4 * seat + suit], seats in PLAYERS order, suits in SUITS order. */
+type BitHands = number[];
+/** A play in a trick: seat * 64 + 13 * suit + rank. */
+const NS_SEAT = [true, false, true, false];
+/** The seat winning a full trick: resolveTrick's rule on bit numbers. */
+function bitWinner(trick: number[], trump: number): number {
+  let suit = ((trick[0] & 63) / 13) | 0;
+  if (trump >= 0 && trick.some((t) => (((t & 63) / 13) | 0) === trump)) suit = trump;
+  let top = -1, second = -1, topSeat = -1, secondSeat = -1;
+  for (const t of trick) {
+    const b = t & 63;
+    if (((b / 13) | 0) !== suit) continue;
+    if (b > top) { second = top; secondSeat = topSeat; top = b; topSeat = t >> 6; }
+    else if (b > second) { second = b; secondSeat = t >> 6; }
+  }
+  return second >= 0 ? secondSeat : topSeat;
+}
+
+/** Tricks for N/S from here, both sides perfect (see ai.py `_bit_search`).
+ *  The memo holds (lo, hi) bounds packed as lo * 16 + hi; `trump` is -1 in NT. */
+function bitSearch(hands: BitHands, trick: number[], leader: number, trump: number,
+  memo: Map<string, number>, alpha = -1, beta = 14): number {
   if (trick.length === 4) {
-    const winner = resolveTrick(trick, trump) as Seat;
-    const won = PARTNERSHIP[winner] === side ? 1 : 0;
-    if (!hands[winner].length) return won;
-    return won + fastSearch(hands, [], winner, trump, side, memo, alpha - won, beta - won);
+    const winner = bitWinner(trick, trump);
+    const won = NS_SEAT[winner] ? 1 : 0;
+    const w = 4 * winner;
+    if (!(hands[w] | hands[w + 1] | hands[w + 2] | hands[w + 3])) return won;
+    return won + bitSearch(hands, [], winner, trump, memo, alpha - won, beta - won);
   }
   let key: string | null = null;
   if (!trick.length) {
-    key = leader + '|' + PLAYERS.map((p) => hands[p].map(cardOrder)
-      .sort((a, b) => a[0] - b[0] || a[1] - b[1]).map((o) => o.join('.')).join(',')).join('|');
-    const [lo, hi] = memo.get(key) ?? [0, 13];
+    key = String.fromCharCode(leader, ...hands);
+    const hit = memo.get(key) ?? 13;
+    const lo = hit >> 4, hi = hit & 15;
     if (lo >= beta || lo === hi) return lo; // known exactly: never search an empty window
     if (hi <= alpha) return hi;
-    alpha = Math.max(alpha, lo);
-    beta = Math.min(beta, hi);
+    if (lo > alpha) alpha = lo;
+    if (hi < beta) beta = hi;
   }
   const a0 = alpha, b0 = beta;
-  const seat = PLAYERS[(PLAYERS.indexOf(leader) + trick.length) % 4];
-  const ledSuit = trick.length ? trick[0][1].suit : null;
-  const legal = legalPlays(hands[seat], ledSuit);
-  const tried: Card[] = [];
-  for (const suit of SUITS) {
-    const mine = legal.filter((c) => c.suit === suit);
-    if (!mine.length) continue;
-    const others: number[] = [];
-    for (const p of PLAYERS) if (p !== seat) for (const c of hands[p]) if (c.suit === suit) others.push(value(c));
-    for (const [, c] of trick) if (c.suit === suit) others.push(value(c));
-    const keep = new Set(distinct(mine.map(value), others));
-    for (const c of mine) if (keep.has(value(c))) tried.push(c);
+  const seat = (leader + trick.length) % 4;
+  const s4 = 4 * seat;
+  let only = -1;
+  if (trick.length) {
+    const led = ((trick[0] & 63) / 13) | 0;
+    if (hands[s4 + led]) only = led;
   }
-  const ours = PARTNERSHIP[seat] === side;
+  const ours = NS_SEAT[seat];
   let best = ours ? -1 : 99;
-  for (const c of tried) {
-    const at = hands[seat].findIndex((x) => cardKey(x) === cardKey(c));
-    hands[seat].splice(at, 1);
-    const v = fastSearch(hands, [...trick, [seat, c]], leader, trump, side, memo, alpha, beta);
-    hands[seat].splice(at, 0, c);
-    if (ours) { best = Math.max(best, v); alpha = Math.max(alpha, best); }
-    else { best = Math.min(best, v); beta = Math.min(beta, best); }
-    if (alpha >= beta) break;
+  outer:
+  for (let suit = 0; suit < 4; suit++) {
+    if (only >= 0 && suit !== only) continue;
+    const held = hands[s4 + suit];
+    let mine = held;
+    if (!mine) continue;
+    let rest = 0;
+    for (let p = 0; p < 4; p++) if (p !== seat) rest |= hands[4 * p + suit];
+    for (const t of trick) {
+      const b = t & 63;
+      if (((b / 13) | 0) === suit) rest |= 1 << (b - 13 * suit);
+    }
+    let previous = -1;
+    while (mine) {
+      const low = mine & -mine;
+      mine ^= low;
+      const r = 31 - Math.clz32(low);
+      // One card from each run with no other unplayed card between.
+      if (previous >= 0 && !(rest & (((1 << r) - 1) ^ ((1 << (previous + 1)) - 1)))) {
+        previous = r;
+        continue;
+      }
+      previous = r;
+      hands[s4 + suit] = held ^ low;
+      trick.push(seat * 64 + 13 * suit + r);
+      const v = bitSearch(hands, trick, leader, trump, memo, alpha, beta);
+      trick.pop();
+      hands[s4 + suit] = held;
+      if (ours) { if (v > best) { best = v; if (best > alpha) alpha = best; } }
+      else if (v < best) { best = v; if (best < beta) beta = best; }
+      if (alpha >= beta) break outer;
+    }
   }
   if (key !== null) {
-    let [lo, hi] = memo.get(key) ?? [0, 13];
+    const hit = memo.get(key) ?? 13;
+    let lo = hit >> 4, hi = hit & 15;
     if (best <= a0) hi = Math.min(hi, best);
     else if (best >= b0) lo = Math.max(lo, best);
     else { lo = best; hi = best; }
-    memo.set(key, [lo, hi]);
+    memo.set(key, lo * 16 + hi);
   }
   return best;
 }
@@ -932,16 +975,24 @@ function endgameTotals(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     for (const [seat, cards] of Object.entries(known)) hands[seat] = [...cards];
     hands[first] = a;
     hands[second] = b;
-    const bounds = SHARED_POSITIONS ? positionMemo(trump) : new Map<string, [number, number]>();
+    const masks: BitHands = new Array(16).fill(0);
+    for (const p of PLAYERS) {
+      for (const c of hands[p]) masks[4 * PLAYERS.indexOf(p) + suitIndex(c.suit)] |= 1 << value(c);
+    }
+    const bitsTrick = trick.map(([p, c]) => PLAYERS.indexOf(p as Seat) * 64 + 13 * suitIndex(c.suit) + value(c));
+    const trumpBit = trump !== null && (SUITS as readonly string[]).includes(trump) ? suitIndex(trump as Suit) : -1;
+    const bounds = SHARED_POSITIONS ? positionMemo(trumpBit) : new Map<string, number>();
+    const me = PLAYERS.indexOf(player);
     let cardsLeft = trick.length;
     for (const p of PLAYERS) cardsLeft += hands[p].length;
     const left = cardsLeft / 4;
     for (const c of legal) {
-      const at = hands[player].findIndex((x) => cardKey(x) === cardKey(c));
-      hands[player].splice(at, 1);
-      const ns = fastSearch(hands, [...trick, [player, c]], leader, trump, 'N/S', bounds);
+      const at = 4 * me + suitIndex(c.suit);
+      masks[at] ^= 1 << value(c);
+      const ns = bitSearch(masks, [...bitsTrick, me * 64 + 13 * suitIndex(c.suit) + value(c)],
+        PLAYERS.indexOf(leader), trumpBit, bounds);
       totals.set(cardKey(c), totals.get(cardKey(c))! + (side === 'N/S' ? ns : left - ns));
-      hands[player].splice(at, 0, c);
+      masks[at] ^= 1 << value(c);
     }
   }
   return layouts ? totals : null;

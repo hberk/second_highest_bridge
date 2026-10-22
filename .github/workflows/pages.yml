@@ -37,7 +37,8 @@ jobs:
   python-tests:
     if: github.event.repository.visibility == 'public' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The robots search every layout from five cards a hand: ~20 min alone.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       # 3.12 is the reference: 3.12's sum() can move a hand's value in the
@@ -52,7 +53,9 @@ jobs:
   build:
     if: github.event.repository.visibility == 'public' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The fixture export plays the robots on 1,200 boards and the library at
+    # five cards a hand (~20-50 min), then npm test replays them (~8 min).
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
 
