@@ -5,9 +5,10 @@ import { RANKS, SUITS, type Card, type Seat, type Strain } from '../engine/card'
 
 const SEATS: readonly Seat[] = ['North', 'East', 'South', 'West'];
 
-/** Table entries per board. About 130 MB of WebAssembly memory at its peak:
- *  enough for a phone, and the last 11 tricks never reach it. */
-export const TABLE_LIMIT = 1_000_000;
+/** Table slots per board, 24 bytes each and allocated when a board loads:
+ *  about 100 MB of WebAssembly memory, enough for a phone. A full table
+ *  overwrites its shallowest positions, which costs time, never a value. */
+export const TABLE_LIMIT = 4_194_304;
 
 interface Exports {
   memory: WebAssembly.Memory;

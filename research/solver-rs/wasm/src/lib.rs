@@ -6,7 +6,7 @@
 //! calls `load`, then `analyse(i)` for the decisions it wants, latest first:
 //! the endgame is cheap and fills the table the earlier tricks reuse.
 //!
-//! Input words: [leader seat, trump (0-3 = C D H S, 4 = notrump), table limit,
+//! Input words: [leader seat, trump (0-3 = C D H S, 4 = notrump), table slots,
 //! play count, then each seat's hand as two words (low 32 bits, high 20),
 //! North East South West, then the plays as card numbers (13 * suit + rank,
 //! rank 0 = the 2), in play order]. Seats are 0-3 = North East South West.
@@ -90,7 +90,7 @@ pub extern "C" fn load() -> i32 {
     }
     BOARD.with(|b| {
         *b.borrow_mut() = Some(Board {
-            engine: Search::with_limit(trump, sh, limit.max(1) as usize),
+            engine: Search::preallocated(trump, sh, limit.max(1) as usize),
             positions,
         })
     });

@@ -128,7 +128,7 @@ it before going against one.
   equality, floats included. **Change `ai.py` or `gib.py` and the port fails until it follows.**
 - The History replayer's double dummy solver is `research/solver-rs` as WebAssembly, checked
   against the Python solver (`dd.test.ts`). It has no fallback, and its table is capped for
-  phones (`TABLE_LIMIT`, ~130 MB); a smaller cap costs time, never a value.
+  phones (`TABLE_LIMIT`, 4M slots, 102 MB); a smaller cap costs time, never a value.
 
 ## Docs
 
