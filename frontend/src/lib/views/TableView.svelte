@@ -19,7 +19,7 @@
   import Scoreline from '../components/Scoreline.svelte';
   import Breakdown from '../components/Breakdown.svelte';
 
-  let { game, onhome = () => {}, onsettings = () => {} }:
+  let { game, onhome, onsettings = () => {} }:
     { game: Game; onhome?: () => void; onsettings?: () => void } = $props();
 
   const m = new TableModel(() => game);

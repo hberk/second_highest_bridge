@@ -42,9 +42,14 @@ remains the reference.
   since an unseeded "at least once in ten boards" check failed CI by chance.
 - **Screens (the Felt design, 2026-10-16).** Phone first, portrait, dark
   green. `App.svelte` switches between a home page (`HomeView`) and the
-  table, Challenge, History and How to play, each with a back button
-  (`TopBar`); the screen follows the URL hash (`#table`, `#history`), so the
-  browser's back button and the phone's back swipe work. Settings live in a
+  table, Challenge, History and How to play. Play, Challenge and History are
+  tabs in one slim row (`TabStrip`, 2026-10-23, the user's call: tabs again,
+  but compact): the spade goes home, `?` opens How to play (which keeps a
+  back button, `TopBar`), and Challenge and History use the row as their whole
+  top bar, so only the table pays for it (about 40px; the bidding box and
+  your hand still fit a 390x844 screen). The screen follows the URL hash
+  (`#table`, `#history`), so the browser's back button and the phone's back
+  swipe work. Settings live in a
   bottom sheet (`Sheet` + `SettingsPanel`), opened from the gear on home and
   at the table. `TableView` is one 520px column: the auction on an oval of
   felt (`AuctionFelt`, each seat's latest call where it sits and the newest
