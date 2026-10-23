@@ -10,7 +10,7 @@ known two against the library, and appends one line per (deal, strain) to
 
     cargo build --release   # in research/solver-rs, once
     python research/solve_declarers.py --workers 4
-    python research/export_challenge_deals.py --declarers
+    python research/export_challenge_deals.py
 
 Slow deals are never skipped or timed out (the dataset rule), and there is no
 Python fallback: the Rust binary must be built.
@@ -64,12 +64,15 @@ def solve(deal: dict, strain: str) -> dict:
 
 
 def check(deal: dict, record: dict) -> None:
-    """The declarer the library was solved with must give its stored count."""
+    """The declarer the library was solved with must give its stored count
+    (a library keyed by side, before this script's results were exported;
+    afterwards, every declarer's)."""
     hands = hands_for(deal['id'])
     for side in ('N/S', 'E/W'):
         declarer = declarer_for(hands, side, record['strain'])
         assert leader_for(declarer) in LEADERS
-        stored = deal['tricks'][f"{record['strain']}:{side}"]
+        stored = deal['tricks'].get(f"{record['strain']}:{side}",
+                                    deal['tricks'].get(f"{record['strain']}:{declarer}"))
         got = record['tricks'][declarer]
         if stored != got:
             raise AssertionError(f"deal {deal['id']} {record['strain']}:{side} by {declarer}: "

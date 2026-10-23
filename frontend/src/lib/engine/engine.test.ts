@@ -10,7 +10,7 @@ import { parseCard, parseHand, removeCard, cardKey, type Card, type Seat, type S
 import { AuctionState, clockwiseFrom, legalPlays, resolveTrick, type Play } from './auction';
 import { aiBidExplained, aiPlay, evalHandSh, hcp, shownLengths, visibleHands } from './ai';
 import { scoreContract } from './scoring';
-import { grade, par, robotTable, solvedDeclarer } from './challenge';
+import { ddTricks, grade, par, robotTable } from './challenge';
 
 type FxCall = [Seat, string, string | null, string[]];
 interface FxGame {
@@ -132,9 +132,10 @@ describe('challenge', () => {
           expect(par(fx.deal_id, side, vul), `${where} ${vul} ${side}`).toEqual(fx.par[vul][side]);
         }
       }
-      for (const [k, seat] of Object.entries(fx.declarers)) {
-        const [strain, side] = k.split(':');
-        expect(solvedDeclarer(fx.deal_id, strain as any, side as any), `${where} ${k}`).toBe(seat);
+      for (const [k, n] of Object.entries(fx.dd)) {
+        const [strain, who] = k.split(':');
+        const side = who.includes('/') ? who : who === 'North' || who === 'South' ? 'N/S' : 'E/W';
+        expect(ddTricks(fx.deal_id, strain as any, side as any, who.includes('/') ? undefined : who as any), `${where} ${k}`).toBe(n);
       }
     }
   }, LONG);

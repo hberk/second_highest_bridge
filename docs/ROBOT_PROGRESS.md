@@ -18,13 +18,17 @@ graded from N/S as the app grades):
 
 | measured | robots | lost in the auction | lost in the card play |
 |---|---|---|---|
-| 2026-10-22 | the Law of Total Tricks and the fit count (bidding) | **235.4** | **6.1** |
+| 2026-10-23 | the same robots, graded with the partner who declared (every declarer solved) | **244.0** | **-5.0** |
+| 2026-10-22 | the Law of Total Tricks and the fit count (bidding) | 235.4 | 6.1 |
 | 2026-10-21 | every rule below, through the four-card endgame search | 234.9 | 6.9 |
 | 2026-10-19 | every rule up to then | 233.9 | 7.1 |
 | 2026-10-19 | before `SURE_LEAD_DECLARER`, `DEAD_CARD_LAST` | 233.9 | 12.5 |
 
 Points a board against par, split by the identity par - actual = bidding loss +
-play loss. The card play is close to double dummy now; the auction is where the
+play loss. From 2026-10-23 the grade uses the partner who actually declared
+and par the better partner, so the rows above it measured something slightly
+different: about 11 points of their card-play loss was the wrong declarer's
+count. The card play is close to double dummy now; the auction is where the
 points are. The 2026-10-22 bidding changes moved the auction figure by
 nothing (235.4 against 234.9) although each wins +4.66 a board head to head:
 all four seats use them here, so what N/S gain E/W gain back; from the

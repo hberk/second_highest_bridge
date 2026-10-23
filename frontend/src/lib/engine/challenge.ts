@@ -17,8 +17,8 @@ import { scoreContract, type ScoredContract, type ScoreResult } from './scoring'
 interface LibraryDeal {
   id: number;
   hands: Record<Seat, string>;
+  /** "<strain>:<declarer>" -> tricks the declaring side takes. */
   tricks: Record<string, number>;
-  declarers: Record<string, Seat>;
 }
 
 const DEALS = new Map<number, LibraryDeal>(
@@ -37,14 +37,14 @@ export function handsFor(dealId: number): Record<Seat, Card[]> {
   return Object.fromEntries(PLAYERS.map((s) => [s, parseHand(raw[s])])) as Record<Seat, Card[]>;
 }
 
-export function ddTricks(dealId: number, strain: Strain, side: Side): number {
-  return DEALS.get(dealId)!.tricks[`${strain}:${side}`];
-}
+const PARTNERS: Record<Side, readonly Seat[]> = { 'N/S': ['North', 'South'], 'E/W': ['East', 'West'] };
 
-/** The partner who declared when `ddTricks` was solved; the other partner's
- *  count can differ by a trick or more. */
-export function solvedDeclarer(dealId: number, strain: Strain, side: Side): Seat {
-  return DEALS.get(dealId)!.declarers[`${strain}:${side}`];
+/** Tricks the declaring side takes, both sides perfect: `declarer`'s count,
+ *  or without one the better partner's (a side chooses who declares). */
+export function ddTricks(dealId: number, strain: Strain, side: Side, declarer?: Seat): number {
+  const tricks = DEALS.get(dealId)!.tricks;
+  if (declarer !== undefined) return tricks[`${strain}:${declarer}`];
+  return Math.max(...PARTNERS[side].map((s) => tricks[`${strain}:${s}`]));
 }
 
 /** The board's score FROM `side`: positive when they gain. */
@@ -164,14 +164,14 @@ export interface Grade {
 }
 
 /** A loss is reported POSITIVE as points given away. See challenge.py. */
-export function grade(dealId: number, side: Side, contract: ScoredContract | null,
+export function grade(dealId: number, side: Side, contract: (ScoredContract & { declarer?: Seat }) | null,
   declarerTricks: number, vulnerability: Vulnerability = 'None'): Grade {
   const ceiling = par(dealId, side, vulnerability);
   if (contract === null) {
     return { par: ceiling, passed_out: true, dd_score: 0, actual: 0,
       bidding_loss: ceiling.score, play_loss: 0, total_loss: ceiling.score };
   }
-  const perfect = ddTricks(dealId, contract.strain, contract.side);
+  const perfect = ddTricks(dealId, contract.strain, contract.side, contract.declarer);
   const ddScore = scoreFor(side, contract, perfect);
   const actual = scoreFor(side, contract, declarerTricks);
   return {

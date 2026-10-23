@@ -52,7 +52,8 @@ def main(names: list[str]) -> None:
     def score(deal_id, contract, side):
         if contract is None:
             return 0
-        t = challenge.dd_tricks(deal_id, contract['strain'], contract['side'])
+        t = challenge.dd_tricks(deal_id, contract['strain'], contract['side'],
+                                contract.get('declarer'))
         return challenge.score_for(side, contract, t)
 
     diffs, examples = [], []

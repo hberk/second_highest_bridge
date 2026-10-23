@@ -202,9 +202,7 @@ Still open, **each the user's call**:
 - [x] **3.8 1♥-2♥-3♠.** (2026-10-19, the user's call: a splinter, short in
   spades, game forcing.) Opener now bids it too, with 18+ HCP (also 4♣/4♦, and
   1♠-2♠-4♣/4♦/4♥), and responder bids game. 1 of 1,600 auctions changed.
-- [ ] **3.9 Challenge grading uses one declarer per strain and side (H2).** (2026-10-23: the library now names the solved declarer and the grade flags a mismatch; `research/solve_declarers.py` solves all four declarers, ~6 h on 4 cores, not yet run.)
-  22.5% of robot boards are declared by the other partner (CHALLENGE.md). Solve
-  both declarers, or flag mismatched boards.
+- [x] **3.9 Challenge grading uses one declarer per strain and side (H2).** (Fixed 2026-10-23: every deal solved for all four declarers, `research/solve_declarers.py`; see CHALLENGE.md.)
 - [x] **3.10 Dealing a challenge board throws away the board in play (M9)** (2026-10-23, the user's call: it asks first, once you've called or played),
   with no confirmation, and the deal goes back in the pool. Intended?
 - [ ] **3.11 Robot discards and leads.** Discards done 2026-10-19 (the user's

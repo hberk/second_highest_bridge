@@ -26,18 +26,17 @@ asked about, not planned. **Declined**: settled, don't re-propose.
 ## The order to build
 
 The open P1 requirements, highest first. The reasoning: the auction is where
-the robots lose points (235 a board against 6 in the play, ROBOT_PROGRESS),
+the robots lose points (244 a board, against none in the play, ROBOT_PROGRESS),
 and the user plays on a phone.
 
 1. **B3** Robots reach makeable games and slams (the biggest single loss).
 2. **B2** GIB's remaining handoff gaps (ROADMAP 1.3-1.6).
-3. **C4** Challenge grading uses the declarer who actually played
-   (flagged since 2026-10-23; exact counts still open).
-4. **U6** History and Challenge in the Felt style (ROADMAP 2.6).
-5. **A3** Tricks 1-2 of the double dummy analysis fast enough on a phone.
+3. **U6** History and Challenge in the Felt style (ROADMAP 2.6).
+4. **A3** Tricks 1-2 of the double dummy analysis fast enough on a phone.
 
-Done 2026-10-23: **S3** (a malformed saved board can't break History) and
-**C5** (dealing a challenge board asks before throwing away the board in play).
+Done 2026-10-23: **S3** (a malformed saved board can't break History),
+**C5** (dealing a challenge board asks before throwing away the board in play)
+and **C4** (grading uses the partner who actually declared).
 
 ## 1. Rules and scoring
 
@@ -93,7 +92,7 @@ Done 2026-10-23: **S3** (a malformed saved board can't break History) and
 | C1 | Play a library deal and compare with an all-robot table on the same deal | P1 | Met | `challenge.py`, `test_challenge.py` |
 | C2 | Grade both against par, split exactly into what the auction lost and what the play lost | P1 | Met | `test_challenge.py` asserts the identity on every deal |
 | C3 | The review shows double dummy for every card, and lists where tricks were lost, for you and the robots | P1 | Met (PR #24) | `dd.test.ts` |
-| C4 | Grading uses the declarer who actually played, not one per strain and side | P1 | Partial (2026-10-23): a board declared by the partner the deal wasn't solved for says so under the grade; exact counts need ~6 h of solving (`research/solve_declarers.py`) | ROADMAP 3.9, `qol.test.ts`, `test_challenge.py` |
+| C4 | Grading uses the declarer who actually played, not one per strain and side | P1 | Met (2026-10-23): every deal solved for all four declarers; par takes the better partner | `test_challenge.py`, `engine.test.ts` |
 | C5 | Dealing a challenge board mid-board asks first | P2 | Met (2026-10-23) | `Game.inProgress`, `qol.test.ts` |
 
 ## 6. History and analysis

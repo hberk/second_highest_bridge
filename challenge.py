@@ -7,7 +7,7 @@ an all-robot table on the same deal. Comparing the two scores asks exactly the
 question "is the robot better than me with these cards".
 
 It runs on `data/solved_deals.json` -- the 400 deals solved in all five strains
-for both declaring sides -- which is what makes the interesting part affordable.
+for all four declarers -- which is what makes the interesting part affordable.
 Because every trick count is already known, a contract can be scored as if it
 had been played perfectly, and that splits a board's result in two:
 
@@ -40,6 +40,7 @@ LIBRARY_PATH = Path(__file__).resolve().parent / 'data' / 'solved_deals.json'
 SIDES = ('N/S', 'E/W')
 STRAINS = ('C', 'D', 'H', 'S', 'NT')
 SEATS = ('North', 'East', 'South', 'West')
+PARTNERS = {'N/S': ('North', 'South'), 'E/W': ('East', 'West')}
 
 #: A board is abandoned if the auction will not terminate. Real auctions end in
 #: a handful of calls; this only exists so a bug cannot hang the page.
@@ -49,7 +50,8 @@ _library: Optional[dict] = None
 
 
 def load_library() -> dict:
-    """The solved deal library, read once. {id: {'hands': ..., 'tricks': ...}}."""
+    """The solved deal library, read once. {id: {'hands': ..., 'tricks': ...}},
+    `tricks` keyed "<strain>:<declarer>"."""
     global _library
     if _library is None:
         with LIBRARY_PATH.open(encoding='utf-8') as f:
@@ -74,16 +76,18 @@ def hands_for(deal_id: int) -> dict[str, list[Card]]:
             for seat in SEATS}
 
 
-def dd_tricks(deal_id: int, strain: str, declaring_side: str) -> int:
-    """Tricks the declaring side takes in `strain`, with both sides perfect."""
-    return load_library()[deal_id]['tricks'][f"{strain}:{declaring_side}"]
+def dd_tricks(deal_id: int, strain: str, declaring_side: str,
+              declarer: Optional[str] = None) -> int:
+    """Tricks the declaring side takes in `strain`, with both sides perfect.
 
-
-def solved_declarer(deal_id: int, strain: str, declaring_side: str) -> str:
-    """The partner who declared when `dd_tricks` was solved. The library holds
-    only that partner's count: with the other partner declaring (and so the
-    opening lead from the other side), it can differ by a trick or more."""
-    return load_library()[deal_id]['declarers'][f"{strain}:{declaring_side}"]
+    The opening lead comes from declarer's left, so the two partners can take
+    different numbers of tricks. With `declarer` named, that partner's count;
+    without, the better partner's, since a side can choose who declares (par).
+    """
+    tricks = load_library()[deal_id]['tricks']
+    if declarer is not None:
+        return tricks[f"{strain}:{declarer}"]
+    return max(tricks[f"{strain}:{seat}"] for seat in PARTNERS[declaring_side])
 
 
 def other_side(side: str) -> str:
@@ -249,7 +253,8 @@ def grade(deal_id: int, side: str, contract: Optional[dict],
                 'actual': 0, 'bidding_loss': ceiling['score'], 'play_loss': 0,
                 'total_loss': ceiling['score']}
 
-    perfect = dd_tricks(deal_id, contract['strain'], contract['side'])
+    perfect = dd_tricks(deal_id, contract['strain'], contract['side'],
+                        contract.get('declarer'))
     dd_score = score_for(side, contract, perfect)
     actual = score_for(side, contract, declarer_tricks)
     return {
