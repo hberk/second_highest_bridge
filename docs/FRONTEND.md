@@ -42,9 +42,14 @@ remains the reference.
   since an unseeded "at least once in ten boards" check failed CI by chance.
 - **Screens (the Felt design, 2026-10-16).** Phone first, portrait, dark
   green. `App.svelte` switches between a home page (`HomeView`) and the
-  table, Challenge, History and How to play, each with a back button
-  (`TopBar`); the screen follows the URL hash (`#table`, `#history`), so the
-  browser's back button and the phone's back swipe work. Settings live in a
+  table, Challenge, History and How to play. Play, Challenge and History are
+  tabs in one slim row (`TabStrip`, 2026-10-23, the user's call: tabs again,
+  but compact): the spade goes home, `?` opens How to play (which keeps a
+  back button, `TopBar`), and Challenge and History use the row as their whole
+  top bar, so only the table pays for it (about 40px; the bidding box and
+  your hand still fit a 390x844 screen). The screen follows the URL hash
+  (`#table`, `#history`), so the browser's back button and the phone's back
+  swipe work. Settings live in a
   bottom sheet (`Sheet` + `SettingsPanel`), opened from the gear on home and
   at the table. `TableView` is one 520px column: the auction on an oval of
   felt (`AuctionFelt`, each seat's latest call where it sits and the newest
@@ -139,7 +144,7 @@ remains the reference.
   boards imported from LIN don't (`imported`). Auto-play is off by default
   (since 2026-10-15). Last trick and the auction are buttons beside your
   hand.
-- **Double dummy in the History replayer** (2026-10-21; `src/lib/dd/`,
+- **Double dummy in the replayer** (2026-10-21; `src/lib/dd/`,
   `dd.test.ts`). `research/solver-rs` compiled to WebAssembly
   (`research/solver-rs/wasm`, 50 KB), not a port of `bridge/solver`. At each
   step, every legal card of the seat to play carries how the contract ends if
@@ -147,7 +152,15 @@ remains the reference.
   (grey) exactly, **+n** (green) n overtricks; the card played is underlined.
   Signed as well as coloured, for colour-blind players, and measured against
   the contract on a defender's turn too (the user's choices, from a mock).
-  The History tab only (`analysis` prop), not the challenge review.
+  On in History and in the challenge review (`analysis` prop; the challenge
+  review had it off until 2026-10-22), so the robots' line can be checked
+  card by card. Under the replayer, **Where tricks were lost** lists every
+  analysed card that was worse for its side than the best card held
+  (`tricksLost`): trick, seat, how the contract moved (e.g. −1 → =) and the
+  card(s) that kept it; a tap jumps the replayer there. It grows as earlier
+  tricks are analysed. `dd.test.ts` checks the list accounts for every trick:
+  from the first decision analysed, N/S's tricks are the best they could force,
+  less what N/S gave away, plus what E/W gave away.
   - **It runs in a worker**, one per board shown (`worker.ts`, terminated on
     leaving the board, which frees the table), and fills in from the last
     trick back with one `Search` kept through the board: the endgame is

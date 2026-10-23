@@ -44,8 +44,8 @@
 {#if records.length}
   <hr />
   <h3>Review the deal</h3>
-  <p class="caption">Both boards, the same 52 cards. Switch between them to see where the auctions diverged and which card turned the play. Hover any robot call for what it was supposed to show.</p>
-  <HistoryView {records} />
+  <p class="caption">Both boards, the same 52 cards. Switch between them to see where the auctions diverged and which card turned the play. Hover any robot call for what it was supposed to show. Double dummy values show what every card was worth, and the list under the replayer names each card that gave a trick away.</p>
+  <HistoryView {records} analysis />
 {/if}
 
 <MatchTotal log={game.challengeLog} />

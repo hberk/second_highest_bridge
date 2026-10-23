@@ -864,3 +864,59 @@ button { touch-action: manipulation; }
 .side-row .fan { --w: 38px; --h: 52px; --rank: 14px; --suit: 13px; flex: 1 1 auto; justify-content: flex-start; padding: 0; }
 .side-void { color: var(--dim); font-size: 14px; padding-left: 4px; }
 .dk-side-dummy { padding: 14px 12px; align-items: stretch; }
+
+/* ── Phone tabs ──────────────────────────────────────────────────────────── */
+
+.tabstrip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    max-width: 520px;
+    box-sizing: border-box;
+    margin: 0 auto;
+    padding: calc(var(--safe-top) + 4px) 8px 0;
+    border-bottom: 1px solid var(--line);
+}
+.ts-icon {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border: none;
+    background: none;
+    color: var(--dim);
+    font: inherit;
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.ts-brand { color: var(--accent); font-size: 19px; }
+.ts-tabs { flex: 1; display: flex; justify-content: center; }
+.ts-tab {
+    flex: 1;
+    max-width: 130px;
+    height: 36px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: var(--dim);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.ts-tab[aria-current="page"] { color: var(--text); border-bottom-color: var(--accent); }
+.ts-count {
+    margin-left: 5px;
+    padding: 0 6px;
+    border-radius: 9px;
+    background: var(--panel-2);
+    color: var(--dim-2);
+    font-size: 11px;
+}
+/* Under the tabs the safe area is already taken. */
+.tabbed { --safe-top: 0px; }
+/* The table still fills one screen, tabs included. */
+.tabbed-table { min-height: 100dvh; display: flex; flex-direction: column; }
+.tabbed-table > .tabbed { flex-grow: 1; display: flex; flex-direction: column; }
+.tabbed-table .table-screen { min-height: 0; flex-grow: 1; width: 100%; }

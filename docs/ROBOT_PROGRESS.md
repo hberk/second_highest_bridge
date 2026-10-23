@@ -77,6 +77,7 @@ four seats, which nets out a change both declarer and defenders use.
 | 10-20 | Play reads the bidding: lead partner's suit, layouts that fit the auction | | +0.38 | +0.43 | 492 | on (your call: correctness) |
 | 10-20 | The endgame search starts at four cards, not three | **+0.190** | +10.29 | **+19.8** | 2,092 | on |
 | 10-21 | One position memory for every search | | | | 0 (same play, half the time) | on |
+| 10-22 | The endgame search starts at five cards, not four (measured 10-21) | **+0.204** | +9.34 | **+22.8** | 2,564 | on (your call) |
 
 The three information rules together: +0.55 points a board, t = +0.48, 556
 boards changed. None is distinguishable from zero; they are kept because a
@@ -93,7 +94,7 @@ Tried and left off:
 | 10-19 | Never lead a dead card while a live one will do (deal 43) | declarer -0.122, defence -0.149 | worse for both sides: a dead card is a loser worth spending |
 | 10-19 | Declarer sets up its long suit in notrump (deal 43) | +0.041 (t = +0.95) | right direction, not proven; left off, to narrow first |
 | 10-20 | A sampled search from five or six cards (eight layouts) | | deal 0: the K♦ third in hand where the 6♦ takes three more; eight layouts misjudge one card |
-| 10-21 | The endgame search from five cards | **+0.204** (t = +9.34), +22.8 points, seated, over four cards | **waiting**: 0.77 s a board is fine at the table but too slow for the test suites; needs the compiled solver in the robots' play |
+| 10-22 | The endgame search from six cards, over five (TS engine, 100 deals) | **+0.260** (t = +4.35), +26.8 points, seated | **waiting** (your call): 4.6 s a board, up to 17.5 s a move on a desktop, on the main thread |
 | 10-21 | Trying the remembered best card first | | slower (0.87 s against 0.77 s a board at five cards), no gain |
 
 ## Bidding

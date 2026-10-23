@@ -182,13 +182,16 @@ def test_every_card_in_a_robot_board_was_actually_dealt():
             assert seen[seat] == dealt[seat], f"deal {deal_id}: {seat} left cards unplayed"
 
 
-def test_the_loss_decomposition_is_exact():
+def _loss_decomposition_is_exact(part: int, parts: int = 4) -> None:
     """par - actual == bidding_loss + play_loss, on every deal in the library.
 
     This is the whole feature: the two halves are what make "how good is the
-    robot at BIDDING" and "at DECLARING" separable questions.
+    robot at BIDDING" and "at DECLARING" separable questions. The library is
+    split in four tests so that run_all.py plays them on four cores.
     """
     for i, deal_id in enumerate(challenge.deal_ids()):
+        if i % parts != part:
+            continue
         dealer = DEALER_ROTATION[i % 4]
         table = challenge.robot_table(deal_id, dealer)
         for side in challenge.SIDES:
@@ -198,6 +201,22 @@ def test_the_loss_decomposition_is_exact():
                 f"deal {deal_id} {side}: {g['bidding_loss']} + {g['play_loss']}"
                 f" != {g['total_loss']}")
             assert g['total_loss'] == g['par']['score'] - g['actual']
+
+
+def test_the_loss_decomposition_is_exact_part_1():
+    _loss_decomposition_is_exact(0)
+
+
+def test_the_loss_decomposition_is_exact_part_2():
+    _loss_decomposition_is_exact(1)
+
+
+def test_the_loss_decomposition_is_exact_part_3():
+    _loss_decomposition_is_exact(2)
+
+
+def test_the_loss_decomposition_is_exact_part_4():
+    _loss_decomposition_is_exact(3)
 
 
 def test_a_board_is_zero_sum_between_the_two_sides():

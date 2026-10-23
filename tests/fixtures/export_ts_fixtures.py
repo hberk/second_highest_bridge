@@ -23,9 +23,11 @@ hand landing exactly on a threshold could.
 from __future__ import annotations
 
 import json
+import os
 import random
 import re
 import sys
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -127,16 +129,18 @@ def play_game(hands, dealer, vul, rng: random.Random | None):
     return record
 
 
+def _game(i: int, hands) -> dict:
+    human = random.Random(i) if i % 2 else None
+    return play_game(hands, DEALER_ROTATION[i % 4], VUL_ROTATION[i % 16], human)
+
+
 def export_games(n: int) -> list[dict]:
+    # Deals first, in order from the one RNG; then the boards, which share
+    # nothing, on every core (the robots search from five cards a hand).
     rng = random.Random(20261003)
-    games = []
-    for i in range(n):
-        hands = random_deal(rng)
-        dealer = DEALER_ROTATION[i % 4]
-        vul = VUL_ROTATION[i % 16]
-        human = random.Random(i) if i % 2 else None
-        games.append(play_game(hands, dealer, vul, human))
-    return games
+    deals = [random_deal(rng) for _ in range(n)]
+    with ProcessPoolExecutor(os.cpu_count()) as pool:
+        return list(pool.map(_game, range(n), deals, chunksize=8))
 
 
 def export_evals(games: list[dict]) -> list[dict]:
@@ -175,26 +179,28 @@ def export_scoring() -> list[list]:
 
 
 def export_challenge() -> list[dict]:
-    out = []
-    for deal_id in challenge.deal_ids():
-        i = deal_id
-        dealer = DEALER_ROTATION[i % 4]
-        vul = VUL_ROTATION[i % 16]
-        table = challenge.robot_table(deal_id, dealer, vul)
-        out.append({
-            'deal_id': deal_id, 'dealer': dealer, 'vul': vul,
-            'calls': table['calls'],
-            'alerts': {str(k): v for k, v in table['alerts'].items()},
-            'contract': table['contract'],
-            'plays': [[p, tok(c)] for t in table['tricks_log'] for p, c in t['plays']],
-            'tricks_taken': table['tricks_taken'],
-            'result': table['result'],
-            'grade': challenge.grade(deal_id, 'N/S', table['contract'],
-                                     table['declarer_tricks'], vul),
-            'par': {v: {s: challenge.par(deal_id, s, v) for s in ('N/S', 'E/W')}
-                    for v in VULS},
-        })
-    return out
+    with ProcessPoolExecutor(os.cpu_count()) as pool:
+        return list(pool.map(_challenge_deal, challenge.deal_ids(), chunksize=4))
+
+
+def _challenge_deal(deal_id: int) -> dict:
+    i = deal_id
+    dealer = DEALER_ROTATION[i % 4]
+    vul = VUL_ROTATION[i % 16]
+    table = challenge.robot_table(deal_id, dealer, vul)
+    return {
+        'deal_id': deal_id, 'dealer': dealer, 'vul': vul,
+        'calls': table['calls'],
+        'alerts': {str(k): v for k, v in table['alerts'].items()},
+        'contract': table['contract'],
+        'plays': [[p, tok(c)] for t in table['tricks_log'] for p, c in t['plays']],
+        'tricks_taken': table['tricks_taken'],
+        'result': table['result'],
+        'grade': challenge.grade(deal_id, 'N/S', table['contract'],
+                                 table['declarer_tricks'], vul),
+        'par': {v: {s: challenge.par(deal_id, s, v) for s in ('N/S', 'E/W')}
+                for v in VULS},
+    }
 
 
 def history_record(game: dict, board_num: int) -> dict:
