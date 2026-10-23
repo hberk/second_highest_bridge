@@ -5,7 +5,7 @@
   import type { Snippet } from 'svelte';
 
   let { onback, title = '', sub = '', center, right }: {
-    onback: () => void;
+    onback?: () => void;
     title?: string;
     sub?: string;
     center?: Snippet;
@@ -14,9 +14,11 @@
 </script>
 
 <header class="topbar">
-  <button class="icon-btn plain" aria-label="Back to home" onclick={onback}>
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
-  </button>
+  {#if onback}
+    <button class="icon-btn plain" aria-label="Back to home" onclick={onback}>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
+    </button>
+  {:else}<span></span>{/if}
   <div class="topbar-center">
     {#if center}{@render center()}
     {:else}

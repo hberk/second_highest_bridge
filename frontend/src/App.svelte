@@ -11,6 +11,7 @@
   import HistoryView from './lib/views/HistoryView.svelte';
   import HowToPlayView from './lib/views/HowToPlayView.svelte';
   import TopBar from './lib/components/TopBar.svelte';
+  import TabStrip from './lib/components/TabStrip.svelte';
   import Sheet from './lib/components/Sheet.svelte';
   import SettingsPanel from './lib/components/SettingsPanel.svelte';
 
@@ -84,7 +85,15 @@
     {/if}
   </div>
 {:else if screen === 'table'}
-  <TableView {game} onhome={() => go('home')} onsettings={() => (settingsOpen = true)} />
+  <div class="tabbed-table">
+    <TabStrip {screen} {game} onnav={go} />
+    <div class="tabbed"><TableView {game} onsettings={() => (settingsOpen = true)} /></div>
+  </div>
+{:else if screen !== 'howto'}
+  <div class="screen">
+    <TabStrip {screen} {game} onnav={go} />
+    <main class="page">{@render section()}</main>
+  </div>
 {:else}
   <div class="screen">
     <TopBar title={TITLES[screen]} onback={() => go('home')} />
