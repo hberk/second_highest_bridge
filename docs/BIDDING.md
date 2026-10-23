@@ -233,6 +233,59 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   trick fit's ~9.7.
   - All three switches together: **+4.66 per board, t = +5.48, 113 auctions
     changed** (`FIT_COUNT` and `LOTT` alone: +4.39, t = +5.23, 106).
+- **Slam bidding doesn't pay here** (2026-10-23, the 101 slam deals of
+  `research/data/dd_slam.jsonl`; [SOLVER.md](SOLVER.md) for how they were
+  found). The robots bid slam on 0 of their 404 auctions: the opponents buy
+  the hand 40% of the time, the slam side stops in a partscore 27% and in game
+  33%. Every slam convention GIB has (keycard, Gerber, splinters, quantitative
+  4NT) waits for `SLAM` (33) HCP, and these hands hold 23 on a typical deal.
+  But no slam rule can pay: on the 1,481 screened sides with a 9+ card fit,
+  even the evaluator given BOTH hands finds no group that makes slam above
+  24-38%, and a ridge model on the exact trump and side honours, the trump
+  split and the shortness (fitted on half, tested on the other) has its top
+  40 making 40% and its top 10 making 50%, under 1% of the sides. A small
+  slam needs about 50% over game. Tricks here turn on where single cards sit
+  (the trick estimate is off by 1.5-1.6 tricks), which no auction carries.
+  Control cuebids would not help either: they count aces, and an ace here is
+  worth about a ten. Don't reopen slam bidding without a new idea.
+- **Shortness once a fit is agreed** (`SHORT_VOID_TRICKS`,
+  `SHORT_SINGLETON_TRICKS`, `_with_shortness` in ai.py; the user's call,
+  2026-10-23). The auctions that stop low on those deals end in the previous
+  system's fallback ("No extra values."), whose count adds up cards and so
+  cannot see a short suit. On the 1,481 screened sides, the best fit takes ten
+  tricks this often:
+
+  | major fit | no singleton or void | singleton | void |
+  |---|---|---|---|
+  | 9 cards | 21% | 46% | 73% |
+  | 10 cards | 22% | 58% | 87% |
+
+  Shortness, not fit length, makes game, which is why promoting game on a
+  known 9-card fit lost (above). So where the fallback raises or rebids an
+  agreed suit with three or more trumps (`_response`, `_rebid`), a void adds
+  five tricks (always game) and a singleton one; only the hand's shortest side
+  suit counts. Being added to the count, the void also lifts `_place`'s
+  ceiling, so in competition the void hand bids on past game (deal 116: 5♥
+  over their 4♠, +650 to +850). A raise of ours while they hold the
+  undoubled contract now carries the LoTT alert (`_contest_alert`), since GIB's
+  LoTT makes the same call in the same auctions. Deal 52: 2♥ X P 2♠ P P 3♥ P
+  now 4♥, +450.
+  - **Measured on 13x the library.** The 400 library deals were too few (t =
+    1.7 at first). An auction can only score differently where the rule
+    changes it, so 5,000 more random deals (seeds from 3,000,000) were bid
+    without solving, which takes a minute, and only the 493 that any candidate
+    changed were solved in full; every other board scores 0 by construction.
+    One deal still solving was left out: 5,399 deals, 21,596 boards. **+2.62
+    per board, t = +9.24, 1,404 auctions changed**; +22.4 on the slam deals.
+  - Its bidding wars can reach slam on few high cards (seed 5, deal 33: West's
+    diamond void competes to 5♥, North's singleton outbids to 6♦ on 22 HCP), so
+    `test_slams_are_bid_only_on_slam_values` now allows a slam under 27 HCP
+    only after an opponents' bid at the five level (the user's call).
+  - Measured and left off: the void at exactly game, which leaves the ceiling
+    alone, +1.72 (t = +7.15, 1,315 changed); the singleton alone +0.86
+    (t = +5.05); singleton values 0.5-1.5 all
+    positive on the library, 1.0 best; a singleton in GIB's own `_fit_bonus`
+    changed 7-12 auctions and lost 0.2 (t = -2).
 
 ## The previous system (`ai.USE_GIB = False`)
 

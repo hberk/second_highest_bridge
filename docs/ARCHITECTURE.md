@@ -31,6 +31,7 @@ everything it did, double dummy analysis included.
 
 **`research/`** — tooling that informs the engine, not the app:
 - `research/dd_dataset.py`: generates double dummy trick counts for fitting bidding. For each deal it solves each side's best fit and notrump, with both sides declaring. Output is JSON Lines, one record per (deal, strain), at `research/data/dd_pilot.jsonl`, with progress in `research/data/dd_pilot.log`. Supports `--engine {python,rust}`.
+- `research/slam_deals.py`: slam deals for bidding work. Random deals from seeds of its own, kept when a side holds a 9+ card fit, screened by solving that side's two best fits with it declaring, and solved in full (all five strains, both sides) when the screen finds 12+ tricks. Finished deals go to `research/data/dd_slam.jsonl` in `dd_pilot.jsonl`'s shape; every deal dealt, with its screen, to `research/data/dd_slam_screen.jsonl`. Not a random sample: keep it out of the challenge library and anything that averages over deals. Rust engine only.
 - `research/hand_value.py`: fits hand evaluation and bidding policy to that dataset —
   rank values, the cross-validated point count, the notrump verdict, and score-ranked
   bidding policies, plus what the current `ai_bid` scores over the same deals. Read-only

@@ -123,7 +123,11 @@ def test_notrump_openings_are_gibs():
 
 def test_slams_are_bid_only_on_slam_values():
     """GIB bids slams, so the regression to guard is a runaway: a six- or
-    seven-level contract on values nowhere near it."""
+    seven-level contract on values nowhere near it. A competitive auction is
+    the exception (the user's call, 2026-10-23): once a void counts five
+    tricks (ai.SHORT_VOID_TRICKS), both sides can outbid each other past
+    game, so a slam under 27 HCP must follow an opponents' bid at the five
+    level or higher, never come from our side alone."""
     random.seed(5)
     contracts = 0
     for index in range(300):
@@ -139,7 +143,9 @@ def test_slams_are_bid_only_on_slam_values():
         if contract['level'] >= 6:
             seats = [contract['declarer'], PARTNERS[contract['declarer']]]
             combined = sum(gib.Hand(hands[s]).hcp for s in seats)
-            assert combined >= 27, (
+            pushed = any(who not in seats and parse_bid(call) and parse_bid(call)[0] >= 5
+                         for who, call in auction.calls)
+            assert combined >= 27 or pushed, (
                 f"{contract['level']}{contract['strain']} on {combined} HCP: "
                 f"{[c for _, c in auction.calls]}")
     assert contracts > 250

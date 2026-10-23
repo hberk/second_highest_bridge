@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { gibBid } from './gib';
+import { gibBid, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert } from './gib';
 
 const AI_TAG = '__ai__';
 type AnyPlay = Play<string>;
@@ -222,6 +222,29 @@ function points(groups: Groups): number {
   return high + length + (shape === '4,3,3,3' ? -1 : 0);
 }
 
+/** Shortness once a fit is agreed: a void adds SHORT_VOID_TRICKS, a singleton
+ *  SHORT_SINGLETON_TRICKS, for the shortest side suit (see ai.py). */
+export const SHORT_VOID_TRICKS = 5.0;
+export const SHORT_SINGLETON_TRICKS = 1.0;
+
+function withShortness(combined: number, groups: Groups, trump: Suit): number {
+  if (groups[trump].length < SUPPORT_LENGTH) return combined;
+  const shortest = Math.min(...SUITS.filter((s) => s !== trump).map((s) => groups[s].length));
+  return combined + (shortest === 0 ? SHORT_VOID_TRICKS : shortest === 1 ? SHORT_SINGLETON_TRICKS : 0.0);
+}
+
+/** Our agreed suit bid while they hold the contract carries the alert GIB's
+ *  Law of Total Tricks gives the same call (see ai.py, _contest_alert). */
+function contestAlert(player: Seat, auction: AuctionState, call: string, why: string): string {
+  const hb = auction.highestBid;
+  const bid = parseBid(call);
+  const s = bid ? bid[1] : null;
+  if (!LOTT || hb === null || s === null || !isSuit(s) || auction.doubled !== 'None'
+    || PARTNERSHIP[hb[2]] === PARTNERSHIP[player]) return why;
+  const mine = bidsBy(player, auction).some(([, strain]) => strain === s);
+  return nameTheSuit(call, mine ? LOTT_ALERT : raiseAlert(s as Suit, LOTT_ALERT));
+}
+
 function place(strain: string, combined: number, legal: string[]): Decision {
   if (combined >= GAME_TRICKS) {
     const game = gameCall(strain, legal);
@@ -369,7 +392,8 @@ function response(player: Seat, partner: Seat, auction: AuctionState, ev: HandEv
 
   if (held >= SUPPORT_LENGTH) {
     // The AI does not cuebid here; measured at -4.1 head to head. See ai.py.
-    const combined = ev.suit_pts[pStrain] + partnerPromise(player, partner, auction, pStrain);
+    const combined = withShortness(
+      ev.suit_pts[pStrain] + partnerPromise(player, partner, auction, pStrain), groups, pStrain as Suit);
     const pts = points(groups);
     if (combined >= GAME_TRICKS) {
       const game = gameCall(pStrain, legal);
@@ -441,17 +465,22 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
   }
 
   if (isSuit(pStrain) && groups[pStrain].length >= SUPPORT_LENGTH) {
-    const combined = ev.suit_pts[pStrain] + partnerPromise(player, partner, auction, pStrain);
+    const combined = withShortness(
+      ev.suit_pts[pStrain] + partnerPromise(player, partner, auction, pStrain), groups, pStrain as Suit);
     const [call, why] = place(pStrain, combined, legal);
     return call !== 'Pass'
-      ? [call, `${SUPPORT_LENGTH}+ ${SUIT_SYM[pStrain]} support, agreeing the suit.`]
+      ? [call, contestAlert(player, auction, call,
+        `${SUPPORT_LENGTH}+ ${SUIT_SYM[pStrain]} support, agreeing the suit.`)]
       : [call, why];
   }
 
   if (pStrain === myFirst) {
-    const combined = ev.suit_pts[myFirst] + partnerPromise(player, partner, auction, myFirst);
+    const combined = withShortness(
+      ev.suit_pts[myFirst] + partnerPromise(player, partner, auction, myFirst), groups, myFirst);
     const [call, why] = place(myFirst, combined, legal);
-    return call !== 'Pass' ? [call, `${SUIT_SYM[myFirst]} agreed. No extra values shown.`] : [call, why];
+    return call !== 'Pass'
+      ? [call, contestAlert(player, auction, call, `${SUIT_SYM[myFirst]} agreed. No extra values shown.`)]
+      : [call, why];
   }
 
   if (bestLen >= OPEN_SUIT_LENGTH + 1) {
