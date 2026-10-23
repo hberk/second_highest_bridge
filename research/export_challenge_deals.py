@@ -2,7 +2,8 @@
 
 `research/data/dd_pilot.jsonl` is research tooling: 2,000 records carrying node
 counts, timings and which engine solved them. The app needs none of that — only
-the cards and the trick count for every (strain, declaring side), so that a
+the cards and the trick count for every (strain, declaring side), with the
+partner who declared in that solve, so that a
 contract a player reaches can be scored double dummy by lookup instead of by a
 600-second solve.
 
@@ -40,6 +41,7 @@ def main() -> int:
 
     hands: dict[int, dict] = {}
     tricks: dict[int, dict] = defaultdict(dict)
+    declarers: dict[int, dict] = defaultdict(dict)
     for line in SOURCE.open(encoding='utf-8'):
         line = line.strip()
         if not line:
@@ -48,8 +50,9 @@ def main() -> int:
         did = rec['deal_id']
         hands[did] = rec['hands']
         for res in rec['results']:
-            tricks[did][f"{rec['strain']}:{res['declaring_side']}"] = \
-                res['declarer_tricks']
+            key = f"{rec['strain']}:{res['declaring_side']}"
+            tricks[did][key] = res['declarer_tricks']
+            declarers[did][key] = res['declarer']
 
     wanted = [f"{s}:{side}" for s in STRAINS for side in SIDES]
     deals = []
@@ -62,6 +65,9 @@ def main() -> int:
             'hands': hands[did],
             # "<strain>:<declaring side>" -> tricks that side takes, double dummy
             'tricks': {k: have[k] for k in wanted},
+            # ... and the partner who declared in that solve. Only this
+            # partner's count is known; the other's can differ by a trick.
+            'declarers': {k: declarers[did][k] for k in wanted},
         })
 
     TARGET.parent.mkdir(parents=True, exist_ok=True)

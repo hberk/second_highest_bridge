@@ -31,12 +31,13 @@ and the user plays on a phone.
 
 1. **B3** Robots reach makeable games and slams (the biggest single loss).
 2. **B2** GIB's remaining handoff gaps (ROADMAP 1.3-1.6).
-3. **C4** Challenge grading uses the declarer who actually played.
+3. **C4** Challenge grading uses the declarer who actually played
+   (flagged since 2026-10-23; exact counts still open).
 4. **U6** History and Challenge in the Felt style (ROADMAP 2.6).
 5. **A3** Tricks 1-2 of the double dummy analysis fast enough on a phone.
-6. **S3** A malformed saved board can't break History.
-7. **C5** Dealing a challenge board doesn't throw away the board in play
-   without asking.
+
+Done 2026-10-23: **S3** (a malformed saved board can't break History) and
+**C5** (dealing a challenge board asks before throwing away the board in play).
 
 ## 1. Rules and scoring
 
@@ -92,8 +93,8 @@ and the user plays on a phone.
 | C1 | Play a library deal and compare with an all-robot table on the same deal | P1 | Met | `challenge.py`, `test_challenge.py` |
 | C2 | Grade both against par, split exactly into what the auction lost and what the play lost | P1 | Met | `test_challenge.py` asserts the identity on every deal |
 | C3 | The review shows double dummy for every card, and lists where tricks were lost, for you and the robots | P1 | Met (PR #24) | `dd.test.ts` |
-| C4 | Grading uses the declarer who actually played, not one per strain and side | P1 | Open (22.5% of robot boards differ) | ROADMAP 3.9 |
-| C5 | Dealing a challenge board mid-board asks first (or doesn't lose the board) | P2 | Open (user's call) | ROADMAP 3.10 |
+| C4 | Grading uses the declarer who actually played, not one per strain and side | P1 | Partial (2026-10-23): a board declared by the partner the deal wasn't solved for says so under the grade; exact counts need ~6 h of solving (`research/solve_declarers.py`) | ROADMAP 3.9, `qol.test.ts`, `test_challenge.py` |
+| C5 | Dealing a challenge board mid-board asks first | P2 | Met (2026-10-23) | `Game.inProgress`, `qol.test.ts` |
 
 ## 6. History and analysis
 
@@ -126,7 +127,7 @@ and the user plays on a phone.
 |---|---|---|---|---|
 | S1 | Saves never stop play: full or blocked storage is survived, an unreadable save is backed up, not overwritten | P0 | Met | `saves.test.ts` |
 | S2 | Two open tabs don't overwrite each other's boards | P1 | Met | `mergeGames`, `saves.test.ts` |
-| S3 | One malformed saved board can't break History | P1 | Open | ROADMAP 3.6 |
+| S3 | One malformed saved board can't break History | P1 | Met (2026-10-23): checked board by board on load, a bad one left out and the save backed up | `isRecord`, `saves.test.ts` |
 | S4 | No accounts and no server: nothing leaves the browser except cookieless page counts | P0 | Met | CSP in `index.html` |
 
 ## 9. Engineering

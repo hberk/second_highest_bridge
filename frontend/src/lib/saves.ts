@@ -7,6 +7,8 @@
 // `boards.record`, so boards saved here can be uploaded unchanged once there
 // are accounts.
 import type { ChallengeLogEntry, HistoryRecord } from './game.svelte';
+import { RANKS, SUITS, VULNERABILITIES } from './engine/card';
+import { PLAYERS } from './engine/auction';
 
 export const SAVE_KEY = 'shb-games-v1';
 /** Where an unreadable save is kept rather than overwritten. */
@@ -42,8 +44,46 @@ function isSaved(v: unknown): v is SavedGames {
     && Number.isInteger(s.passedOut) && s.passedOut >= 0;
 }
 
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+const isCount = (v: unknown): boolean => Number.isInteger(v) && (v as number) >= 0;
+const isSeat = (v: unknown): boolean => PLAYERS.includes(v as never);
+const isCard = (v: unknown): boolean =>
+  isObject(v) && SUITS.includes(v.suit as never) && RANKS.includes(v.rank as string);
+const isPlay = (v: unknown): boolean =>
+  Array.isArray(v) && v.length === 2 && isSeat(v[0]) && isCard(v[1]);
+
+/** One board, checked as deep as the History view reads it: a board that
+ *  fails is left out on load rather than breaking the view. */
+export function isRecord(v: unknown): v is HistoryRecord {
+  if (!isObject(v)) return false;
+  const hands = v.initial_hands;
+  const taken = v.tricks_taken;
+  return isCount(v.board_num) && isSeat(v.dealer)
+    && VULNERABILITIES.includes(v.vulnerability as never)
+    && isObject(hands) && PLAYERS.every((p) => Array.isArray(hands[p]) && (hands[p] as unknown[]).every(isCard))
+    && Array.isArray(v.auction_calls)
+    && v.auction_calls.every((c) => Array.isArray(c) && c.length === 2 && isSeat(c[0]) && typeof c[1] === 'string')
+    && isObject(v.bid_alerts) && Object.values(v.bid_alerts).every((a) => typeof a === 'string')
+    && (v.contract === null || isObject(v.contract))
+    && typeof v.passed_out === 'boolean'
+    && Array.isArray(v.tricks_log)
+    && v.tricks_log.every((t) => isObject(t) && isCount(t.trick_num) && isSeat(t.leader)
+      && Array.isArray(t.plays) && t.plays.every(isPlay) && isSeat(t.winner) && isCard(t.winning_card))
+    && isObject(taken) && isCount(taken['N/S']) && isCount(taken['E/W'])
+    && (v.result === null || isObject(v.result));
+}
+
+const LOG_FIELDS = ['deal_id', 'board_num', 'you', 'robot', 'margin', 'your_bidding_loss',
+  'your_play_loss', 'robot_bidding_loss', 'robot_play_loss'] as const;
+
+export function isLogEntry(v: unknown): v is ChallengeLogEntry {
+  return isObject(v) && LOG_FIELDS.every((k) => Number.isFinite(v[k]));
+}
+
 /** The saved games, or null when there are none or they can't be read. An
- *  unreadable save is copied to BACKUP_KEY first, so a bug or a future format
+ *  unreadable save is copied to BACKUP_KEY first (and so is a save with a
+ *  malformed board, which loads without it), so a bug or a future format
  *  never silently destroys someone's history. */
 export function loadGames(storage: Storage | null): SavedGames | null {
   if (!storage) return null;
@@ -56,16 +96,30 @@ export function loadGames(storage: Storage | null): SavedGames | null {
   if (raw === null) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (isSaved(parsed)) return parsed;
+    if (isSaved(parsed)) {
+      // Boards and log entries are checked one by one: a bad one is dropped
+      // (and the whole save backed up first), the rest load.
+      const history = parsed.history.filter(isRecord);
+      const challengeLog = parsed.challengeLog.filter(isLogEntry);
+      if (history.length === parsed.history.length && challengeLog.length === parsed.challengeLog.length) {
+        return parsed;
+      }
+      backUp(storage, raw);
+      return { ...parsed, history, challengeLog };
+    }
   } catch {
     // Fall through to the backup.
   }
+  backUp(storage, raw);
+  return null;
+}
+
+function backUp(storage: Storage, raw: string): void {
   try {
     storage.setItem(BACKUP_KEY, raw);
   } catch {
     // Nothing more to do.
   }
-  return null;
 }
 
 /** At most `max` boards, dropping the oldest IMPORTED ones first: a big LIN

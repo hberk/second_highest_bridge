@@ -113,6 +113,40 @@ describe('saved games', () => {
     }
   });
 
+  it('a malformed board is left out, the rest load, and the save is backed up', () => {
+    const storage = new MemoryStorage();
+    const game = new Game(storage, prng(10));
+    finishBoards(game, 3);
+    const good = game.history.map((r) => JSON.parse(JSON.stringify(r)));
+    const t = good[1].tricks_log.length ? 'tricks_log' : 'initial_hands';
+    const broken = [
+      { ...good[1], [t]: t === 'tricks_log' ? [{ trick_num: 1, plays: 'AS' }] : { North: null } },
+      { ...good[1], dealer: 'Nowhere' },
+      { ...good[1], initial_hands: { ...good[1].initial_hands, East: [{ suit: 'X', rank: 'A' }] } },
+      null,
+      'board',
+    ];
+    for (const bad of broken) {
+      const raw = JSON.stringify({
+        version: 1, boardNum: 5, passedOut: 0,
+        history: [good[0], bad, good[2]],
+        challengeLog: [{ deal_id: 3 }],
+      });
+      storage.setItem(SAVE_KEY, raw);
+      storage.removeItem(BACKUP_KEY);
+      const loaded = loadGames(storage)!;
+      expect(loaded.history).toEqual([good[0], good[2]]);
+      expect(loaded.challengeLog).toEqual([]);
+      expect(loaded.boardNum).toBe(5);
+      expect(storage.getItem(BACKUP_KEY)).toBe(raw);
+    }
+    // A sound save loads untouched and writes no backup.
+    storage.removeItem(BACKUP_KEY);
+    saveGames(storage, { version: 1, boardNum: 5, passedOut: 0, history: good, challengeLog: [] });
+    expect(loadGames(storage)!.history).toEqual(good);
+    expect(storage.getItem(BACKUP_KEY)).toBeNull();
+  });
+
   it('a pass-out counted while storage was full is saved once it frees up', () => {
     const storage = new MemoryStorage();
     const game = new Game(storage, prng(12));

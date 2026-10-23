@@ -25,6 +25,8 @@
   });
 
   function deal() {
+    // The board in play isn't saved half-played, so ask before dropping it.
+    if (game.inProgress && !confirm('Leave the board in play? It won\'t be saved or scored, and a challenge deal goes back in the pool.')) return;
     if (game.dealChallenge()) ondealt();
   }
 </script>

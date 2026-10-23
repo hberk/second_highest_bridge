@@ -375,8 +375,13 @@ dummy count can differ by a trick or more, and the difference lands in
 `play_loss` and, through `dd_score`, in `bidding_loss`. It is common: measured
 2026-10-18 over the robot table's auctions at all 16 board positions, **1,428 of
 6,356 boards (22.5%)** are declared by the other partner, 612 of 1,972 in
-notrump. The fix is to solve both declarers and key the library by
-`strain:declarer`, or to record the solved declarer and flag mismatched boards.
+notrump. Since 2026-10-23 the library records the solved declarer
+(`declarers`, the same keys as `tricks`; `challenge.solved_declarer`,
+`solvedDeclarer` in the port) and the grade's breakdown says when a board was
+declared by the other partner. The exact fix, solving all four declarers and
+keying the library by declarer, is `research/solve_declarers.py`: about 40 s
+per deal and strain on average (a few take 7-8 minutes), so ~6 hours on 4
+cores. On the first 17 (deal, strain) pairs the partners differed in 2 of 34.
 
 `hands_for` deliberately rebuilds deals from stored text rather than calling
 `research.dd_dataset.deal_for`, which seeds the global RNG (and puts it back

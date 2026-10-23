@@ -79,6 +79,13 @@ def dd_tricks(deal_id: int, strain: str, declaring_side: str) -> int:
     return load_library()[deal_id]['tricks'][f"{strain}:{declaring_side}"]
 
 
+def solved_declarer(deal_id: int, strain: str, declaring_side: str) -> str:
+    """The partner who declared when `dd_tricks` was solved. The library holds
+    only that partner's count: with the other partner declaring (and so the
+    opening lead from the other side), it can differ by a trick or more."""
+    return load_library()[deal_id]['declarers'][f"{strain}:{declaring_side}"]
+
+
 def other_side(side: str) -> str:
     return 'E/W' if side == 'N/S' else 'N/S'
 

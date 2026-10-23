@@ -18,6 +18,7 @@ interface LibraryDeal {
   id: number;
   hands: Record<Seat, string>;
   tricks: Record<string, number>;
+  declarers: Record<string, Seat>;
 }
 
 const DEALS = new Map<number, LibraryDeal>(
@@ -38,6 +39,12 @@ export function handsFor(dealId: number): Record<Seat, Card[]> {
 
 export function ddTricks(dealId: number, strain: Strain, side: Side): number {
   return DEALS.get(dealId)!.tricks[`${strain}:${side}`];
+}
+
+/** The partner who declared when `ddTricks` was solved; the other partner's
+ *  count can differ by a trick or more. */
+export function solvedDeclarer(dealId: number, strain: Strain, side: Side): Seat {
+  return DEALS.get(dealId)!.declarers[`${strain}:${side}`];
 }
 
 /** The board's score FROM `side`: positive when they gain. */

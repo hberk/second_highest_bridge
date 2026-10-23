@@ -34,6 +34,21 @@ def test_the_library_is_completely_solved():
             assert 0 <= tricks <= 13, f"deal {deal_id} {key} = {tricks}"
 
 
+def test_each_count_names_the_partner_who_declared_it():
+    """The library records which partner each count was solved for, the one
+    `dd_dataset.declarer_for` picks, so a board declared by the other partner
+    can say so."""
+    from research.dd_dataset import declarer_for
+    sides = {'N/S': ('North', 'South'), 'E/W': ('East', 'West')}
+    for deal_id in challenge.deal_ids():
+        hands = challenge.hands_for(deal_id)
+        for strain in challenge.STRAINS:
+            for side in challenge.SIDES:
+                seat = challenge.solved_declarer(deal_id, strain, side)
+                assert seat in sides[side], f"deal {deal_id} {strain}:{side} by {seat}"
+                assert seat == declarer_for(hands, side, strain), f"deal {deal_id} {strain}:{side}"
+
+
 def test_hands_rebuild_to_four_valid_thirteen_card_hands():
     for deal_id in challenge.deal_ids()[:40]:
         hands = challenge.hands_for(deal_id)

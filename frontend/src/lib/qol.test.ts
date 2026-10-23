@@ -129,3 +129,44 @@ describe('session scoreboard', () => {
     expect(html).toContain(margin >= 0 ? `+${margin}` : `${margin}`);
   });
 });
+
+describe('a board in play', () => {
+  it('is in progress from your first call until it is over', () => {
+    const game = new Game(null, prng(4));
+    let checked = 0;
+    for (let i = 0; i < 10; i++) {
+      game.newBoard();
+      expect(game.inProgress, 'nothing done yet: safe to replace').toBe(false);
+      game.humanBids('Pass');
+      if (!game.boardOver) {
+        expect(game.inProgress, 'after your call').toBe(true);
+        checked++;
+      }
+      playBoard(game, (g) => expect(g.inProgress, 'during the play').toBe(true));
+      expect(game.inProgress, 'over: nothing to lose').toBe(false);
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+});
+
+describe('the challenge grade', () => {
+  it('says when the board was declared by the partner the deal was not solved for', async () => {
+    const { default: Breakdown } = await import('./components/Breakdown.svelte');
+    const { solvedDeclarer } = await import('./engine/challenge');
+    const game = new Game(null, prng(6));
+    let flagged = 0, plain = 0;
+    for (let i = 0; i < 12; i++) {
+      game.dealChallenge();
+      while (game.phase === 'bidding' && !game.auction.passedOut) game.humanBids('Pass');
+      playBoard(game);
+      const r = game.challenge!;
+      const c = r.robot_contract;
+      if (!c) continue;
+      const html = render(Breakdown, { props: { result: r } }).body;
+      const odd = solvedDeclarer(r.deal_id, c.strain, c.side) !== c.declarer;
+      expect(html.includes(`The robots declared from ${c.declarer}`), `deal ${r.deal_id}`).toBe(odd);
+      if (odd) flagged++; else plain++;
+    }
+    expect(plain).toBeGreaterThan(0);
+  });
+});

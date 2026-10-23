@@ -168,7 +168,7 @@ export). These were left, each small:
   that grows when a branch produces an illegal call. CLAUDE.md says the
   Streamlit app holds none, so concurrent players can't interfere. Harmless
   (tests keep it empty), but either cap it or correct the claim.
-- [ ] **3.6** `loadGames` checks a save's shape only at the top level. One
+- [x] **3.6** (fixed 2026-10-23: each board and log entry checked, bad ones left out, the save backed up) `loadGames` checks a save's shape only at the top level. One
   malformed board inside would load, then break the History view, without
   being copied to `shb-games-backup`. Validate each record, or skip bad ones.
 
@@ -202,10 +202,10 @@ Still open, **each the user's call**:
 - [x] **3.8 1♥-2♥-3♠.** (2026-10-19, the user's call: a splinter, short in
   spades, game forcing.) Opener now bids it too, with 18+ HCP (also 4♣/4♦, and
   1♠-2♠-4♣/4♦/4♥), and responder bids game. 1 of 1,600 auctions changed.
-- [ ] **3.9 Challenge grading uses one declarer per strain and side (H2).**
+- [ ] **3.9 Challenge grading uses one declarer per strain and side (H2).** (2026-10-23: the library now names the solved declarer and the grade flags a mismatch; `research/solve_declarers.py` solves all four declarers, ~6 h on 4 cores, not yet run.)
   22.5% of robot boards are declared by the other partner (CHALLENGE.md). Solve
   both declarers, or flag mismatched boards.
-- [ ] **3.10 Dealing a challenge board throws away the board in play (M9)**,
+- [x] **3.10 Dealing a challenge board throws away the board in play (M9)** (2026-10-23, the user's call: it asks first, once you've called or played),
   with no confirmation, and the deal goes back in the pool. Intended?
 - [ ] **3.11 Robot discards and leads.** Discards done 2026-10-19 (the user's
   rule: a void robot throws a trump only to ruff for a win; `ai.KEEP_TRUMPS`,
