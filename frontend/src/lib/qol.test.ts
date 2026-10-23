@@ -129,3 +129,23 @@ describe('session scoreboard', () => {
     expect(html).toContain(margin >= 0 ? `+${margin}` : `${margin}`);
   });
 });
+
+describe('a board in play', () => {
+  it('is in progress from your first call until it is over', () => {
+    const game = new Game(null, prng(4));
+    let checked = 0;
+    for (let i = 0; i < 10; i++) {
+      game.newBoard();
+      expect(game.inProgress, 'nothing done yet: safe to replace').toBe(false);
+      game.humanBids('Pass');
+      if (!game.boardOver) {
+        expect(game.inProgress, 'after your call').toBe(true);
+        checked++;
+      }
+      playBoard(game, (g) => expect(g.inProgress, 'during the play').toBe(true));
+      expect(game.inProgress, 'over: nothing to lose').toBe(false);
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+});
+

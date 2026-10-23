@@ -22,16 +22,35 @@ from game import DEALER_ROTATION
 
 
 def test_the_library_is_completely_solved():
-    """Every deal offered must have a trick count for all ten strain/side
+    """Every deal offered must have a trick count for all twenty strain/declarer
     combinations -- that completeness is what lets any contract be priced."""
     library = challenge.load_library()
     assert len(library) >= 250, f"only {len(library)} deals in the library"
-    wanted = [f"{s}:{side}" for s in challenge.STRAINS for side in challenge.SIDES]
+    wanted = [f"{s}:{seat}" for s in challenge.STRAINS for seat in challenge.SEATS]
     for deal_id, deal in library.items():
         missing = [k for k in wanted if k not in deal['tricks']]
         assert not missing, f"deal {deal_id} missing {missing}"
         for key, tricks in deal['tricks'].items():
             assert 0 <= tricks <= 13, f"deal {deal_id} {key} = {tricks}"
+
+
+def test_each_partner_is_solved_and_the_grade_uses_the_one_who_declared():
+    """The opening lead comes from declarer's left, so the library holds every
+    declarer's count, and the grade prices the contract with the partner who
+    actually declared. Par takes the better partner: a side chooses."""
+    seen_differ = 0
+    for deal_id in challenge.deal_ids():
+        for strain in challenge.STRAINS:
+            for side, (a, b) in challenge.PARTNERS.items():
+                ta = challenge.dd_tricks(deal_id, strain, side, a)
+                tb = challenge.dd_tricks(deal_id, strain, side, b)
+                assert challenge.dd_tricks(deal_id, strain, side) == max(ta, tb)
+                if ta != tb:
+                    seen_differ += 1
+                    contract = {'level': 1, 'strain': strain, 'side': side, 'declarer': a,
+                                'tricks_needed': 7, 'doubled': 'None', 'vulnerability': 'None'}
+                    assert challenge.grade(deal_id, side, contract, ta)['play_loss'] == 0
+    assert seen_differ > 0, "no deal where the partners differ: the per-declarer counts are missing"
 
 
 def test_hands_rebuild_to_four_valid_thirteen_card_hands():

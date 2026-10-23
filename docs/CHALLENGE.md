@@ -24,17 +24,22 @@ which a single score cannot answer. Measured 2026-10-19, with every card-play ru
 (6,356 boards with a contract, 44 passed out), graded from N/S as the app
 grades, so this is what the "Robots" column of the match table averages to.
 The web app's Challenge caption quotes this table; rerun the script after a
-robot change and update both together. Measured 2026-10-22, with every robot
-change through the Law of Total Tricks and the fit count:
+robot change and update both together. Measured 2026-10-23, the robots of
+2026-10-22, graded with the partner who actually declared (the library holds
+every declarer's count since then; par takes the better partner):
 
 | | mean per board | median |
 |---|---|---|
-| lost in the auction | **235.4** | 200.0 |
-| lost in the card play | **6.1** | **0.0** |
+| lost in the auction | **244.0** | 210.0 |
+| lost in the card play | **-5.0** | **0.0** |
 
-Graded from the declaring side instead: 211.9 in the auction and **-37.2** in
+Graded from the declaring side instead: 214.5 in the auction and **-39.6** in
 the card play (median 0.0), so the declaring side's play beats double dummy on
-average, on the defence's mistakes. (On 2026-10-21: 234.9 and 6.9 from N/S,
+average, on the defence's mistakes. The same robots graded with one declarer
+per side (2026-10-22) gave 235.4 and 6.1 from N/S, 211.9 and -37.2 from the
+declaring side: about 11 points a board of "card play loss" was the wrong
+partner's count, and par rose by about 8 once a side could pick its better
+declarer. (On 2026-10-21: 234.9 and 6.9 from N/S,
 215.8 and -33.3 from the declaring side. On 2026-10-19, before the Oct 20-21
 changes: 233.9 and 7.1 from N/S; 220.5 and -45.7, median -20.0, from the
 declaring side.) The figures before this (143.7 / 31.8 over
@@ -357,26 +362,29 @@ board, t = +2.90**; self-play +32.7 -> +39.7, games 39% -> 36%, made 44% ->
 46%. `gib.JUDGE_BY_VARIANT = False` (`settingsGib.judgeByVariant`) restores HCP.
 
 **The robot declares well and bids badly.** Card play is at or above double
-dummy on 3,632 of 6,356 boards (graded from N/S; 4,672 from the declaring
-side); the auction is at or above par on 1,662. (One auction per deal, before
+dummy on 3,944 of 6,356 boards (graded from N/S; 4,744 from the declaring
+side); the auction is at or above par on 1,603 (measured 2026-10-23, every
+declarer's count). (One auction per deal, before
 the card-play changes: 197 and 137 of 372, and the worst single auction gave
 away 1,260, deal 346: E/W stopped in 2S with 7NT available.) Note the caveat baked into `par()`: it is
 the best contract available to ONE side ignoring whether the opponents would
 compete, so it is a ceiling and overstates the true bidding gap — but the ratio
 between the two columns is what matters and is robust.
 
-**Known limitation: one declarer per strain and side.** The library holds one
-trick count per strain and side (`"C:N/S"`), solved with the declarer
-`research/dd_dataset.declarer_for` picks (longer in the suit, or more HCP in
-notrump; ties to North or East), and so with the opening lead from that seat's
-left. `grade()` looks the count up by strain and side and never asks who
-declared. When the auction puts the contract in the other hand, the double
-dummy count can differ by a trick or more, and the difference lands in
-`play_loss` and, through `dd_score`, in `bidding_loss`. It is common: measured
-2026-10-18 over the robot table's auctions at all 16 board positions, **1,428 of
-6,356 boards (22.5%)** are declared by the other partner, 612 of 1,972 in
-notrump. The fix is to solve both declarers and key the library by
-`strain:declarer`, or to record the solved declarer and flag mismatched boards.
+**Every declarer is solved (2026-10-23).** The opening lead comes from
+declarer's left, so the two partners of a side can take different numbers of
+tricks in the same strain. The library first held one count per strain and
+side, solved with the declarer `research/dd_dataset.declarer_for` picks, and
+`grade()` never asked who declared; 22.5% of robot boards (1,428 of 6,356) are
+declared by the other partner. `research/solve_declarers.py` solved every deal
+from all four leads (22 CPU-hours: median 16 s per deal and strain, worst 49
+minutes; 3 workers on a 4-core, 16 GB cloud machine; with 4 the machine restarted
+twice, cause not confirmed), checked the two counts already known against it, and
+`research/export_challenge_deals.py` keys `tricks` by `"<strain>:<declarer>"`.
+Of the 4,000 strain-and-side pairs, the partners differ on 400: 374 by one
+trick, 18 by two, 8 by three to five. `dd_tricks` takes a declarer; without
+one (par, and `research/gib_h2h.py` before it passed one) it gives the better
+partner's count, since a side can choose who declares.
 
 `hands_for` deliberately rebuilds deals from stored text rather than calling
 `research.dd_dataset.deal_for`, which seeds the global RNG (and puts it back

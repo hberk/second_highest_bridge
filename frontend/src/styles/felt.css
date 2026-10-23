@@ -920,3 +920,88 @@ button { touch-action: manipulation; }
 .tabbed-table { min-height: 100dvh; display: flex; flex-direction: column; }
 .tabbed-table > .tabbed { flex-grow: 1; display: flex; flex-direction: column; }
 .tabbed-table .table-screen { min-height: 0; flex-grow: 1; width: 100%; }
+
+/* ── History and Challenge (2026-10-23) ──────────────────────────────────── */
+/* The review screens in the table's look: result card, plain section
+   labels, the trick on the felt, and the step controls kept in reach at
+   the bottom of the screen. */
+
+.hv { display: flex; flex-direction: column; gap: 10px; }
+.hv .res-card { margin-top: 0; }
+.hv-h { margin-top: 10px; }
+.hv-center { text-align: center; margin: 0; }
+.hv-note { color: var(--gold-hi); }
+
+.hv-picker { display: flex; align-items: center; gap: 8px; }
+.hv-select {
+    flex: 1;
+    min-width: 0;
+    height: 44px;
+    padding: 0 12px;
+    border-radius: 22px;
+    border: 1px solid var(--line-2);
+    background: var(--panel);
+    color: var(--text);
+    font: inherit;
+    font-size: 15px;
+}
+.hv-picker .icon-btn { font-size: 22px; }
+.hv-picker .icon-btn:disabled { opacity: 0.35; cursor: default; }
+
+.hv-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); }
+.hv-seg-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 8px 6px;
+    border: none;
+    border-radius: 10px;
+    background: none;
+    color: var(--dim);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.hv-seg-btn[aria-pressed="true"] { background: var(--panel-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent); }
+.hv-seg-sub { font-size: 12px; font-weight: 500; color: var(--dim); }
+
+.hv-summary-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.hv-points { text-align: right; }
+.hv .res-points { font-size: 36px; }
+
+.hv-dd { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 14px; color: var(--dim-2); }
+.hv-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--dim); }
+
+.hv .seat-box { box-shadow: none; }
+.hv .hd-line { font-size: 16px; }
+.hv-hands { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hv .trick-felt { margin-top: 0; }
+.hv .trick-line { margin: 0; }
+
+.hv-controls {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 -16px;
+    padding: 10px 16px calc(10px + var(--safe-bottom));
+    background: var(--bg);
+    border-top: 1px solid var(--line);
+}
+.hv-controls .icon-btn { width: 52px; height: 48px; border-radius: 24px; color: var(--text); border-color: var(--line-2); font-size: 16px; }
+.hv-controls .icon-btn:disabled { opacity: 0.35; cursor: default; }
+.hv-step { flex: 1; text-align: center; }
+.hv-step-main { font-weight: 700; }
+.hv-step-sub { font-size: 12px; color: var(--dim); }
+
+.hv-more { border-top: 1px solid var(--line); padding: 4px 0; }
+.hv-more > summary { padding: 10px 0; cursor: pointer; color: var(--dim-2); font-weight: 600; }
+.hv-more .lin-box { display: flex; flex-direction: column; gap: 8px; }
+.hv .log-table td.hv-won span { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.hv .dd-losses { margin: 0; }
+.hv-seat { width: calc(50% - 4px); margin: 0 auto; }
+.hv-summary { text-align: left; }

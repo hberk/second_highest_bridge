@@ -200,6 +200,10 @@ def _challenge_deal(deal_id: int) -> dict:
                                  table['declarer_tricks'], vul),
         'par': {v: {s: challenge.par(deal_id, s, v) for s in ('N/S', 'E/W')}
                 for v in VULS},
+        'dd': {f"{st}:{who}": challenge.dd_tricks(deal_id, st, side, seat)
+               for st in challenge.STRAINS
+               for side, seats in challenge.PARTNERS.items()
+               for who, seat in [(side, None), *[(x, x) for x in seats]]},
     }
 
 

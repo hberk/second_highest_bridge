@@ -7,12 +7,14 @@
   import { PARTNERSHIP, PLAYERS, type Contract, type Play } from '../engine/auction';
   import type { HistoryRecord } from '../game.svelte';
   import AuctionGrid from '../components/AuctionGrid.svelte';
-  import FeltTable from '../components/FeltTable.svelte';
+  import TrickFelt from '../components/TrickFelt.svelte';
   import SeatBox from '../components/SeatBox.svelte';
   import Strain from '../components/Strain.svelte';
   import { MAX_LIN_BYTES, fromLinFile, toLin, toLinFile } from '../lin';
   import { MAX_SAVED_BOARDS } from '../saves';
   import { AUTO_CARDS, DdAnalysis } from '../dd/analysis.svelte';
+  import { trickTaken, winningSoFar } from '../trickText';
+  import { signed } from '../components/format';
 
   /** `onimport` adds the boards it hasn't already got and says how many.
    *  `analysis` shows double dummy values on the replayer (History and Challenge). */
@@ -87,13 +89,20 @@
   /** 'X' or 'XX' after the contract, as in 3♦X; nothing when undoubled. */
   const dbl = (d: string) => (d === 'None' ? '' : d);
 
+  /** Points to N/S, the human's side, as the table shows them. */
+  const nsPoints = (h: HistoryRecord) =>
+    !h.result ? 0 : h.result.winner === 'N/S' ? h.result.points : -h.result.points;
+
   function label(h: HistoryRecord): string {
-    const prefix = h.label || `Board #${h.board_num}`;
-    if (h.passed_out || !h.contract || !h.result) return `${prefix} — Passed Out`;
-    const c = h.contract, r = h.result;
-    const pts = r.winner === c.side ? `+${r.points}` : `-${r.points}`;
-    return `${prefix}: ${c.level}${STRAIN_SYMBOLS[c.strain]}${dbl(c.doubled)} by ${c.declarer} — ${r.made ? 'Made' : 'Down'} ${pts}pts`;
+    const prefix = h.label || `Board ${h.board_num}`;
+    if (h.passed_out || !h.contract || !h.result) return `${prefix} · passed out`;
+    const c = h.contract;
+    return `${prefix} · ${c.level}${STRAIN_SYMBOLS[c.strain]}${dbl(c.doubled)} ${c.declarer} · ${signed(nsPoints(h))}`;
   }
+
+  /** Two boards of one deal (the challenge review): a switch, not a list. */
+  const pair = $derived(!onimport && records.length === 2);
+  const VUL: Record<string, string> = { None: 'Nobody vulnerable', 'N/S': 'N/S vulnerable', 'E/W': 'E/W vulnerable', Both: 'Both vulnerable' };
 
   const role = (c: Contract, s: Seat) =>
     c.declarer === s ? 'Declarer' : c.dummy === s ? 'Dummy' : 'Defender';
@@ -141,6 +150,13 @@
   const firstTrick = $derived(Math.ceil(total / 4));
   const losses = $derived(dd ? dd.losses : []);
 
+  const labels = $derived(hb?.contract
+    ? Object.fromEntries(PLAYERS.map((p) => [p, `${p} · ${role(hb.contract!, p).toLowerCase()}`])) as Record<Seat, string>
+    : null);
+  const trickLine = $derived(!view || !view.trick.length || !hb?.contract ? ''
+    : view.winner ? trickTaken(view.trick, hb.contract.trump, view.winner, view.trickNum)
+      : winningSoFar(view.trick, hb.contract.trump));
+
   function boxProps(seat: Seat) {
     return toPlay && toPlay.seat === seat ? { marks: toPlay.marks, played: toPlay.played } : {};
   }
@@ -152,102 +168,104 @@
 
 {#snippet card(x: Card)}<span style:color="var(--suit-{x.suit.toLowerCase()}-lt)">{x.rank}<span aria-hidden="true">{SUIT_SYMBOLS[x.suit]}</span><span class="sr-only"> of {SUIT_NAMES[x.suit]}</span></span>{/snippet}
 
-{#if onimport}
-  <details class="expander">
-    <summary>📥 Import LIN</summary>
-    <div class="expander-body lin-box">
-      <p class="caption">Paste LIN text or open a .lin file. Each board is replayed under second-highest rules; one played under ordinary rules will usually be refused, because its tricks go to different hands.</p>
-      <textarea rows="4" spellcheck="false" maxlength={MAX_LIN_BYTES} placeholder="pn|...|md|3SAKQ...|sv|o|mb|1S|..." bind:value={linText}></textarea>
-      <div class="lin-actions">
-        <button class="btn" disabled={!linText.trim()} onclick={() => importLin(linText)}>Import</button>
-        <label class="btn">Open .lin file<input class="sr-only" type="file" accept=".lin,.txt,text/plain" onchange={importFile} /></label>
-      </div>
-      {#if linError}<div class="notice error">Not imported: {linError}</div>{/if}
-      {#if linNote}<div class="notice success">{linNote}</div>{/if}
-    </div>
-  </details>
-{/if}
-
-{#if records.length}
-  <button class="btn" onclick={() => download('second-highest-session.lin', toLinFile(records))}>⬇ Download all boards (.lin)</button>
-{/if}
-
+<div class="hv">
 {#if !records.length}
-  <div class="notice info">📭 No completed hands yet. Play a board and then return here to review it!</div>
+  <section class="res-card">
+    <div class="res-verdict">No boards yet</div>
+    <p class="res-detail">Every board you finish is kept here, on this device, to replay card by card{onimport ? ', or import boards from a .lin file below' : ''}.</p>
+  </section>
 {:else}
-  <label class="caption" for="board-select">📋 Select a board to review:</label>
-  <select id="board-select" value={sel} onchange={(e) => (selected = Number(e.currentTarget.value))}>
-    {#each options as i}<option value={i}>{label(records[i])}</option>{/each}
-  </select>
+  {#if pair}
+    <div class="hv-seg" role="group" aria-label="Board">
+      {#each records as r, i}
+        <button class="hv-seg-btn" aria-pressed={sel === i} onclick={() => (selected = i)}>
+          <span>{r.label || `Board ${r.board_num}`}</span>
+          <span class="hv-seg-sub">{r.contract && !r.passed_out ? `${r.contract.level}${STRAIN_SYMBOLS[r.contract.strain]}${dbl(r.contract.doubled)} ${r.contract.declarer} · ${signed(nsPoints(r))}` : 'passed out'}</span>
+        </button>
+      {/each}
+    </div>
+  {:else}
+    <div class="hv-picker">
+      <button class="icon-btn" aria-label="Older board" disabled={sel <= 0} onclick={() => (selected = sel - 1)}>‹</button>
+      <select class="hv-select" aria-label="Board" value={sel} onchange={(e) => (selected = Number(e.currentTarget.value))}>
+        {#each options as i}<option value={i}>{label(records[i])}</option>{/each}
+      </select>
+      <button class="icon-btn" aria-label="Newer board" disabled={sel >= records.length - 1} onclick={() => (selected = sel + 1)}>›</button>
+    </div>
+  {/if}
 
   {#if hb.passed_out || !hb.contract || !hb.result || !view}
-    <div class="notice warning">🛑 <strong>Board #{hb.board_num}</strong> — Passed Out (4 passes, no contract)</div>
+    <section class="res-card">
+      <div class="eyebrow">Board {hb.board_num} · {hb.dealer} deals · {VUL[hb.vulnerability]}</div>
+      <div class="res-verdict">Passed out</div>
+      <p class="res-detail">All four players passed: no contract, and no score on this board.</p>
+    </section>
+    <div class="eyebrow hv-h">Auction</div>
+    <AuctionGrid dealer={hb.dealer} calls={hb.auction_calls} alerts={hb.bid_alerts} />
   {:else}
     {@const c = hb.contract}
     {@const r = hb.result}
-    <hr />
-    <div class="split">
-      <div>
-        <h3>Board #{hb.board_num}  |  Dealer: {hb.dealer}  |  Vul: {hb.vulnerability}</h3>
-        <p><strong>Contract:</strong> <Strain level={c.level} strain={c.strain} />{dbl(c.doubled)} by {c.declarer} &nbsp;|&nbsp;
-          <strong>Target:</strong> {c.tricks_needed} tricks &nbsp;|&nbsp;
-          <strong>Tricks Won:</strong> N/S {hb.tricks_taken['N/S']} — E/W {hb.tricks_taken['E/W']}</p>
-        <div class="notice {r.made ? 'success' : 'error'}">{r.made ? '✅ Made! ' : '❌ Down. '}{r.detail}</div>
+    {@const ns = nsPoints(hb)}
+    <section class="res-card hv-summary">
+      <div class="eyebrow">Board {hb.board_num} · {hb.dealer} deals · {VUL[hb.vulnerability]}</div>
+      <div class="hv-summary-row">
+        <div>
+          <div class="res-contract"><Strain level={c.level} strain={c.strain} />{dbl(c.doubled)} <span class="dim">by {c.declarer}</span></div>
+          <div class="res-verdict" class:made={r.made} class:down={!r.made}>{r.made ? (r.overtricks ? `Made, +${r.overtricks}` : 'Made') : `Down ${r.undertricks}`}</div>
+        </div>
+        <div class="hv-points">
+          <div class="res-points" class:plus={ns > 0} class:minus={ns < 0}>{signed(ns)}</div>
+          <div class="res-to">to N/S</div>
+        </div>
       </div>
-      <div class="result-panel">
-        <div class="result-eyebrow">Score</div>
-        <div class="result-points">{r.winner === c.side ? '+' : '−'}{r.points}</div>
-        <div class="result-to">points to {r.winner}</div>
-      </div>
-    </div>
+      <p class="res-detail">{r.detail}. Tricks: N/S {hb.tricks_taken['N/S']}, E/W {hb.tricks_taken['E/W']}; {c.declarer} needed {c.tricks_needed}.</p>
+    </section>
 
-    <details class="expander" open>
-      <summary>📋 Auction Sequence</summary>
-      <div class="expander-body"><AuctionGrid dealer={hb.dealer} calls={hb.auction_calls} alerts={hb.bid_alerts} /></div>
-    </details>
+    <div class="eyebrow hv-h">Auction</div>
+    <AuctionGrid dealer={hb.dealer} calls={hb.auction_calls} alerts={hb.bid_alerts} />
 
-    <hr />
-    <h3>🎬 Card-by-Card Replayer</h3>
-    <div class="replay-controls">
-      <button class="btn" disabled={step === 0} onclick={() => (step = Math.max(0, step - 1))}>◀ Back</button>
-      <button class="btn" disabled={step >= total} onclick={() => (step = Math.min(total, step + 1))}>Next card ▶</button>
-      <button class="btn" disabled={step >= total} onclick={() => (step = Math.min(total, (Math.floor(step / 4) + 1) * 4))}>Next trick ⏭</button>
-    </div>
-
+    <div class="eyebrow hv-h">Play</div>
     {#if dd}
-      <div class="dd-status" aria-live="polite">
-        <strong>Double dummy</strong>
+      <div class="hv-dd" aria-live="polite">
         {#if dd.error}
-          <span class="dd-error">{dd.error}</span>
+          <span class="dd-error">Double dummy: {dd.error}</span>
         {:else}
-          <span>{dd.doneFrom > firstTrick ? 'Starting…' : dd.doneFrom === firstTrick ? `Trick ${firstTrick} analysed` : `Tricks ${dd.doneFrom}–${firstTrick} analysed`}</span>
-          {#if dd.running}<span class="dd-dim">· working on trick {dd.doneFrom - 1}…</span>{/if}
+          <span>Double dummy: {dd.doneFrom > firstTrick ? 'starting…' : dd.doneFrom === firstTrick ? `trick ${firstTrick}` : `tricks ${dd.doneFrom}–${firstTrick}`}{#if dd.running}<span class="dd-dim">&nbsp;· working on {dd.doneFrom - 1}…</span>{/if}</span>
           {#if !dd.deep && firstTrick > AUTO_CARDS && !dd.running}
-            <button class="btn" onclick={() => dd?.deeper()}>Analyse tricks 1–{13 - AUTO_CARDS} (can take minutes)</button>
+            <button class="chip-btn" onclick={() => dd?.deeper()}>Add tricks 1–{13 - AUTO_CARDS} (minutes)</button>
           {/if}
         {/if}
       </div>
-      <div class="dd-legend">
-        <span><span class="dd-mark dd-down">−1</span> down 1 if played</span>
-        <span><span class="dd-mark dd-even">=</span> makes exactly</span>
-        <span><span class="dd-mark dd-over">+2</span> 2 overtricks</span>
-        <span><span class="hd-played">Underlined</span>: the card played</span>
+      <div class="hv-legend">
+        <span><span class="dd-mark dd-down">−1</span> down 1</span>
+        <span><span class="dd-mark dd-even">=</span> makes</span>
+        <span><span class="dd-mark dd-over">+2</span> 2 over</span>
+        <span><span class="hd-played">Underlined</span> played</span>
       </div>
     {/if}
 
-    <div class="replay-grid">
-      <div class="north"><SeatBox seat="North" role={role(c, 'North')} hand={view.remaining.North} {...boxProps('North')} /></div>
-      <div class="west"><SeatBox seat="West" role={role(c, 'West')} hand={view.remaining.West} {...boxProps('West')} /></div>
-      <div class="felt">
-        <FeltTable trick={view.trick} winner={view.winner} displayNum={view.trickNum} contract={c} tricksTaken={view.tally} />
+    <div class="hv-seat"><SeatBox seat="North" role={role(c, 'North')} hand={view.remaining.North} {...boxProps('North')} /></div>
+    <TrickFelt trick={view.trick} winner={view.winner} labels={labels!} />
+    <p class="trick-line">{trickLine}</p>
+    <div class="hv-hands">
+      <SeatBox seat="West" role={role(c, 'West')} hand={view.remaining.West} {...boxProps('West')} />
+      <SeatBox seat="East" role={role(c, 'East')} hand={view.remaining.East} {...boxProps('East')} />
+    </div>
+    <div class="hv-seat"><SeatBox seat="South" role={role(c, 'South')} hand={view.remaining.South} {...boxProps('South')} /></div>
+
+    <div class="hv-controls">
+      <button class="icon-btn" aria-label="Back one card" disabled={step === 0} onclick={() => (step = Math.max(0, step - 1))}>◀</button>
+      <div class="hv-step">
+        <div class="hv-step-main">{step === 0 ? 'Opening lead' : step >= total ? 'Played out' : `Trick ${view.trickNum}`}</div>
+        <div class="hv-step-sub">N/S {view.tally['N/S']} · E/W {view.tally['E/W']}</div>
       </div>
-      <div class="east"><SeatBox seat="East" role={role(c, 'East')} hand={view.remaining.East} {...boxProps('East')} /></div>
-      <div class="south"><SeatBox seat="South" role={role(c, 'South')} hand={view.remaining.South} {...boxProps('South')} /></div>
+      <button class="icon-btn" aria-label="Next card" disabled={step >= total} onclick={() => (step = Math.min(total, step + 1))}>▶</button>
+      <button class="icon-btn" aria-label="Next trick" disabled={step >= total} onclick={() => (step = Math.min(total, (Math.floor(step / 4) + 1) * 4))}>⏭</button>
     </div>
 
     {#if dd && !dd.error && dd.doneFrom <= firstTrick}
       <div class="dd-losses">
-        <h4>Where tricks were lost</h4>
+        <div class="eyebrow hv-h">Where tricks were lost</div>
         {#if losses.length}
           <ul>
             {#each losses as l (l.i)}
@@ -271,36 +289,57 @@
       </div>
     {/if}
 
-    <details class="expander">
-      <summary>📊 Full Trick Log</summary>
-      <div class="expander-body table-scroll">
+    <details class="hv-more">
+      <summary>Trick by trick</summary>
+      <div class="table-scroll">
         <table class="log-table">
-          <thead><tr><th>#</th><th>Leader</th><th>West</th><th>North</th><th>East</th><th>South</th><th>Winner</th></tr></thead>
+          <thead><tr><th>#</th><th>Lead</th><th>W</th><th>N</th><th>E</th><th>S</th></tr></thead>
           <tbody>
             {#each hb.tricks_log as t}
               <tr>
-                <td>{t.trick_num}</td><td>{t.leader}</td>
+                <td>{t.trick_num}</td><td>{t.leader[0]}</td>
                 {#each ['West', 'North', 'East', 'South'] as const as p}
-                  {@const c = cardOf(t.plays, p)}
-                  <td>{#if c}<span style:color="var(--suit-{c.suit.toLowerCase()}-lt)">{c.rank}<span aria-hidden="true">{SUIT_SYMBOLS[c.suit]}</span><span class="sr-only"> of {SUIT_NAMES[c.suit]}</span></span>{p === t.winner ? ' ⭐' : ''}{:else}—{/if}</td>
+                  {@const x = cardOf(t.plays, p)}
+                  <td class:hv-won={p === t.winner}>{#if x}{@render card(x)}{:else}—{/if}</td>
                 {/each}
-                <td>{t.winner}</td>
               </tr>
             {/each}
           </tbody>
         </table>
+        <p class="caption">The ringed card won the trick.</p>
       </div>
     </details>
   {/if}
-  <details class="expander">
-    <summary>📄 LIN record</summary>
-    <div class="expander-body lin-box">
+
+  <details class="hv-more">
+    <summary>LIN record</summary>
+    <div class="lin-box">
       <textarea rows="4" readonly spellcheck="false" value={lin}></textarea>
       <div class="lin-actions">
         <button class="btn" onclick={() => copy(lin)}>{copied ? 'Copied ✓' : 'Copy'}</button>
-        <button class="btn" onclick={() => download(`board-${hb.board_num}.lin`, toLinFile([hb]))}>⬇ Download .lin</button>
+        <button class="btn" onclick={() => download(`board-${hb.board_num}.lin`, toLinFile([hb]))}>Download .lin</button>
       </div>
       <p class="caption">BBO's format. BBO's own hand viewer plays by ordinary rules, so it would show these tricks going to the wrong hands.</p>
     </div>
   </details>
 {/if}
+
+{#if onimport}
+  <details class="hv-more">
+    <summary>Import and export</summary>
+    <div class="lin-box">
+      {#if records.length}
+        <button class="btn" onclick={() => download('second-highest-session.lin', toLinFile(records))}>Download all boards (.lin)</button>
+      {/if}
+      <p class="caption">Paste LIN text or open a .lin file. Each board is replayed under second-highest rules; one played under ordinary rules will usually be refused, because its tricks go to different hands.</p>
+      <textarea rows="4" spellcheck="false" maxlength={MAX_LIN_BYTES} placeholder="pn|...|md|3SAKQ...|sv|o|mb|1S|..." bind:value={linText}></textarea>
+      <div class="lin-actions">
+        <button class="btn" disabled={!linText.trim()} onclick={() => importLin(linText)}>Import</button>
+        <label class="btn">Open .lin file<input class="sr-only" type="file" accept=".lin,.txt,text/plain" onchange={importFile} /></label>
+      </div>
+      {#if linError}<div class="notice error">Not imported: {linError}</div>{/if}
+      {#if linNote}<div class="notice success">{linNote}</div>{/if}
+    </div>
+  </details>
+{/if}
+</div>

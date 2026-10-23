@@ -141,6 +141,11 @@ export class Game {
   get gameOver() { return this.result !== null; }
   /** Played out or passed out: nothing more happens on this board. */
   get boardOver() { return this.gameOver || this.auction.passedOut; }
+  /** You have called or played on this board and it isn't over: dealing
+   *  another would throw it away. */
+  get inProgress() {
+    return !this.boardOver && (this.calls.some(([p]) => p === HUMAN) || this.phase !== 'bidding');
+  }
 
   /** `storage` is where finished boards are kept between visits: the
    *  browser's localStorage by default, null (nothing kept) in Node.
@@ -455,7 +460,7 @@ export class Game {
       robot: theirs,
       your_contract: contract,
       robot_contract: table.contract,
-      robot_record: asHistoryRecord(table, this.boardNum, "🤖 Robots' board"),
+      robot_record: asHistoryRecord(table, this.boardNum, "Robots' board"),
       your_record: contract ? undefined : {
         board_num: this.boardNum,
         dealer: this.dealer,
