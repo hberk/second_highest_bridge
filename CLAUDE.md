@@ -134,6 +134,7 @@ it before going against one.
 
 | doc | read it when |
 |---|---|
+| [REQUIREMENTS.md](docs/REQUIREMENTS.md) | deciding what to build, or checking a change against what the app must do |
 | [ROADMAP.md](docs/ROADMAP.md) | starting work without a specific request: the ordered list of next updates |
 | [ROBOT_PROGRESS.md](docs/ROBOT_PROGRESS.md) | after measuring a robot change: add its row, kept or not |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | changing the Python modules, alerts or escaping |
