@@ -20,7 +20,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -30,6 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from research.dd_cache import solve_leads  # noqa: E402
 from research.dd_dataset import RUST_EXE, declarer_for, leader_for  # noqa: E402
 from challenge import hands_for  # noqa: E402
 
@@ -43,19 +43,11 @@ SIDE_OF = {'North': 'N/S', 'South': 'N/S', 'East': 'E/W', 'West': 'E/W'}
 
 
 def solve(deal: dict, strain: str) -> dict:
-    payload = {
-        'hands': deal['hands'],
-        'strain': strain,
-        'queries': [{'leader': leader, 'trick': []} for leader in LEADERS],
-    }
+    """Leaders already in the shared cache (research/dd_cache.py) aren't solved again."""
     started = time.perf_counter()
-    proc = subprocess.run([str(RUST_EXE)], input=json.dumps(payload),
-                          capture_output=True, text=True)
-    if proc.returncode != 0:
-        raise RuntimeError(f"deal {deal['id']} {strain}: {proc.stderr.strip()}")
-    results = json.loads(proc.stdout)['results']
+    solved = solve_leads(deal['hands'], strain, LEADERS)
     tricks = {}
-    for leader, raw in zip(LEADERS, results):
+    for leader, raw in zip(LEADERS, solved['results']):
         declarer = DECLARER_OF[leader]
         ns = raw['ns_tricks']
         tricks[declarer] = ns if SIDE_OF[declarer] == 'N/S' else 13 - ns

@@ -41,7 +41,6 @@ import json
 import multiprocessing
 import os
 import random
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -52,8 +51,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from card import SUITS, deal
+from research.dd_cache import solve_leads
 from research.dd_dataset import (
-    RUST_EXE, RUST_TIMEOUT_SECONDS, SIDE_SEATS, Hands, _end_with_newline, _in_suit,
+    RUST_EXE, SIDE_SEATS, Hands, _end_with_newline, _in_suit,
     declarer_for, hands_to_text, leader_for, ranked_fits, solve_strain_rust,
 )
 
@@ -93,21 +93,15 @@ def kept_sides(hands: Hands) -> List[str]:
 
 
 def solve_one_rust(hands: Hands, strain: str, side: str) -> dict:
-    """One strain, one declaring side, through the Rust engine."""
+    """One strain, one declaring side, through the Rust engine and the shared cache."""
     if not RUST_EXE.exists():
         raise FileNotFoundError(
             f"Rust engine not built at {RUST_EXE}. Run `cargo build --release` "
             f"in research/solver-rs/ first.")
     declarer = declarer_for(hands, side, strain)
     leader = leader_for(declarer)
-    payload = {'hands': hands_to_text(hands), 'strain': strain,
-               'queries': [{'leader': leader, 'trick': []}]}
     started = time.perf_counter()
-    proc = subprocess.run([str(RUST_EXE)], input=json.dumps(payload), capture_output=True,
-                          text=True, timeout=RUST_TIMEOUT_SECONDS)
-    if proc.returncode != 0:
-        raise RuntimeError(f"Rust engine failed on strain {strain}: {proc.stderr.strip()}")
-    raw = json.loads(proc.stdout)['results'][0]
+    raw = solve_leads(hands_to_text(hands), strain, [leader])['results'][0]
     return {
         'declaring_side': side, 'strain': strain, 'declarer': declarer, 'leader': leader,
         'declarer_tricks': raw['ns_tricks'] if side == 'N/S' else 13 - raw['ns_tricks'],

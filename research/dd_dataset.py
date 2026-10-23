@@ -40,7 +40,6 @@ import json
 import multiprocessing
 import os
 import random
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -220,14 +219,19 @@ def solve_strain(hands: Hands, strain: str) -> dict:
     }
 
 
-def solve_strain_rust(hands: Hands, strain: str) -> dict:
+def solve_strain_rust(hands: Hands, strain: str, use_cache: bool = True) -> dict:
     """Same contract and shape as `solve_strain`, run through the Rust engine.
 
     Sends both declaring sides as one call, so the Rust process shares its own
     transposition table across them exactly as `solve_strain` shares its
     Python one — same pairing win, same reason it works (both leaders are
     positions over the SAME cards, so lines transpose heavily between them).
+
+    A full deal goes through the shared cache (`research/dd_cache.py`): a side
+    already solved there is not solved again, and comes back with `nodes` None.
     """
+    from research.dd_cache import solve_leads
+
     if not RUST_EXE.exists():
         raise FileNotFoundError(
             f"Rust engine not built at {RUST_EXE}. Run `cargo build --release` "
@@ -235,35 +239,22 @@ def solve_strain_rust(hands: Hands, strain: str) -> dict:
         )
 
     sides = [(side, declarer_for(hands, side, strain)) for side in ('N/S', 'E/W')]
-    payload = {
-        'hands': hands_to_text(hands),
-        'strain': strain,
-        'queries': [{'leader': leader_for(declarer), 'trick': []} for _, declarer in sides],
-    }
-
-    started = time.perf_counter()
-    proc = subprocess.run(
-        [str(RUST_EXE)], input=json.dumps(payload), capture_output=True,
-        text=True, timeout=RUST_TIMEOUT_SECONDS,
-    )
-    elapsed = time.perf_counter() - started
-    if proc.returncode != 0:
-        raise RuntimeError(f"Rust engine failed on strain {strain}: {proc.stderr.strip()}")
-    out = json.loads(proc.stdout)
+    leaders = [leader_for(declarer) for _, declarer in sides]
+    full_deal = all(len(hands[seat]) == 13 for seat in PLAYERS)
+    solved = solve_leads(hands_to_text(hands), strain, leaders, use_cache=use_cache and full_deal)
+    raw_results, elapsed = solved['results'], solved['seconds']
 
     # The CLI reports total seconds only, not per-query; split proportionally
     # by node count as a reasonable approximation, not a measured figure.
-    node_counts = [r['nodes'] for r in out['results']]
-    total_nodes = sum(node_counts) or 1
+    total_nodes = sum(r['nodes'] or 0 for r in raw_results) or 1
+    # tricks_available is the same for both sides of one strain (same
+    # cards_left, same trump); recomputed here rather than re-derived from
+    # the Rust output, which doesn't carry it.
+    total = sum(len(hands[seat]) for seat in PLAYERS) // 4
 
     results = []
-    for (side, declarer), query_leader, raw in zip(sides, payload['queries'], out['results']):
-        leader = query_leader['leader']
+    for (side, declarer), leader, raw in zip(sides, leaders, raw_results):
         ns_tricks = raw['ns_tricks']
-        # tricks_available is the same for both sides of one strain (same
-        # cards_left, same trump); recomputed here rather than re-derived from
-        # the Rust output, which doesn't carry it.
-        total = sum(len(hands[seat]) for seat in PLAYERS) // 4
         results.append({
             'declaring_side': side,
             'declarer': declarer,
@@ -271,13 +262,13 @@ def solve_strain_rust(hands: Hands, strain: str) -> dict:
             'declarer_tricks': ns_tricks if side == 'N/S' else total - ns_tricks,
             'ns_tricks': ns_tricks,
             'nodes': raw['nodes'],
-            'seconds': round(elapsed * raw['nodes'] / total_nodes, 2),
+            'seconds': round(elapsed * (raw['nodes'] or 0) / total_nodes, 2),
         })
 
     return {
         'strain': strain,
         'results': results,
-        'table_entries': out['table_entries'],
+        'table_entries': solved['table_entries'],
         'seconds': round(elapsed, 2),
         'engine': 'rust',
     }

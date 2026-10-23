@@ -3,6 +3,9 @@
 # research/solver-rs/wasm/.gitignore and is copied into frontend/ by npm run wasm.
 research/solver-rs/target/
 
+# The double dummy cache's append lock (research/dd_cache.py); the cache itself is kept.
+research/data/*.lock
+
 # Virtual environments
 .venv/
 venv/

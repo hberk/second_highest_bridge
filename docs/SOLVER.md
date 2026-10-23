@@ -14,6 +14,7 @@ python tests/test_solver_search.py  # optimised search vs exhaustive enumeration
 python tests/test_solver_api.py     # domain-facing analysis layer + validation
 python tests/test_solver_replay.py  # a finished board's decisions, latest trick first
 python tests/test_dd_dataset.py      # dataset generator: strains, pairing, resume
+python tests/test_dd_cache.py        # the shared double dummy cache: keys, conflicts, locking
 python tests/test_solver_rust.py     # Rust engine vs trusted Python search, beyond the fixture
                                      # (SKIP, not pass, when the binary isn't built; CI never builds it)
 
@@ -31,6 +32,10 @@ cd research/solver-rs && cargo build --release && cargo test --release && cd ../
 # The same engine as WebAssembly for the web app's History replayer
 # (research/solver-rs/wasm; see FRONTEND.md, "Double dummy in the History replayer")
 cd frontend && npm run wasm
+
+# The shared double dummy cache: what it holds, and importing deals solved elsewhere
+python research/dd_cache.py
+python research/dd_cache.py --seed --from path/to/solved.jsonl
 
 # Double dummy dataset for fitting bidding (resumable, just rerun to continue)
 python research/dd_dataset.py --deals 25                            # pure Python
@@ -66,6 +71,8 @@ python research/hand_value.py
   - Every ablation flag (`use_table`/`normalise_key`/`reduce_moves`/`ordering`) in `search.py` is hard-coded to its winning setting in `search.rs`, not re-ported. That work is done and recorded above; add the flags back only if a fifth optimisation needs the same kind of isolated measurement.
 
 ## Dataset invariants
+
+- **A deal is solved once** (`research/dd_cache.py`, 2026-10-23). Every opening-lead answer (N/S's tricks for a full deal, a strain and an opening leader) lands in `research/data/dd_cache.jsonl`, keyed by the cards, and `solve_declarers.py`, `dd_dataset.py --engine rust` and `slam_deals.py` ask it before the engine. Leaders it doesn't know still go to the engine in one call, sharing one table. Only values are kept, never nodes or times (they depend on what shared the table), so a cached answer has `nodes` None. Seeded from every deal solved before it: 16,530 answers over 1,923 deals (400 for every strain and leader), about 150 bytes a deal; wherever two sources answered the same question they agreed. Measured before it existed: of ~42 CPU-hours of solves, about 10 repeated a question already answered (the all-declarers library solve over the pilot). It is valid for one set of rules: its first line holds a hash of the fixture's answers, and a cache from other rules is refused. Two answers that disagree stop the run. `test_solver_rust.py` re-solves cached deals against it; tests that measure the engine pass `use_cache=False`.
 
 - The dataset stores **raw hands and trick counts, never features**, so it outlives any feature design. Strain and declarer choice use only suit lengths and HCP, never `ai.py`, so the data does not depend on the evaluation it exists to replace.
 - Slow deals are **never skipped or timed out**: that would bias the data towards easy deals.

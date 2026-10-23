@@ -167,12 +167,32 @@ def test_solve_strain_rust_reproduces_the_original_pilot_data():
     checked = 0
     for record in saved[:9]:  # the original pilot's first batch; keep this test quick
         hands = ds.deal_for(record['deal_id'])
-        actual = ds.solve_strain_rust(hands, record['strain'])
+        actual = ds.solve_strain_rust(hands, record['strain'], use_cache=False)
         actual_tricks = [(r['declaring_side'], r['ns_tricks']) for r in actual['results']]
         expected_tricks = [(r['declaring_side'], r['ns_tricks']) for r in record['results']]
         assert actual_tricks == expected_tricks, (record['deal_id'], record['strain'])
         checked += 1
     assert checked > 0
+
+
+def test_the_shared_cache_agrees_with_the_engine():
+    """Re-solves the quickest cached slam deals and checks every cached answer
+    for them; then a solve through the cache must return the same, unsolved."""
+    if not _built():
+        return
+    from research import dd_cache as dc
+    path = root_dir / 'research' / 'data' / 'dd_slam.jsonl'
+    if not path.exists() or not dc.CACHE.exists():
+        raise SkipTest("no slam data or no cache")
+    records = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
+    cache = dc.DDCache(dc.CACHE)
+    for record in sorted(records, key=lambda r: r['seconds'])[:3]:
+        leaders = [r['leader'] for r in record['results']]
+        fresh = dc.solve_leads(record['hands'], record['strain'], leaders, use_cache=False)
+        cached = dc.solve_leads(record['hands'], record['strain'], leaders, cache)
+        assert [r['ns_tricks'] for r in fresh['results']] == \
+            [r['ns_tricks'] for r in cached['results']], (record['deal_id'], record['strain'])
+        assert all(r['nodes'] is None for r in cached['results'])
 
 
 def test_missing_binary_fails_clearly_not_silently():
