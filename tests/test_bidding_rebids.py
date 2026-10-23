@@ -98,7 +98,7 @@ def test_inverted_minors():
     call, why = ai.ai_bid_explained('South', weak, auction_after('1C', 'Pass'))
     assert gib.Hand(weak).hcp < gib.RESPONSE_MIN and call == 'Pass', (call, why)
 
-    shaped = hand('8S 6S 4S 9H 7H 3D AD QC 9C 8C 7C 5C 2C')
+    shaped = hand('8S 6S 4S 9H 7H 3D AD QC 9C 8C 7C 5C JC')
     call, why = ai.ai_bid_explained('South', shaped, auction_after('1C', 'Pass'))
     assert call == '3C' and 'Weak' in why, (call, why)
 

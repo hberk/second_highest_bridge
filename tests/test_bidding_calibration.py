@@ -392,7 +392,7 @@ def test_no_alert_denies_a_suit_the_hand_is_holding():
     """
     random.seed(31)
     checked = 0
-    for index in range(70):
+    for index in range(200):
         hands = deal()
         auction = AuctionState(dealer=PLAYERS[index % 4], vulnerability='None')
         guard = 0

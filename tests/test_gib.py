@@ -55,18 +55,20 @@ def test_openings():
 # ── Notrump: Stayman, transfers, Texas, Gerber, quantitative ─────────────────
 
 def test_stayman():
-    call, why = bid('KS 7S 3S AH 10H 7H 2H JD 9D 6D 9C 5C 3C', '1NT', 'Pass')
+    call, why = bid('KS JS 3S KH QH 7H 2H 8D 9D 6D 9C 5C 3C', '1NT', 'Pass')
     assert call == '2C' and 'Stayman' in why
     call, why = bid('AS KS 4S QH JH 3H 2H KD 9D 4D AC 7C 3C', '1NT', 'Pass', '2C', 'Pass')
     assert call == '2H', why
     # Level is judged on this game's card values (gib.Hand.judge): kings and
     # queens count, aces barely. 8 judgement points opposite 15-17 invite;
-    # 10 bid game.
+    # 11 bid the major game (gib.GAME_MAJOR).
     invite = 'KS 7S 3S AH 10H 7H 2H JD 9D 6D 9C 5C 3C'
     assert gib.Hand(hand(invite)).judge == 8
     assert bid(invite, '1NT', 'Pass', '2C', 'Pass', '2H', 'Pass')[0] == '3H'
-    game = 'KS 7S 3S AH 10H 7H 2H QD 9D 6D JC 5C 3C'
-    assert gib.Hand(hand(game)).judge == 10
+    assert bid('KS 7S 3S AH 10H 7H 2H QD 9D 6D JC 5C 3C',
+               '1NT', 'Pass', '2C', 'Pass', '2H', 'Pass')[0] == '3H'     # 10
+    game = 'KS 7S 3S AH 10H 7H 2H QD 9D 6D QC 5C 3C'
+    assert gib.Hand(hand(game)).judge + gib.NT1[0] >= gib.GAME_MAJOR
     assert bid(game, '1NT', 'Pass', '2C', 'Pass', '2H', 'Pass')[0] == '4H'
 
 
@@ -79,7 +81,7 @@ def test_jacoby_and_texas_transfers():
     # Aces and kings make 17 HCP but a poor maximum here: just complete.
     call, _ = bid('AS KS 4S QH JH 3H 2H KD 9D 4D AC 7C 3C', '1NT', 'Pass', '2D', 'Pass')
     assert call == '2H'
-    call, why = bid('KS QS 9S 8S 7S 3S 4H 2H AD 6D KC 5C 3C', '1NT', 'Pass')
+    call, why = bid('KS QS 9S 8S 7S 3S 4H 2H KD QD KC 5C 3C', '1NT', 'Pass')
     assert call == '4H' and 'Texas' in why
     assert bid('AS JS 4S QH JH 3H KD 9D 4D 2D AC 7C 3C',
                '1NT', 'Pass', '4H', 'Pass')[0] == '4S'
@@ -97,7 +99,7 @@ def test_systems_on_over_our_1nt_overcall():
     assert call == '2S' and 'transfer' in why, (call, why)
     call, why = bid(nt, *overcall, '2C', 'Pass')
     assert call == '2D' and 'No 4-card major' in why, (call, why)
-    weak5 = 'KS 7S 3S QH 10H 9H 7H 2H 9D 6D JC 5C 3C'
+    weak5 = '8S 7S 3S QH 10H 9H 7H 2H 9D 6D 4C 5C 3C'
     assert bid(weak5, *overcall)[0] == '2D'
     # Every call matches the same seat's call after a 1NT opening.
     for cards, tail in ((weak5, ('2D', 'Pass', '2H', 'Pass')),
@@ -533,7 +535,14 @@ def test_advancer_bids_game_over_a_two_suited_overcall():
     """Deal 163: (1♦) 2NT (P) with ♠Q2 ♥2 ♦Q10974 ♣KQJ96 chose 3♣, the same
     call as with two clubs, and N/S defended 4♦ where 7♣ makes. 3+ in one
     of partner's suits and game values bids game."""
-    call, why = bid('QS 2S 2H QD 10D 9D 7D 4D KC QC JC 9C 6C', '1D', '2NT', 'Pass', dealer='West')
+    # A minor game is judged on gib.GAME, 32 from 2026-10-23; the branch is
+    # checked at GIB's 25, where this hand has game values.
+    game = gib.GAME
+    gib.GAME = 25
+    try:
+        call, why = bid('QS 2S 2H QD 10D 9D 7D 4D KC QC JC 9C 6C', '1D', '2NT', 'Pass', dealer='West')
+    finally:
+        gib.GAME = game
     assert call == '5C' and 'game values' in why, (call, why)
     # A weak hand still takes the cheapest preference.
     assert bid('8S 2S 2H 9D 8D 7D 5D 4D 10C 9C 6C 3C 2C', '1D', '2NT', 'Pass',
@@ -641,3 +650,22 @@ if __name__ == '__main__':
             fn()
             print(f"PASS {name}")
     print("\nGIB 2/1 verified.")
+
+
+def test_a_known_major_fit_plays_in_game_not_3nt():
+    """The user's call, 2026-10-23: instead of 3NT, or passing partner's 3NT,
+    bid 4M on a known eight-card major fit. Opener's rebid of the major shows
+    six, partner's notrump two (fresh deals 1237 and 4403)."""
+    # Opener with seven spades pulls 1♠-2♣-2♠-3NT: 3NT took 2 tricks, 4♠ ten.
+    call, _ = bid('AS JS 8S 6S 5S 4S 3S AH QH 9H 8H AD 2C',
+                  '1S', 'Pass', '2C', 'Pass', '2S', 'Pass', '3NT', 'Pass')
+    assert call == '4S', call
+    # Responder with a doubleton bids 4♥ over 1♥-2♣-2♥, not 3NT.
+    call, _ = bid('AS 7S 3S 6H 5H KD 6D 5D AC QC JC 6C 4C',
+                  '1H', 'Pass', '2C', 'Pass', '2H', 'Pass')
+    assert call == '4H', call
+    # Completing a transfer shows no length: five spades opposite 1NT stays a
+    # choice of games.
+    call, why = bid('QS 9S 8S 7S 2S KH 8H 6H KD 2D QC 8C 5C',
+                    '1NT', 'Pass', '2H', 'Pass', '2S', 'Pass')
+    assert call == '3NT' and 'choice of games' in why, (call, why)

@@ -38,7 +38,9 @@ NT_AFTER_2C = (22, 24)        # 2C-2D-2NT
 STRONG_2C = 22                # 2C: strong, artificial, 22+ HCP
 WEAK = (5, 10)                # weak twos and pre-empts
 FOURTH_SEAT = (11, 15)        # a fourth-seat two-bid is sound (house, user's call)
-RESPONSE_MIN = 6
+#: The fewest HCP that respond to a one-level opening (the user's call,
+#: 2026-10-23: 7, not GIB's 6; +0.52 a board on its own). See BIDDING.md.
+RESPONSE_MIN = 7
 RAISE = (7, 10)               # 1M-2M shows 7-10
 LIMIT = (11, 12)              # 1M-3M limit raise, four-card support
 JACOBY_MIN = 13
@@ -61,7 +63,16 @@ NT_OVERCALL = (15, 18)
 TAKEOUT_MIN = 12
 NEGATIVE = {1: 6, 2: 8, 3: 10}
 TWO_SUITED_MIN = 8
-GAME = 25
+#: Game by judgement points (the user's call, 2026-10-23). GAME is every
+#: game but a major suit's: 3NT, a minor, and the "game values" line. 3NT
+#: makes about 13% of the time here at almost any HCP, so it is 32, not
+#: GIB's 25; a major game, which follows the fit, is GAME_MAJOR. Opposite
+#: our 1NT/2NT it is NT_GAME: at 32, one point under SLAM, responder would
+#: never invite or use Stayman, and 28 scores the same. See "Game by
+#: points" in BIDDING.md.
+GAME = 32
+GAME_MAJOR = 26
+NT_GAME = 28
 #: Judge level on the variant's card values (True) or on HCP (False).
 JUDGE_BY_VARIANT = True
 #: A three-level cuebid raise needs 4 trumps or 12+ judgement points.
@@ -229,6 +240,7 @@ def gib_bid(player: str, cards: list[Card], auction: AuctionState) -> tuple | No
         return None
     decision = _decide(ctx)
     decision = _total_tricks(ctx, decision) or decision
+    decision = _major_over_notrump(ctx, decision) or decision
     if decision is None:
         return None
     if decision[0] not in ctx.legal:
@@ -383,7 +395,7 @@ def respond_major(ctx: Ctx, x: str) -> tuple:
     if sup >= 5 and hcp < 10 and shortness and ctx.ok(f"4{x}"):
         return f"4{x}", f"5+ {SYM[x]}, under 10 HCP. Pre-emptive raise."
     if hcp < RESPONSE_MIN:
-        return 'Pass', "Fewer than 6 HCP."
+        return 'Pass', f"Fewer than {RESPONSE_MIN} HCP."
     if sup >= 4 and not passed and hcp >= JACOBY_MIN:
         if shortness and hcp <= SPLINTER[1]:
             s = shortness[0]
@@ -402,7 +414,7 @@ def respond_major(ctx: Ctx, x: str) -> tuple:
     if js:
         return js
     if x == 'H' and h.len['S'] >= 4:
-        return '1S', f"4+ {SYM['S']}, 6+ HCP."
+        return '1S', f"4+ {SYM['S']}, {RESPONSE_MIN}+ HCP."
     if not passed and hcp >= TWO_OVER_ONE:
         if x == 'S' and h.len['H'] >= 5:
             return '2H', f"5+ {SYM['H']}, 12+ HCP. Game forcing."
@@ -412,8 +424,8 @@ def respond_major(ctx: Ctx, x: str) -> tuple:
             return '2C', f"3+ {SYM['C']}, 12+ HCP. Game forcing."
         return '2D', f"4+ {SYM['D']}, 12+ HCP. Game forcing."
     if passed:
-        return '1NT', "6-11 HCP, no fit."
-    return '1NT', "6-11 HCP. Forcing."
+        return '1NT', f"{RESPONSE_MIN}-11 HCP, no fit."
+    return '1NT', f"{RESPONSE_MIN}-11 HCP. Forcing."
 
 
 def respond_minor(ctx: Ctx, x: str) -> tuple:
@@ -421,7 +433,7 @@ def respond_minor(ctx: Ctx, x: str) -> tuple:
     hcp, sup = h.hcp, h.len[x]
     passed = ctx.passed_hand(ctx.me)
     if hcp < RESPONSE_MIN:
-        return 'Pass', "Fewer than 6 HCP."
+        return 'Pass', f"Fewer than {RESPONSE_MIN} HCP."
     js = _jump_shift(ctx, x)
     if js:
         return js
@@ -431,18 +443,18 @@ def respond_minor(ctx: Ctx, x: str) -> tuple:
         return '2C', f"4+ {SYM['C']}, 12+ HCP. Game forcing."
     if majors:
         m = 'S' if (len(majors) == 2 and h.len['S'] > h.len['H']) else majors[0]
-        return f"1{m}", f"4+ {SYM[m]}, 6+ HCP."
+        return f"1{m}", f"4+ {SYM[m]}, {RESPONSE_MIN}+ HCP."
     if x == 'C' and h.len['D'] >= 4:
-        return '1D', f"4+ {SYM['D']}, 6+ HCP."
+        return '1D', f"4+ {SYM['D']}, {RESPONSE_MIN}+ HCP."
     if x == 'D' and not passed and hcp >= TWO_OVER_ONE and h.len['C'] >= 4:
         return '2C', f"4+ {SYM['C']}, 12+ HCP. Game forcing."
     need = 5 if x == 'C' else 4
     if sup >= need and hcp >= INVERTED_MIN:
         return f"2{x}", f"{need}+ {SYM[x]}, {INVERTED_MIN}+ HCP. Inverted, forcing."
     if sup >= 5 and hcp <= 9:
-        return f"3{x}", f"5+ {SYM[x]}, 6-9 HCP. Weak raise."
+        return f"3{x}", f"5+ {SYM[x]}, {RESPONSE_MIN}-9 HCP. Weak raise."
     if hcp <= 10:
-        return '1NT', "6-10 HCP, no 4-card major."
+        return '1NT', f"{RESPONSE_MIN}-10 HCP, no 4-card major."
     if hcp <= 12:
         return '2NT', "11-12 HCP, invitational."
     return '3NT', "13+ HCP, no 4-card major."
@@ -774,9 +786,9 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
             if ol >= 4:
                 return 'Pass', "Partner placed the contract."
             fit = hcp + _fit_bonus(h, y, 4)
-            if fit + lo >= GAME:
+            if fit + lo >= GAME_MAJOR:
                 return f"4{y}", TO_PLAY
-            if fit + hi >= GAME and ol == 2:
+            if fit + hi >= GAME_MAJOR and ol == 2:
                 return f"3{y}", "Invitational."
             return 'Pass', "No game."
         if hcp + lo >= GAME:
@@ -789,7 +801,10 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
                 return nmf, "New minor forcing. Artificial."
         if hcp + lo >= GAME:
             if y in MAJORS and h.len[y] >= 6:
-                return f"4{y}", TO_PLAY
+                if hcp + lo >= GAME_MAJOR:
+                    return f"4{y}", TO_PLAY
+                if ctx.ok(f"3{y}"):
+                    return f"3{y}", f"6+ {SYM[y]}, invitational."
             if hcp + lo >= SLAM:
                 return '6NT', TO_PLAY
             if hcp + hi >= SLAM and ctx.ok('4NT'):
@@ -817,15 +832,16 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
                 return f"4{x}", TO_PLAY
             return '3NT', TO_PLAY
         if fit:
-            if hcp + lo >= GAME:
+            g = GAME_MAJOR if x in MAJORS else GAME
+            if hcp + lo >= g:
                 return (f"4{x}", TO_PLAY) if x in MAJORS else ('3NT', TO_PLAY)
-            if hcp + hi >= GAME:
+            if hcp + hi >= g:
                 return f"3{x}", "Invitational."
             return 'Pass', "No game."
         if y in SUITS and h.len[y] >= 6:
-            if hcp + lo >= GAME and y in MAJORS:
+            if hcp + lo >= GAME_MAJOR and y in MAJORS:
                 return f"4{y}", TO_PLAY
-            if hcp + hi >= GAME and ctx.ok(f"3{y}"):
+            if hcp + hi >= GAME_MAJOR and ctx.ok(f"3{y}"):
                 return f"3{y}", f"6+ {SYM[y]}, invitational."
             if ctx.ok(f"2{y}"):
                 return f"2{y}", f"6+ {SYM[y]}, to play."
@@ -841,12 +857,13 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
         if forcing:
             return _after_forcing_rebid(ctx, x, y, z)
         if hcp + lo >= GAME:
-            if z in MAJORS and h.len[z] >= 4:
-                return placed(ctx, (f"4{z}", TO_PLAY))
-            if x in MAJORS and h.len[x] >= 3:
-                return placed(ctx, (f"4{x}", TO_PLAY))
-            if y in MAJORS and h.len[y] >= 6:
-                return f"4{y}", TO_PLAY
+            for m, n in ((z, 4), (x, 3), (y, 6)):
+                if m in MAJORS and h.len[m] >= n:
+                    if hcp + lo >= GAME_MAJOR:
+                        return placed(ctx, (f"4{m}", TO_PLAY))
+                    if ctx.ok(f"3{m}"):
+                        return f"3{m}", "Invitational."
+                    break
             fourth = [s for s in SUITS if s not in (x, y, z)]
             if fourth:
                 call = ctx.cheapest(fourth[0])
@@ -1109,7 +1126,7 @@ def _nt_response(ctx: Ctx, base: int, lo: int, hi: int) -> tuple:
         return '6NT', TO_PLAY
     if hcp + hi >= SLAM and not m5 and ctx.ok('4NT'):
         return '4NT', "Quantitative: invites 6NT."
-    if hcp + lo >= GAME:
+    if hcp + lo >= NT_GAME:
         if m5:
             s = h.longest(MAJORS)
             if h.len[s] >= 6:
@@ -1131,7 +1148,7 @@ def _nt_response(ctx: Ctx, base: int, lo: int, hi: int) -> tuple:
             if s != 'C' and ctx.ok(call):
                 return call, f"Short {SYM[s]}, 4+ in the others, game forcing."
         return '3NT', TO_PLAY
-    if hcp + hi >= GAME and base == 1:
+    if hcp + hi >= NT_GAME and base == 1:
         if m5:
             s = h.longest(MAJORS)
             call = code['to_h'] if s == 'H' else code['to_s']
@@ -1205,10 +1222,10 @@ def _nt_responder_second(ctx: Ctx, base: int, seq: list[str], lo: int, hi: int) 
     if r == code['stayman']:
         s = strain_of(o)
         if s in MAJORS and h.len[s] >= 4:
-            if hcp + lo >= GAME:
+            if hcp + lo >= GAME_MAJOR:
                 return placed(ctx, (f"4{s}", TO_PLAY))
             return placed(ctx, (f"3{s}", "Invitational."))
-        if hcp + lo >= GAME:
+        if hcp + lo >= NT_GAME:
             m5 = [m for m in MAJORS if h.len[m] >= 5]
             if m5 and o != '2S' and ctx.ok(f"3{m5[0]}"):
                 return f"3{m5[0]}", f"5+ {SYM[m5[0]]}, game forcing."
@@ -1222,9 +1239,9 @@ def _nt_responder_second(ctx: Ctx, base: int, seq: list[str], lo: int, hi: int) 
                 return (f"4{s}", TO_PLAY) if hcp >= 4 else ('Pass', "Weak.")
             if hcp + lo >= SLAM and ctx.ok('4NT'):
                 return '4NT', "Quantitative: invites 6NT."
-            if hcp + lo >= GAME:
+            if hcp + lo >= NT_GAME:
                 return placed(ctx, ('3NT', f"5 {SYM[s]}, choice of games."))
-            if hcp + hi >= GAME and ctx.ok('2NT'):
+            if hcp + hi >= NT_GAME and ctx.ok('2NT'):
                 return '2NT', f"5 {SYM[s]}, invitational."
             return 'Pass', "Weak."
     if r in ('4D', '4H') and o in ('4H', '4S'):
@@ -1700,7 +1717,7 @@ def _fit_bonus(h: Hand, trump: str | None, partner_len: int) -> int:
 #: hand bidding it would make their "6+" or "6-9 HCP" untrue); a hand
 #: rebidding its own suit needs only to have bid it.
 LOTT = True
-LOTT_MAX = 4
+LOTT_MAX = 5                  # 2026-10-23: 11 trumps compete to five (was 4)
 LOTT_RAISE = (6, 9)
 LOTT_ALERT = "Competing to the level of our fit."
 #: ...and below LOTT_RAISE, a raise with 3+ trumps and a side singleton or
@@ -1787,6 +1804,53 @@ def _total_tricks(ctx: Ctx, decision: tuple | None) -> tuple | None:
     return best[1], LOTT_ALERT
 
 
+#: A major game, not 3NT, on a known eight-card major fit (the user's call,
+#: 2026-10-23): instead of bidding 3NT, or passing partner's 3NT, bid 4M when
+#: my length and what partner's bids have shown (a natural notrump bid shows
+#: two) make eight. A fit both of us have bid is left alone: 1M-2M-3NT is
+#: already a choice of games (roadmap 3.7). +1.72 a board; see BIDDING.md.
+MAJOR_OVER_3NT = True
+
+
+def _major_over_notrump(ctx: Ctx, decision: tuple | None) -> tuple | None:
+    if not MAJOR_OVER_3NT or decision is None:
+        return None
+    hb = ctx.auction.highest_bid
+    standing = (decision[0] == 'Pass' and hb is not None and (hb[0], hb[1]) == (3, 'NT')
+                and hb[2] == ctx.pd and ctx.auction.doubled == 'None')
+    if decision[0] != '3NT' and not standing:
+        return None
+    best = None
+    for s in MAJORS:
+        if _agreed(ctx, s):
+            continue
+        nt = _nt_length(ctx)
+        n = ctx.h.len[s] + (nt if _transferred(ctx, s) else (_partner_length(ctx, s) or nt))
+        if n >= 8 and ctx.ok(f"4{s}") and (best is None or n > best[0]):
+            best = (n, s)
+    if best is None:
+        return None
+    return f"4{best[1]}", TO_PLAY
+
+
+def _agreed(ctx: Ctx, s: str) -> bool:
+    """Have both of us bid `s` naturally?"""
+    return all(any(w == who and strain_of(c) == s and shown_suit(ctx.seq, i) == s
+                   for i, (w, c) in enumerate(ctx.ours)) for who in (ctx.me, ctx.pd))
+
+
+def _transferred(ctx: Ctx, s: str) -> bool:
+    """Did I show `s` with a transfer? Then partner's bid of it completed the
+    transfer and shows no length of its own."""
+    return any(w == ctx.me and shown_suit(ctx.seq, i) == s and strain_of(c) != s
+               for i, (w, c) in enumerate(ctx.ours))
+
+
+def _nt_length(ctx: Ctx) -> int:
+    """Partner's natural notrump bid shows a balanced hand: 2+ in every suit."""
+    return 2 if any(w == ctx.pd and strain_of(c) == 'NT' for w, c in ctx.ours) else 0
+
+
 def _over_their_contract(ctx: Ctx, values: bool) -> tuple:
     if values and ctx.ok('X'):
         return 'X', "Penalty: our side has the values for game."
@@ -1842,14 +1906,14 @@ def continuation(ctx: Ctx) -> tuple:
             return '4NT', f"Keycard Blackwood for {SYM[fit]}. Artificial."
         comb += _fit_bonus(h, fit, plen[fit])
         if fit in MAJORS:
-            if comb >= GAME or gf:
+            if comb >= GAME_MAJOR or gf:
                 if cur_rank >= rank_of(f"4{fit}"):
                     if theirs_hold:
                         return _over_their_contract(ctx, values)
                     return 'Pass', "Game reached."
                 return f"4{fit}", TO_PLAY
             call = ctx.cheapest(fit, 2)
-            if comb >= GAME - 2 and call and level_of(call) <= 3:
+            if comb >= GAME_MAJOR - 2 and call and level_of(call) <= 3:
                 return call, natural(fit)
             if partner_last and strain_of(partner_last) == fit:
                 return 'Pass', "No game."
@@ -2757,7 +2821,8 @@ def _advance(ctx: Ctx) -> tuple | None:
             choice = max((a, b), key=lambda s: (h.len[s], SUITS.index(s)))
         game = f"{4 if choice in MAJORS else 5}{choice}"
         if (TWO_SUITER_GAME and choice in (a, b) and h.len[choice] >= 3
-                and h.judge + TWO_SUITED_MIN >= GAME and ctx.ok(game)):
+                and h.judge + TWO_SUITED_MIN >= (GAME_MAJOR if choice in MAJORS else GAME)
+                and ctx.ok(game)):
             return game, f"3+ {SYM[choice]}, game values. To play."
         call = ctx.cheapest(choice, 2)
         if call and level_of(call) <= 5:
