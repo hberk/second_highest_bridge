@@ -31,12 +31,12 @@ and the user plays on a phone.
 
 1. **B3** Robots reach makeable games and slams (the biggest single loss).
 2. **B2** GIB's remaining handoff gaps (ROADMAP 1.3-1.6).
-3. **U6** History and Challenge in the Felt style (ROADMAP 2.6).
-4. **A3** Tricks 1-2 of the double dummy analysis fast enough on a phone.
+3. **A3** Tricks 1-2 of the double dummy analysis fast enough on a phone.
 
 Done 2026-10-23: **S3** (a malformed saved board can't break History),
 **C5** (dealing a challenge board asks before throwing away the board in play)
-and **C4** (grading uses the partner who actually declared).
+**C4** (grading uses the partner who actually declared) and **U6** (History
+and Challenge in the Felt style).
 
 ## 1. Rules and scoring
 
@@ -114,7 +114,7 @@ and **C4** (grading uses the partner who actually declared).
 | U3 | Play, Challenge and History one tap apart, in a compact row | P1 | Met (PR #25) | `TabStrip` |
 | U4 | A desktop layout from 1200px, from the same table model | P2 | Met | `game.test.ts` renders both |
 | U5 | Browser back and the phone's back swipe move between screens | P1 | Met | URL hash routing |
-| U6 | History and Challenge in the Felt style, not the old busy layout | P1 | Open | ROADMAP 2.6 |
+| U6 | History and Challenge in the Felt style, not the old busy layout | P1 | Met (2026-10-23, approved from phone screenshots) | `HistoryView`, `ChallengeView`, `game.test.ts` |
 | U7 | How to play draws its examples like the table (`TrickFelt`) | P2 | Open | ROADMAP 2.7 |
 | U8 | No stutter when the bid pad opens (bid meanings off the main thread if needed) | P2 | Open, unmeasured on a phone | ROADMAP 2.9 |
 | U9 | Colours readable for colour-blind players: four-colour deck, WCAG AA inks, double dummy values signed as well as coloured | P1 | Met | `settings.svelte.ts` |

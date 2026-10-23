@@ -460,7 +460,7 @@ export class Game {
       robot: theirs,
       your_contract: contract,
       robot_contract: table.contract,
-      robot_record: asHistoryRecord(table, this.boardNum, "🤖 Robots' board"),
+      robot_record: asHistoryRecord(table, this.boardNum, "Robots' board"),
       your_record: contract ? undefined : {
         board_num: this.boardNum,
         dealer: this.dealer,

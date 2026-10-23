@@ -94,7 +94,7 @@ desktop layout from 1200px (2.5; mocked on the design canvas and approved
 
 Follow-ups from the redesign:
 
-- [ ] **2.6 History and Challenge** sit in the new frame and colours but keep
+- [x] **2.6 History and Challenge** (2026-10-23: result card, ‹ › board picker, the trick on the felt, step buttons kept at the bottom, a Your board / Robots' board switch) sit in the new frame and colours but keep
   their old, busier layout (emoji headings, wide tables). Redesign them in
   the Felt style.
 - [ ] **2.7 How to play** still draws its examples with the old

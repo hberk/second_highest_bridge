@@ -58,7 +58,13 @@ remains the reference.
   fan at the bottom (`Fan`; legal cards rise, the rest grey out), the dummy
   above the felt once it's down. There is no X-ray view of the robots' hands
   (removed 2026-10-21, the user's call): the hand record in History shows them.
-  The full auction is a sheet. **Wide screens (1200px and up,
+  The full auction is a sheet. **History and Challenge (2026-10-23)** share `HistoryView` in the same
+  look: a result card, a ‹ › board picker (a Your board / Robots' board switch
+  when the review shows two boards of one deal), the auction, the trick on the
+  felt (`TrickFelt`) with the line saying who wins it, the four hands around
+  it, and the step buttons in a bar kept at the bottom of the screen
+  (`.hv-controls`, sticky). The trick log, LIN record and import sit in
+  collapsed sections at the end. **Wide screens (1200px and up,
   `viewport.svelte.ts`) get a desktop layout instead**: a header with the
   sections as tabs and the Display menu (`DeskHeader`), and
   `DesktopTableView`, with everything on screen at once: a strip of board
