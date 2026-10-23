@@ -247,7 +247,7 @@ export function gibBid(player: Seat, cards: Card[], auction: AuctionState): Deci
   return [decision[0], nameTheSuit(decision[0], decision[1])];
 }
 
-function nameTheSuit(call: string, alert: string): string {
+export function nameTheSuit(call: string, alert: string): string {
   const s = strainOf(call);
   if (isSuit(s) && !alert.includes(SYM[s]) && !alert.toLowerCase().includes('artificial')) {
     return alert.replace(/\.+$/, '') + `, ${SYM[s]}.`;
@@ -1619,14 +1619,14 @@ function fitBonus(h: Hand, trump: string | null, partnerLen: number): number {
 export const LOTT = true;
 const LOTT_MAX = 4;
 const LOTT_RAISE = [6, 9];
-const LOTT_ALERT = 'Competing to the level of our fit.';
+export const LOTT_ALERT = 'Competing to the level of our fit.';
 /** ...and below LOTT_RAISE, a raise with 3+ trumps and a side singleton or
  *  void (the user's call: a weak raise is fine with distribution). GIB's free
  *  raises, the same call in the same auctions, then read COMPETITIVE_RAISE
  *  instead of quoting HCP, so one alert stays true of both. */
 export const LOTT_SHORT = true;
 
-function raiseAlert(x: Suit, text: string): string {
+export function raiseAlert(x: Suit, text: string): string {
   return LOTT && LOTT_SHORT ? `3+ ${SYM[x]}, competitive.` : text;
 }
 

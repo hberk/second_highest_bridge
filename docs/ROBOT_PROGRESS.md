@@ -122,6 +122,10 @@ from the variant's side; t as above.
 | 10-22 | Law of Total Tricks: compete to the level of our fit (deal 354) | **+3.56** | +4.49 | 71 | on (your call) |
 | 10-22 | ...and a weak raise with a singleton or void (deal 333) | +0.27 | +1.89 | 7 | on (your call) |
 | 10-22 | Game judged on the known fit: 3 points a trump past ten, fewer costs the same (deal 248) | **+0.83** | +2.93 | 35 | on (your call) |
+| 10-23 | Shortness once a fit is agreed: a void adds 5 tricks (game, and a higher ceiling in competition), a singleton 1 (the old-system fallback, deal 52); measured over 5,400 deals, 21,596 boards | **+2.62** | +9.24 | 1,404 | on (your call) |
+| 10-23 | ...the void valued at exactly game instead | +1.72 | +7.15 | 1,315 | off (your call: the higher ceiling pays) |
+| 10-23 | ...the singleton alone | +0.86 | +5.05 | 806 | (part of the row above) |
+| 10-23 | A singleton in GIB's own fit count (`_fit_bonus`), 1-3 points | -0.21 to -0.26 | -1.7 to -2.0 | 7-12 | off |
 
 ### The previous system (`ai_bid`)
 

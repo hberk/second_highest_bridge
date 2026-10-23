@@ -436,6 +436,42 @@ def _dist_points(groups: dict, trump: str) -> int:
                for suit, cards in groups.items() if suit != trump)
 
 
+#: Shortness once a fit is agreed (the user's call, 2026-10-23). The
+#: evaluation adds up cards, so it cannot see a short side suit; on the
+#: screened 9+ card fits of research/data/dd_slam_screen.jsonl a 9-card major
+#: fit makes ten tricks 21% of the time with no singleton or void in either
+#: hand, 46% with a singleton and 73% with a void. So a void adds enough to
+#: bid game (and, being added to the count, lifts `_place`'s ceiling with it:
+#: worth +0.9 a board over valuing the void at exactly game, by competing a
+#: level higher) and a singleton adds a trick. Only the hand's shortest side
+#: suit counts, and only with SUPPORT_LENGTH+ trumps. See BIDDING.md.
+SHORT_VOID_TRICKS = 5.0
+SHORT_SINGLETON_TRICKS = 1.0
+
+
+def _with_shortness(combined: float, groups: dict, trump: str) -> float:
+    """The partnership count in `trump` once this hand's short suit is seen."""
+    if len(groups[trump]) < SUPPORT_LENGTH:
+        return combined
+    shortest = min(len(cards) for suit, cards in groups.items() if suit != trump)
+    return combined + {0: SHORT_VOID_TRICKS, 1: SHORT_SINGLETON_TRICKS}.get(shortest, 0.0)
+
+
+def _contest_alert(player: str, auction: AuctionState, call: str, why: str) -> str:
+    """Our agreed suit bid while they hold the contract is the call GIB's Law
+    of Total Tricks makes in the same auction, so it carries that alert: the
+    alert depends only on the auction and the call, never on which branch
+    (or how much shortness) produced it."""
+    hb = auction.highest_bid
+    s = parse_bid(call)[1] if parse_bid(call) else None
+    if (not gib.LOTT or hb is None or s not in SUITS or auction.doubled != 'None'
+            or PARTNERSHIP[hb[2]] == PARTNERSHIP[player]):
+        return why
+    mine = any(strain == s for _, strain in _bids_by(player, auction))
+    alert = gib.LOTT_ALERT if mine else gib._raise_alert(s, gib.LOTT_ALERT)
+    return gib._name_the_suit(call, alert)
+
+
 def _place(strain: str, combined: float, legal: list[str], held: int) -> tuple:
     """Put the contract in `strain` no higher than the count supports.
 
@@ -680,7 +716,7 @@ def _response(player: str, partner: str, auction: AuctionState, ev: dict,
         # correctly, so a HUMAN South who cuebids is understood by robot North.
         pass
         promise = _partner_promise(player, partner, auction, p_strain)
-        combined = ev['suit_pts'][p_strain] + promise
+        combined = _with_shortness(ev['suit_pts'][p_strain] + promise, groups, p_strain)
         pts = _points(groups)
         if combined >= GAME_TRICKS:
             game = _game_call(p_strain, legal)
@@ -789,18 +825,20 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
     if p_strain in SUITS and len(groups[p_strain]) >= SUPPORT_LENGTH:
         held = len(groups[p_strain])
         promise = _partner_promise(player, partner, auction, p_strain)
-        combined = ev['suit_pts'][p_strain] + promise
+        combined = _with_shortness(ev['suit_pts'][p_strain] + promise, groups, p_strain)
         call, why = _place(p_strain, combined, legal, held)
         if call != 'Pass':
-            why = f"{SUPPORT_LENGTH}+ {SUIT_SYM[p_strain]} support, agreeing the suit."
+            why = _contest_alert(player, auction, call,
+                                 f"{SUPPORT_LENGTH}+ {SUIT_SYM[p_strain]} support, agreeing the suit.")
         return call, why
 
     if p_strain == my_first:
         promise = _partner_promise(player, partner, auction, my_first)
-        combined = ev['suit_pts'][my_first] + promise
+        combined = _with_shortness(ev['suit_pts'][my_first] + promise, groups, my_first)
         call, why = _place(my_first, combined, legal, len(groups[my_first]))
         if call != 'Pass':
-            why = f"{SUIT_SYM[my_first]} agreed. No extra values shown."
+            why = _contest_alert(player, auction, call,
+                                 f"{SUIT_SYM[my_first]} agreed. No extra values shown.")
         return call, why
 
     if best_len >= OPEN_SUIT_LENGTH + 1:
