@@ -855,10 +855,93 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
 USE_GIB = True
 
 
+#: Penalty double (the user's rule, 2026-10-24; an experiment, off). Where the
+#: robot would pass an opponents' natural suit bid, double it with 5+ trumps,
+#: or 4+ trumps at the three level or higher, when our judgement points --
+#: mine plus the middle of the range partner's alerts show -- reach
+#: PENALTY_JUDGE. Partner's range comes from TABLE_ALERTS, which the caller
+#: fills with the auction's alerts (index -> text); an empty table reads as
+#: no range shown.
+PENALTY_DOUBLE = False
+PENALTY_JUDGE = 20
+TABLE_ALERTS: dict[int, str] = {}
+_RANGE_RE = re.compile(r'(\d+)-(\d+) (?:HCP|points)')
+_MIN_RE = re.compile(r'(\d+)\+ (?:HCP|points)')
+_MAX_RE = re.compile(r'Fewer than (\d+) (?:HCP|points)')
+PENALTY_ALERT = "Penalty: {n}+ {sym}."
+
+
+def _partner_middle(partner: str, auction: AuctionState, mine: int) -> float:
+    """The middle of the point range partner's alerts show. An open range
+    ("8+ HCP") is taken as seven points wide; no range at all as a third of
+    the points I don't hold."""
+    lo, hi, shown = 0, 40 - mine, False
+    for i, (who, _) in enumerate(auction.calls):
+        if who != partner:
+            continue
+        text = TABLE_ALERTS.get(i, '')
+        for a, b in _RANGE_RE.findall(text):
+            lo, hi, shown = max(lo, int(a)), min(hi, int(b)), True
+        for a in _MIN_RE.findall(text):
+            lo, shown = max(lo, int(a)), True
+        for a in _MAX_RE.findall(text):
+            hi, shown = min(hi, int(a) - 1), True
+    if not shown:
+        return (40 - mine) / 3
+    if hi == 40 - mine and lo > 0:
+        hi = min(hi, lo + 7)
+    return (lo + max(lo, hi)) / 2
+
+
+def _penalty_double(player: str, hand: list[Card], auction: AuctionState) -> tuple | None:
+    hb = auction.highest_bid
+    if hb is None or hb[2] in (player, PARTNERS[player]) or auction.doubled != 'None':
+        return None
+    level, suit = hb[0], hb[1]
+    if suit not in SUITS or 'X' not in auction.legal_calls():
+        return None
+    at = max(i for i, (w, c) in enumerate(auction.calls) if parse_bid(c) == (level, suit))
+    if 'artificial' in TABLE_ALERTS.get(at, '').lower():
+        return None
+    n = sum(1 for c in hand if c.suit == suit)
+    need = 5 if level <= 2 else 4
+    if n < need:
+        return None
+    mine = gib.Hand(hand).judge
+    if mine + _partner_middle(PARTNERS[player], auction, mine) < PENALTY_JUDGE:
+        return None
+    return 'X', PENALTY_ALERT.format(n=need, sym=SUIT_SYM[suit])
+
+
+def _partner_penalty_stands(player: str, auction: AuctionState) -> bool:
+    """Partner's penalty double is the last call made on the current bid."""
+    hb = auction.highest_bid
+    if hb is None or auction.doubled == 'None':
+        return False
+    for i in range(len(auction.calls) - 1, -1, -1):
+        who, call = auction.calls[i]
+        if call == 'X':
+            return who == PARTNERS[player] and TABLE_ALERTS.get(i, '').startswith('Penalty')
+        if call != 'Pass' and call != 'XX':
+            return False
+    return False
+
+
 def ai_bid_explained(player: str, hand: list[Card], auction: AuctionState) -> tuple:
     """The bid this hand would make, together with a plain-words alert saying what
     it shows. `ai_bid` returns only the call, for callers that do not want the
     explanation."""
+    if PENALTY_DOUBLE and auction.legal_calls():
+        if _partner_penalty_stands(player, auction):
+            return 'Pass', "Partner's penalty double stands."
+        decision = _ai_bid_explained(player, hand, auction)
+        if decision[0] == 'Pass':
+            return _penalty_double(player, hand, auction) or decision
+        return decision
+    return _ai_bid_explained(player, hand, auction)
+
+
+def _ai_bid_explained(player: str, hand: list[Card], auction: AuctionState) -> tuple:
     legal = auction.legal_calls()
     if not legal:
         return 'Pass', "Pass. No legal call available."

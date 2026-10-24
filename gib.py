@@ -1732,6 +1732,26 @@ def _raise_alert(x: str, text: str) -> str:
     return f"3+ {SYM[x]}, competitive." if LOTT and LOTT_SHORT else text
 
 
+#: A cuebid raise (our bid in their suit after the other partner bid a suit)
+#: shows 3+ of that suit to the LoTT, both for the partner who cuebid and for
+#: the one who reads it. Experiment, off (2026-10-24, deal 338).
+CUE_RAISE_FIT = False
+
+
+def _cue_raise(ctx: Ctx, i: int) -> str | None:
+    """The suit our call i raised by cuebidding their suit, or None."""
+    if not CUE_RAISE_FIT:
+        return None
+    who, call = ctx.ours[i]
+    if strain_of(call) not in _their_suits(ctx):
+        return None
+    for j in range(i - 1, -1, -1):
+        if ctx.ours[j][0] != who:
+            s = shown_suit(ctx.seq, j)
+            return s if s in SUITS and s not in _their_suits(ctx) else None
+    return None
+
+
 def _partner_length(ctx: Ctx, s: str) -> int:
     """The fewest cards in `s` partner's natural bids have shown."""
     theirs = _their_suits(ctx)
@@ -1740,6 +1760,9 @@ def _partner_length(ctx: Ctx, s: str) -> int:
     n = 0
     mine_first = None
     for i, (who, call) in enumerate(ctx.ours):
+        if who != ctx.me and _cue_raise(ctx, i) == s:
+            n = max(n, 3)
+            continue
         if shown_suit(ctx.seq, i) != s:
             continue
         if who == ctx.me:
@@ -1784,7 +1807,7 @@ def _total_tricks(ctx: Ctx, decision: tuple | None) -> tuple | None:
         n = ctx.h.len[s] + p
         if not p or n < 8:
             continue
-        mine = any(w == ctx.me and shown_suit(ctx.seq, i) == s
+        mine = any(w == ctx.me and s in (shown_suit(ctx.seq, i), _cue_raise(ctx, i))
                    for i, (w, _) in enumerate(ctx.ours))
         weak = LOTT_SHORT and ctx.h.hcp < LOTT_RAISE[0] and ctx.h.len[s] >= 3 \
             and ctx.h.short(s)
@@ -1799,7 +1822,8 @@ def _total_tricks(ctx: Ctx, decision: tuple | None) -> tuple | None:
     if best is None:
         return None
     s = strain_of(best[1])
-    mine = any(w == ctx.me and shown_suit(ctx.seq, i) == s for i, (w, _) in enumerate(ctx.ours))
+    mine = any(w == ctx.me and s in (shown_suit(ctx.seq, i), _cue_raise(ctx, i))
+               for i, (w, _) in enumerate(ctx.ours))
     if not mine and ctx.h.len[s] >= 3:
         return best[1], _raise_alert(s, LOTT_ALERT)
     return best[1], LOTT_ALERT
