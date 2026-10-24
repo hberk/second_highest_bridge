@@ -71,7 +71,13 @@ seats, which nets out a change both declarer and defenders use.)
 - `AUCTION_IN_PLAY`: `shown_lengths` reads each seat's suit floors off its
   alerts ("5+ ♠", "4+ ♥ ♠", "exactly 3 ♥" -- every number an alert quotes is
   true of the hand). The opening lead goes to partner's longest shown suit of
-  5+ (`_partner_suit_lead`, `PARTNER_LEAD_MIN`), and `_splits` and the endgame
+  5+ (`_partner_suit_lead`, `PARTNER_LEAD_MIN`); failing that, and on every
+  later defensive lead, to a suit partner bid naturally where I hold 3+
+  (`_fit_lead`, `FIT_LEAD_MIN`, the user's rule from board 17: lead the
+  partnership's fit), unless trumps, or an opponent or dummy is out of it.
+  A natural suit bid whose alert names no length counts as a floor of one.
+  Seated on 600 fresh deals: **+0.62 points, t = +0.48, 860 of 9,504 boards
+  changed** (4+: -0.22, t = -0.21). And `_splits` and the endgame
   search keep only layouts that fit the bidding. A human's call reads by what
   GIB would mean by it, never by the human's free-text self-alert: the apps
   ask the robots what they would bid there with sampled hands and keep that

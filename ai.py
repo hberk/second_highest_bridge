@@ -1086,7 +1086,8 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         shown = None
 
     if not trick and not played and shown:
-        choice = _partner_suit_lead(player, hand, trump, shown)
+        choice = (_partner_suit_lead(player, hand, trump, shown)
+                  or _fit_lead(player, hand, trump, shown, history, visible))
         if choice is not None:
             return choice
     if not trick:
@@ -1101,6 +1102,8 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                       if NT_SET_UP_SUIT and trump not in SUITS else None)
                   or (_sure_lead(player, hand, trump, played, visible, history)
                       if SURE_LEAD else None)
+                  or (_fit_lead(player, hand, trump, shown, history, visible)
+                      if shown and PARTNERS[player] not in (visible or {}) else None)
                   or (_nt_long_lead(player, hand, trump, played, visible)
                       if NT_LONG_LEAD else None))
         if choice is None:
@@ -1233,6 +1236,9 @@ SHOWOUT_MIDDLE = True
 AUCTION_IN_PLAY = True
 #: The shortest suit partner's bidding must show for the opening lead in it.
 PARTNER_LEAD_MIN = 5
+#: A defender on lead leads a suit partner bid naturally when holding this
+#: many of it: the partnership's fit (the user's rule, board 17).
+FIT_LEAD_MIN = 3
 
 _SUIT_OF_SYM = {'\u2660': 'S', '\u2665': 'H', '\u2666': 'D', '\u2663': 'C'}
 _SHOWN_RE = re.compile(r'(\d+)\+ ([\u2660\u2665\u2666\u2663](?: [\u2660\u2665\u2666\u2663])*)')
@@ -1244,10 +1250,13 @@ def shown_lengths(calls: list, alerts: dict) -> dict[str, dict[str, int]]:
 
     `calls` is the auction as (seat, call); `alerts` maps a call's index to
     its alert. Only alerts that are true of the hand belong here -- the
-    robots'. "4+ ♥ ♠" is four of each; "exactly 3 ♥" is three."""
+    robots'. "4+ ♥ ♠" is four of each; "exactly 3 ♥" is three. A natural
+    suit bid with no number ("Longest suit other than theirs, ♥") is one."""
     shown: dict[str, dict[str, int]] = {p: {} for p in PLAYERS}
-    for i, (seat, _) in enumerate(calls):
+    for i, (seat, call) in enumerate(calls):
         text = alerts.get(i) or ''
+        if _natural_suit(call, text):
+            shown[seat][call[-1]] = max(shown[seat].get(call[-1], 0), 1)
         for n, syms in _SHOWN_RE.findall(text):
             for sym in syms.split():
                 s = _SUIT_OF_SYM[sym]
@@ -1256,6 +1265,16 @@ def shown_lengths(calls: list, alerts: dict) -> dict[str, dict[str, int]]:
             s = _SUIT_OF_SYM[sym]
             shown[seat][s] = max(shown[seat].get(s, 0), int(n))
     return shown
+
+
+def _natural_suit(call: str, text: str) -> bool:
+    """Is `call` a bid of its own suit? Its alert names the suit and isn't
+    artificial, a splinter (short there), or a completed transfer or relay."""
+    if not isinstance(call, str) or len(call) != 2 or not call[0].isdigit() or call[1] not in SUITS:
+        return False
+    sym = next(k for k, v in _SUIT_OF_SYM.items() if v == call[1])
+    return (sym in text and 'Artificial' not in text and 'Completing' not in text
+            and 'relay' not in text and f'short {sym}' not in text)
 
 
 def _played_in(seat: str, suit: str, history: list, trick: list) -> int:
@@ -1285,6 +1304,31 @@ def _partner_suit_lead(player: str, hand: list[Card], trump: str | None,
     if not suits:
         return None
     s = max(suits, key=lambda t: (shown[partner][t], SUITS.index(t)))
+    cards = sorted((c for c in hand if c.suit == s), key=lambda c: c.value(), reverse=True)
+    return cards[min(1, len(cards) - 1)]
+
+
+def _fit_lead(player: str, hand: list[Card], trump: str | None,
+              shown: dict[str, dict[str, int]], history: list | None,
+              visible: dict[str, list[Card]] | None) -> Card | None:
+    """A defender's lead in a suit partner bid where I hold FIT_LEAD_MIN or
+    more, or None. Not trumps, and not once an opponent (or the dummy I can
+    see) is out of it, which would give a ruff. Led like any other suit."""
+    partner = PARTNERS[player]
+    out = _shown_out(history or [], [])
+    dummy = next((cards for seat, cards in (visible or {}).items() if seat != partner), None)
+    suits = []
+    for s in shown.get(partner, {}):
+        mine = [c for c in hand if c.suit == s]
+        if (s == trump or len(mine) < FIT_LEAD_MIN or s in out[partner]
+                or any(s in out[p] for p in PLAYERS if p not in (player, partner))
+                or (dummy is not None and not any(c.suit == s for c in dummy))):
+            continue
+        suits.append(s)
+    if not suits:
+        return None
+    s = max(suits, key=lambda t: (shown[partner][t] + sum(c.suit == t for c in hand),
+                                  SUITS.index(t)))
     cards = sorted((c for c in hand if c.suit == s), key=lambda c: c.value(), reverse=True)
     return cards[min(1, len(cards) - 1)]
 

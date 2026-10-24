@@ -83,6 +83,8 @@ four seats, which nets out a change both declarer and defenders use.
 | 10-20 | The endgame search starts at four cards, not three | **+0.190** | +10.29 | **+19.8** | 2,092 | on |
 | 10-21 | One position memory for every search | | | | 0 (same play, half the time) | on |
 | 10-22 | The endgame search starts at five cards, not four (measured 10-21) | **+0.204** | +9.34 | **+22.8** | 2,564 | on (your call) |
+| 10-24 | A defender on lead leads a suit partner bid naturally when holding 3+ (opening lead and later; board 17). 600 fresh deals | +0.011 | +0.48 | +0.62 | 860 of 9,504 | on, awaiting your review |
+| 10-24 | ...the same with 4+ | +0.000 | -0.21 | -0.22 | 500 of 9,504 | off |
 
 The three information rules together: +0.55 points a board, t = +0.48, 556
 boards changed. None is distinguishable from zero; they are kept because a

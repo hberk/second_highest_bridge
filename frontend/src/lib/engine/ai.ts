@@ -650,7 +650,7 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
   if (NO_PEEK_OPENING_LEAD && !trick.length && !played.length) visible = {};
   if (!AUCTION_IN_PLAY) shown = null;
   if (!trick.length && !played.length && shown) {
-    const lead0 = partnerSuitLead(player, hand, trump, shown);
+    const lead0 = partnerSuitLead(player, hand, trump, shown) ?? fitLead(player, hand, trump, shown, history, visible);
     if (lead0 !== null) return lead0;
   }
   let choice: Card;
@@ -659,6 +659,7 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
       ?? (RUFF_LEAD ? ruffLead(player, hand, trump, played, visible) : null)
       ?? (RUN_LONG_SUIT ? runLongSuit(player, hand, trump, played, visible, history, shown) : null)
       ?? (SURE_LEAD ? sureLead(player, hand, trump, played, visible, history) : null)
+      ?? (shown && !(PARTNERS[player] in visible) ? fitLead(player, hand, trump, shown, history, visible) : null)
       ?? (NT_LONG_LEAD ? ntLongLead(player, hand, trump, played, visible) : null);
     if (chosen !== null) choice = chosen;
     else {
@@ -762,6 +763,7 @@ export const NO_PEEK_OPENING_LEAD = true;
 export const SHOWOUT_MIDDLE = true;
 export const AUCTION_IN_PLAY = true;
 export const PARTNER_LEAD_MIN = 5;
+export const FIT_LEAD_MIN = 3;
 
 /** The fewest cards each seat's bidding showed in each suit. */
 export type Shown = Partial<Record<Seat, Partial<Record<Suit, number>>>>;
@@ -773,8 +775,12 @@ const EXACT_RE = /exactly (\d+) ([\u2660\u2665\u2666\u2663])/g;
 /** The fewest cards each seat's alerts promise in each suit (see ai.py). */
 export function shownLengths(calls: [Seat, string][], alerts: Record<number, string>): Shown {
   const shown: Shown = { North: {}, East: {}, South: {}, West: {} };
-  calls.forEach(([seat], i) => {
+  calls.forEach(([seat, call], i) => {
     const text = alerts[i] ?? '';
+    if (naturalSuit(call, text)) {
+      const s = call[1] as Suit;
+      shown[seat]![s] = Math.max(shown[seat]![s] ?? 0, 1);
+    }
     for (const m of text.matchAll(SHOWN_RE)) {
       for (const sym of m[2].split(' ')) {
         const s = SUIT_OF_SYM[sym];
@@ -787,6 +793,14 @@ export function shownLengths(calls: [Seat, string][], alerts: Record<number, str
     }
   });
   return shown;
+}
+
+/** Is `call` a bid of its own suit (see ai.py)? */
+function naturalSuit(call: string, text: string): boolean {
+  if (typeof call !== 'string' || call.length !== 2 || !/[0-9]/.test(call[0]) || !SUITS.includes(call[1] as Suit)) return false;
+  const sym = Object.keys(SUIT_OF_SYM).find((k) => SUIT_OF_SYM[k] === call[1])!;
+  return text.includes(sym) && !text.includes('Artificial') && !text.includes('Completing')
+    && !text.includes('relay') && !text.includes(`short ${sym}`);
 }
 
 function playedIn(seat: Seat, suit: string, history: AnyPlay[][], trick: AnyPlay[]): number {
@@ -810,6 +824,27 @@ function partnerSuitLead(player: Seat, hand: Card[], trump: string | null, shown
     .map(([s]) => s);
   if (!suits.length) return null;
   const s = maxBy(suits, (t) => [mine[t]!, suitIndex(t)]);
+  const cards = hand.filter((c) => c.suit === s).sort((a, b) => value(b) - value(a));
+  return cards[Math.min(1, cards.length - 1)];
+}
+
+function fitLead(player: Seat, hand: Card[], trump: string | null, shown: Shown,
+  history: AnyPlay[][] | null, visible: Partial<Record<Seat, Card[]>>): Card | null {
+  const partner = PARTNERS[player];
+  const out = shownOut(history ?? [], []);
+  const dummySeat = (Object.keys(visible) as Seat[]).find((seat) => seat !== partner);
+  const dummy = dummySeat === undefined ? null : visible[dummySeat]!;
+  const theirs = shown[partner] ?? {};
+  const suits: Suit[] = [];
+  for (const s of Object.keys(theirs) as Suit[]) {
+    const mine = hand.filter((c) => c.suit === s);
+    if (s === trump || mine.length < FIT_LEAD_MIN || out[partner].has(s)
+      || PLAYERS.some((p) => p !== player && p !== partner && out[p].has(s))
+      || (dummy !== null && !dummy.some((c) => c.suit === s))) continue;
+    suits.push(s);
+  }
+  if (!suits.length) return null;
+  const s = maxBy(suits, (t) => [theirs[t]! + hand.filter((c) => c.suit === t).length, suitIndex(t)]);
   const cards = hand.filter((c) => c.suit === s).sort((a, b) => value(b) - value(a));
   return cards[Math.min(1, cards.length - 1)];
 }
