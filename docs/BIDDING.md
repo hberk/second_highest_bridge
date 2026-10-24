@@ -286,6 +286,49 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     (t = +5.05); singleton values 0.5-1.5 all
     positive on the library, 1.0 best; a singleton in GIB's own `_fit_bonus`
     changed 7-12 auctions and lost 0.2 (t = -2).
+- **Game by points** (`GAME`, `GAME_MAJOR`, `NT_GAME`, `MAJOR_OVER_3NT`,
+  `RESPONSE_MIN`, `LOTT_MAX`; the user's calls, 2026-10-23). Measured with
+  `research/gib_fresh_h2h.py` on 3,000 fresh random deals (12,000 boards),
+  solving only the contracts a change moves. The library was too small and
+  pointed the wrong way: a one-level overcall on 5-6 HCP scored +1.5 to +1.8
+  there (t = +2.3) and -0.8 to -1.0 on fresh deals (t = -3.2 to -3.9), and
+  responding on 5 HCP +1.2 there and -0.78 (t = -4.9) fresh.
+  - **3NT here makes about 13% of the time at almost any HCP** (the library's
+    800 sides with 20+ HCP, best declarer), against 26% for a major game on
+    an 8-card fit. GIB bids game at 25 judgement points, and every step up
+    paid: 26 +1.21, 28 +3.00, 30 +3.99, 32 +4.62, 35 +5.10 a board. The
+    gain is in notrump and the "values" line, not the majors: a major-game
+    line of its own at 26 changed 46 auctions, +0.10. So `GAME` (3NT, a
+    minor, `continuation`'s values) is 32 and `GAME_MAJOR` 26.
+  - Opposite our 1NT/2NT, 32 sits one point under `SLAM` (33), and since
+    judgement points skip 15 the responder would never invite or use
+    Stayman: pass on 14, quantitative 4NT on 16. `NT_GAME` keeps that
+    structure at 28 and scores the same (+6.78 against +6.81).
+  - **A major game, not 3NT** (`_major_over_notrump`): instead of bidding
+    3NT, or passing partner's 3NT, bid 4M when this hand's length and what
+    partner's bids have shown (`_partner_length`; a natural notrump bid two;
+    a completed transfer nothing) make eight. A fit both have bid is left
+    alone (1M-2M-3NT, roadmap 3.7). Mostly 1M-2x-2M-3NT, where the rebid
+    shows six: fresh deal 1237, ♠AJ86543 ♥AQ98 ♦A ♣2 opposite ♠K7 ♥KJ74 ♦J8
+    ♣AK763, 3NT took 2 tricks and 4♠ takes 10. **+1.72 a board, t = +11.6,
+    410 of 23,828 boards** (5,957 deals); a 9-card line +0.46, not counting
+    notrump +0.77. The library alone: 17 auctions, -0.05.
+  - Responding at 7 HCP, not 6: +0.52 (t = +2.7). Law of Total Tricks to the
+    five level with 11 trumps: +0.19 (t = +2.4).
+  - Measured and left off: never bidding 3NT at all, +0.7 to +1.4 on the
+    library (t < 1; the 3NTs that make pay too much); an overcall at 10+ HCP
+    +0.12 (t = +0.5); a takeout double at 14+ +0.03.
+  - All of it together, against the robots before: **+6.78 a board,
+    t = +14.6, 2,220 of 12,000 boards changed**. Game-or-higher contracts
+    fall from 36% of boards to 28% (500 fresh deals).
+  - **The jack counts 1 judgement point** (`Hand.judge`, the user's call): it
+    counted 0, rounded from a 100-deal fit that lumped it with the 8 down to
+    the 5; the 400-deal fit below has J +0.23 tricks, level with the 10
+    (+0.20) and 9 (+0.20) and above the ace (+0.08). With it K=Q=3,
+    A=J=10=9=1 is 40 a deck, so no rescaling. Against the robots above:
+    **+1.17 a board, t = +4.5, 516 auctions changed** (3,000 fresh deals).
+    With it, 3NT at 34 +1.27 (inside the noise of the same line), at 30
+    +0.45, majors at 27 +0.89; a jack worth 2 +0.79.
 
 ## The previous system (`ai.USE_GIB = False`)
 

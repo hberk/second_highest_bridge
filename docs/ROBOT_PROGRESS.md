@@ -18,7 +18,8 @@ graded from N/S as the app grades):
 
 | measured | robots | lost in the auction | lost in the card play |
 |---|---|---|---|
-| 2026-10-23 | the same robots, graded with the partner who declared (every declarer solved) | **244.0** | **-5.0** |
+| 2026-10-23 | shortness once a fit is agreed (PR #26) and game by points (PR #28) | **240.1** | **2.9** |
+| 2026-10-23 | the same robots as 10-22, graded with the partner who declared (every declarer solved) | 244.0 | -5.0 |
 | 2026-10-22 | the Law of Total Tricks and the fit count (bidding) | 235.4 | 6.1 |
 | 2026-10-21 | every rule below, through the four-card endgame search | 234.9 | 6.9 |
 | 2026-10-19 | every rule up to then | 233.9 | 7.1 |
@@ -130,6 +131,16 @@ from the variant's side; t as above.
 | 10-23 | ...the void valued at exactly game instead | +1.72 | +7.15 | 1,315 | off (your call: the higher ceiling pays) |
 | 10-23 | ...the singleton alone | +0.86 | +5.05 | 806 | (part of the row above) |
 | 10-23 | A singleton in GIB's own fit count (`_fit_bonus`), 1-3 points | -0.21 to -0.26 | -1.7 to -2.0 | 7-12 | off |
+| 10-23 | Game by points: 3NT and minors at 32 judgement points (was 25), majors 26, opposite our 1NT/2NT 28; 4M over 3NT on a known 8-card major fit; respond on 7 HCP; LoTT to five. 3,000 fresh deals, 12,000 boards (`gib_fresh_h2h.py`) | **+6.78** | +14.61 | 2,220 | on (your call) |
+| 10-23 | The jack counts 1 judgement point, not 0 (on top of the row above; 3,000 fresh deals) | **+1.17** | +4.46 | 516 | on (your call) |
+| 10-23 | ...and 3NT at 34; at 30; majors at 27; a jack worth 2 | +1.27; +0.45; +0.89; +0.79 | +4.73; +1.62; +3.29; +2.25 | 553; 637; 559; 933 | off |
+| 10-23 | ...4M over 3NT alone (5,957 fresh deals) | **+1.72** | +11.56 | 410 | (part of the row above) |
+| 10-23 | ...game at 32 alone; at 28 | **+4.62**; +3.00 | +10.27; +8.64 | 2,097; 1,366 | (part of the row above) |
+| 10-23 | ...a major game at 26 alone | +0.10 | +1.70 | 46 | (part of the row above) |
+| 10-23 | A one-level overcall on 5 or 6 HCP (was 8): +1.5 to +1.8 on the library, then on fresh deals | -0.76 to -1.00 | -3.2 to -3.9 | 487-627 | off |
+| 10-23 | Responding on 5 HCP (was 6): +1.2 on the library, then on fresh deals | -0.78 | -4.94 | 260 | off |
+| 10-23 | Never bidding 3NT (library) | +0.67 to +1.37 | +0.45 to +0.98 | 289 | off |
+| 10-23 | Overcall at 10+ HCP; takeout double at 14+ (fresh) | +0.12; +0.03 | +0.50; +0.35 | 497; 132 | off |
 
 ### The previous system (`ai_bid`)
 

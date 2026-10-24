@@ -70,7 +70,7 @@ and Challenge in the Felt style).
 |---|---|---|---|---|
 | B1 | Every call is explained before you make it (two taps), from what the robots mean by it | P1 | Met | `BidPad`, `meanings.test.ts` |
 | B2 | When GIB has no rule, the fallback doesn't misread the auction; close the measured handoff gaps | P1 | Partial: 1.1, 1.2 done; 1.3-1.6 open | ROADMAP 1, `research/gib_handoffs.py` |
-| B3 | Robots reach makeable games and slams: bid game on a known fit, bid slam with fit and shortness. Measured head to head, never from one side | P1 | Open. LoTT and fit count shipped (+4.66 a board); robots bid slam on 8 of 3,008 makeable boards; 101 solved slam deals ready (PR #26) | `research/gib_h2h.py`, BIDDING.md |
+| B3 | Robots reach makeable games and slams: bid game on a known fit, bid slam with fit and shortness. Measured head to head, never from one side | P1 | Open. LoTT and fit count shipped (+4.66 a board); shortness +2.62; game by points (3NT at 32, majors 26, 4M over 3NT) +6.78 (2026-10-23); slam doesn't pay here (BIDDING.md) | `research/gib_h2h.py`, BIDDING.md |
 | B4 | Alerts state what a call shows, true of the hand, from the auction and call only, under 70 characters; pass reasons hidden while the board is live | P0 | Met | machine-checked, ARCHITECTURE.md |
 | B5 | You can alert your own calls; the text is cleaned and escaped | P1 | Met | `cleanAlert`, `lin.test.ts` bans `{@html}` |
 | B6 | GIB stays the system; the old one only as fallback (`ai.USE_GIB`) | P0 | Met | the GIB guardrail in CLAUDE.md |
