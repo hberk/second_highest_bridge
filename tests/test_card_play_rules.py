@@ -1,7 +1,7 @@
-"""The card-play rules from the user's review of deals 43, 92, 156 and 174.
+"""The card-play rules from the user's review of deals 43, 92, 156, 174 and 356.
 
 Each is a switch in ai.py (SURE_LEAD_DECLARER, RUFF_LEAD, FORCE_DUMMY,
-DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT). Every test sets the switches it needs and puts them back, so
+DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT, DEFENDER_SUIT_PLAN). Every test sets the switches it needs and puts them back, so
 the result doesn't depend on which rules are adopted.
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ import challenge
 from card import Card
 
 RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
-         'LIVE_LEAD', 'NT_SET_UP_SUIT')
+         'LIVE_LEAD', 'NT_SET_UP_SUIT', 'DEFENDER_SUIT_PLAN')
 
 
 @contextmanager
@@ -217,6 +217,41 @@ def test_a_live_lead_still_leads_a_dead_card_when_every_suit_is_dead():
     with rules(LIVE_LEAD=True):
         assert ai._lead(hand, None, []) == before
 
+
+# Deal 356, 3S by East, dummy West. North won trick 2 with the 10C and leads
+# from 10-9-6 of hearts: the A K Q J are gone and dummy's 8H is its last heart.
+DEAL_356 = ['S:KH W:JH N:QH E:AH', 'S:JC W:5C N:10C E:3C']
+
+
+def _lead_356():
+    hands, played, history = replay(356, DEAL_356)
+    view = ai.visible_hands('North', {'declarer': 'East', 'dummy': 'West'}, hands)
+    return ai.ai_play('North', hands['North'], [], 'S', played, view, history)
+
+
+def test_deal_356_led_the_nine_sure_to_be_highest():
+    with rules():
+        assert _lead_356() == C('9H')
+
+
+def test_deal_356_suit_plan_leads_the_six():
+    """The 9H can only be highest, so dummy's 8H wins and dummy can then ruff;
+    the 6H lets South's 7H be second-highest (double dummy: 3S+1 after the
+    nine, one down after the six)."""
+    with rules(DEFENDER_SUIT_PLAN=True):
+        assert _lead_356() == C('6H')
+
+
+def test_suit_plan_on_deal_356s_real_layout():
+    """With South's 7-3-2 and East's 5-4: after the 9H dummy wins and ruffs
+    every heart after, so the defence takes none; after the 6H, South's 7H wins."""
+    v = lambda *ranks: tuple(sorted(C(r + 'H').value() for r in ranks))
+    # Seats from North: North, East (declarer), South, West (dummy, can ruff).
+    hands = (v('10', '9', '6'), v('5', '4'), v('7', '3', '2'), v('8'))
+    ruffs = (False, True, False, True)
+    order = [0, 1, 2, 3]
+    assert ai._plan_trick(hands, ruffs, [(0, C('9H').value())], order, {}) == 0
+    assert ai._plan_trick(hands, ruffs, [(0, C('6H').value())], order, {}) == 1
 
 if __name__ == '__main__':
     failed = 0

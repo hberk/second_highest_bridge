@@ -1090,6 +1090,7 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         if choice is not None:
             return choice
     if not trick:
+        sure = None
         choice = ((_draw_trump(player, hand, trump, played, visible, history, shown)
                    if DRAW_TRUMPS else None)
                   or (_ruff_lead(player, hand, trump, played, visible)
@@ -1099,25 +1100,20 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                   or (_run_long_suit(player, hand, trump, played, visible, history, shown,
                                      max_losers=float('inf'))
                       if NT_SET_UP_SUIT and trump not in SUITS else None)
-                  or (_sure_lead(player, hand, trump, played, visible, history)
+                  or ((sure := _sure_lead(player, hand, trump, played, visible, history))
                       if SURE_LEAD else None)
                   or (_nt_long_lead(player, hand, trump, played, visible)
                       if NT_LONG_LEAD else None))
-        if (DEFENDER_SUIT_PLAN and choice is not None
-                and not (SURE_LEAD and choice == _sure_lead(player, hand, trump, played,
-                                                             visible, history))):
+        if DEFENDER_SUIT_PLAN and choice is not None and choice != sure:
+            # A sure trick is cashed as it is; another defence lead (the long
+            # suit in notrump) still has its card planned.
             choice = _defender_suit_plan(player, hand, trump, played, visible, history,
                                          shown, choice) or choice
         if choice is None:
-            declaring = bool(visible) and PARTNERS[player] in visible
-            choice = _lead(hand, trump, played,
-                           LIVE_LEAD_CARD_DECLARER if declaring else LIVE_LEAD_CARD_DEFENCE)
+            choice = _lead(hand, trump, played)
             if DEFENDER_SUIT_PLAN:
                 choice = _defender_suit_plan(player, hand, trump, played, visible, history,
                                              shown, choice) or choice
-            if LIVE_LEAD_DUMMY_LAST:
-                choice = _live_lead_dummy_last(player, hand, trump, played, visible,
-                                               choice) or choice
             if SURE_LEAD_DECLARER:
                 choice = _sure_lead_declarer(player, hand, trump, played, visible, history,
                                              choice.suit) or choice
@@ -2348,40 +2344,6 @@ def _nt_long_lead(player: str, hand: list[Card], trump: str | None,
 #: West's own, so no one could play one and make the king second-highest;
 #: `_gap` scored A-K the best holding of all, nothing between the top two.
 LIVE_LEAD = False
-#: In the suit `_lead` chose, a dead second-highest card gives way to the
-#: highest live one (measurement switch). Deal 356, 3S by East: North led the
-#: 9H from 10-9-6 with A K Q J gone and dummy's 8H in view. Nobody else held a
-#: higher heart, so the nine was sure to be highest and dummy's eight won;
-#: the 6H leaves partner's 7H room to be second-highest.
-LIVE_LEAD_CARD = False
-#: The same, for the defence's leads only, or the declaring side's only.
-LIVE_LEAD_CARD_DEFENCE = False
-LIVE_LEAD_CARD_DECLARER = False
-#: The narrow form, for a defender in a trump contract only: the dead card
-#: gives way when dummy holds its LAST card of the suit and still has trumps,
-#: so the trick decides whether dummy wins it and is then void to ruff.
-LIVE_LEAD_DUMMY_LAST = False
-
-
-def _live_lead_dummy_last(player: str, hand: list[Card], trump: str | None,
-                          played: list[Card], visible: dict[str, list[Card]] | None,
-                          choice: Card) -> Card | None:
-    """The highest live card of the led suit, when the narrow rule applies."""
-    if trump not in SUITS or choice.suit == trump or not visible:
-        return None
-    if PARTNERS[player] in visible:
-        return None                       # the declaring side
-    gone = set(played)
-    if not _dead(choice, hand, gone):
-        return None
-    dummy = next(iter(visible))
-    held = visible[dummy]
-    if (sum(1 for c in held if c.suit == choice.suit) != 1
-            or not any(c.suit == trump for c in held)):
-        return None
-    live = sorted((c for c in hand if c.suit == choice.suit and not _dead(c, hand, gone)),
-                  key=lambda c: c.value(), reverse=True)
-    return live[0] if live else None
 
 
 # ── Defender plans the suit it leads ─────────────────────────────────────────
@@ -2393,7 +2355,9 @@ def _live_lead_dummy_last(player: str, hand: list[Card], trump: str | None,
 # goes further: a "dead" card is not useless, since played under partner's
 # lead it pushes partner's card into second place, and in notrump that is how
 # partner's suit runs. So whether to lead the dead card turns on the whole
-# suit, not on the one trick: count-based rules measured even.
+# suit, not on the one trick. Two count-based rules measured even: leading
+# the highest live card instead of a dead one (all leads, or the defence's
+# alone), and the same only in a trump contract against dummy's last card.
 #
 # Here a defender who sees dummy plays its lead suit out, for every way the
 # unseen cards of the suit can lie between partner and declarer (fitting who
@@ -2408,7 +2372,7 @@ def _live_lead_dummy_last(player: str, hand: list[Card], trump: str | None,
 
 #: A defender who sees dummy chooses the card of its lead suit by playing the
 #: suit out over every layout (measurement switch).
-DEFENDER_SUIT_PLAN = False
+DEFENDER_SUIT_PLAN = True
 #: The most unseen cards of the suit the plan will enumerate (2^n layouts).
 SUIT_PLAN_MAX_UNSEEN = 9
 
@@ -2533,8 +2497,7 @@ def _defender_suit_plan(player: str, hand: list[Card], trump: str | None,
     return max((c for c in mine if totals[c] == best), key=lambda c: c.value())
 
 
-def _lead(hand: list[Card], trump: str | None, played: list[Card],
-          live_card: bool = False) -> Card:
+def _lead(hand: list[Card], trump: str | None, played: list[Card]) -> Card:
     """
     Pick the best suit using gap analysis, then lead its 2nd-highest card.
     """
@@ -2546,12 +2509,7 @@ def _lead(hand: list[Card], trump: str | None, played: list[Card],
     def lead_from(s: str) -> Card:
         cards = sorted(groups[s], key=lambda c: c.value(), reverse=True)
         # Lead 2nd-highest — the card positioned to be 2nd in the trick
-        card = cards[min(1, len(cards) - 1)]
-        if (LIVE_LEAD_CARD or live_card) and _dead(card, hand, gone):
-            live = [c for c in cards if not _dead(c, hand, gone)]
-            if live:
-                return live[0]
-        return card
+        return cards[min(1, len(cards) - 1)]
 
     def suit_score(s: str) -> tuple:
         g = _gap(s, hand, played)
