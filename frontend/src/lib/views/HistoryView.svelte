@@ -245,12 +245,12 @@
     {/if}
 
     <div class="hv-seat"><SeatBox seat="North" role={role(c, 'North')} hand={view.remaining.North} {...boxProps('North')} /></div>
-    <TrickFelt trick={view.trick} winner={view.winner} labels={labels!} />
-    <p class="trick-line">{trickLine}</p>
-    <div class="hv-hands">
+    <div class="hv-compass">
       <SeatBox seat="West" role={role(c, 'West')} hand={view.remaining.West} {...boxProps('West')} />
+      <TrickFelt trick={view.trick} winner={view.winner} labels={labels!} />
       <SeatBox seat="East" role={role(c, 'East')} hand={view.remaining.East} {...boxProps('East')} />
     </div>
+    <p class="trick-line">{trickLine}</p>
     <div class="hv-seat"><SeatBox seat="South" role={role(c, 'South')} hand={view.remaining.South} {...boxProps('South')} /></div>
 
     <div class="hv-controls">
