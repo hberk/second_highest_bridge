@@ -1104,7 +1104,9 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                   or (_nt_long_lead(player, hand, trump, played, visible)
                       if NT_LONG_LEAD else None))
         if choice is None:
-            choice = _lead(hand, trump, played)
+            declaring = bool(visible) and PARTNERS[player] in visible
+            choice = _lead(hand, trump, played,
+                           LIVE_LEAD_CARD_DECLARER if declaring else LIVE_LEAD_CARD_DEFENCE)
             if SURE_LEAD_DECLARER:
                 choice = _sure_lead_declarer(player, hand, trump, played, visible, history,
                                              choice.suit) or choice
@@ -2335,9 +2337,19 @@ def _nt_long_lead(player: str, hand: list[Card], trump: str | None,
 #: West's own, so no one could play one and make the king second-highest;
 #: `_gap` scored A-K the best holding of all, nothing between the top two.
 LIVE_LEAD = False
+#: In the suit `_lead` chose, a dead second-highest card gives way to the
+#: highest live one (measurement switch). Deal 356, 3S by East: North led the
+#: 9H from 10-9-6 with A K Q J gone and dummy's 8H in view. Nobody else held a
+#: higher heart, so the nine was sure to be highest and dummy's eight won;
+#: the 6H leaves partner's 7H room to be second-highest.
+LIVE_LEAD_CARD = False
+#: The same, for the defence's leads only, or the declaring side's only.
+LIVE_LEAD_CARD_DEFENCE = False
+LIVE_LEAD_CARD_DECLARER = False
 
 
-def _lead(hand: list[Card], trump: str | None, played: list[Card]) -> Card:
+def _lead(hand: list[Card], trump: str | None, played: list[Card],
+          live_card: bool = False) -> Card:
     """
     Pick the best suit using gap analysis, then lead its 2nd-highest card.
     """
@@ -2349,7 +2361,12 @@ def _lead(hand: list[Card], trump: str | None, played: list[Card]) -> Card:
     def lead_from(s: str) -> Card:
         cards = sorted(groups[s], key=lambda c: c.value(), reverse=True)
         # Lead 2nd-highest — the card positioned to be 2nd in the trick
-        return cards[min(1, len(cards) - 1)]
+        card = cards[min(1, len(cards) - 1)]
+        if (LIVE_LEAD_CARD or live_card) and _dead(card, hand, gone):
+            live = [c for c in cards if not _dead(c, hand, gone)]
+            if live:
+                return live[0]
+        return card
 
     def suit_score(s: str) -> tuple:
         g = _gap(s, hand, played)
