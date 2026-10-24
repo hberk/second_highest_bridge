@@ -96,14 +96,15 @@ class Hand:
         self.controls = sum(2 if c.rank == 'A' else 1 if c.rank == 'K' else 0
                             for c in cards)
         # Judgement points: honours valued the way THIS game values them
-        # (fitted: K and Q +0.281 tricks, A, 10 and 9 +0.117, J and below
-        # nothing or less), as K=Q=3, A=10=9=1, scaled so a deck still holds
-        # 40. GIB's ranges stay in HCP -- what a bid SHOWS -- but whether to
+        # (fitted on 400 deals: K +0.44 tricks, Q +0.37, J +0.23, 10 and 9
+        # +0.20, A +0.08), as K=Q=3, A=J=10=9=1: a deck still holds 40. The
+        # jack counted 0 until 2026-10-23, from a 100-deal fit; at 1 it
+        # scored +1.17 a board (BIDDING.md, "Game by points"). GIB's ranges stay in HCP -- what a bid SHOWS -- but whether to
         # stop, invite or bid game is judged on these. A 15-count of aces and
         # kings is a 1NT opening and still a poor dummy for game here.
-        raw = sum(3 if c.rank in ('K', 'Q') else 1 if c.rank in ('A', '10', '9') else 0
-                  for c in cards)
-        self.judge = (10 * raw + 4) // 9 if JUDGE_BY_VARIANT else self.hcp
+        judge = sum(3 if c.rank in ('K', 'Q') else 1 if c.rank in ('A', 'J', '10', '9') else 0
+                    for c in cards)
+        self.judge = judge if JUDGE_BY_VARIANT else self.hcp
 
     def has(self, suit: str, rank: str) -> bool:
         return any(c.rank == rank for c in self.groups[suit])

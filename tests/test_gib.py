@@ -540,7 +540,7 @@ def test_advancer_bids_game_over_a_two_suited_overcall():
     game = gib.GAME
     gib.GAME = 25
     try:
-        call, why = bid('QS 2S 2H QD 10D 9D 7D 4D KC QC JC 9C 6C', '1D', '2NT', 'Pass', dealer='West')
+        call, why = bid('QS 2S 2H QD 10D 9D 7D 4D KC QC JC 10C 9C', '1D', '2NT', 'Pass', dealer='West')
     finally:
         gib.GAME = game
     assert call == '5C' and 'game values' in why, (call, why)

@@ -321,6 +321,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   - All of it together, against the robots before: **+6.78 a board,
     t = +14.6, 2,220 of 12,000 boards changed**. Game-or-higher contracts
     fall from 36% of boards to 28% (500 fresh deals).
+  - **The jack counts 1 judgement point** (`Hand.judge`, the user's call): it
+    counted 0, rounded from a 100-deal fit that lumped it with the 8 down to
+    the 5; the 400-deal fit below has J +0.23 tricks, level with the 10
+    (+0.20) and 9 (+0.20) and above the ace (+0.08). With it K=Q=3,
+    A=J=10=9=1 is 40 a deck, so no rescaling. Against the robots above:
+    **+1.17 a board, t = +4.5, 516 auctions changed** (3,000 fresh deals).
+    With it, 3NT at 34 +1.27 (inside the noise of the same line), at 30
+    +0.45, majors at 27 +0.89; a jack worth 2 +0.79.
 
 ## The previous system (`ai.USE_GIB = False`)
 

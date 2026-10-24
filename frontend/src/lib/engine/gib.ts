@@ -91,9 +91,10 @@ export class Hand {
       - (sh === '4,3,3,3' ? 1 : 0);
     this.balanced = sh === '4,3,3,3' || sh === '4,4,3,2' || sh === '5,3,3,2';
     this.controls = cards.reduce((n, c) => n + (c.rank === 'A' ? 2 : c.rank === 'K' ? 1 : 0), 0);
-    const raw = cards.reduce((n, c) => n + (c.rank === 'K' || c.rank === 'Q' ? 3
-      : c.rank === 'A' || c.rank === '10' || c.rank === '9' ? 1 : 0), 0);
-    this.judge = settingsGib.judgeByVariant ? Math.floor((10 * raw + 4) / 9) : this.hcp;
+    // K=Q=3, A=J=10=9=1: a deck holds 40 (the jack counted 0 until 2026-10-23). See gib.py.
+    const judge = cards.reduce((n, c) => n + (c.rank === 'K' || c.rank === 'Q' ? 3
+      : c.rank === 'A' || c.rank === 'J' || c.rank === '10' || c.rank === '9' ? 1 : 0), 0);
+    this.judge = settingsGib.judgeByVariant ? judge : this.hcp;
   }
 
   has(suit: Suit, rank: string): boolean {
