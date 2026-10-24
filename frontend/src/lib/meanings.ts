@@ -34,7 +34,7 @@ export function prng(seed: number): () => number {
 }
 
 /** FNV-1a over the auction: the seed, so an auction always samples alike. */
-function seedOf(auction: AuctionState): number {
+export function seedOf(auction: AuctionState): number {
   const text = `${auction.dealer}|${auction.vulnerability}|${auction.calls.map(([, c]) => c).join(' ')}`;
   let h = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
@@ -50,7 +50,7 @@ function weightedHand(rnd: () => number, weight: (c: Card) => number): Card[] {
 }
 
 /** A hand from a mix of shapes and strengths, so rare calls get asked about. */
-function sampleHand(rnd: () => number): Card[] {
+export function sampleHand(rnd: () => number): Card[] {
   const pick = rnd();
   const suit = SUITS[Math.floor(rnd() * 4)];
   const other = SUITS[Math.floor(rnd() * 4)];

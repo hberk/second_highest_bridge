@@ -274,8 +274,10 @@ def test_cappelletti_over_their_1nt():
 def test_takeout_doubles_stop_at_4h():
     strong = 'AS KS QH JH 7H 2H AD QD 9D 6D AC 5C 3C'
     assert bid(strong, '4H')[0] == 'X'
-    assert bid(strong.replace('AS KS', 'AH KH').replace('QH JH 7H 2H', 'QS JS 7S 2S'),
-               '4S')[0] != 'X'
+    # Over 4S no takeout double; four trumps and the values make it a penalty
+    # double instead (ai.PENALTY_DOUBLE).
+    call, why = bid(strong.replace('AS KS', 'AH KH').replace('QH JH 7H 2H', 'QS JS 7S 2S'), '4S')
+    assert call != 'X' or why.startswith('Penalty'), (call, why)
 
 
 # ── Slam conventions ──────────────────────────────────────────────────────────

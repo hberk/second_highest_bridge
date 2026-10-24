@@ -1734,8 +1734,9 @@ def _raise_alert(x: str, text: str) -> str:
 
 #: A cuebid raise (our bid in their suit after the other partner bid a suit)
 #: shows 3+ of that suit to the LoTT, both for the partner who cuebid and for
-#: the one who reads it. Experiment, off (2026-10-24, deal 338).
-CUE_RAISE_FIT = False
+#: the one who reads it (2026-10-24, deal 338: 1♦ 1♠ X 2♦ - 2♠ 3♥ passed
+#: out with ten spades). Fresh deals, head to head: +0.24 a board, t = +2.9.
+CUE_RAISE_FIT = True
 
 
 def _cue_raise(ctx: Ctx, i: int) -> str | None:

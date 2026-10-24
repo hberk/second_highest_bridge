@@ -1645,6 +1645,26 @@ export function raiseAlert(x: Suit, text: string): string {
   return LOTT && LOTT_SHORT ? `3+ ${SYM[x]}, competitive.` : text;
 }
 
+/** A cuebid raise (our bid in their suit after the other partner bid a suit)
+ *  shows 3+ of that suit to the LoTT, both for the partner who cuebid and for
+ *  the one who reads it (2026-10-24, deal 338). See gib.py. */
+export const CUE_RAISE_FIT = true;
+
+/** The suit our call i raised by cuebidding their suit, or null. */
+function cueRaise(ctx: Ctx, i: number): Suit | null {
+  if (!CUE_RAISE_FIT) return null;
+  const [who, call] = ctx.ours[i];
+  if (!theirSuits(ctx).includes(strainOf(call) as Suit)) return null;
+  for (let j = i - 1; j >= 0; j--) {
+    if (ctx.ours[j][0] !== who) {
+      const s = shownSuit(ctx.seq, j);
+      return s !== null && (SUITS as readonly string[]).includes(s) && !theirSuits(ctx).includes(s as Suit)
+        ? s as Suit : null;
+    }
+  }
+  return null;
+}
+
 /** The fewest cards in `s` partner's natural bids have shown. */
 function partnerLength(ctx: Ctx, s: Suit): number {
   if (theirSuits(ctx).includes(s)) return 0;
@@ -1652,6 +1672,10 @@ function partnerLength(ctx: Ctx, s: Suit): number {
   let mineFirst: number | null = null;
   for (let i = 0; i < ctx.ours.length; i++) {
     const [who, call] = ctx.ours[i];
+    if (who !== ctx.me && cueRaise(ctx, i) === s) {
+      n = Math.max(n, 3);
+      continue;
+    }
     if (shownSuit(ctx.seq, i) !== s) continue;
     if (who === ctx.me) {
       if (mineFirst === null) mineFirst = i;
@@ -1689,7 +1713,8 @@ function totalTricks(ctx: Ctx, decision: Decision | null): Decision | null {
     const p = partnerLength(ctx, s);
     const n = ctx.h.len[s] + p;
     if (!p || n < 8) continue;
-    const mine = ctx.ours.some(([w], i) => w === ctx.me && shownSuit(ctx.seq, i) === s);
+    const mine = ctx.ours.some(([w], i) => w === ctx.me
+      && (shownSuit(ctx.seq, i) === s || cueRaise(ctx, i) === s));
     const weak = LOTT_SHORT && ctx.h.hcp < LOTT_RAISE[0] && ctx.h.len[s] >= 3
       && ctx.h.short(s).length > 0;
     if (!mine && !weak && !(LOTT_RAISE[0] <= ctx.h.hcp && ctx.h.hcp <= LOTT_RAISE[1])) continue;
@@ -1700,7 +1725,8 @@ function totalTricks(ctx: Ctx, decision: Decision | null): Decision | null {
   }
   if (best === null) return null;
   const s = strainOf(best[1]) as Suit;
-  const mine = ctx.ours.some(([w], i) => w === ctx.me && shownSuit(ctx.seq, i) === s);
+  const mine = ctx.ours.some(([w], i) => w === ctx.me
+    && (shownSuit(ctx.seq, i) === s || cueRaise(ctx, i) === s));
   if (!mine && ctx.h.len[s] >= 3) return [best[1], raiseAlert(s, LOTT_ALERT)];
   return [best[1], LOTT_ALERT];
 }

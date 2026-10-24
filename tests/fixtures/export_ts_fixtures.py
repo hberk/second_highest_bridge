@@ -86,7 +86,8 @@ def play_game(hands, dealer, vul, rng: random.Random | None):
                 call = 'Pass'
             why = None
         else:
-            call, why = ai_bid_explained(who, hands[who], auction)
+            call, why = ai_bid_explained(who, hands[who], auction,
+                                         {i: c[2] for i, c in enumerate(calls) if c[2]})
         calls.append([who, call, why, auction.legal_calls()])
         auction.apply_call(who, call)
 
