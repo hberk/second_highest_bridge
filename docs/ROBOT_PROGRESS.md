@@ -18,7 +18,8 @@ graded from N/S as the app grades):
 
 | measured | robots | lost in the auction | lost in the card play |
 |---|---|---|---|
-| 2026-10-23 | shortness once a fit is agreed (PR #26) and game by points (PR #28) | **240.1** | **2.9** |
+| 2026-10-24 | the penalty double where X is free, a cuebid raise read as support | **240.8** | **3.7** |
+| 2026-10-23 | shortness once a fit is agreed (PR #26) and game by points (PR #28) | 240.1 | 2.9 |
 | 2026-10-23 | the same robots as 10-22, graded with the partner who declared (every declarer solved) | 244.0 | -5.0 |
 | 2026-10-22 | the Law of Total Tricks and the fit count (bidding) | 235.4 | 6.1 |
 | 2026-10-21 | every rule below, through the four-card endgame search | 234.9 | 6.9 |

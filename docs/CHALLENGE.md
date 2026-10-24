@@ -24,19 +24,23 @@ which a single score cannot answer. Measured 2026-10-19, with every card-play ru
 (6,356 boards with a contract, 44 passed out), graded from N/S as the app
 grades, so this is what the "Robots" column of the match table averages to.
 The web app's Challenge caption quotes this table; rerun the script after a
-robot change and update both together. Measured 2026-10-23, after shortness
-(PR #26) and game by points (PR #28), graded with the partner who actually
-declared (the library holds every declarer's count; par takes the better
-partner):
+robot change and update both together. Measured 2026-10-24, after the
+penalty double and the cuebid raise read as support, graded with the partner
+who actually declared (the library holds every declarer's count; par takes
+the better partner):
 
 | | mean per board | median |
 |---|---|---|
-| lost in the auction | **240.1** | 200.0 |
-| lost in the card play | **2.9** | **0.0** |
+| lost in the auction | **240.8** | 200.0 |
+| lost in the card play | **3.7** | **0.0** |
 
-All four seats bid the new way, so what one side gains head to head (+6.78
-and +2.62 a board) the other gains back. Graded from the declaring side:
-209.1 in the auction and -35.8 in the card play.
+All four seats bid the new way, so what one side gains head to head (+4.34
+a board) the other gains back. Graded from the declaring side: 214.8 in the
+auction and -40.4 in the card play.
+
+On 2026-10-23, after shortness (PR #26) and game by points (PR #28): 240.1
+and 2.9 from N/S, 209.1 and -35.8 from the declaring side; there too all
+four seats moved together (+6.78 and +2.62 a board head to head).
 
 Before those two, the robots of 2026-10-22 measured 244.0 and -5.0 from N/S.
 Graded from the declaring side instead: 214.5 in the auction and **-39.6** in
