@@ -976,7 +976,36 @@ button { touch-action: manipulation; }
 
 .hv .seat-box { box-shadow: none; }
 .hv .hd-line { font-size: 16px; }
-.hv-hands { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* The deal as a compass: West and East either side of the felt, North and
+   South above and below it (.hv-seat). On a phone the felt narrows to a
+   column of small cards and drops its seat labels, since the hands beside
+   it already say whose card is whose. */
+.hv-compass { display: grid; grid-template-columns: minmax(0, 1fr) 120px minmax(0, 1fr); gap: 6px; align-items: center; }
+.hv-compass .trick-felt { height: auto; min-height: 190px; align-self: stretch; border-radius: 60px; }
+.hv-compass .tf-card, .hv-compass .tf-slot { width: 34px; height: 50px; border-radius: 6px; }
+.hv-compass .tf-rank, .hv-compass .tf-suit { font-size: 15px; }
+.hv-compass .tf-north { top: 8px; }
+.hv-compass .tf-south { bottom: 8px; }
+.hv-compass .tf-west { left: 4px; }
+.hv-compass .tf-east { right: 4px; }
+.hv-compass .tf-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.hv-compass .tf-badge { display: none; }
+.hv-compass .hand-diagram { padding: 6px 6px 8px; }
+.hv-compass .hd-line { gap: 4px; font-size: 15px; letter-spacing: 0; }
+.hv-compass .hd-ranks { white-space: normal; word-break: break-all; }
+@media (min-width: 720px) {
+    .hv-compass { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr); gap: 8px; }
+    .hv-compass .trick-felt { min-height: 240px; border-radius: 120px; }
+    .hv-compass .tf-card, .hv-compass .tf-slot { width: 54px; height: 76px; border-radius: 8px; }
+    .hv-compass .tf-rank, .hv-compass .tf-suit { font-size: 20px; }
+    .hv-compass .tf-west { left: 14px; }
+    .hv-compass .tf-east { right: 14px; }
+    .hv-compass .tf-label { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+    .hv-compass .tf-badge { display: block; }
+    .hv-compass .hand-diagram { padding: 6px 10px 8px; }
+    .hv-compass .hd-line { gap: 6px; font-size: 16px; letter-spacing: 0.5px; }
+    .hv-compass .hd-ranks { white-space: nowrap; }
+}
 .hv .trick-felt { margin-top: 0; }
 .hv .trick-line { margin: 0; }
 
