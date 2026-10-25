@@ -1428,6 +1428,10 @@ RUFF_RETURN = True
 #: shows out.
 SHORT_LEAD_RETURN = True
 SHORT_LEAD_PCT = 20
+#: An honour lead (this value or higher: 9 is the jack) is read by counting
+#: alone, not by the lead convention: people lead honours from sequences and
+#: other holdings (deal 356: K♥ from K-7-3-2). Your call, 10-25.
+SHORT_LEAD_HONOUR = 9
 
 _SUIT_OF_SYM = {'\u2660': 'S', '\u2665': 'H', '\u2666': 'D', '\u2663': 'C'}
 _SHOWN_RE = re.compile(r'(\d+)\+ ([\u2660\u2665\u2666\u2663](?: [\u2660\u2665\u2666\u2663])*)')
@@ -1563,7 +1567,8 @@ def _short_lead(player: str, hand: list[Card], trump: str | None, history: list,
     number of the lower ones; a singleton leaves partner none. Every split of
     the unseen cards between partner and declarer that fits that (and
     declarer's bid length) is counted, weighted by the ways to fill each hand
-    with other cards. Never once partner has followed to the suit again."""
+    with other cards. An honour's card says nothing (SHORT_LEAD_HONOUR): then
+    any split counts. Never once partner has followed to the suit again."""
     partner, lead = history[0][0]
     if partner != PARTNERS[player]:
         return None
@@ -1586,8 +1591,12 @@ def _short_lead(player: str, hand: list[Card], trump: str | None, history: list,
                 - _played_in(declarer, suit, history, []))
     total = higher + lower
     single = comb(others, held) if total >= floor else 0
-    longer = sum(higher * comb(lower, j) * comb(others, held - 1 - j)
-                 for j in range(lower + 1) if total - 1 - j >= floor and held - 1 - j >= 0)
+    if lead.value() >= SHORT_LEAD_HONOUR:
+        longer = sum(comb(total, k) * comb(others, held - k)
+                     for k in range(1, total + 1) if total - k >= floor and held - k >= 0)
+    else:
+        longer = sum(higher * comb(lower, j) * comb(others, held - 1 - j)
+                     for j in range(lower + 1) if total - 1 - j >= floor and held - 1 - j >= 0)
     if single == 0 or 100 * single < SHORT_LEAD_PCT * (single + longer):
         return None
     return suit

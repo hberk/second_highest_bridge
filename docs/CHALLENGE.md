@@ -100,8 +100,10 @@ seats, which nets out a change both declarer and defenders use.)
   `SHORT_LEAD_RETURN`, `SHORT_LEAD_PCT` = 20): the robots lead the
   second-highest from two or more, so from length partner holds exactly one
   of the unseen higher cards; every split of the unseen cards with declarer
-  (who holds its bid length) is counted. Seated on 600 fresh deals: **+1.53
-  points, t = +1.30, 380 boards changed**. A side-singleton opening lead
+  (who holds its bid length) is counted. An honour lead (J or higher,
+  `SHORT_LEAD_HONOUR`) is read by counting alone, since people lead honours
+  from other holdings (deal 356: K♥ from K-7-3-2). Seated on 600 fresh deals:
+  **+1.52 points, t = +1.28, 364 boards changed** (+1.53 reading honours too). A side-singleton opening lead
   (`SINGLETON_LEAD`, off) was +0.43 tricks double dummy in the lead study
   but -0.42 points in play, and -0.58 with the return.
   `_splits` and the endgame search keep only layouts that fit the bidding. A human's call reads by what

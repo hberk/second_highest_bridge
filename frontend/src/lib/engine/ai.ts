@@ -932,6 +932,7 @@ export const FIT_LEAD_MIN = 3;
 export const RUFF_RETURN = true;
 export const SHORT_LEAD_RETURN = true;
 export const SHORT_LEAD_PCT = 20;
+export const SHORT_LEAD_HONOUR = 9;
 
 /** The fewest cards each seat's bidding showed in each suit. */
 export type Shown = Partial<Record<Seat, Partial<Record<Suit, number>>>>;
@@ -1065,8 +1066,15 @@ function shortLead(player: Seat, hand: Card[], trump: string, history: AnyPlay[]
   const total = higher + lower;
   const single = total >= floor ? comb(others, held) : 0;
   let longer = 0;
-  for (let j = 0; j <= lower; j++) {
-    if (total - 1 - j >= floor && held - 1 - j >= 0) longer += higher * comb(lower, j) * comb(others, held - 1 - j);
+  if (value(lead) >= SHORT_LEAD_HONOUR) {
+    // An honour's card says nothing: any split counts (see ai.py).
+    for (let k = 1; k <= total; k++) {
+      if (total - k >= floor && held - k >= 0) longer += comb(total, k) * comb(others, held - k);
+    }
+  } else {
+    for (let j = 0; j <= lower; j++) {
+      if (total - 1 - j >= floor && held - 1 - j >= 0) longer += higher * comb(lower, j) * comb(others, held - 1 - j);
+    }
   }
   if (single === 0 || 100 * single < SHORT_LEAD_PCT * (single + longer)) return null;
   return suit;

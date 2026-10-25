@@ -266,6 +266,16 @@ def test_partners_lead_reads_as_a_singleton_when_the_higher_cards_are_in_sight()
                           {**shown, 'West': {'D': 5}}) is None
 
 
+def test_an_honour_lead_is_read_by_counting_alone():
+    """Deal 356: South led the K♥ from K-7-3-2. Every higher heart was in
+    sight, so by the lead convention it was a singleton; an honour's card
+    isn't read, and by counting alone it is too often from length."""
+    from test_card_play_rules import replay, DEAL_356
+    hands, played, history = replay(356, DEAL_356)
+    view = ai.visible_hands('North', {'declarer': 'East', 'dummy': 'West'}, hands)
+    assert ai._short_lead('North', hands['North'], 'S', history, view, None) is None
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_') and callable(fn):
