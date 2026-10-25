@@ -238,6 +238,34 @@ def test_board_17_leads_partners_hearts_at_trick_one_and_trick_three():
     assert ai._fit_lead('South', left, 'S', shown, history, {'West': dummy}) is None
 
 
+def test_a_defender_leads_back_the_suit_partner_is_out_of():
+    """Partner showed out of clubs and may still hold a trump: lead a club
+    (my lowest) for the ruff."""
+    hand = [C('KC'), C('4C'), C('AD'), C('5D')]
+    history = [[('East', C('2H')), ('South', C('3H')), ('West', C('4H')), ('North', C('5H'))],
+               [('East', C('3C')), ('South', C('5C')), ('West', C('7S')), ('North', C('6C'))]]
+    assert ai._ruff_return('East', hand, 'S', history, {'North': [C('9D')]}) == C('4C')
+    # Not once partner is out of trumps too.
+    history.append([('North', C('2S')), ('East', C('6D')), ('South', C('3S')), ('West', C('8H'))])
+    assert ai._ruff_return('East', hand, 'S', history, {'North': [C('9D')]}) is None
+
+
+def test_partners_lead_reads_as_a_singleton_when_the_higher_cards_are_in_sight():
+    """West led the 10 of diamonds. Every higher diamond is in my hand or
+    dummy's, and the robots lead the second-highest from two or more, so the
+    ten was a singleton: lead a diamond back before West shows out."""
+    east = [C('AD'), C('KD'), C('QD'), C('3D'), C('AH'), C('2H')]
+    dummy = [C('JD'), C('9D'), C('KH'), C('QH'), C('JH'), C('5C')]
+    history = [[('West', C('10D')), ('North', C('9D')), ('East', C('AD')), ('South', C('2D'))]]
+    east.remove(C('AD')); dummy.remove(C('9D'))
+    shown = {'North': {}, 'East': {}, 'South': {'S': 5}, 'West': {}}
+    assert ai._short_lead('East', east, 'S', history, {'North': dummy}, shown) == 'D'
+    assert ai._ruff_return('East', east, 'S', history, {'North': dummy}, shown) == C('3D')
+    # Partner's own bid suit is led from length: no reading.
+    assert ai._short_lead('East', east, 'S', history, {'North': dummy},
+                          {**shown, 'West': {'D': 5}}) is None
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_') and callable(fn):

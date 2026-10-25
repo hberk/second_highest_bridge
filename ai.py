@@ -1,6 +1,7 @@
 from __future__ import annotations
 from card import Card, SUITS, STRAINS, RANKS, RANK_VALUE, parse_bid, bid_index
 from itertools import combinations
+from math import comb
 import re
 from game import legal_plays, resolve_trick, AuctionState, PARTNERSHIP, PARTNERS, PLAYERS
 import gib
@@ -1264,7 +1265,7 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                   or (_run_long_suit(player, hand, trump, played, visible, history, shown,
                                      max_losers=float('inf'))
                       if NT_SET_UP_SUIT and trump not in SUITS else None)
-                  or (_ruff_return(player, hand, trump, history)
+                  or (_ruff_return(player, hand, trump, history, visible, shown)
                       if RUFF_RETURN and PARTNERS[player] not in (visible or {}) else None)
                   or ((sure := _sure_lead(player, hand, trump, played, visible, history))
                       if SURE_LEAD else None)
@@ -1421,7 +1422,12 @@ SINGLETON_LEAD = False
 SINGLETON_LEAD_MAX = 12
 #: A defender on lead plays a suit partner has shown out of while partner may
 #: still hold a trump, for the ruff. Measurement switch.
-RUFF_RETURN = False
+RUFF_RETURN = True
+#: ...and returns partner's opening-lead suit when it was a singleton at
+#: least SHORT_LEAD_PCT percent of the time (`_short_lead`), before partner
+#: shows out.
+SHORT_LEAD_RETURN = True
+SHORT_LEAD_PCT = 20
 
 _SUIT_OF_SYM = {'\u2660': 'S', '\u2665': 'H', '\u2666': 'D', '\u2663': 'C'}
 _SHOWN_RE = re.compile(r'(\d+)\+ ([\u2660\u2665\u2666\u2663](?: [\u2660\u2665\u2666\u2663])*)')
@@ -1527,9 +1533,12 @@ def _singleton_lead(hand: list[Card], trump: str | None) -> Card | None:
 
 
 def _ruff_return(player: str, hand: list[Card], trump: str | None,
-                 history: list | None) -> Card | None:
+                 history: list | None, visible: dict[str, list[Card]] | None = None,
+                 shown: dict[str, dict[str, int]] | None = None) -> Card | None:
     """A suit partner has shown out of while partner may still hold a trump,
-    led for the ruff (my lowest card of it), or None."""
+    led for the ruff (my lowest card of it), or None. With SHORT_LEAD_RETURN,
+    also the suit of partner's opening lead when it reads as a singleton
+    (`_short_lead`)."""
     if trump not in SUITS or not history:
         return None
     partner = PARTNERS[player]
@@ -1537,7 +1546,51 @@ def _ruff_return(player: str, hand: list[Card], trump: str | None,
     if trump in out[partner]:
         return None
     cards = [c for c in hand if c.suit != trump and c.suit in out[partner]]
+    if not cards and SHORT_LEAD_RETURN:
+        suit = _short_lead(player, hand, trump, history, visible, shown)
+        cards = [c for c in hand if c.suit == suit]
     return min(cards, key=lambda c: (c.value(), SUITS.index(c.suit))) if cards else None
+
+
+def _short_lead(player: str, hand: list[Card], trump: str | None, history: list,
+                visible: dict[str, list[Card]] | None,
+                shown: dict[str, dict[str, int]] | None) -> str | None:
+    """The suit of partner's opening lead if it was a singleton with at least
+    SHORT_LEAD_PCT percent likelihood, or None.
+
+    The robots lead the second-highest from two or more cards, so a lead from
+    length leaves partner exactly one of the higher cards still unseen and any
+    number of the lower ones; a singleton leaves partner none. Every split of
+    the unseen cards between partner and declarer that fits that (and
+    declarer's bid length) is counted, weighted by the ways to fill each hand
+    with other cards. Never once partner has followed to the suit again."""
+    partner, lead = history[0][0]
+    if partner != PARTNERS[player]:
+        return None
+    suit = lead.suit
+    if suit == trump or (shown or {}).get(partner, {}).get(suit, 0) >= 2:
+        return None
+    if any(p == partner and c.suit == suit for plays in history[1:] for p, c in plays):
+        return None
+    dummy_seat = next((p for p in (visible or {}) if p != player), None)
+    if dummy_seat is None:
+        return None
+    declarer = next(p for p in PLAYERS if p not in (player, partner, dummy_seat))
+    seen = set(hand) | set(visible[dummy_seat]) | {c for plays in history for _, c in plays}
+    unseen = [c for c in _FULL_DECK if c not in seen]
+    higher = sum(1 for c in unseen if c.suit == suit and c.value() > lead.value())
+    lower = sum(1 for c in unseen if c.suit == suit and c.value() < lead.value())
+    others = sum(1 for c in unseen if c.suit != suit)
+    held = 13 - sum(1 for plays in history for p, _ in plays if p == partner)
+    floor = max(0, (shown or {}).get(declarer, {}).get(suit, 0)
+                - _played_in(declarer, suit, history, []))
+    total = higher + lower
+    single = comb(others, held) if total >= floor else 0
+    longer = sum(higher * comb(lower, j) * comb(others, held - 1 - j)
+                 for j in range(lower + 1) if total - 1 - j >= floor and held - 1 - j >= 0)
+    if single == 0 or 100 * single < SHORT_LEAD_PCT * (single + longer):
+        return None
+    return suit
 
 
 def _shown_out(history: list, trick: list) -> dict[str, set[str]]:

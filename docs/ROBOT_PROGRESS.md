@@ -89,7 +89,9 @@ four seats, which nets out a change both declarer and defenders use.
 | 10-24 | A defender on lead leads a suit partner bid naturally when holding 3+ (opening lead and later; board 17). 600 fresh deals | +0.011 | +0.48 | +0.62 | 860 of 9,504 | on, awaiting your review |
 | 10-24 | ...the same with 4+ | +0.000 | -0.21 | -0.22 | 500 of 9,504 | off |
 | 10-25 | Opening lead of a side singleton in a suit contract, holding a trump (`SINGLETON_LEAD`; +0.43 tricks double dummy in the lead study). 600 fresh deals | +0.006 | -0.49 | -0.42 | 540 of 9,504 | off |
-| 10-25 | A defender leads back a suit partner showed out of while partner may hold a trump (`RUFF_RETURN`) | +0.007 | +1.67 | +1.33 | 296 of 9,504 | off, awaiting your call |
+| 10-25 | A defender leads back a suit partner showed out of while partner may hold a trump (`RUFF_RETURN`) | +0.007 | +1.67 | +1.33 | 296 of 9,504 | (part of the row below) |
+| 10-25 | ...and returns partner's opening-lead suit when it reads as a singleton at 20%+ (`SHORT_LEAD_RETURN`: the unseen cards, the second-highest lead convention, declarer's bid length) | +0.003 | +1.30 | +1.53 | 380 of 9,504 | on (your call) |
+| 10-25 | ...with the singleton opening lead as well | +0.004 | -0.35 | -0.58 | 888 of 9,504 | off |
 | 10-25 | ...both together; with low singletons only (ten or below) | +0.011; +0.003 | +0.67; +0.35 | +0.77; +0.39 | 756; 632 | off |
 
 The three information rules together: +0.55 points a board, t = +0.48, 556

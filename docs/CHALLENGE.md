@@ -93,8 +93,18 @@ seats, which nets out a change both declarer and defenders use.)
   partnership's fit), unless trumps, or an opponent or dummy is out of it.
   A natural suit bid whose alert names no length counts as a floor of one.
   Seated on 600 fresh deals: **+0.62 points, t = +0.48, 860 of 9,504 boards
-  changed** (4+: -0.22, t = -0.21). And `_splits` and the endgame
-  search keep only layouts that fit the bidding. A human's call reads by what
+  changed** (4+: -0.22, t = -0.21).
+  A defender on lead returns a suit partner has shown out of while partner
+  may still hold a trump (`_ruff_return`, `RUFF_RETURN`), and partner's
+  opening-lead suit when it reads as a singleton (`_short_lead`,
+  `SHORT_LEAD_RETURN`, `SHORT_LEAD_PCT` = 20): the robots lead the
+  second-highest from two or more, so from length partner holds exactly one
+  of the unseen higher cards; every split of the unseen cards with declarer
+  (who holds its bid length) is counted. Seated on 600 fresh deals: **+1.53
+  points, t = +1.30, 380 boards changed**. A side-singleton opening lead
+  (`SINGLETON_LEAD`, off) was +0.43 tricks double dummy in the lead study
+  but -0.42 points in play, and -0.58 with the return.
+  `_splits` and the endgame search keep only layouts that fit the bidding. A human's call reads by what
   GIB would mean by it, never by the human's free-text self-alert: the apps
   ask the robots what they would bid there with sampled hands and keep that
   call's alert (`meanings.gib_alert`, the Python twin of
