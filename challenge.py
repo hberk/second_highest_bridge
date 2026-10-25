@@ -148,14 +148,15 @@ def robot_table(deal_id: int, dealer: str, vulnerability: str = 'None') -> dict:
     hands = hands_for(deal_id)
     initial = {seat: list(cards) for seat, cards in hands.items()}
     auction = AuctionState(dealer=dealer, vulnerability=vulnerability)
-    # Alerts are captured the same way the live table captures them -- off the
-    # decision path itself -- so stepping through the robot auction explains
-    # each call instead of just showing it.
+    # Alerts are captured the same way the live table captures them, so
+    # stepping through the robot auction explains each call instead of just
+    # showing it. The robots read them too: partner's range, for a penalty
+    # double.
     alerts: dict[int, str] = {}
     guard = 0
     while not auction.is_complete and guard < _AUCTION_GUARD:
         who = auction.current_player()
-        call, why = ai_bid_explained(who, hands[who], auction)
+        call, why = ai_bid_explained(who, hands[who], auction, alerts)
         alerts[len(auction.calls)] = why
         auction.apply_call(who, call)
         guard += 1

@@ -18,7 +18,9 @@ graded from N/S as the app grades):
 
 | measured | robots | lost in the auction | lost in the card play |
 |---|---|---|---|
-| 2026-10-23 | shortness once a fit is agreed (PR #26) and game by points (PR #28) | **240.1** | **2.9** |
+| 2026-10-24 | the penalty double where X is free, a cuebid raise read as support (PR #30), with the defender's suit plan | **240.8** | **6.0** |
+| 2026-10-24 | the defender plans the suit it leads (without it: 242.5 / 3.5; from the declaring side the play went from -36.6 to -24.4) | 242.5 | 5.2 |
+| 2026-10-23 | shortness once a fit is agreed (PR #26) and game by points (PR #28) | 240.1 | 2.9 |
 | 2026-10-23 | the same robots as 10-22, graded with the partner who declared (every declarer solved) | 244.0 | -5.0 |
 | 2026-10-22 | the Law of Total Tricks and the fit count (bidding) | 235.4 | 6.1 |
 | 2026-10-21 | every rule below, through the four-card endgame search | 234.9 | 6.9 |
@@ -66,6 +68,7 @@ or more is a real effect); **points** a board.
 | 10-19 | Dead card when fourth hand can't win: A♣/K♣, not 5♣ (deal 156) | declarer | **+0.077** | +3.33 | +9.5 | on |
 | | | defence | +0.036 | +1.08 | +5.4 | |
 | 10-19 | A void robot keeps its trumps unless ruffing wins | both | +0.003 | +0.37 | +0.7 | on (your rule) |
+| 10-24 | A defender plans the suit it leads: the 6♥, not the dead 9♥ (deal 356) | defence | **+0.113** | +2.50 | +12.2 | on |
 
 The two 2026-10-19 rules together: **+0.183 tricks, +20.5 points a board**
 (t = +3.37).
@@ -106,6 +109,8 @@ Tried and left off:
 | 10-20 | A sampled search from five or six cards (eight layouts) | | deal 0: the K♦ third in hand where the 6♦ takes three more; eight layouts misjudge one card |
 | 10-22 | The endgame search from six cards, over five (TS engine, 100 deals) | **+0.260** (t = +4.35), +26.8 points, seated | **waiting** (your call): 4.6 s a board, up to 17.5 s a move on a desktop, on the main thread |
 | 10-21 | Trying the remembered best card first | | slower (0.87 s against 0.77 s a board at five cards), no gain |
+| 10-24 | Lead the highest live card instead of a dead second-highest (deal 356) | defence -0.002, declarer -0.019 (seated) | no effect: a dead card still promotes partner's |
+| 10-24 | The same, only in a trump contract against dummy's last card in the suit | +0.001 (12 boards) | almost never fires |
 
 ## Bidding
 
@@ -146,6 +151,11 @@ from the variant's side; t as above.
 | 10-23 | Responding on 5 HCP (was 6): +1.2 on the library, then on fresh deals | -0.78 | -4.94 | 260 | off |
 | 10-23 | Never bidding 3NT (library) | +0.67 to +1.37 | +0.45 to +0.98 | 289 | off |
 | 10-23 | Overcall at 10+ HCP; takeout double at 14+ (fresh) | +0.12; +0.03 | +0.50; +0.35 | 497; 132 | off |
+| 10-24 | Penalty double: where the robot would pass their natural suit bid and the system's X has no other meaning here, double with 5+ trumps, or 4+ at the three level, when our judgement points (mine plus the middle of partner's alerted range) reach 20; a side doubled for penalty never bids its strain higher. 3,000 fresh deals | **+4.09** | +7.40 | 750 | on (your call) |
+| 10-24 | ...also where X is takeout or negative (one call, two meanings: breaks B4) | +7.30 | +9.67 | 1,402 | off |
+| 10-24 | ...and before the doubled side stopped raising its own suit (the incumbent ran 4♦X to 7♦X) | +10.95 | +13.37 | 1,402 | (a bug's gain) |
+| 10-24 | A cuebid raise shows 3+ of partner's suit to the LoTT (deal 338: 1♦ 1♠ X 2♦ - 2♠ 3♥ passed out on ten spades) | +0.24 | +2.88 | 61 | on (your call) |
+| 10-24 | ...both together | **+4.34** | +7.77 | 809 | on |
 
 ### The previous system (`ai_bid`)
 

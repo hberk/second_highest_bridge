@@ -64,7 +64,10 @@ describe('games', () => {
         expect(auction.currentPlayer(), where).toBe(who);
         expect(auction.legalCalls(), `${where} call ${ci}`).toEqual(legal);
         if (why !== null) {
-          expect(aiBidExplained(who, hands[who], auction), `${where} call ${ci}`).toEqual([call, why]);
+          const alerts: Record<number, string> = {};
+          g.calls.slice(0, ci).forEach(([, , w], i) => { if (w) alerts[i] = w; });
+          expect(aiBidExplained(who, hands[who], auction, alerts), `${where} call ${ci}`)
+            .toEqual([call, why]);
         }
         auction.applyCall(who, call);
       }

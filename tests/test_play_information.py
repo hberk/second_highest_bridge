@@ -223,7 +223,8 @@ def test_board_17_leads_partners_hearts_at_trick_one_and_trick_three():
     south = hand('95 KJ73 A97 KQT6')
     shown = {'North': {'H': 1}, 'East': {'S': 5}, 'South': {}, 'West': {}}
     assert ai.ai_play('South', south, [], 'S', [], shown=shown) == C('JH')
-    # Later, on lead again with dummy down: still hearts while nobody is out.
+    # Later, on lead again with dummy down: still hearts while nobody is out
+    # (the card is the defender suit plan's, from deal 356).
     dummy = hand('876 AT8 KQ J7432')
     played = [C('QC'), C('JC'), C('8C'), C('5C'), C('6S'), C('2S'), C('4S'), C('5S')]
     history = [[('South', C('QC')), ('West', C('JC')), ('North', C('8C')), ('East', C('5C'))],
@@ -231,7 +232,7 @@ def test_board_17_leads_partners_hearts_at_trick_one_and_trick_three():
     left = [c for c in south if c not in played]
     lead = ai.ai_play('South', left, [], 'S', played, visible={'West': dummy},
                       history=history, shown=shown)
-    assert lead == C('JH')
+    assert lead.suit == "H", lead
     # Not once declarer has shown out: that gives a ruff.
     history.append([('South', C('JH')), ('West', C('8H')), ('North', C('QH')), ('East', C('4S'))])
     assert ai._fit_lead('South', left, 'S', shown, history, {'West': dummy}) is None

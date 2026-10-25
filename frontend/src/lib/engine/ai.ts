@@ -9,7 +9,9 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { gibBid, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert } from './gib';
+import { gibBid, Hand, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert } from './gib';
+// meanings.ts imports this module; its functions are only called, never at load.
+import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
 const AI_TAG = '__ai__';
 type AnyPlay = Play<string>;
@@ -494,7 +496,160 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
 /** GIB 2/1 is the default system (gib.ts); false plays the previous one. */
 export const settingsAi = { useGib: true };
 
-export function aiBidExplained(player: Seat, hand: Card[], auction: AuctionState): Decision {
+/** Penalty double (the user's rule, 2026-10-24). Where the robot would pass
+ *  an opponents' natural suit bid, double it with 5+ trumps, or 4+ trumps at
+ *  the three level or higher, when our judgement points -- mine plus the
+ *  middle of the range partner's alerts show -- reach PENALTY_JUDGE. See ai.py. */
+export const PENALTY_DOUBLE = true;
+export const PENALTY_JUDGE = 20;
+const RANGE_RE = /(\d+)-(\d+) (?:HCP|points)/g;
+const MIN_RE = /(\d+)\+ (?:HCP|points)/g;
+const MAX_RE = /Fewer than (\d+) (?:HCP|points)/g;
+
+/** The middle of the point range partner's alerts show. An open range
+ *  ("8+ HCP") is taken as seven points wide; no range at all as a third of
+ *  the points I don't hold. */
+function partnerMiddle(partner: Seat, auction: AuctionState, alerts: Record<number, string>,
+  mine: number): number {
+  let lo = 0;
+  let hi = 40 - mine;
+  let shown = false;
+  auction.calls.forEach(([who], i) => {
+    if (who !== partner) return;
+    const text = alerts[i] ?? '';
+    for (const m of text.matchAll(RANGE_RE)) {
+      lo = Math.max(lo, Number(m[1])); hi = Math.min(hi, Number(m[2])); shown = true;
+    }
+    for (const m of text.matchAll(MIN_RE)) { lo = Math.max(lo, Number(m[1])); shown = true; }
+    for (const m of text.matchAll(MAX_RE)) { hi = Math.min(hi, Number(m[1]) - 1); shown = true; }
+  });
+  if (!shown) return (40 - mine) / 3;
+  if (hi === 40 - mine && lo > 0) hi = Math.min(hi, lo + 7);
+  return (lo + Math.max(lo, hi)) / 2;
+}
+
+function penaltyDouble(player: Seat, hand: Card[], auction: AuctionState,
+  alerts: Record<number, string>): Decision | null {
+  const hb = auction.highestBid;
+  if (!hb || hb[2] === player || hb[2] === PARTNERS[player] || auction.doubled !== 'None') return null;
+  const [level, suit] = hb;
+  if (!(SUITS as readonly string[]).includes(suit) || !auction.legalCalls().includes('X')) return null;
+  let at = -1;
+  auction.calls.forEach(([, c], i) => {
+    const p = parseBid(c);
+    if (p && p[0] === level && p[1] === suit) at = i;
+  });
+  if ((alerts[at] ?? '').toLowerCase().includes('artificial')) return null;
+  const n = hand.filter((c) => c.suit === suit).length;
+  const need = level <= 2 ? 5 : 4;
+  if (n < need) return null;
+  const mine = new Hand(hand).judge;
+  if (mine + partnerMiddle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE) return null;
+  if (!doubleIsFree(auction)) return null;
+  return ['X', `Penalty: ${need}+ ${SUIT_SYM[suit]}.`];
+}
+
+const FREE = new Map<string, boolean>();
+let sampling = false;
+
+/** Does the system leave a double here without a meaning of its own? Where X
+ *  is takeout, negative, responsive or another penalty, a penalty double for
+ *  some hands would make the same call mean two things. Asked the way the
+ *  bidding box asks (meanings.ts), with the penalty double switched off; one
+ *  sampled X is enough. See `_double_is_free` in ai.py. */
+function doubleIsFree(auction: AuctionState): boolean {
+  const key = `${auction.dealer}|${auction.vulnerability}|${auction.calls.map(([, c]) => c).join(' ')}`;
+  let free = FREE.get(key);
+  if (free === undefined) {
+    const here = new AuctionState(auction.dealer, auction.vulnerability);
+    for (const [p, c] of auction.calls) here.applyCall(p, c);
+    const who = here.currentPlayer();
+    const rnd = prng(seedOf(here));
+    sampling = true;
+    try {
+      free = true;
+      for (let i = 0; i < SAMPLE_HANDS; i++) {
+        if (aiBidExplained(who, sampleHand(rnd), here, {})[0] === 'X') { free = false; break; }
+      }
+    } finally {
+      sampling = false;
+    }
+    FREE.set(key, free);
+  }
+  return free;
+}
+
+/** Partner's penalty double is the last call made on the current bid. */
+function partnerPenaltyStands(player: Seat, auction: AuctionState,
+  alerts: Record<number, string>): boolean {
+  if (!auction.highestBid || auction.doubled === 'None') return false;
+  for (let i = auction.calls.length - 1; i >= 0; i--) {
+    const [who, call] = auction.calls[i];
+    if (call === 'X') return who === PARTNERS[player] && (alerts[i] ?? '').startsWith('Penalty');
+    if (call !== 'Pass' && call !== 'XX') return false;
+  }
+  return false;
+}
+
+/** `alerts` maps a call's index to the robot's alert for it -- robots' calls
+ *  only, as a person's self-alert is free text the robots don't read. The
+ *  penalty double reads partner's range from it. */
+export function aiBidExplained(player: Seat, hand: Card[], auction: AuctionState,
+  alerts?: Record<number, string>): Decision {
+  const known = alerts ?? robotAlerts(auction);
+  const decision = penaltyOrBase(player, hand, auction, known);
+  if (!robotSaid.has(auction)) robotSaid.set(auction, new Map());
+  robotSaid.get(auction)!.set(auction.calls.length, decision);
+  return decision;
+}
+
+/** What this function said on each auction object, by call index. Left out,
+ *  `alerts` is the robots' alerts for the calls since made (`_robot_alerts`
+ *  in ai.py): an alert depends only on the auction and the call. */
+const robotSaid = new WeakMap<AuctionState, Map<number, Decision>>();
+
+function robotAlerts(auction: AuctionState): Record<number, string> {
+  const out: Record<number, string> = {};
+  for (const [i, [call, why]] of robotSaid.get(auction) ?? new Map<number, Decision>()) {
+    if (i < auction.calls.length && auction.calls[i][1] === call) out[i] = why;
+  }
+  return out;
+}
+
+function passesSinceDouble(auction: AuctionState): number {
+  let n = 0;
+  for (let i = auction.calls.length - 1; i >= 0 && auction.calls[i][1] === 'Pass'; i--) n++;
+  return n;
+}
+
+function penaltyOrBase(player: Seat, hand: Card[], auction: AuctionState,
+  alerts: Record<number, string>): Decision {
+  const decision = doubledOrBase(player, hand, auction, alerts);
+  const hb = auction.highestBid;
+  const bid = parseBid(decision[0]);
+  if (hb && auction.doubled === 'X' && (hb[2] === player || hb[2] === PARTNERS[player])
+    && bid && bid[1] === hb[1]
+    && (alerts[auction.calls.length - 1 - passesSinceDouble(auction)] ?? '').startsWith('Penalty')) {
+    // Doubled for penalty in our own strain: bidding it again only goes down more.
+    return ['Pass', 'Doubled: no higher in the same strain.'];
+  }
+  return decision;
+}
+
+function doubledOrBase(player: Seat, hand: Card[], auction: AuctionState,
+  alerts: Record<number, string>): Decision {
+  if (PENALTY_DOUBLE && !sampling && auction.legalCalls().length) {
+    if (partnerPenaltyStands(player, auction, alerts)) {
+      return ['Pass', "Partner's penalty double stands."];
+    }
+    const decision = baseBidExplained(player, hand, auction);
+    if (decision[0] === 'Pass') return penaltyDouble(player, hand, auction, alerts) ?? decision;
+    return decision;
+  }
+  return baseBidExplained(player, hand, auction);
+}
+
+function baseBidExplained(player: Seat, hand: Card[], auction: AuctionState): Decision {
   const legal = auction.legalCalls();
   if (!legal.length) return ['Pass', 'Pass. No legal call available.'];
 
@@ -655,15 +810,24 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
   }
   let choice: Card;
   if (!trick.length) {
+    let sure: Card | null = null;
     const chosen = (DRAW_TRUMPS ? drawTrump(player, hand, trump, played, visible, history, shown) : null)
       ?? (RUFF_LEAD ? ruffLead(player, hand, trump, played, visible) : null)
       ?? (RUN_LONG_SUIT ? runLongSuit(player, hand, trump, played, visible, history, shown) : null)
-      ?? (SURE_LEAD ? sureLead(player, hand, trump, played, visible, history) : null)
+      ?? (SURE_LEAD ? (sure = sureLead(player, hand, trump, played, visible, history)) : null)
       ?? (shown && !(PARTNERS[player] in visible) ? fitLead(player, hand, trump, shown, history, visible) : null)
       ?? (NT_LONG_LEAD ? ntLongLead(player, hand, trump, played, visible) : null);
-    if (chosen !== null) choice = chosen;
-    else {
+    if (chosen !== null) {
+      choice = chosen;
+      // A sure trick is cashed as it is (see ai.py).
+      if (DEFENDER_SUIT_PLAN && choice !== sure) {
+        choice = defenderSuitPlan(player, hand, trump, played, visible, history, shown, choice) ?? choice;
+      }
+    } else {
       choice = lead(hand, trump, played);
+      if (DEFENDER_SUIT_PLAN) {
+        choice = defenderSuitPlan(player, hand, trump, played, visible, history, shown, choice) ?? choice;
+      }
       if (SURE_LEAD_DECLARER) {
         choice = sureLeadDeclarer(player, hand, trump, played, visible, history, choice.suit) ?? choice;
       }
@@ -1585,6 +1749,126 @@ function drawTrump(player: Seat, hand: Card[], trump: string | null, played: Car
     scored.push([total / weights, worst, value(c), c]);
   }
   return minBy(scored, (t) => [t[0], t[1], t[2]])[3];
+}
+
+// ── Defender plans the suit it leads (see ai.py) ─────────────────────────────
+
+export const DEFENDER_SUIT_PLAN = true;
+export const SUIT_PLAN_MAX_UNSEEN = 9;
+
+const RUFF = -1;                          // ai.py's _RUFF: a void seat ruffs
+type PlanCard = number | null;            // a value, a discard (null) or RUFF
+type PlanHands = readonly [Trumps, Trumps, Trumps, Trumps];
+const SUIT_PLAN_MEMO = new Map<string, number>();
+
+function planOptions(seat: number, hands: PlanHands, ruffs: readonly boolean[]): PlanCard[] {
+  const cards = hands[seat];
+  if (cards.length) return distinct(cards, hands.flatMap((h, k) => (k === seat ? [] : h)));
+  return ruffs[seat] ? [null, RUFF] : [null];
+}
+
+function planTrick(hands: PlanHands, ruffs: readonly boolean[], plays: [number, PlanCard][],
+  order: number[], memo: Map<string, number>): number {
+  if (plays.length === 4) {
+    const ruffers = plays.filter(([, c]) => c === RUFF).map(([seat]) => seat);
+    let winner: number;
+    if (ruffers.length) winner = ruffers[0];
+    else {
+      const ranked = plays.filter(([, c]) => c !== null)
+        .map(([seat, c]) => [c as number, seat] as const)
+        .sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+      winner = ranked.length === 1 ? ranked[0][1] : ranked[ranked.length - 2][1];
+    }
+    const put = new Map(plays);
+    const left = [0, 1, 2, 3].map((k) => hands[k].filter((v) => v !== put.get(k))) as unknown as PlanHands;
+    if (winner === 0 || winner === 2) return 1 + planSuit(left, ruffs, winner, memo);
+    return planSuit(left, ruffs, null, memo);
+  }
+  const seat = order[plays.length];
+  const values = planOptions(seat, hands, ruffs)
+    .map((c) => planTrick(hands, ruffs, [...plays, [seat, c]], order, memo));
+  return seat === 0 || seat === 2 ? Math.max(...values) : Math.min(...values);
+}
+
+/** Defence tricks in the suit, seats 0 and 2 the defence (see ai.py `_plan_suit`). */
+function planSuit(hands: PlanHands, ruffs: readonly boolean[], leader: number | null,
+  memo: Map<string, number>): number {
+  if (!hands[0].length && !hands[2].length) return 0;
+  if (leader !== null && !hands[leader].length) leader = 2 - leader;
+  const order = new Map(hands.flat().sort((a, b) => a - b).map((v, i) => [v, i]));
+  const key = `${hands.map((h) => h.map((v) => order.get(v)).join(',')).join('|')}|${ruffs.map(Number).join('')}|${leader}`;
+  const hit = memo.get(key);
+  if (hit !== undefined) return hit;
+  const leaders = leader !== null ? [leader] : [0, 2].filter((k) => hands[k].length);
+  let best = 0;
+  for (const lead0 of leaders) {
+    const seats = [0, 1, 2, 3].map((k) => (lead0 + k) % 4);
+    for (const c of planOptions(lead0, hands, ruffs)) {
+      best = Math.max(best, planTrick(hands, ruffs, [[lead0, c]], seats, memo));
+    }
+  }
+  memo.set(key, best);
+  return best;
+}
+
+/** The card of `choice`'s suit that takes the most tricks in it, or null (see ai.py). */
+function defenderSuitPlan(player: Seat, hand: Card[], trump: string | null, played: Card[],
+  visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null, shown: Shown | null,
+  choice: Card): Card | null {
+  if (!Object.keys(visible).length || PARTNERS[player] in visible || player in visible) return null;
+  const suit = choice.suit;
+  if (isSuit(trump) && suit === trump) return null;
+  const mine = hand.filter((c) => c.suit === suit);
+  if (mine.length < 2) return null;
+  const dummy = Object.keys(visible)[0] as Seat;
+  const dummyHand = visible[dummy]!;
+  const i = PLAYERS.indexOf(player);
+  const seatOf = (p: Seat) => (PLAYERS.indexOf(p) - i + 4) % 4;
+  const partner = PARTNERS[player];
+  const declarer = PLAYERS.find((p) => p !== player && p !== partner && p !== dummy)!;
+  const seen = new Set([...played, ...hand, ...dummyHand].map(cardKey));
+  const unseenSuit = FULL_DECK.filter((c) => c.suit === suit && !seen.has(cardKey(c)))
+    .map(value).sort((a, b) => a - b);
+  if (unseenSuit.length > SUIT_PLAN_MAX_UNSEEN) return null;
+  const out = shownOut(history ?? [], []);
+  const ruffing = isSuit(trump);
+  const ruffs = [false, false, false, false];
+  ruffs[seatOf(dummy)] = ruffing && dummyHand.some((c) => c.suit === trump);
+  ruffs[seatOf(declarer)] = ruffing && !out[declarer].has(trump!);
+  const slots = hand.length;
+  const others = FULL_DECK.filter((c) => !seen.has(cardKey(c))).length - unseenSuit.length;
+  const floor = (p: Seat) => (shown?.[p]?.[suit] ?? 0) - playedIn(p, suit, history ?? [], []);
+  const floorPartner = floor(partner);
+  const floorDeclarer = floor(declarer);
+  const dummyCards = dummyHand.filter((c) => c.suit === suit).map(value).sort((a, b) => a - b);
+  const own = mine.map(value).sort((a, b) => a - b);
+  const memo = SUIT_PLAN_MEMO;
+  if (memo.size > POSITION_MEMO_MAX) memo.clear();
+  const totals = new Map(mine.map((c) => [cardKey(c), 0]));
+  let weights = 0;
+  for (let n = 0; n <= unseenSuit.length; n++) {
+    for (const picked of combinations(unseenSuit.length, n)) {
+      const toPartner = picked.map((k) => unseenSuit[k]);
+      const toDeclarer = unseenSuit.filter((v) => !toPartner.includes(v));
+      if ((toPartner.length && out[partner].has(suit)) || (toDeclarer.length && out[declarer].has(suit))) continue;
+      if (toPartner.length > slots || toDeclarer.length > slots) continue;
+      if (toPartner.length < floorPartner || toDeclarer.length < floorDeclarer) continue;
+      const weight = choose(others, slots - toPartner.length);
+      if (!weight) continue;
+      const hands: Trumps[] = [own, [], toPartner, []];
+      hands[seatOf(dummy)] = dummyCards;
+      hands[seatOf(declarer)] = toDeclarer;
+      weights += weight;
+      for (const c of mine) {
+        totals.set(cardKey(c), totals.get(cardKey(c))!
+          + weight * planTrick(hands as unknown as PlanHands, ruffs, [[0, value(c)]], [0, 1, 2, 3], memo));
+      }
+    }
+  }
+  if (!weights) return null;
+  const best = Math.max(...totals.values());
+  if (totals.get(cardKey(choice)) === best) return choice;
+  return maxBy(mine.filter((c) => totals.get(cardKey(c)) === best), (c) => [value(c)]);
 }
 
 function lead(hand: Card[], trump: string | null, played: Card[]): Card {

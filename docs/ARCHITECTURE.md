@@ -91,7 +91,9 @@ broken by hand at some point:
   it explains any call by sampling hands and reading the robots' alert for
   it (`frontend/src/lib/meanings.ts`, see [FRONTEND.md](FRONTEND.md)), so a
   hand-dependent alert would show a player a meaning that is only true of
-  some hands.
+  some hands. The robots read each other's alerts too: the penalty double
+  takes partner's point range from them, and a robot passes partner's
+  double alerted "Penalty" (`ai_bid_explained`'s `alerts`, BIDDING.md).
 - **Pass reasons are hidden while the board is live** (`Game.liveAlerts` in
   the web app, tested in `lin.test.ts`). "Fewer than 6
   points" versus "Fewer than 3 ♠ and no five-card suit" reads a robot's cards

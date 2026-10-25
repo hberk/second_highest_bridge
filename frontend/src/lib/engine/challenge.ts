@@ -106,7 +106,7 @@ export function robotTable(dealId: number, dealer: Seat, vulnerability: Vulnerab
   let guard = 0;
   while (!auction.isComplete && guard < AUCTION_GUARD) {
     const who = auction.currentPlayer();
-    const [call, why] = aiBidExplained(who, hands[who], auction);
+    const [call, why] = aiBidExplained(who, hands[who], auction, alerts);
     alerts[auction.calls.length] = why;
     auction.applyCall(who, call);
     guard++;
