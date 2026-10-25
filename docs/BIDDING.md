@@ -329,6 +329,55 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     **+1.17 a board, t = +4.5, 516 auctions changed** (3,000 fresh deals).
     With it, 3NT at 34 +1.27 (inside the noise of the same line), at 30
     +0.45, majors at 27 +0.89; a jack worth 2 +0.79.
+- **Penalty doubles** (`ai.PENALTY_DOUBLE`, `PENALTY_JUDGE`; the user's rule,
+  2026-10-24). Against **two-sided par** (both sides bid perfectly, a failing
+  contract is doubled, either side may sacrifice) the robots are 233 points a
+  board off over the library's 6,400 boards, about the one-sided 242, and 60%
+  of it is in auctions both sides bid. The robots almost never doubled for
+  penalty: 2,960 of 6,356 contracts fail double dummy and 28 were doubled;
+  1,600 went two or more down undoubled. Doubling every failing contract
+  with perfect knowledge would be worth ~117 a board, so head to head had
+  been paying for overbidding nobody punished.
+  - The rule: where the robot would pass an opponents' natural suit bid
+    (not one alerted "Artificial") and the system gives X no other meaning
+    there, double with 5+ trumps, or 4+ at the three level or higher, when
+    my judgement points plus the middle of the range partner's alerts show
+    reach 20. An open range ("8+ HCP") counts
+    as seven wide; no range as a third of the points I don't hold. The
+    alert, "Penalty: 5+ ♥." (4+ at the three level), depends only on the
+    auction. Partner passes it ("Partner's penalty double stands").
+  - The bidder reads partner's alerts, so `ai_bid_explained` takes the
+    robots' alerts by call index (`alerts`); left out, it uses what it said
+    on the same auction object (`_robot_alerts`). A person's self-alert is
+    not read.
+  - A side doubled for penalty never bids its own strain higher: the
+    branches that raise a fit ran 4♦X up to 7♦X (`_penalty_or_base`).
+  - **Only where X is free** (`_double_is_free`). Where X is takeout,
+    negative, responsive or another penalty, a penalty double for some hands
+    gives one call two meanings, which breaks the alert rule (REQUIREMENTS
+    B4; `test_a_bid_alert_depends_only_on_the_auction_and_the_call` caught
+    1D-X "Penalty: 5+ ♦" against "Takeout: 12+ HCP"). Whether X is free is
+    asked the bidding box's way: up to `meanings.SAMPLE_HANDS` hands sampled
+    from a generator seeded by the auction, with the penalty double off; one
+    X is enough. No global RNG, so the guardrail on determinism holds; the
+    answer is cached per auction. Of the +7.30 measured without it, +3.83
+    came where X was free, +3.04 where it was takeout (mostly a one-level
+    opening with five trumps behind it) and +0.29 negative. The trap pass
+    and partner's reopening double passed for penalty would be the standard
+    way to get some of the rest.
+  - On the library's final contracts with exact points, first: 4+ trumps
+    and 20+ +8.2 a board, 5+ +5.3 (112 failed, 4 made); trumps alone +0.4,
+    points alone -40. Then in the auction, 3,000 fresh deals: **+4.09 a
+    board, t = +7.4, 750 auctions changed** (504 better, 192 worse). Where X
+    is also takeout or negative, +7.30 (off, above); before the doubled side
+    stopped raising, +10.95: the incumbent's runouts were part of that. The
+    robots don't run from a penalty double; a person might.
+- **A cuebid raise shows support to the LoTT** (`CUE_RAISE_FIT`, the user's
+  deal 338): 1♦ 1♠ X 2♦ (3+ ♠, 10+) - 2♠ 3♥ was passed out with ten spades,
+  because `_partner_length` and `_total_tricks` read only natural bids and
+  South, at 10 HCP, was over the competitive raise's 6-9. Now a bid in their
+  suit after partner's suit counts 3+ in it, both ways. 3,000 fresh deals:
+  **+0.24, t = +2.9, 61 auctions changed** (47 better, 14 worse).
 
 ## The previous system (`ai.USE_GIB = False`)
 

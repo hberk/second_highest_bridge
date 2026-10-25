@@ -77,11 +77,12 @@ def hands(deal_id: int) -> dict:
 
 def auction(h: dict, dealer: str, vul: str, variant: dict, variant_side: str | None):
     a = AuctionState(dealer=dealer, vulnerability=vul)
+    alerts: dict[int, str] = {}
     while not a.is_complete:
         p = a.current_player()
         for name, value in (variant if SIDE[p] == variant_side else BASE).items():
             setattr(_module(name), name, value)
-        call, _ = ai.ai_bid_explained(p, h[p], a)
+        call, alerts[len(a.calls)] = ai.ai_bid_explained(p, h[p], a, alerts)
         a.apply_call(p, call)
     for name, value in BASE.items():
         setattr(_module(name), name, value)

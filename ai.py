@@ -855,10 +855,172 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
 USE_GIB = True
 
 
-def ai_bid_explained(player: str, hand: list[Card], auction: AuctionState) -> tuple:
+#: Penalty double (the user's rule, 2026-10-24). Where the robot would pass
+#: an opponents' natural suit bid, double it with 5+ trumps, or 4+ trumps at
+#: the three level or higher, when our judgement points -- mine plus the
+#: middle of the range partner's alerts show -- reach PENALTY_JUDGE. Fresh
+#: deals, head to head: +10.95 a board, t = +13.4 (BIDDING.md).
+PENALTY_DOUBLE = True
+PENALTY_JUDGE = 20
+_RANGE_RE = re.compile(r'(\d+)-(\d+) (?:HCP|points)')
+_MIN_RE = re.compile(r'(\d+)\+ (?:HCP|points)')
+_MAX_RE = re.compile(r'Fewer than (\d+) (?:HCP|points)')
+PENALTY_ALERT = "Penalty: {n}+ {sym}."
+
+
+def _partner_middle(partner: str, auction: AuctionState, alerts: dict, mine: int) -> float:
+    """The middle of the point range partner's alerts show. An open range
+    ("8+ HCP") is taken as seven points wide; no range at all as a third of
+    the points I don't hold."""
+    lo, hi, shown = 0, 40 - mine, False
+    for i, (who, _) in enumerate(auction.calls):
+        if who != partner:
+            continue
+        text = alerts.get(i, '')
+        for a, b in _RANGE_RE.findall(text):
+            lo, hi, shown = max(lo, int(a)), min(hi, int(b)), True
+        for a in _MIN_RE.findall(text):
+            lo, shown = max(lo, int(a)), True
+        for a in _MAX_RE.findall(text):
+            hi, shown = min(hi, int(a) - 1), True
+    if not shown:
+        return (40 - mine) / 3
+    if hi == 40 - mine and lo > 0:
+        hi = min(hi, lo + 7)
+    return (lo + max(lo, hi)) / 2
+
+
+def _penalty_double(player: str, hand: list[Card], auction: AuctionState,
+                    alerts: dict) -> tuple | None:
+    hb = auction.highest_bid
+    if hb is None or hb[2] in (player, PARTNERS[player]) or auction.doubled != 'None':
+        return None
+    level, suit = hb[0], hb[1]
+    if suit not in SUITS or 'X' not in auction.legal_calls():
+        return None
+    at = max(i for i, (w, c) in enumerate(auction.calls) if parse_bid(c) == (level, suit))
+    if 'artificial' in alerts.get(at, '').lower():
+        return None
+    n = sum(1 for c in hand if c.suit == suit)
+    need = 5 if level <= 2 else 4
+    if n < need:
+        return None
+    mine = gib.Hand(hand).judge
+    if mine + _partner_middle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE:
+        return None
+    if not _double_is_free(auction):
+        return None
+    return 'X', PENALTY_ALERT.format(n=need, sym=SUIT_SYM[suit])
+
+
+_FREE: dict[tuple, bool] = {}
+
+
+def _double_is_free(auction: AuctionState) -> bool:
+    """Does the system leave a double here without a meaning of its own?
+    Where X is takeout, negative, responsive or another penalty, a penalty
+    double for some hands would make the same call mean two things, and an
+    alert must depend only on the auction (ARCHITECTURE.md). Asked the way
+    the bidding box asks (`meanings.gib_alert`, sampled hands seeded from the
+    auction, no global RNG), with the penalty double itself switched off;
+    one sampled X with any alert is enough."""
+    global PENALTY_DOUBLE
+    key = (auction.dealer, auction.vulnerability, tuple(c for _, c in auction.calls))
+    if key not in _FREE:
+        import meanings                  # meanings imports this module
+        here = AuctionState(dealer=auction.dealer, vulnerability=auction.vulnerability)
+        for w, c in auction.calls:
+            here.apply_call(w, c)
+        who = here.current_player()
+        rnd = meanings.prng(meanings._seed_of(here))
+        was, PENALTY_DOUBLE = PENALTY_DOUBLE, False
+        try:
+            _FREE[key] = not any(
+                ai_bid_explained(who, meanings._sample_hand(rnd), here, {})[0] == 'X'
+                for _ in range(meanings.SAMPLE_HANDS))
+        finally:
+            PENALTY_DOUBLE = was
+    return _FREE[key]
+
+
+def _partner_penalty_stands(player: str, auction: AuctionState, alerts: dict) -> bool:
+    """Partner's penalty double is the last call made on the current bid."""
+    hb = auction.highest_bid
+    if hb is None or auction.doubled == 'None':
+        return False
+    for i in range(len(auction.calls) - 1, -1, -1):
+        who, call = auction.calls[i]
+        if call == 'X':
+            return who == PARTNERS[player] and alerts.get(i, '').startswith('Penalty')
+        if call != 'Pass' and call != 'XX':
+            return False
+    return False
+
+
+def ai_bid_explained(player: str, hand: list[Card], auction: AuctionState,
+                     alerts: dict | None = None) -> tuple:
     """The bid this hand would make, together with a plain-words alert saying what
     it shows. `ai_bid` returns only the call, for callers that do not want the
-    explanation."""
+    explanation.
+
+    `alerts` maps a call's index to the robot's alert for it -- robots' calls
+    only, as a person's self-alert is free text the robots don't read. The
+    penalty double reads partner's range from it. Left out, it is the alerts
+    this function gave on the same auction object for the calls since made
+    (`_robot_alerts`), so a plain robot loop needs to pass nothing."""
+    if alerts is None:
+        alerts = _robot_alerts(auction)
+    decision = _penalty_or_base(player, hand, auction, alerts)
+    auction.__dict__.setdefault('_robot_said', {})[len(auction.calls)] = decision
+    return decision
+
+
+def _robot_alerts(auction: AuctionState) -> dict[int, str]:
+    """The alerts given on this auction object for the calls actually made.
+    An alert depends only on the auction and the call (ARCHITECTURE.md), so a
+    remembered one is the call's alert whoever asks."""
+    said = auction.__dict__.get('_robot_said', {})
+    return {i: why for i, (call, why) in said.items()
+            if i < len(auction.calls) and auction.calls[i][1] == call}
+
+
+def _penalty_or_base(player: str, hand: list[Card], auction: AuctionState,
+                     alerts: dict) -> tuple:
+    decision = _doubled_or_base(player, hand, auction, alerts)
+    hb = auction.highest_bid
+    if (hb and auction.doubled == 'X' and hb[2] in (player, PARTNERS[player])
+            and parse_bid(decision[0]) and parse_bid(decision[0])[1] == hb[1]
+            and alerts.get(len(auction.calls) - 1 - _passes_since_double(auction), '')
+            .startswith('Penalty')):
+        # Doubled for penalty in our own strain: bidding it again only goes
+        # down more. The branches that raise a fit were written when no robot
+        # doubled for penalty.
+        return 'Pass', "Doubled: no higher in the same strain."
+    return decision
+
+
+def _passes_since_double(auction: AuctionState) -> int:
+    n = 0
+    for _, call in reversed(auction.calls):
+        if call != 'Pass':
+            break
+        n += 1
+    return n
+
+
+def _doubled_or_base(player: str, hand: list[Card], auction: AuctionState,
+                     alerts: dict) -> tuple:
+    if PENALTY_DOUBLE and auction.legal_calls():
+        if _partner_penalty_stands(player, auction, alerts):
+            return 'Pass', "Partner's penalty double stands."
+        decision = _ai_bid_explained(player, hand, auction)
+        if decision[0] == 'Pass':
+            return _penalty_double(player, hand, auction, alerts) or decision
+        return decision
+    return _ai_bid_explained(player, hand, auction)
+
+
+def _ai_bid_explained(player: str, hand: list[Card], auction: AuctionState) -> tuple:
     legal = auction.legal_calls()
     if not legal:
         return 'Pass', "Pass. No legal call available."

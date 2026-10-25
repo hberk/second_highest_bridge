@@ -264,7 +264,7 @@ export class Game {
     while (!auction.isComplete) {
       const who = auction.currentPlayer();
       if (who === HUMAN) break;
-      const [call, why] = aiBidExplained(who, this.hands[who], auction);
+      const [call, why] = aiBidExplained(who, this.hands[who], auction, this.robotAlerts());
       this.alerts[auction.calls.length] = why;
       auction.applyCall(who, call);
       this.calls.push([who, call]);
@@ -284,6 +284,17 @@ export class Game {
     this.phase = 'auction_done';
   }
 
+  /** The robots' own alerts, by call: what a robot bidder may read (the
+   *  human's self-alerts are free text the robots don't read). */
+  private robotAlerts(): Record<number, string> {
+    const alerts: Record<number, string> = {};
+    for (const [i, why] of Object.entries(this.alerts)) {
+      const call = this.calls[Number(i)];
+      if (call && call[0] !== HUMAN) alerts[Number(i)] = why;
+    }
+    return alerts;
+  }
+
   /** `alert` is the player's own explanation of the call, as a self-alert on
    *  BBO. The robots don't read it; it goes into the record and the LIN. */
   /** GIB's reading of each human call, by auction (`meanings.gib_alert` in Python). */
@@ -293,11 +304,7 @@ export class Game {
    *  its own alert, the human's by what GIB would mean by it (`callMeanings`)
    *  -- the self-alert is free text the robots don't read (docs/CHALLENGE.md). */
   robotShown() {
-    const alerts: Record<number, string> = {};
-    for (const [i, why] of Object.entries(this.alerts)) {
-      const call = this.calls[Number(i)];
-      if (call && call[0] !== HUMAN) alerts[Number(i)] = why;
-    }
+    const alerts = this.robotAlerts();
     this.calls.forEach(([who, call], i) => {
       if (who !== HUMAN) return;
       const key = `${this.dealer}|${this.vulnerability}|${this.calls.slice(0, i + 1).map(([, c]) => c).join(' ')}`;

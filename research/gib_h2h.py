@@ -41,11 +41,12 @@ def main(names: list[str]) -> None:
     def auction(deal_id, dealer, vul, variant_side):
         hands = challenge.hands_for(deal_id)
         a = AuctionState(dealer=dealer, vulnerability=vul)
+        alerts = {}
         while not a.is_complete:
             p = a.current_player()
             for n, f in (on if SIDE[p] == variant_side else off).items():
                 setattr(gib, n, f)
-            call, _ = ai.ai_bid_explained(p, hands[p], a)
+            call, alerts[len(a.calls)] = ai.ai_bid_explained(p, hands[p], a, alerts)
             a.apply_call(p, call)
         return a.get_contract(), [c for _, c in a.calls]
 

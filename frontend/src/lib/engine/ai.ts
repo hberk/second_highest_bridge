@@ -9,7 +9,9 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { gibBid, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert } from './gib';
+import { gibBid, Hand, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert } from './gib';
+// meanings.ts imports this module; its functions are only called, never at load.
+import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
 const AI_TAG = '__ai__';
 type AnyPlay = Play<string>;
@@ -494,7 +496,160 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
 /** GIB 2/1 is the default system (gib.ts); false plays the previous one. */
 export const settingsAi = { useGib: true };
 
-export function aiBidExplained(player: Seat, hand: Card[], auction: AuctionState): Decision {
+/** Penalty double (the user's rule, 2026-10-24). Where the robot would pass
+ *  an opponents' natural suit bid, double it with 5+ trumps, or 4+ trumps at
+ *  the three level or higher, when our judgement points -- mine plus the
+ *  middle of the range partner's alerts show -- reach PENALTY_JUDGE. See ai.py. */
+export const PENALTY_DOUBLE = true;
+export const PENALTY_JUDGE = 20;
+const RANGE_RE = /(\d+)-(\d+) (?:HCP|points)/g;
+const MIN_RE = /(\d+)\+ (?:HCP|points)/g;
+const MAX_RE = /Fewer than (\d+) (?:HCP|points)/g;
+
+/** The middle of the point range partner's alerts show. An open range
+ *  ("8+ HCP") is taken as seven points wide; no range at all as a third of
+ *  the points I don't hold. */
+function partnerMiddle(partner: Seat, auction: AuctionState, alerts: Record<number, string>,
+  mine: number): number {
+  let lo = 0;
+  let hi = 40 - mine;
+  let shown = false;
+  auction.calls.forEach(([who], i) => {
+    if (who !== partner) return;
+    const text = alerts[i] ?? '';
+    for (const m of text.matchAll(RANGE_RE)) {
+      lo = Math.max(lo, Number(m[1])); hi = Math.min(hi, Number(m[2])); shown = true;
+    }
+    for (const m of text.matchAll(MIN_RE)) { lo = Math.max(lo, Number(m[1])); shown = true; }
+    for (const m of text.matchAll(MAX_RE)) { hi = Math.min(hi, Number(m[1]) - 1); shown = true; }
+  });
+  if (!shown) return (40 - mine) / 3;
+  if (hi === 40 - mine && lo > 0) hi = Math.min(hi, lo + 7);
+  return (lo + Math.max(lo, hi)) / 2;
+}
+
+function penaltyDouble(player: Seat, hand: Card[], auction: AuctionState,
+  alerts: Record<number, string>): Decision | null {
+  const hb = auction.highestBid;
+  if (!hb || hb[2] === player || hb[2] === PARTNERS[player] || auction.doubled !== 'None') return null;
+  const [level, suit] = hb;
+  if (!(SUITS as readonly string[]).includes(suit) || !auction.legalCalls().includes('X')) return null;
+  let at = -1;
+  auction.calls.forEach(([, c], i) => {
+    const p = parseBid(c);
+    if (p && p[0] === level && p[1] === suit) at = i;
+  });
+  if ((alerts[at] ?? '').toLowerCase().includes('artificial')) return null;
+  const n = hand.filter((c) => c.suit === suit).length;
+  const need = level <= 2 ? 5 : 4;
+  if (n < need) return null;
+  const mine = new Hand(hand).judge;
+  if (mine + partnerMiddle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE) return null;
+  if (!doubleIsFree(auction)) return null;
+  return ['X', `Penalty: ${need}+ ${SUIT_SYM[suit]}.`];
+}
+
+const FREE = new Map<string, boolean>();
+let sampling = false;
+
+/** Does the system leave a double here without a meaning of its own? Where X
+ *  is takeout, negative, responsive or another penalty, a penalty double for
+ *  some hands would make the same call mean two things. Asked the way the
+ *  bidding box asks (meanings.ts), with the penalty double switched off; one
+ *  sampled X is enough. See `_double_is_free` in ai.py. */
+function doubleIsFree(auction: AuctionState): boolean {
+  const key = `${auction.dealer}|${auction.vulnerability}|${auction.calls.map(([, c]) => c).join(' ')}`;
+  let free = FREE.get(key);
+  if (free === undefined) {
+    const here = new AuctionState(auction.dealer, auction.vulnerability);
+    for (const [p, c] of auction.calls) here.applyCall(p, c);
+    const who = here.currentPlayer();
+    const rnd = prng(seedOf(here));
+    sampling = true;
+    try {
+      free = true;
+      for (let i = 0; i < SAMPLE_HANDS; i++) {
+        if (aiBidExplained(who, sampleHand(rnd), here, {})[0] === 'X') { free = false; break; }
+      }
+    } finally {
+      sampling = false;
+    }
+    FREE.set(key, free);
+  }
+  return free;
+}
+
+/** Partner's penalty double is the last call made on the current bid. */
+function partnerPenaltyStands(player: Seat, auction: AuctionState,
+  alerts: Record<number, string>): boolean {
+  if (!auction.highestBid || auction.doubled === 'None') return false;
+  for (let i = auction.calls.length - 1; i >= 0; i--) {
+    const [who, call] = auction.calls[i];
+    if (call === 'X') return who === PARTNERS[player] && (alerts[i] ?? '').startsWith('Penalty');
+    if (call !== 'Pass' && call !== 'XX') return false;
+  }
+  return false;
+}
+
+/** `alerts` maps a call's index to the robot's alert for it -- robots' calls
+ *  only, as a person's self-alert is free text the robots don't read. The
+ *  penalty double reads partner's range from it. */
+export function aiBidExplained(player: Seat, hand: Card[], auction: AuctionState,
+  alerts?: Record<number, string>): Decision {
+  const known = alerts ?? robotAlerts(auction);
+  const decision = penaltyOrBase(player, hand, auction, known);
+  if (!robotSaid.has(auction)) robotSaid.set(auction, new Map());
+  robotSaid.get(auction)!.set(auction.calls.length, decision);
+  return decision;
+}
+
+/** What this function said on each auction object, by call index. Left out,
+ *  `alerts` is the robots' alerts for the calls since made (`_robot_alerts`
+ *  in ai.py): an alert depends only on the auction and the call. */
+const robotSaid = new WeakMap<AuctionState, Map<number, Decision>>();
+
+function robotAlerts(auction: AuctionState): Record<number, string> {
+  const out: Record<number, string> = {};
+  for (const [i, [call, why]] of robotSaid.get(auction) ?? new Map<number, Decision>()) {
+    if (i < auction.calls.length && auction.calls[i][1] === call) out[i] = why;
+  }
+  return out;
+}
+
+function passesSinceDouble(auction: AuctionState): number {
+  let n = 0;
+  for (let i = auction.calls.length - 1; i >= 0 && auction.calls[i][1] === 'Pass'; i--) n++;
+  return n;
+}
+
+function penaltyOrBase(player: Seat, hand: Card[], auction: AuctionState,
+  alerts: Record<number, string>): Decision {
+  const decision = doubledOrBase(player, hand, auction, alerts);
+  const hb = auction.highestBid;
+  const bid = parseBid(decision[0]);
+  if (hb && auction.doubled === 'X' && (hb[2] === player || hb[2] === PARTNERS[player])
+    && bid && bid[1] === hb[1]
+    && (alerts[auction.calls.length - 1 - passesSinceDouble(auction)] ?? '').startsWith('Penalty')) {
+    // Doubled for penalty in our own strain: bidding it again only goes down more.
+    return ['Pass', 'Doubled: no higher in the same strain.'];
+  }
+  return decision;
+}
+
+function doubledOrBase(player: Seat, hand: Card[], auction: AuctionState,
+  alerts: Record<number, string>): Decision {
+  if (PENALTY_DOUBLE && !sampling && auction.legalCalls().length) {
+    if (partnerPenaltyStands(player, auction, alerts)) {
+      return ['Pass', "Partner's penalty double stands."];
+    }
+    const decision = baseBidExplained(player, hand, auction);
+    if (decision[0] === 'Pass') return penaltyDouble(player, hand, auction, alerts) ?? decision;
+    return decision;
+  }
+  return baseBidExplained(player, hand, auction);
+}
+
+function baseBidExplained(player: Seat, hand: Card[], auction: AuctionState): Decision {
   const legal = auction.legalCalls();
   if (!legal.length) return ['Pass', 'Pass. No legal call available.'];
 

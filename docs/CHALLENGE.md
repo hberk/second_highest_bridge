@@ -25,21 +25,28 @@ which a single score cannot answer. Measured 2026-10-19, with every card-play ru
 grades, so this is what the "Robots" column of the match table averages to.
 The web app's Challenge caption quotes this table; rerun the script after a
 robot change and update both together. Measured 2026-10-24, after the
-defender's suit plan (below), graded with the partner who actually declared
-(the library holds every declarer's count; par takes the better partner):
+penalty double where X is free, the cuebid raise read as support (PR #30)
+and the defender's suit plan (below), graded with the partner who actually
+declared (the library holds every declarer's count; par takes the better
+partner):
 
 | | mean per board | median |
 |---|---|---|
-| lost in the auction | **242.5** | 200.0 |
-| lost in the card play | **5.2** | **0.0** |
+| lost in the auction | **240.8** | 200.0 |
+| lost in the card play | **6.0** | **0.0** |
 
-Graded from the declaring side: 209.8 in the auction and -24.4 in the card
-play. The same robots without the suit plan: 242.5 and 3.5 from N/S, 209.8
+Graded from the declaring side: 214.8 in the auction and -24.3 in the card
+play. All four seats bid the new way, so what one side gains head to head
+(+4.34 a board) the other gains back.
+
+Before PR #30, after the defender's suit plan (2026-10-24): 242.5 in the
+auction and 5.2 in the card play from N/S; 209.8 and -24.4 from the declaring
+side. The same robots without the suit plan: 242.5 and 3.5 from N/S, 209.8
 and -36.6 from the declaring side. Robots defend for N/S as often as they
 declare, so a better defence moves the N/S figure little; it shows from the
 declaring side, whose play now beats double dummy by 12 points a board less.
 (The auction's 242.5 against 240.1 below is the jack's judgement point, PR
-#28's last commit, measured after it.)
+#28's last commit, measured after it. PR #30 brings it back to 240.8.)
 
 Measured 2026-10-23, after shortness (PR #26) and game by points (PR #28):
 240.1 in the auction and 2.9 in the card play from N/S. All four seats bid
