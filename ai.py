@@ -1,6 +1,7 @@
 from __future__ import annotations
 from card import Card, SUITS, STRAINS, RANKS, RANK_VALUE, parse_bid, bid_index
 from itertools import combinations
+from math import comb
 import re
 from game import legal_plays, resolve_trick, AuctionState, PARTNERSHIP, PARTNERS, PLAYERS
 import gib
@@ -1248,7 +1249,9 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         shown = None
 
     if not trick and not played and shown:
-        choice = _partner_suit_lead(player, hand, trump, shown)
+        choice = (_partner_suit_lead(player, hand, trump, shown)
+                  or (_singleton_lead(hand, trump) if SINGLETON_LEAD else None)
+                  or _fit_lead(player, hand, trump, shown, history, visible))
         if choice is not None:
             return choice
     if not trick:
@@ -1262,8 +1265,12 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                   or (_run_long_suit(player, hand, trump, played, visible, history, shown,
                                      max_losers=float('inf'))
                       if NT_SET_UP_SUIT and trump not in SUITS else None)
+                  or (_ruff_return(player, hand, trump, history, visible, shown)
+                      if RUFF_RETURN and PARTNERS[player] not in (visible or {}) else None)
                   or ((sure := _sure_lead(player, hand, trump, played, visible, history))
                       if SURE_LEAD else None)
+                  or (_fit_lead(player, hand, trump, shown, history, visible)
+                      if shown and PARTNERS[player] not in (visible or {}) else None)
                   or (_nt_long_lead(player, hand, trump, played, visible)
                       if NT_LONG_LEAD else None))
         if DEFENDER_SUIT_PLAN and choice is not None and choice != sure:
@@ -1404,6 +1411,27 @@ SHOWOUT_MIDDLE = True
 AUCTION_IN_PLAY = True
 #: The shortest suit partner's bidding must show for the opening lead in it.
 PARTNER_LEAD_MIN = 5
+#: A defender on lead leads a suit partner bid naturally when holding this
+#: many of it: the partnership's fit (the user's rule, board 17).
+FIT_LEAD_MIN = 3
+#: The opening lead in a suit contract is a side-suit singleton when I hold a
+#: trump to ruff with (the lead study: +0.43 tricks double dummy, but the gap
+#: rule ranked singletons last). Measurement switch.
+SINGLETON_LEAD = False
+#: Only singletons this high or lower (by value: 8 is the ten, 12 the ace).
+SINGLETON_LEAD_MAX = 12
+#: A defender on lead plays a suit partner has shown out of while partner may
+#: still hold a trump, for the ruff. Measurement switch.
+RUFF_RETURN = True
+#: ...and returns partner's opening-lead suit when it was a singleton at
+#: least SHORT_LEAD_PCT percent of the time (`_short_lead`), before partner
+#: shows out.
+SHORT_LEAD_RETURN = True
+SHORT_LEAD_PCT = 20
+#: An honour lead (this value or higher: 9 is the jack) is read by counting
+#: alone, not by the lead convention: people lead honours from sequences and
+#: other holdings (deal 356: K♥ from K-7-3-2). Your call, 10-25.
+SHORT_LEAD_HONOUR = 9
 
 _SUIT_OF_SYM = {'\u2660': 'S', '\u2665': 'H', '\u2666': 'D', '\u2663': 'C'}
 _SHOWN_RE = re.compile(r'(\d+)\+ ([\u2660\u2665\u2666\u2663](?: [\u2660\u2665\u2666\u2663])*)')
@@ -1415,10 +1443,13 @@ def shown_lengths(calls: list, alerts: dict) -> dict[str, dict[str, int]]:
 
     `calls` is the auction as (seat, call); `alerts` maps a call's index to
     its alert. Only alerts that are true of the hand belong here -- the
-    robots'. "4+ ♥ ♠" is four of each; "exactly 3 ♥" is three."""
+    robots'. "4+ ♥ ♠" is four of each; "exactly 3 ♥" is three. A natural
+    suit bid with no number ("Longest suit other than theirs, ♥") is one."""
     shown: dict[str, dict[str, int]] = {p: {} for p in PLAYERS}
-    for i, (seat, _) in enumerate(calls):
+    for i, (seat, call) in enumerate(calls):
         text = alerts.get(i) or ''
+        if _natural_suit(call, text):
+            shown[seat][call[-1]] = max(shown[seat].get(call[-1], 0), 1)
         for n, syms in _SHOWN_RE.findall(text):
             for sym in syms.split():
                 s = _SUIT_OF_SYM[sym]
@@ -1427,6 +1458,16 @@ def shown_lengths(calls: list, alerts: dict) -> dict[str, dict[str, int]]:
             s = _SUIT_OF_SYM[sym]
             shown[seat][s] = max(shown[seat].get(s, 0), int(n))
     return shown
+
+
+def _natural_suit(call: str, text: str) -> bool:
+    """Is `call` a bid of its own suit? Its alert names the suit and isn't
+    artificial, a splinter (short there), or a completed transfer or relay."""
+    if not isinstance(call, str) or len(call) != 2 or not call[0].isdigit() or call[1] not in SUITS:
+        return False
+    sym = next(k for k, v in _SUIT_OF_SYM.items() if v == call[1])
+    return (sym in text and 'Artificial' not in text and 'Completing' not in text
+            and 'relay' not in text and f'short {sym}' not in text)
 
 
 def _played_in(seat: str, suit: str, history: list, trick: list) -> int:
@@ -1458,6 +1499,107 @@ def _partner_suit_lead(player: str, hand: list[Card], trump: str | None,
     s = max(suits, key=lambda t: (shown[partner][t], SUITS.index(t)))
     cards = sorted((c for c in hand if c.suit == s), key=lambda c: c.value(), reverse=True)
     return cards[min(1, len(cards) - 1)]
+
+
+def _fit_lead(player: str, hand: list[Card], trump: str | None,
+              shown: dict[str, dict[str, int]], history: list | None,
+              visible: dict[str, list[Card]] | None) -> Card | None:
+    """A defender's lead in a suit partner bid where I hold FIT_LEAD_MIN or
+    more, or None. Not trumps, and not once an opponent (or the dummy I can
+    see) is out of it, which would give a ruff. Led like any other suit."""
+    partner = PARTNERS[player]
+    out = _shown_out(history or [], [])
+    dummy = next((cards for seat, cards in (visible or {}).items() if seat != partner), None)
+    suits = []
+    for s in shown.get(partner, {}):
+        mine = [c for c in hand if c.suit == s]
+        if (s == trump or len(mine) < FIT_LEAD_MIN or s in out[partner]
+                or any(s in out[p] for p in PLAYERS if p not in (player, partner))
+                or (dummy is not None and not any(c.suit == s for c in dummy))):
+            continue
+        suits.append(s)
+    if not suits:
+        return None
+    s = max(suits, key=lambda t: (shown[partner][t] + sum(c.suit == t for c in hand),
+                                  SUITS.index(t)))
+    cards = sorted((c for c in hand if c.suit == s), key=lambda c: c.value(), reverse=True)
+    return cards[min(1, len(cards) - 1)]
+
+
+def _singleton_lead(hand: list[Card], trump: str | None) -> Card | None:
+    """A side-suit singleton to lead when I hold a trump, or None. Of two,
+    the lower: an honour is more often worth a trick where it sits."""
+    if trump not in SUITS or not any(c.suit == trump for c in hand):
+        return None
+    singles = [c for c in hand if c.suit != trump and c.value() <= SINGLETON_LEAD_MAX
+               and sum(1 for d in hand if d.suit == c.suit) == 1]
+    return min(singles, key=lambda c: (c.value(), SUITS.index(c.suit))) if singles else None
+
+
+def _ruff_return(player: str, hand: list[Card], trump: str | None,
+                 history: list | None, visible: dict[str, list[Card]] | None = None,
+                 shown: dict[str, dict[str, int]] | None = None) -> Card | None:
+    """A suit partner has shown out of while partner may still hold a trump,
+    led for the ruff (my lowest card of it), or None. With SHORT_LEAD_RETURN,
+    also the suit of partner's opening lead when it reads as a singleton
+    (`_short_lead`)."""
+    if trump not in SUITS or not history:
+        return None
+    partner = PARTNERS[player]
+    out = _shown_out(history, [])
+    if trump in out[partner]:
+        return None
+    cards = [c for c in hand if c.suit != trump and c.suit in out[partner]]
+    if not cards and SHORT_LEAD_RETURN:
+        suit = _short_lead(player, hand, trump, history, visible, shown)
+        cards = [c for c in hand if c.suit == suit]
+    return min(cards, key=lambda c: (c.value(), SUITS.index(c.suit))) if cards else None
+
+
+def _short_lead(player: str, hand: list[Card], trump: str | None, history: list,
+                visible: dict[str, list[Card]] | None,
+                shown: dict[str, dict[str, int]] | None) -> str | None:
+    """The suit of partner's opening lead if it was a singleton with at least
+    SHORT_LEAD_PCT percent likelihood, or None.
+
+    The robots lead the second-highest from two or more cards, so a lead from
+    length leaves partner exactly one of the higher cards still unseen and any
+    number of the lower ones; a singleton leaves partner none. Every split of
+    the unseen cards between partner and declarer that fits that (and
+    declarer's bid length) is counted, weighted by the ways to fill each hand
+    with other cards. An honour's card says nothing (SHORT_LEAD_HONOUR): then
+    any split counts. Never once partner has followed to the suit again."""
+    partner, lead = history[0][0]
+    if partner != PARTNERS[player]:
+        return None
+    suit = lead.suit
+    if suit == trump or (shown or {}).get(partner, {}).get(suit, 0) >= 2:
+        return None
+    if any(p == partner and c.suit == suit for plays in history[1:] for p, c in plays):
+        return None
+    dummy_seat = next((p for p in (visible or {}) if p != player), None)
+    if dummy_seat is None:
+        return None
+    declarer = next(p for p in PLAYERS if p not in (player, partner, dummy_seat))
+    seen = set(hand) | set(visible[dummy_seat]) | {c for plays in history for _, c in plays}
+    unseen = [c for c in _FULL_DECK if c not in seen]
+    higher = sum(1 for c in unseen if c.suit == suit and c.value() > lead.value())
+    lower = sum(1 for c in unseen if c.suit == suit and c.value() < lead.value())
+    others = sum(1 for c in unseen if c.suit != suit)
+    held = 13 - sum(1 for plays in history for p, _ in plays if p == partner)
+    floor = max(0, (shown or {}).get(declarer, {}).get(suit, 0)
+                - _played_in(declarer, suit, history, []))
+    total = higher + lower
+    single = comb(others, held) if total >= floor else 0
+    if lead.value() >= SHORT_LEAD_HONOUR:
+        longer = sum(comb(total, k) * comb(others, held - k)
+                     for k in range(1, total + 1) if total - k >= floor and held - k >= 0)
+    else:
+        longer = sum(higher * comb(lower, j) * comb(others, held - 1 - j)
+                     for j in range(lower + 1) if total - 1 - j >= floor and held - 1 - j >= 0)
+    if single == 0 or 100 * single < SHORT_LEAD_PCT * (single + longer):
+        return None
+    return suit
 
 
 def _shown_out(history: list, trick: list) -> dict[str, set[str]]:

@@ -197,6 +197,85 @@ def test_the_bit_trick_winner_follows_the_rules():
         assert PLAYERS[winner] == resolve_trick(trick, trump)
 
 
+def test_a_natural_suit_bid_with_no_number_is_a_floor_of_one():
+    """Board 17: "Longest suit other than theirs, ♥" names no length, but it
+    is still partner's suit. Artificial calls and splinters show nothing."""
+    calls = [('North', 'Pass'), ('East', '1S'), ('South', 'X'), ('West', 'XX'),
+             ('North', '2H'), ('East', '2C'), ('South', '4D')]
+    alerts = {1: "5+ ♠, 11-21 HCP.", 2: "Takeout: 12+ HCP.", 3: "10+ HCP.",
+              4: "Longest suit other than theirs, ♥. Answering the double.",
+              5: "Stayman: asks for a 4-card major. Artificial.",
+              6: "Splinter: 4+ ♥, short ♦, 13-15 HCP."}
+    shown = ai.shown_lengths(calls, alerts)
+    assert shown['North'] == {'H': 1}
+    assert shown['East'] == {'S': 5}
+    assert shown['South'] == {'H': 4}
+
+
+def test_board_17_leads_partners_hearts_at_trick_one_and_trick_three():
+    """North answered South's double with 2♥; East played 2♠. South, with
+    ♥KJ73, leads the J♥ (the second-highest, as any lead), not the Q♣."""
+    def hand(text):
+        out = []
+        for suit, cards in zip('SHDC', text.split()):
+            out += [Card(suit, '10' if r == 'T' else r) for r in cards]
+        return out
+    south = hand('95 KJ73 A97 KQT6')
+    shown = {'North': {'H': 1}, 'East': {'S': 5}, 'South': {}, 'West': {}}
+    assert ai.ai_play('South', south, [], 'S', [], shown=shown) == C('JH')
+    # Later, on lead again with dummy down: still hearts while nobody is out
+    # (the card is the defender suit plan's, from deal 356).
+    dummy = hand('876 AT8 KQ J7432')
+    played = [C('QC'), C('JC'), C('8C'), C('5C'), C('6S'), C('2S'), C('4S'), C('5S')]
+    history = [[('South', C('QC')), ('West', C('JC')), ('North', C('8C')), ('East', C('5C'))],
+               [('West', C('6S')), ('North', C('2S')), ('East', C('4S')), ('South', C('5S'))]]
+    left = [c for c in south if c not in played]
+    lead = ai.ai_play('South', left, [], 'S', played, visible={'West': dummy},
+                      history=history, shown=shown)
+    assert lead.suit == "H", lead
+    # Not once declarer has shown out: that gives a ruff.
+    history.append([('South', C('JH')), ('West', C('8H')), ('North', C('QH')), ('East', C('4S'))])
+    assert ai._fit_lead('South', left, 'S', shown, history, {'West': dummy}) is None
+
+
+def test_a_defender_leads_back_the_suit_partner_is_out_of():
+    """Partner showed out of clubs and may still hold a trump: lead a club
+    (my lowest) for the ruff."""
+    hand = [C('KC'), C('4C'), C('AD'), C('5D')]
+    history = [[('East', C('2H')), ('South', C('3H')), ('West', C('4H')), ('North', C('5H'))],
+               [('East', C('3C')), ('South', C('5C')), ('West', C('7S')), ('North', C('6C'))]]
+    assert ai._ruff_return('East', hand, 'S', history, {'North': [C('9D')]}) == C('4C')
+    # Not once partner is out of trumps too.
+    history.append([('North', C('2S')), ('East', C('6D')), ('South', C('3S')), ('West', C('8H'))])
+    assert ai._ruff_return('East', hand, 'S', history, {'North': [C('9D')]}) is None
+
+
+def test_partners_lead_reads_as_a_singleton_when_the_higher_cards_are_in_sight():
+    """West led the 10 of diamonds. Every higher diamond is in my hand or
+    dummy's, and the robots lead the second-highest from two or more, so the
+    ten was a singleton: lead a diamond back before West shows out."""
+    east = [C('AD'), C('KD'), C('QD'), C('3D'), C('AH'), C('2H')]
+    dummy = [C('JD'), C('9D'), C('KH'), C('QH'), C('JH'), C('5C')]
+    history = [[('West', C('10D')), ('North', C('9D')), ('East', C('AD')), ('South', C('2D'))]]
+    east.remove(C('AD')); dummy.remove(C('9D'))
+    shown = {'North': {}, 'East': {}, 'South': {'S': 5}, 'West': {}}
+    assert ai._short_lead('East', east, 'S', history, {'North': dummy}, shown) == 'D'
+    assert ai._ruff_return('East', east, 'S', history, {'North': dummy}, shown) == C('3D')
+    # Partner's own bid suit is led from length: no reading.
+    assert ai._short_lead('East', east, 'S', history, {'North': dummy},
+                          {**shown, 'West': {'D': 5}}) is None
+
+
+def test_an_honour_lead_is_read_by_counting_alone():
+    """Deal 356: South led the K♥ from K-7-3-2. Every higher heart was in
+    sight, so by the lead convention it was a singleton; an honour's card
+    isn't read, and by counting alone it is too often from length."""
+    from test_card_play_rules import replay, DEAL_356
+    hands, played, history = replay(356, DEAL_356)
+    view = ai.visible_hands('North', {'declarer': 'East', 'dummy': 'West'}, hands)
+    assert ai._short_lead('North', hands['North'], 'S', history, view, None) is None
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_') and callable(fn):

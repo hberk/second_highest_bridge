@@ -805,7 +805,7 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
   if (NO_PEEK_OPENING_LEAD && !trick.length && !played.length) visible = {};
   if (!AUCTION_IN_PLAY) shown = null;
   if (!trick.length && !played.length && shown) {
-    const lead0 = partnerSuitLead(player, hand, trump, shown);
+    const lead0 = partnerSuitLead(player, hand, trump, shown) ?? fitLead(player, hand, trump, shown, history, visible);
     if (lead0 !== null) return lead0;
   }
   let choice: Card;
@@ -814,7 +814,9 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     const chosen = (DRAW_TRUMPS ? drawTrump(player, hand, trump, played, visible, history, shown) : null)
       ?? (RUFF_LEAD ? ruffLead(player, hand, trump, played, visible) : null)
       ?? (RUN_LONG_SUIT ? runLongSuit(player, hand, trump, played, visible, history, shown) : null)
+      ?? (RUFF_RETURN && !(PARTNERS[player] in visible) ? ruffReturn(player, hand, trump, history, visible, shown) : null)
       ?? (SURE_LEAD ? (sure = sureLead(player, hand, trump, played, visible, history)) : null)
+      ?? (shown && !(PARTNERS[player] in visible) ? fitLead(player, hand, trump, shown, history, visible) : null)
       ?? (NT_LONG_LEAD ? ntLongLead(player, hand, trump, played, visible) : null);
     if (chosen !== null) {
       choice = chosen;
@@ -926,6 +928,11 @@ export const NO_PEEK_OPENING_LEAD = true;
 export const SHOWOUT_MIDDLE = true;
 export const AUCTION_IN_PLAY = true;
 export const PARTNER_LEAD_MIN = 5;
+export const FIT_LEAD_MIN = 3;
+export const RUFF_RETURN = true;
+export const SHORT_LEAD_RETURN = true;
+export const SHORT_LEAD_PCT = 20;
+export const SHORT_LEAD_HONOUR = 9;
 
 /** The fewest cards each seat's bidding showed in each suit. */
 export type Shown = Partial<Record<Seat, Partial<Record<Suit, number>>>>;
@@ -937,8 +944,12 @@ const EXACT_RE = /exactly (\d+) ([\u2660\u2665\u2666\u2663])/g;
 /** The fewest cards each seat's alerts promise in each suit (see ai.py). */
 export function shownLengths(calls: [Seat, string][], alerts: Record<number, string>): Shown {
   const shown: Shown = { North: {}, East: {}, South: {}, West: {} };
-  calls.forEach(([seat], i) => {
+  calls.forEach(([seat, call], i) => {
     const text = alerts[i] ?? '';
+    if (naturalSuit(call, text)) {
+      const s = call[1] as Suit;
+      shown[seat]![s] = Math.max(shown[seat]![s] ?? 0, 1);
+    }
     for (const m of text.matchAll(SHOWN_RE)) {
       for (const sym of m[2].split(' ')) {
         const s = SUIT_OF_SYM[sym];
@@ -951,6 +962,14 @@ export function shownLengths(calls: [Seat, string][], alerts: Record<number, str
     }
   });
   return shown;
+}
+
+/** Is `call` a bid of its own suit (see ai.py)? */
+function naturalSuit(call: string, text: string): boolean {
+  if (typeof call !== 'string' || call.length !== 2 || !/[0-9]/.test(call[0]) || !SUITS.includes(call[1] as Suit)) return false;
+  const sym = Object.keys(SUIT_OF_SYM).find((k) => SUIT_OF_SYM[k] === call[1])!;
+  return text.includes(sym) && !text.includes('Artificial') && !text.includes('Completing')
+    && !text.includes('relay') && !text.includes(`short ${sym}`);
 }
 
 function playedIn(seat: Seat, suit: string, history: AnyPlay[][], trick: AnyPlay[]): number {
@@ -976,6 +995,89 @@ function partnerSuitLead(player: Seat, hand: Card[], trump: string | null, shown
   const s = maxBy(suits, (t) => [mine[t]!, suitIndex(t)]);
   const cards = hand.filter((c) => c.suit === s).sort((a, b) => value(b) - value(a));
   return cards[Math.min(1, cards.length - 1)];
+}
+
+function fitLead(player: Seat, hand: Card[], trump: string | null, shown: Shown,
+  history: AnyPlay[][] | null, visible: Partial<Record<Seat, Card[]>>): Card | null {
+  const partner = PARTNERS[player];
+  const out = shownOut(history ?? [], []);
+  const dummySeat = (Object.keys(visible) as Seat[]).find((seat) => seat !== partner);
+  const dummy = dummySeat === undefined ? null : visible[dummySeat]!;
+  const theirs = shown[partner] ?? {};
+  const suits: Suit[] = [];
+  for (const s of Object.keys(theirs) as Suit[]) {
+    const mine = hand.filter((c) => c.suit === s);
+    if (s === trump || mine.length < FIT_LEAD_MIN || out[partner].has(s)
+      || PLAYERS.some((p) => p !== player && p !== partner && out[p].has(s))
+      || (dummy !== null && !dummy.some((c) => c.suit === s))) continue;
+    suits.push(s);
+  }
+  if (!suits.length) return null;
+  const s = maxBy(suits, (t) => [theirs[t]! + hand.filter((c) => c.suit === t).length, suitIndex(t)]);
+  const cards = hand.filter((c) => c.suit === s).sort((a, b) => value(b) - value(a));
+  return cards[Math.min(1, cards.length - 1)];
+}
+
+/** A suit partner has shown out of while partner may still hold a trump,
+ *  or partner's opening-lead suit read as a singleton, for the ruff (see ai.py). */
+function ruffReturn(player: Seat, hand: Card[], trump: string | null, history: AnyPlay[][] | null,
+  visible: Partial<Record<Seat, Card[]>>, shown: Shown | null): Card | null {
+  if (trump === null || !(SUITS as readonly string[]).includes(trump) || !history || !history.length) return null;
+  const partner = PARTNERS[player];
+  const out = shownOut(history, []);
+  if (out[partner].has(trump)) return null;
+  let cards = hand.filter((c) => c.suit !== trump && out[partner].has(c.suit));
+  if (!cards.length && SHORT_LEAD_RETURN) {
+    const suit = shortLead(player, hand, trump, history, visible, shown);
+    cards = hand.filter((c) => c.suit === suit);
+  }
+  return cards.length ? minBy(cards, (c) => [value(c), suitIndex(c.suit)]) : null;
+}
+
+function comb(n: number, k: number): number {
+  if (k < 0 || k > n) return 0;
+  let r = 1;
+  for (let i = 0; i < k; i++) r = (r * (n - i)) / (i + 1);
+  return r;
+}
+
+/** The suit of partner's opening lead if it was a singleton at least
+ *  SHORT_LEAD_PCT percent of the time (see ai.py `_short_lead`). */
+function shortLead(player: Seat, hand: Card[], trump: string, history: AnyPlay[][],
+  visible: Partial<Record<Seat, Card[]>>, shown: Shown | null): string | null {
+  const [partner, lead] = history[0][0];
+  if (partner !== PARTNERS[player]) return null;
+  const suit = lead.suit;
+  if (suit === trump || (shown?.[partner as Seat]?.[suit as Suit] ?? 0) >= 2) return null;
+  if (history.slice(1).some((plays) => plays.some(([p, c]) => p === partner && c.suit === suit))) return null;
+  const dummySeat = (Object.keys(visible) as Seat[]).find((p) => p !== player);
+  if (dummySeat === undefined) return null;
+  const dummy = visible[dummySeat]!;
+  const declarer = PLAYERS.find((p) => p !== player && p !== partner && p !== dummySeat)!;
+  const seen = new Set<string>([...hand, ...dummy].map(cardKey));
+  for (const plays of history) for (const [, c] of plays) seen.add(cardKey(c));
+  const unseen = FULL_DECK.filter((c) => !seen.has(cardKey(c)));
+  const higher = unseen.filter((c) => c.suit === suit && value(c) > value(lead)).length;
+  const lower = unseen.filter((c) => c.suit === suit && value(c) < value(lead)).length;
+  const others = unseen.filter((c) => c.suit !== suit).length;
+  let held = 13;
+  for (const plays of history) for (const [p] of plays) if (p === partner) held--;
+  const floor = Math.max(0, (shown?.[declarer]?.[suit as Suit] ?? 0) - playedIn(declarer, suit, history, []));
+  const total = higher + lower;
+  const single = total >= floor ? comb(others, held) : 0;
+  let longer = 0;
+  if (value(lead) >= SHORT_LEAD_HONOUR) {
+    // An honour's card says nothing: any split counts (see ai.py).
+    for (let k = 1; k <= total; k++) {
+      if (total - k >= floor && held - k >= 0) longer += comb(total, k) * comb(others, held - k);
+    }
+  } else {
+    for (let j = 0; j <= lower; j++) {
+      if (total - 1 - j >= floor && held - 1 - j >= 0) longer += higher * comb(lower, j) * comb(others, held - 1 - j);
+    }
+  }
+  if (single === 0 || 100 * single < SHORT_LEAD_PCT * (single + longer)) return null;
+  return suit;
 }
 
 function shownOut(history: AnyPlay[][], trick: AnyPlay[]): Record<string, Set<string>> {
