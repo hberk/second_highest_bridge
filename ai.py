@@ -1087,6 +1087,7 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
 
     if not trick and not played and shown:
         choice = (_partner_suit_lead(player, hand, trump, shown)
+                  or (_singleton_lead(hand, trump) if SINGLETON_LEAD else None)
                   or _fit_lead(player, hand, trump, shown, history, visible))
         if choice is not None:
             return choice
@@ -1100,6 +1101,8 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                   or (_run_long_suit(player, hand, trump, played, visible, history, shown,
                                      max_losers=float('inf'))
                       if NT_SET_UP_SUIT and trump not in SUITS else None)
+                  or (_ruff_return(player, hand, trump, history)
+                      if RUFF_RETURN and PARTNERS[player] not in (visible or {}) else None)
                   or (_sure_lead(player, hand, trump, played, visible, history)
                       if SURE_LEAD else None)
                   or (_fit_lead(player, hand, trump, shown, history, visible)
@@ -1239,6 +1242,15 @@ PARTNER_LEAD_MIN = 5
 #: A defender on lead leads a suit partner bid naturally when holding this
 #: many of it: the partnership's fit (the user's rule, board 17).
 FIT_LEAD_MIN = 3
+#: The opening lead in a suit contract is a side-suit singleton when I hold a
+#: trump to ruff with (the lead study: +0.43 tricks double dummy, but the gap
+#: rule ranked singletons last). Measurement switch.
+SINGLETON_LEAD = False
+#: Only singletons this high or lower (by value: 8 is the ten, 12 the ace).
+SINGLETON_LEAD_MAX = 12
+#: A defender on lead plays a suit partner has shown out of while partner may
+#: still hold a trump, for the ruff. Measurement switch.
+RUFF_RETURN = False
 
 _SUIT_OF_SYM = {'\u2660': 'S', '\u2665': 'H', '\u2666': 'D', '\u2663': 'C'}
 _SHOWN_RE = re.compile(r'(\d+)\+ ([\u2660\u2665\u2666\u2663](?: [\u2660\u2665\u2666\u2663])*)')
@@ -1331,6 +1343,30 @@ def _fit_lead(player: str, hand: list[Card], trump: str | None,
                                   SUITS.index(t)))
     cards = sorted((c for c in hand if c.suit == s), key=lambda c: c.value(), reverse=True)
     return cards[min(1, len(cards) - 1)]
+
+
+def _singleton_lead(hand: list[Card], trump: str | None) -> Card | None:
+    """A side-suit singleton to lead when I hold a trump, or None. Of two,
+    the lower: an honour is more often worth a trick where it sits."""
+    if trump not in SUITS or not any(c.suit == trump for c in hand):
+        return None
+    singles = [c for c in hand if c.suit != trump and c.value() <= SINGLETON_LEAD_MAX
+               and sum(1 for d in hand if d.suit == c.suit) == 1]
+    return min(singles, key=lambda c: (c.value(), SUITS.index(c.suit))) if singles else None
+
+
+def _ruff_return(player: str, hand: list[Card], trump: str | None,
+                 history: list | None) -> Card | None:
+    """A suit partner has shown out of while partner may still hold a trump,
+    led for the ruff (my lowest card of it), or None."""
+    if trump not in SUITS or not history:
+        return None
+    partner = PARTNERS[player]
+    out = _shown_out(history, [])
+    if trump in out[partner]:
+        return None
+    cards = [c for c in hand if c.suit != trump and c.suit in out[partner]]
+    return min(cards, key=lambda c: (c.value(), SUITS.index(c.suit))) if cards else None
 
 
 def _shown_out(history: list, trick: list) -> dict[str, set[str]]:
