@@ -1252,6 +1252,7 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         if choice is not None:
             return choice
     if not trick:
+        sure = None
         choice = ((_draw_trump(player, hand, trump, played, visible, history, shown)
                    if DRAW_TRUMPS else None)
                   or (_ruff_lead(player, hand, trump, played, visible)
@@ -1261,12 +1262,20 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                   or (_run_long_suit(player, hand, trump, played, visible, history, shown,
                                      max_losers=float('inf'))
                       if NT_SET_UP_SUIT and trump not in SUITS else None)
-                  or (_sure_lead(player, hand, trump, played, visible, history)
+                  or ((sure := _sure_lead(player, hand, trump, played, visible, history))
                       if SURE_LEAD else None)
                   or (_nt_long_lead(player, hand, trump, played, visible)
                       if NT_LONG_LEAD else None))
+        if DEFENDER_SUIT_PLAN and choice is not None and choice != sure:
+            # A sure trick is cashed as it is; another defence lead (the long
+            # suit in notrump) still has its card planned.
+            choice = _defender_suit_plan(player, hand, trump, played, visible, history,
+                                         shown, choice) or choice
         if choice is None:
             choice = _lead(hand, trump, played)
+            if DEFENDER_SUIT_PLAN:
+                choice = _defender_suit_plan(player, hand, trump, played, visible, history,
+                                             shown, choice) or choice
             if SURE_LEAD_DECLARER:
                 choice = _sure_lead_declarer(player, hand, trump, played, visible, history,
                                              choice.suit) or choice
@@ -2497,6 +2506,157 @@ def _nt_long_lead(player: str, hand: list[Card], trump: str | None,
 #: West's own, so no one could play one and make the king second-highest;
 #: `_gap` scored A-K the best holding of all, nothing between the top two.
 LIVE_LEAD = False
+
+
+# ── Defender plans the suit it leads ─────────────────────────────────────────
+#
+# Deal 356, 3S by East, North on lead at trick 3 with 10-9-6 of hearts, the
+# A K Q J gone, dummy's 8H its last heart and South (the takeout doubler)
+# holding 7-3-2. `_lead` led the 9H, sure to be highest, so dummy's 8H won and
+# dummy was void to ruff. The 6H lets South's 7H win. But the user's point
+# goes further: a "dead" card is not useless, since played under partner's
+# lead it pushes partner's card into second place, and in notrump that is how
+# partner's suit runs. So whether to lead the dead card turns on the whole
+# suit, not on the one trick. Two count-based rules measured even: leading
+# the highest live card instead of a dead one (all leads, or the defence's
+# alone), and the same only in a trump contract against dummy's last card.
+#
+# Here a defender who sees dummy plays its lead suit out, for every way the
+# unseen cards of the suit can lie between partner and declarer (fitting who
+# has shown out and the auction's floors, weighted as `_splits` weights), and
+# leads the card that takes the most tricks in the suit on average. The model:
+# everyone follows while they can; a void dummy holding trumps, or a void
+# declarer not known to be out of trumps, may ruff (and the ruff wins); a void
+# defender discards. When the defence wins a trick its winner leads the suit
+# again (or partner, if the winner has run out); when the declaring side wins,
+# the defence gets the lead back and leads the suit again, as if it had
+# entries -- declarer is never assumed to lead the suit for them.
+
+#: A defender who sees dummy chooses the card of its lead suit by playing the
+#: suit out over every layout (measurement switch).
+DEFENDER_SUIT_PLAN = True
+#: The most unseen cards of the suit the plan will enumerate (2^n layouts).
+SUIT_PLAN_MAX_UNSEEN = 9
+
+_RUFF = 'ruff'
+_SUIT_PLAN_MEMO: dict = {}
+
+
+def _plan_options(seat: int, hands: tuple, ruffs: tuple) -> list:
+    cards = hands[seat]
+    if cards:
+        others = tuple(v for k in range(4) if k != seat for v in hands[k])
+        return _distinct(cards, others)
+    return [None, _RUFF] if ruffs[seat] else [None]
+
+
+def _plan_trick(hands: tuple, ruffs: tuple, plays: list, order: list, memo: dict) -> int:
+    """Defence tricks from here, the trick under way with `plays` (seat, card)."""
+    if len(plays) == 4:
+        ruffers = [seat for seat, c in plays if c == _RUFF]
+        if ruffers:
+            winner = ruffers[0]
+        else:
+            ranked = sorted((c, seat) for seat, c in plays if c is not None)
+            winner = ranked[0][1] if len(ranked) == 1 else ranked[-2][1]
+        put = dict(plays)
+        left = tuple(tuple(v for v in hands[k] if v != put[k]) for k in range(4))
+        if winner in (0, 2):
+            return 1 + _plan_suit(left, ruffs, winner, memo)
+        return _plan_suit(left, ruffs, None, memo)
+    seat = order[len(plays)]
+    values = [_plan_trick(hands, ruffs, plays + [(seat, c)], order, memo)
+              for c in _plan_options(seat, hands, ruffs)]
+    return max(values) if seat in (0, 2) else min(values)
+
+
+def _plan_suit(hands: tuple, ruffs: tuple, leader: int | None, memo: dict) -> int:
+    """Defence tricks in the suit, seats 0 and 2 the defence, `leader` to lead
+    (None: the defence leads from whichever hand does better)."""
+    if not hands[0] and not hands[2]:
+        return 0
+    if leader is not None and not hands[leader]:
+        leader = 2 - leader
+    order = {v: i for i, v in enumerate(sorted(v for h in hands for v in h))}
+    key = (tuple(tuple(order[v] for v in h) for h in hands), ruffs, leader)
+    if key in memo:
+        return memo[key]
+    leaders = [leader] if leader is not None else [k for k in (0, 2) if hands[k]]
+    best = 0
+    for lead in leaders:
+        seats = [(lead + k) % 4 for k in range(4)]
+        for c in _plan_options(lead, hands, ruffs):
+            best = max(best, _plan_trick(hands, ruffs, [(lead, c)], seats, memo))
+    memo[key] = best
+    return best
+
+
+def _defender_suit_plan(player: str, hand: list[Card], trump: str | None,
+                        played: list[Card], visible: dict[str, list[Card]] | None,
+                        history: list | None, shown: dict[str, dict[str, int]] | None,
+                        choice: Card) -> Card | None:
+    """The card of `choice`'s suit that takes the most tricks in it, or None."""
+    if not visible or PARTNERS[player] in visible or player in visible:
+        return None
+    suit = choice.suit
+    if trump in SUITS and suit == trump:
+        return None
+    mine = [c for c in hand if c.suit == suit]
+    if len(mine) < 2:
+        return None
+    dummy = next(iter(visible))
+    i = PLAYERS.index(player)
+    seat_of = {PLAYERS[(i + k) % 4]: k for k in range(4)}
+    partner = PARTNERS[player]
+    declarer = next(p for p in PLAYERS if p not in (player, partner, dummy))
+    seen = set(played) | set(hand) | set(visible[dummy])
+    unseen_suit = sorted(c.value() for c in _FULL_DECK if c.suit == suit and c not in seen)
+    if len(unseen_suit) > SUIT_PLAN_MAX_UNSEEN:
+        return None
+    out = _shown_out(history or [], [])
+    ruffing = trump in SUITS
+    ruffs = [False] * 4
+    ruffs[seat_of[dummy]] = ruffing and any(c.suit == trump for c in visible[dummy])
+    ruffs[seat_of[declarer]] = ruffing and trump not in out[declarer]
+    ruffs = tuple(ruffs)
+    slots = len(hand)
+    others = sum(1 for c in _FULL_DECK if c not in seen) - len(unseen_suit)
+    floor = {p: (shown or {}).get(p, {}).get(suit, 0) - _played_in(p, suit, history or [], [])
+             for p in (partner, declarer)}
+    dummy_cards = tuple(sorted(c.value() for c in visible[dummy] if c.suit == suit))
+    own = tuple(sorted(c.value() for c in mine))
+    memo = _SUIT_PLAN_MEMO
+    if len(memo) > _TRUMP_MEMO_MAX:
+        memo.clear()
+    totals = {c: 0 for c in mine}
+    weights = 0
+    for n in range(len(unseen_suit) + 1):
+        for picked in combinations(unseen_suit, n):
+            to_partner = tuple(picked)
+            to_declarer = tuple(v for v in unseen_suit if v not in picked)
+            if (to_partner and suit in out[partner]) or (to_declarer and suit in out[declarer]):
+                continue
+            if len(to_partner) > slots or len(to_declarer) > slots:
+                continue
+            if len(to_partner) < floor[partner] or len(to_declarer) < floor[declarer]:
+                continue
+            weight = _choose(others, slots - len(to_partner))
+            if not weight:
+                continue
+            hands = [None] * 4
+            hands[0], hands[2] = own, to_partner
+            hands[seat_of[dummy]], hands[seat_of[declarer]] = dummy_cards, to_declarer
+            hands = tuple(hands)
+            weights += weight
+            for c in mine:
+                totals[c] += weight * _plan_trick(hands, ruffs, [(0, c.value())],
+                                                  [0, 1, 2, 3], memo)
+    if not weights:
+        return None
+    best = max(totals.values())
+    if totals[choice] == best:
+        return choice
+    return max((c for c in mine if totals[c] == best), key=lambda c: c.value())
 
 
 def _lead(hand: list[Card], trump: str | None, played: list[Card]) -> Card:

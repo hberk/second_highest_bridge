@@ -25,22 +25,34 @@ which a single score cannot answer. Measured 2026-10-19, with every card-play ru
 grades, so this is what the "Robots" column of the match table averages to.
 The web app's Challenge caption quotes this table; rerun the script after a
 robot change and update both together. Measured 2026-10-24, after the
-penalty double and the cuebid raise read as support, graded with the partner
-who actually declared (the library holds every declarer's count; par takes
-the better partner):
+penalty double where X is free, the cuebid raise read as support (PR #30)
+and the defender's suit plan (below), graded with the partner who actually
+declared (the library holds every declarer's count; par takes the better
+partner):
 
 | | mean per board | median |
 |---|---|---|
 | lost in the auction | **240.8** | 200.0 |
-| lost in the card play | **3.7** | **0.0** |
+| lost in the card play | **6.0** | **0.0** |
 
-All four seats bid the new way, so what one side gains head to head (+4.34
-a board) the other gains back. Graded from the declaring side: 214.8 in the
-auction and -40.4 in the card play.
+Graded from the declaring side: 214.8 in the auction and -24.3 in the card
+play. All four seats bid the new way, so what one side gains head to head
+(+4.34 a board) the other gains back.
 
-On 2026-10-23, after shortness (PR #26) and game by points (PR #28): 240.1
-and 2.9 from N/S, 209.1 and -35.8 from the declaring side; there too all
-four seats moved together (+6.78 and +2.62 a board head to head).
+Before PR #30, after the defender's suit plan (2026-10-24): 242.5 in the
+auction and 5.2 in the card play from N/S; 209.8 and -24.4 from the declaring
+side. The same robots without the suit plan: 242.5 and 3.5 from N/S, 209.8
+and -36.6 from the declaring side. Robots defend for N/S as often as they
+declare, so a better defence moves the N/S figure little; it shows from the
+declaring side, whose play now beats double dummy by 12 points a board less.
+(The auction's 242.5 against 240.1 below is the jack's judgement point, PR
+#28's last commit, measured after it. PR #30 brings it back to 240.8.)
+
+Measured 2026-10-23, after shortness (PR #26) and game by points (PR #28):
+240.1 in the auction and 2.9 in the card play from N/S. All four seats bid
+the new way, so what one side gains head to head (+6.78 and +2.62 a board)
+the other gains back. Graded from the declaring side: 209.1 in the auction
+and -35.8 in the card play.
 
 Before those two, the robots of 2026-10-22 measured 244.0 and -5.0 from N/S.
 Graded from the declaring side instead: 214.5 in the auction and **-39.6** in
@@ -356,6 +368,39 @@ dummy's best card; West then led the K♥ from AKQ3 and North's 9♥ won it.
   loses show how to narrow it, as the first sure-lead rule was narrowed.
   Neither is ported to the Svelte engine: both are off, so its play is
   unchanged.
+
+**A defender plans the suit it leads** (`ai.DEFENDER_SUIT_PLAN`,
+`_defender_suit_plan`; the user's deal 356, 2026-10-24). 3S by East: North won
+trick 2 and led the 9♥ from 10-9-6, with the A K Q J gone and dummy's 8♥ its
+last heart. The nine could only be highest, so dummy's 8♥ won and dummy was
+void to ruff (double dummy: 3S+1 after the nine, one down after the 6♥, which
+lets South's 7♥ be second-highest). `_lead` picks a suit by `_gap` and leads
+its second-highest card without asking whether that card can still be
+second-highest. Two count-based fixes measured even: leading the highest live
+card instead of a dead one (seated: defence -0.002 tricks, t = -0.16;
+declaring side -0.019, t = -1.30; both together, head to head, -0.018, t =
+-0.46), and the same only in a trump contract against dummy's last card in
+the suit (12 boards changed, +0.001). The user's point is why: a dead card
+isn't useless, since played under partner's lead it pushes partner's card into
+second place, and in notrump that is how partner's suit runs. The card has to
+be judged on the whole suit, not the one trick.
+
+So a defender who sees dummy now plays its lead suit out (any defence lead
+except a sure trick): for every way the unseen cards of the suit can lie
+between partner and declarer, ruling out a seat that has shown out and keeping
+the auction's floors, weighted as `_splits` weights, it leads the card that
+takes the most tricks in the suit on average. The model: each layout is solved
+with every card known, everyone follows while they can, a void dummy holding
+trumps or a void declarer not known to be out of trumps may ruff (and wins), a
+void defender discards. After the defence wins, its winner leads the suit again
+(or partner, once the winner is out); after declarer's side wins, the defence
+gets the lead back and leads it again, as if it had entries. At most 9 unseen
+cards (`SUIT_PLAN_MAX_UNSEEN`). Head to head (`card_play_h2h.py
+DEFENDER_SUIT_PLAN`, 6,356 boards): **-0.113 declarer tricks per board (t =
+-2.50), -12.2 points (t = -2.39)**; 1,336 boards changed. Python spends about
+0.13 s a board more (the slowest single lead 0.8 s, cold memory); the TS port
+0.17 s a board against 0.12 s over the library (desktop Node), the slowest board
+under a second either way. `tests/test_card_play_rules.py` holds deal 356.
 
 **A cuebid raise that forces the three level needs four trumps or 12+
 judgement points** (`gib.CUE_LIMIT_AT_3`), a small tightening of GIB's "limit
