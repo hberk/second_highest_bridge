@@ -1,8 +1,9 @@
 # Requirements
 
 What the web app must do, ranked, and whether it does it yet. Drafted
-2026-10-23 from the code, the docs and the user's asks so far; **the
-priorities are a proposal until the user confirms them.**
+2026-10-23 from the code, the docs and the user's asks so far; re-ranked
+2026-10-26 after PRs #26-#32. **The priorities are a proposal until the user
+confirms them.**
 
 How this file relates to the others:
 
@@ -26,17 +27,26 @@ asked about, not planned. **Declined**: settled, don't re-propose.
 ## The order to build
 
 The open P1 requirements, highest first. The reasoning: the auction is where
-the robots lose points (244 a board, against none in the play, ROBOT_PROGRESS),
-and the user plays on a phone.
+the robots lose points (240.8 a board, against 6.0 in the play, ROBOT_PROGRESS),
+and 60% of the auction's loss against two-sided par is in competitive
+auctions, where the robots almost never double for penalty.
 
-1. **B3** Robots reach makeable games and slams (the biggest single loss).
-2. **B2** GIB's remaining handoff gaps (ROADMAP 1.3-1.6).
-3. **A3** Tricks 1-2 of the double dummy analysis fast enough on a phone.
+1. **E5** and housekeeping: the flaky test is seeded (2026-10-26); rerun
+   `research/challenge_losses.py` after PR #32 and add its row.
+2. **B7** Robots compete and double correctly: the trap pass, and converting
+   partner's takeout double for penalty.
+3. **B2** GIB's remaining handoff gaps: rerun the survey first (ROADMAP 1.6),
+   since PRs #28-#32 changed contested bidding, then 1.3-1.5.
+4. **A3** Tricks 1-2 of the analysis solved in the background and saved with
+   the board (the user's choice, 2026-10-24; mockups waiting for approval).
+5. **K5** (P2) The six-card endgame search, once a move can stay under 0.5 s.
 
 Done 2026-10-23: **S3** (a malformed saved board can't break History),
 **C5** (dealing a challenge board asks before throwing away the board in play)
 **C4** (grading uses the partner who actually declared) and **U6** (History
-and Challenge in the Felt style).
+and Challenge in the Felt style). Done 2026-10-23 to 25: **B3** for game
+(shortness, game by points), **K6** (defenders' leads and returns), and the
+first part of **B7** (the penalty double where X is free).
 
 ## 1. Rules and scoring
 
@@ -70,10 +80,11 @@ and Challenge in the Felt style).
 |---|---|---|---|---|
 | B1 | Every call is explained before you make it (two taps), from what the robots mean by it | P1 | Met | `BidPad`, `meanings.test.ts` |
 | B2 | When GIB has no rule, the fallback doesn't misread the auction; close the measured handoff gaps | P1 | Partial: 1.1, 1.2 done; 1.3-1.6 open | ROADMAP 1, `research/gib_handoffs.py` |
-| B3 | Robots reach makeable games and slams: bid game on a known fit, bid slam with fit and shortness. Measured head to head, never from one side | P1 | Open. LoTT and fit count shipped (+4.66 a board); shortness +2.62; game by points (3NT at 32, majors 26, 4M over 3NT) +6.78 (2026-10-23); slam doesn't pay here (BIDDING.md) | `research/gib_h2h.py`, BIDDING.md |
+| B3 | Robots reach makeable games: bid game on a known fit, with shortness counted. Measured head to head, never from one side | P1 | Met (2026-10-24). LoTT and fit count (+4.66 a board, PR #22); shortness +2.62 (PR #26); game by points (3NT at 32, majors 26, 4M over 3NT) +6.78, the jack at 1 +1.17 (PR #28). Slam: settled as not paying here, see Declined | `research/gib_h2h.py`, BIDDING.md |
 | B4 | Alerts state what a call shows, true of the hand, from the auction and call only, under 70 characters; pass reasons hidden while the board is live | P0 | Met | machine-checked, ARCHITECTURE.md |
 | B5 | You can alert your own calls; the text is cleaned and escaped | P1 | Met | `cleanAlert`, `lin.test.ts` bans `{@html}` |
 | B6 | GIB stays the system; the old one only as fallback (`ai.USE_GIB`) | P0 | Met | the GIB guardrail in CLAUDE.md |
+| B7 | Robots compete and double correctly in contested auctions: of 6,356 library contracts 2,960 fail double dummy and 28 were doubled; a perfect-knowledge doubling ceiling is ~117 a board. Measured head to head on fresh deals | P1 | Partial: the penalty double where X is free and the cuebid raise as support, +4.34 a board (PR #30). Open: the trap pass, converting partner's takeout double | `research/gib_fresh_h2h.py`, ROBOT_PROGRESS |
 
 ## 4. Robot card play
 
@@ -83,7 +94,8 @@ and Challenge in the Felt style).
 | K2 | Robot play is deterministic for a deal: no RNG in `ai.py` | P0 | Met | the determinism guardrail |
 | K3 | Robots search the endgame single dummy from 5 cards | P1 | Met (PR #23, +22.8 a board) | `DEEP_ENDGAME_CARDS`, ROBOT_PROGRESS |
 | K4 | No robot move takes long enough to notice on a phone (target: under 0.5 s a board's search) | P1 | Met at 5 cards (0.18 s a board) | the TS bit-pattern search |
-| K5 | Search from 6 cards (+26.8 a board measured) | P2 | Open: 4.6 s a board on the main thread; needs a worker or the WASM solver | robot-endgame notes |
+| K5 | Search from 6 cards (+26.8 a board measured) | P2 | Open: 4.6 s a board, worst move 17.5 s on a desktop; a worker alone stops the stutter, not the wait, so it needs the WASM solver or a faster search | ROBOT_PROGRESS |
+| K6 | Defenders lead and return on what they can know: partner's bid suit, a planned suit, a return for partner's ruff, partner's short lead read by counting | P1 | Met (PRs #31, #32: +12.2 and +1.52 a board) | ROBOT_PROGRESS, `card_play_seated.py` |
 
 ## 5. Challenge mode
 
@@ -101,7 +113,7 @@ and Challenge in the Felt style).
 |---|---|---|---|---|
 | A1 | Every finished board is kept and can be replayed card by card, with all four hands | P1 | Met | `saves.ts`, HistoryView |
 | A2 | Double dummy in the replayer: each legal card's outcome, signed and coloured; tricks 3-13 at once | P1 | Met | `dd.test.ts` against the Python solver |
-| A3 | Tricks 1-2 of the analysis on a tap, fast enough on a phone (target to agree: e.g. under 30 s median on a recent phone) | P1 | Partial: works; ~38 s median natively on hard lines after the fixed table, phones slower | SOLVER.md, solver spike notes |
+| A3 | Tricks 1-2 of the analysis without waiting at the replayer: solved in a background worker when the board ends, saved with the board, resumed on reopen (the user's choice, 2026-10-24) | P1 | Partial: a tap solves them today (~38 s median natively on hard lines, phones slower); the background design is mocked, waiting for the user's approval | SOLVER.md |
 | A4 | Export and import boards as BBO LIN; hostile or non-variant input refused, as Python refuses it | P1 | Met | `lin.test.ts`, `lin_hostile.json` |
 | A5 | The analysis never shows a wrong value: no fallback, a smaller table only costs time | P0 | Met | `dd.test.ts` runs with 7 entries |
 
@@ -137,17 +149,22 @@ and Challenge in the Felt style).
 | E2 | Small: ~105 KB gzipped plus 21 KB of solver | P1 | Met | `npm run build` |
 | E3 | The solver's memory capped for phones (102 MB) | P0 | Met | `TABLE_LIMIT` |
 | E4 | Every string the app shows is escaped; no `{@html}` | P0 | Met | `lin.test.ts` |
-| E5 | The Python and TS suites pass, CI under 30 minutes, no flaky tests | P1 | Partial: `test_the_evaluation_is_on_the_trick_scale` is unseeded and fails ~1 run in 60 | `tests/run_all.py`, `npm test` |
+| E5 | The Python and TS suites pass, CI under 30 minutes, no flaky tests | P1 | Met (2026-10-26: `test_the_evaluation_is_on_the_trick_scale` seeded; unseeded it failed ~1 run in 60) | `tests/run_all.py`, `npm test` |
 | E6 | A robot change is measured head to head and recorded in ROBOT_PROGRESS, kept or not | P0 (process) | Met | ROBOT_PROGRESS.md |
 
 ## Later
 
-- **Online play with friends** (ONLINE_PLAN.md): designed, blocked on the
-  accounts decision; waiting for the page counts to show use.
+- **Online play with friends** (ONLINE_PLAN.md): designed, not built. The user
+  has a Cloudflare account; Cloudflare-only (Workers, D1, Durable Objects) is
+  the recommended backend. Whether to promote it to P2 is the user's call;
+  until then it waits for the page counts to show use.
 - **Undo a misclick** at the table: not asked for; would need a rule for
   challenge boards.
 
 ## Declined
 
 The ones in ROADMAP's "Declined or settled", plus: an X-ray view of the
-robots' hands at the table (removed 2026-10-21; History shows them).
+robots' hands at the table (removed 2026-10-21; History shows them); a slam
+bidding rule (2026-10-23: even seeing both hands, the best slam cells make
+24-50%, under the ~50% a small slam needs; BIDDING.md); a singleton opening
+lead (2026-10-25: +0.43 tricks double dummy, -0.42 points seated).
