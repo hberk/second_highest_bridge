@@ -1,14 +1,58 @@
 # Roadmap
 
-Written 2026-10-14 for the next working sessions. Each item says what to do,
-where, how to verify it, and **which decisions belong to the user**: stop and
-ask at those points rather than choosing. Work top to bottom unless the user
-picks otherwise. Tick items off here (or delete them) as they land, so this
-file stays the current list.
+Written 2026-10-14 for the next working sessions; re-ordered 2026-10-26 after
+PRs #26-#32. Each item says what to do, where, how to verify it, and **which
+decisions belong to the user**: stop and ask at those points rather than
+choosing. Work in the order of "Now" unless the user picks otherwise. Tick
+items off here (or delete them) as they land, so this file stays the current
+list. Every item serves a requirement in [REQUIREMENTS.md](REQUIREMENTS.md).
 
 The user is a bridge player who audits auctions hand by hand. Show real
 hands and real auctions, not only aggregates, before changing how the robots
-bid, and get a yes on the bridge before writing code.
+bid, and get a yes on the bridge before writing code. Don't open a PR for a
+robot change or a UI change until the user has seen the results (or a phone
+screenshot) and said so.
+
+## Now (2026-10-26)
+
+The robots lose 240.8 points a board in the auction and 6.0 in the play
+(ROBOT_PROGRESS, measured after PR #30/#31). Against two-sided par, 60% of the
+auction's loss is in competitive auctions, and the robots almost never double
+for penalty, so that comes first.
+
+- [x] **0.1 Seed the flaky calibration test** (E5, 2026-10-26).
+- [ ] **0.2 Rerun `research/challenge_losses.py`** after PR #32 and add the
+  row to ROBOT_PROGRESS's "Where the robots stand".
+- [ ] **0.3 Competitive doubling (B7).** Of 6,356 library contracts, 2,960
+  fail double dummy and 28 were doubled; 1,600 go two or more down undoubled;
+  a perfect-knowledge doubling ceiling is ~117 a board. Shipped: the penalty
+  double where X is free (+4.34, PR #30). Next: the **trap pass** and
+  **converting partner's takeout double** for penalty. Show real hands first
+  (scripts in project files, `competitive-review/`), then measure on fresh
+  deals with `research/gib_fresh_h2h.py`. Mind B4: one call keeps one
+  meaning per auction.
+- [ ] **0.4 GIB handoff gaps (B2):** section 1 below, starting with 1.6 (rerun
+  the survey), since PRs #28-#32 changed contested bidding.
+- [ ] **0.5 Tricks 1-2 in the background (A3).** The user's choice
+  (2026-10-24): a worker solves the whole board when it ends, the values are
+  saved with the board (~1 KB), solving resumes on reopen, History shows
+  progress, the tap button goes. Mockups in project files, `dd-background/`.
+  **User decides** before building: the mockup, whether LIN imports solve only
+  when opened, and whether the battery cost is acceptable.
+- [ ] **0.6 The six-card endgame search (K5, P2):** +26.8 a board measured,
+  but 4.6 s a board and up to 17.5 s a move on a desktop. A worker stops the
+  stutter, not the wait; it needs the WASM solver or a faster search first.
+
+**Open for the user** (proposed 2026-10-25, not yet answered):
+
+- The order above.
+- The shared double dummy cache (branch `claude/project-thread-0exu2e`):
+  recommended as a PR; the search-bounds experiment beside it (1.1-1.27x)
+  recorded as rejected in SOLVER.md.
+- The branch `jump-overcall-game` (WIP 2026-10-20: responder bids game over a
+  three-level jump overcall): recommended dropped unless the 1.6 survey shows
+  that family losing points.
+- Online play: Cloudflare-only as P2, or kept in Later.
 
 ## 1. Robot bidding: close GIB's handoff gaps
 
@@ -81,22 +125,13 @@ chose GIB knowing it scores worse here (see BIDDING.md).
 
 ## 2. Web app UI
 
-**2026-10-16: the Felt redesign** (branch `felt-redesign`, see FRONTEND.md)
-replaced the tabbed layout with a phone-first home page and table, and the
-bidding box with a two-tap pad that explains each call. Items 2.1-2.5 below
-were about the old layout and are settled by it: the hand sits above the bid
-pad (2.1), the hand is one overlapping fan with every card visible (2.2), the
-tabs and scoreboard are gone (2.3), the strength line shows HCP and shape
-only on phones (2.4; the desktop layout shows the "2nd-highest value" too,
-to one decimal), and the table is a 520px column on phones with its own
-desktop layout from 1200px (2.5; mocked on the design canvas and approved
-2026-10-16).
+Done: the Felt redesign (2026-10-16, FRONTEND.md) settled 2.0-2.5 (the
+bidding box, the split suit, the small-layout breaks, one decimal, desktop
+space); 2.6 History and Challenge in the Felt style (2026-10-23, PR #27) and
+their compass layout (PR #29); 2.10 Streamlit retired (2026-10-21).
 
-Follow-ups from the redesign:
+Open:
 
-- [x] **2.6 History and Challenge** (2026-10-23: result card, ‹ › board picker, the trick on the felt, step buttons kept at the bottom, a Your board / Robots' board switch) sit in the new frame and colours but keep
-  their old, busier layout (emoji headings, wide tables). Redesign them in
-  the Felt style.
 - [ ] **2.7 How to play** still draws its examples with the old
   `FeltTable`. Draw them with `TrickFelt` so they match the table.
 - [ ] **2.8 Safari with its toolbars showing** leaves ~660-750px of height;
@@ -105,128 +140,39 @@ Follow-ups from the redesign:
 - [ ] **2.9 Bid meanings run on the main thread** (`callMeanings`, 4,000
   sampled hands, ~100 ms on a laptop) just after the pad appears. If a phone
   shows a stutter, move it to a Web Worker.
-- [x] **2.10 Streamlit** (2026-10-21): retired once the web app had double
-  dummy analysis; the Python engine stays the reference.
-
-The original notes, from screenshots of the old built site (desktop
-1400x1000, phone 390x844):
-
-- [x] **2.0 Screenshot the rest first**: card play, result screen,
-  Challenge tab with its review, History tab, Display menu, desktop and
-  phone. Chrome headless shell is installed under
-  `%LOCALAPPDATA%/ms-playwright/` and serves static screenshots
-  (`--screenshot --window-size=...` against `npx vite preview`), but it can't
-  click. To reach play, drive it with Playwright (`npx playwright`) or over
-  the DevTools protocol. Add what you find to this section.
-- [x] **2.1 The bidding box is too tall** (biggest issue). On desktop the
-  35-button grid pushes **your hand below the fold**, so you can't see your
-  cards while you bid. **User decides** between:
-  (a) hide rows where every bid is already illegal (small change, gets
-  shorter as the auction rises); or
-  (b) BBO-style two-step box: a row of levels 1-7, then the strains (most
-  compact, familiar to BBO players).
-  Either way, also consider moving your hand above the box on desktop.
-- [x] **2.2 Phone: a suit splits across two rows.** With 13 cards the hand
-  wraps mid-suit (clubs J8 on one row, 432 on the next). Keep each suit
-  unbroken: wrap between suits, or overlap the cards slightly as BBO does.
-  The user's standing rule: show every card at once, never clip or scroll a
-  suit.
-- [x] **2.3 Phone: small layout breaks.** The tab label is cut off
-  ("Hand History (0 bo"); "NORTH · DEALER" wraps onto two lines in the
-  auction header; the scoreboard's HIGH BID cell drops to a row of its own.
-- [x] **2.4 "2nd-highest value 4.905"**: show one decimal (4.9). Check
-  whether Streamlit's `hand_summary_html` should match.
-- [x] **2.5 Desktop: wasted space.** The seat panels are large for a card
-  count, and there's empty space around the auction. Lower priority; revisit
-  after 2.1.
 
 For each: `npm run check`, `npm test` (`game.test.ts` renders every view at
-every step), then a fresh screenshot at both sizes.
+every step), then a fresh phone screenshot for the user to approve.
 
-## 3. Housekeeping (small)
+## 3. Housekeeping and the code reviews
 
-- [x] **3.1** `docs/ONLINE_PLAN.md` still says the app is "deployed to Azure
-  Static Web Apps" (status line) and draws "Azure SWA" in its diagram;
-  `staticwebapp.config.json` no longer exists. Update to GitHub Pages and the
-  `<meta>` CSP in `frontend/index.html`.
-- [x] **3.2** `requirements.txt`'s comment quotes "155 tests" and old
-  Streamlit versions; the suite has 220 tests and Dependabot now raises the
-  floor (PR #6). Refresh the comment.
-- [x] **3.3** CLAUDE.md quotes "217 tests" under Commands; now 220.
+Done: 3.1-3.3 (stale docs and counts), 3.4-3.6 from the 2026-10-14 code
+review (the challenge review's board match, `gib.ILLEGAL`, per-board save
+checks), and everything the 2026-10-17 code analysis
+(`reports/2026-10-17-code-analysis.md`) left for the user: 3.7 responder over
+1M-2M-3NT, 3.8 the 1♥-2♥-3♠ splinter, 3.9 grading by the partner who declared,
+3.10 asking before a redeal, 3.12 the challenge loss figures (rerun after any
+robot change kept).
 
-## 3b. Minor issues from the 2026-10-14 code review
-
-The review's four real bugs are fixed (passed-out challenge boards, LIN
-imports evicting played boards, tabs overwriting saves, claims lost on LIN
-export). These were left, each small:
-
-- [x] **3.4** (fixed 2026-10-18: imports skipped, the deal compared) The challenge review finds "your board" by `board_num`
-  (`ChallengeView.svelte`, the Challenge tab in `app.py`). An imported LIN
-  board with the same number, added later, would be shown in its place.
-  Match on the deal too, as `saves.boardKey` does.
-- [x] **3.5** (the claim corrected in ARCHITECTURE.md, and the illegal calls a human at the table caused fixed, 2026-10-18) `gib.ILLEGAL` (and the port's) is module-level mutable state
-  that grows when a branch produces an illegal call. CLAUDE.md says the
-  Streamlit app holds none, so concurrent players can't interfere. Harmless
-  (tests keep it empty), but either cap it or correct the claim.
-- [x] **3.6** (fixed 2026-10-23: each board and log entry checked, bad ones left out, the save backed up) `loadGames` checks a save's shape only at the top level. One
-  malformed board inside would load, then break the History view, without
-  being copied to `shb-games-backup`. Validate each record, or skip bad ones.
-
-## 3c. Left open by the 2026-10-17 code analysis (`reports/2026-10-17-code-analysis.md`)
-
-Fixed 2026-10-18 on branch `code-analysis-fixes`:
-
-- the 1M-2M-3NT crash (H1) and illegal calls with a human at the table (M4):
-  a fuzz test with a random human seat now holds `gib.ILLEGAL` at zero;
-- the flaky tests (H4): seeded deals in the web app's tests and in the
-  self-alert app-flow test;
-- the Streamlit analysis panel (H3): depth capped at 8, cache bounded (LRU);
-- "your board" in the challenge review (M1, 3.4 above);
-- the 13th trick shown before the score in Streamlit (M2);
-- the LIN parsers (M5): one hostile-input fixture both must agree on, size and
-  board limits, imported alerts cleaned, re-imports skipped;
-- `run_all.py` (M6): SKIP is reported, and an import failure no longer ends the run;
-- the dataset pool (M7) and `deal_for` restoring the global RNG;
-- the pass-out count after a failed save (M8);
-- the covering robot's own cards (M3): a correctness fix that changed 0 of
-  6,356 boards head to head;
-- dead code and unused imports, `Card.__eq__`, the future import in every
-  `__init__.py`, CI timeouts and main deploys never cancelled, and the stale
-  docs and comments.
-
-Still open, **each the user's call**:
-
-- [x] **3.7 Responder over 1M-2M-3NT.** (2026-10-19, the user's call: a choice
-  of games.) Responder passes with three trumps and no short suit, else bids
-  4M. See "After a single raise" in BIDDING.md.
-- [x] **3.8 1♥-2♥-3♠.** (2026-10-19, the user's call: a splinter, short in
-  spades, game forcing.) Opener now bids it too, with 18+ HCP (also 4♣/4♦, and
-  1♠-2♠-4♣/4♦/4♥), and responder bids game. 1 of 1,600 auctions changed.
-- [x] **3.9 Challenge grading uses one declarer per strain and side (H2).** (Fixed 2026-10-23: every deal solved for all four declarers, `research/solve_declarers.py`; see CHALLENGE.md.)
-- [x] **3.10 Dealing a challenge board throws away the board in play (M9)** (2026-10-23, the user's call: it asks first, once you've called or played),
-  with no confirmation, and the deal goes back in the pool. Intended?
 - [ ] **3.11 Robot discards and leads.** Discards done 2026-10-19 (the user's
   rule: a void robot throws a trump only to ruff for a win; `ai.KEEP_TRUMPS`,
-  head to head +0.003 tricks, t = +0.37, 88 of 6,356 boards changed). Still
-  open: `_lead`/`_gap` count dummy's cards as an opponent's, a card-play
-  change to measure with `research/card_play_h2h.py`.
-- [x] **3.12 The challenge loss figures** (2026-10-19, rerun 2026-10-21):
-  `research/challenge_losses.py` over all 16 board positions, 234.9 in the
-  auction and 6.9 in the play, quoted by the web app's Challenge caption and
-  CHALLENGE.md. Rerun it after any robot change, and add a line to
-  ROBOT_PROGRESS.md's "Where the robots stand".
+  head to head +0.003 tricks, t = +0.37, 88 of 6,356 boards changed); leads
+  and returns done 2026-10-25 (PRs #31, #32; K6). Still open: `_lead`/`_gap`
+  count dummy's cards as an opponent's, a card-play change to measure with
+  `research/card_play_h2h.py`.
 
 ## 4. Bigger projects (only when the user asks)
 
 - [x] **Double dummy panel in the web app** (2026-10-21): `research/solver-rs`
   as WebAssembly in the History replayer, tricks 3-13 at once and 1-2 on a
   tap. See "Double dummy in the History replayer" in [FRONTEND.md](FRONTEND.md).
-  Next on the same build: the robots' deeper endgame search (5 cards measured
-  at +22.8 points a board, CHALLENGE.md), which needs a Python extension too.
+  The robots' five-card endgame search shipped on its own (PR #23, +22.8
+  points a board); six cards is 0.6 in "Now".
 - **Online play with friends.** Designed in [ONLINE_PLAN.md](ONLINE_PLAN.md)
-  and [HOSTING_AND_LOCAL_SAVES.md](HOSTING_AND_LOCAL_SAVES.md). Blocked on a
-  user decision (accounts on Supabase or Cloudflare). Suggested waiting
-  until the Cloudflare analytics show people are using the site.
+  and [HOSTING_AND_LOCAL_SAVES.md](HOSTING_AND_LOCAL_SAVES.md). The user has
+  a Cloudflare account, and Cloudflare-only is the recommended backend;
+  whether to promote it to P2 is open (see "Now"). Suggested waiting until
+  the Cloudflare analytics show people are using the site.
 
 ## For the user, outside the code
 
@@ -239,8 +185,9 @@ Still open, **each the user's call**:
   reporting and Dependabot security updates (Settings → Advanced Security);
   a ruleset on the default branch blocking force pushes and deletion; "Keep
   my email addresses private" in account settings.
-- Delete the merged branches `mobile-ui`, `pages-local-saves` and
-  `claude-md-restructure` on GitHub.
+- Delete the merged branches on GitHub: `mobile-ui`, `pages-local-saves`,
+  `claude-md-restructure`, and the merged
+  `claude/project-thread-*` branches (3eomzu, 5a2rvz, 8u8fku and older).
 
 ## Declined or settled (don't re-propose)
 
@@ -250,3 +197,7 @@ Still open, **each the user's call**:
   existing review sufficient.
 - Dropping responder's penalty pass of a reopening double: measured as
   indistinguishable (+1.74 against +1.64); kept by the user's choice.
+- A slam bidding rule (2026-10-23): even seeing both hands the best slam cells
+  make 24-50%, under the ~50% a small slam needs (BIDDING.md).
+- A singleton opening lead (2026-10-25): +0.43 tricks double dummy but -0.42
+  points seated; off.
