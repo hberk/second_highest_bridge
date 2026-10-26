@@ -145,5 +145,6 @@ it before going against one.
 | [FRONTEND.md](docs/FRONTEND.md) | working in `frontend/` |
 | [HOSTING_AND_LOCAL_SAVES.md](docs/HOSTING_AND_LOCAL_SAVES.md) | changing the GitHub Pages deployment or browser-saved games |
 | [ONLINE_PLAN.md](docs/ONLINE_PLAN.md) | planning accounts, saved hands or live tables |
+| [MULTIPLAYER_PLAN.md](docs/MULTIPLAYER_PLAN.md) | building live tables: milestones, protocol, tests |
 
 When state changes, update the doc that owns it rather than growing this file.
