@@ -41,7 +41,9 @@ interface Stored {
 
 function load(): Partial<Stored> {
   try {
-    return JSON.parse(localStorage.getItem(KEY) ?? '{}');
+    const v: unknown = JSON.parse(localStorage.getItem(KEY) ?? '{}');
+    // Anything but an object (null, a number) is a damaged save: defaults.
+    return typeof v === 'object' && v !== null && !Array.isArray(v) ? v : {};
   } catch {
     return {};
   }

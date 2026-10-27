@@ -82,7 +82,7 @@ export class DdAnalysis {
 
   start(): void {
     const c = this.record.contract;
-    if (!c || this.worker) return;
+    if (!c || this.worker || !this.plays.length) return;
     if (typeof Worker === 'undefined') {
       this.error = 'Double dummy analysis needs a browser with Web Workers.';
       return;

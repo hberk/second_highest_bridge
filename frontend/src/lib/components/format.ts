@@ -5,5 +5,5 @@ import type { Contract } from '../engine/auction';
 export const signed = (n: number): string => (n >= 0 ? `+${n}` : `${n}`);
 
 export function contractLabel(c: Contract | null): string {
-  return c ? `${c.level}${STRAIN_SYMBOLS[c.strain]} by ${c.declarer}` : 'passed out';
+  return c ? `${c.level}${STRAIN_SYMBOLS[c.strain]}${c.doubled === 'None' ? '' : c.doubled} by ${c.declarer}` : 'passed out';
 }

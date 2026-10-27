@@ -16,6 +16,11 @@
   } = $props();
 
   const SEATS: Seat[] = ['North', 'West', 'East', 'South'];
+  /** The most calls a seat shows on the felt; earlier ones fold into a "+n"
+   *  card. West and East stand on the felt's short side. Without a cap a long
+   *  auction ran off the felt, over the alert and the title (the whole
+   *  auction is a tap away). */
+  const SHOWN: Record<Seat, number> = { North: 4, South: 3, West: 2, East: 2 };
 
   /** Each seat's calls in order, with where each sits in the auction. */
   const bySeat = $derived.by(() => {
@@ -52,11 +57,15 @@
 
 <div class="auction-felt" aria-label="The auction so far">
   {#each SEATS as p (p)}
-    {@const mine = bySeat.get(p)!}
+    {@const all = bySeat.get(p)!}
     {@const waiting = p === 'South' && turn === 'South'}
+    <!-- "Your call" takes a card's room in your row. -->
+    {@const mine = all.slice(-(SHOWN[p] - (waiting ? 1 : 0)))}
+    {@const folded = all.length - mine.length}
     <div class="af-seat af-{p.toLowerCase()}">
       {#if p !== 'South'}<span class="af-who">{role(p)}</span>{/if}
       <div class="bc-stack" role="group" aria-label="{p}'s calls">
+        {#if folded}<span class="bc bc-more" aria-label="{folded} earlier call{folded === 1 ? '' : 's'}"><span class="bc-label">+{folded}</span></span>{/if}
         {#each mine as c, k (c.i)}
           {@const top = k === mine.length - 1 && !waiting}
           {#if alerts[c.i]}
