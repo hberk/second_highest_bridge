@@ -84,6 +84,26 @@ remains the reference.
   manifest and `.ico` sizes from it with Pillow, so edit the SVG and rerun it;
   `felt.css` keeps content clear of the notch and home bar with the
   safe-area insets.
+- **Bidding training (2026-10-27, the user's idea and design).** A tab of
+  its own (`TrainerView`, state in `trainer.svelte.ts`, apart from `Game`):
+  you bid South with a robot North, robots bid East and West, and the board
+  ends with the auction. While you bid, your hand shows its judgement points
+  (`Fan`'s `jp` tags, and the total with HCP and shape). When the auction
+  ends the bidding box gives way to the recap, on the same screen: the
+  contract's double dummy score against par (N/S's best contract; no IMPs,
+  the user's call), the robots' contract on the same board for reference,
+  partner's hand beside yours (East-West behind a link), both hands' JP
+  against the 26 / 32 / 33 lines (`GAME_MAJOR`, `GAME`, `SLAM`, exported
+  from `gib.ts` for it), the auction with each of your calls against the
+  robot's call with your hand, where your hand fell outside what a call
+  showed (`misfits`, from the alert's HCP range and suit lengths), and what
+  each strain makes. **The deals are not the challenge's** (the user's
+  call: a hand seen here would be seen again in Challenge):
+  `data/training_deals.json`, from `research/solve_training_deals.py`, fresh
+  deals solved for all four declarers in every strain. Deals are not
+  repeated until all have been trained; the log and the average against par
+  are kept in `localStorage` (`shb-training-v1`). `trainer.test.ts` bids
+  boards to the end, checks the recap's arithmetic and renders it.
 - **Two-tap bidding with meanings** (`BidPad.svelte`, `meanings.ts`). Every
   call is a button. The first tap opens a box saying what the call would mean
   here; tapping the same button again makes it; the box also takes a

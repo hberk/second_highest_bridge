@@ -107,6 +107,18 @@ first part of **B7** (the penalty double where X is free).
 | C4 | Grading uses the declarer who actually played, not one per strain and side | P1 | Met (2026-10-23): every deal solved for all four declarers; par takes the better partner | `test_challenge.py`, `engine.test.ts` |
 | C5 | Dealing a challenge board mid-board asks first | P2 | Met (2026-10-23) | `Game.inProgress`, `qol.test.ts` |
 
+## 5b. Bidding training
+
+The user's idea (2026-10-27): a tab to learn judgement points and how to bid
+in this game. Approved from the phone mockups the same day.
+
+| id | requirement | pri | status | how we know |
+|---|---|---|---|---|
+| T1 | A Bidding training tab: you bid South with a robot partner, robot opponents bid too, and the board ends with the auction (no play) | P1 | Met (2026-10-27) | `trainer.test.ts` |
+| T2 | Its deals are its own, never the challenge library's, so a hand seen in training isn't met again in Challenge; each solved in every strain for every declarer | P1 | Met: `data/training_deals.json` (`research/solve_training_deals.py`, seeds from 11,000,000) | `trainer.test.ts` checks no deal is a challenge deal |
+| T3 | Scored against par only: the contract's double dummy score minus N/S's best (no IMPs), with the session average kept in the browser | P1 | Met | `trainer.test.ts` |
+| T4 | The recap is one screen the moment the auction ends: score against par, partner's hand beside yours (East-West a tap away), your JP and partner's against the game and slam lines, your calls against the robot's with where your hand fell outside what a call showed, and what each strain makes | P1 | Met | `trainer.test.ts` renders it on every board |
+
 ## 6. History and analysis
 
 | id | requirement | pri | status | how we know |
@@ -123,7 +135,7 @@ first part of **B7** (the penalty double where X is free).
 |---|---|---|---|---|
 | U1 | Phone first: the bidding screen and your hand fit 390x844 without scrolling | P0 | Met (home-screen app); Partial in Safari with toolbars | ROADMAP 2.8 |
 | U2 | Every card of your hand visible at once; a suit never splits or clips | P0 | Met | `Fan` |
-| U3 | Play, Challenge and History one tap apart, in a compact row | P1 | Met (PR #25) | `TabStrip` |
+| U3 | Play, Bidding training, Challenge and History one tap apart, in a compact row | P1 | Met (PR #25; Bidding training added 2026-10-27) | `TabStrip` |
 | U4 | A desktop layout from 1200px, from the same table model | P2 | Met | `game.test.ts` renders both |
 | U5 | Browser back and the phone's back swipe move between screens | P1 | Met | URL hash routing |
 | U6 | History and Challenge in the Felt style, not the old busy layout | P1 | Met (2026-10-23, approved from phone screenshots) | `HistoryView`, `ChallengeView`, `game.test.ts` |
