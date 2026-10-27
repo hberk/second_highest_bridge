@@ -147,3 +147,6 @@
 {"id": 29, "strain": "C", "tricks": {"North": 4, "East": 8, "South": 4, "West": 8}, "seconds": 19.9}
 {"id": 29, "strain": "S", "tricks": {"North": 9, "East": 4, "South": 9, "West": 4}, "seconds": 4.8}
 {"id": 29, "strain": "NT", "tricks": {"North": 6, "East": 6, "South": 6, "West": 6}, "seconds": 13.3}
+{"id": 28, "strain": "NT", "tricks": {"North": 6, "East": 4, "South": 6, "West": 4}, "seconds": 267.6}
+{"id": 30, "strain": "C", "tricks": {"North": 9, "East": 4, "South": 9, "West": 4}, "seconds": 323.8}
+{"id": 30, "strain": "H", "tricks": {"North": 3, "East": 10, "South": 3, "West": 10}, "seconds": 319.5}
