@@ -58,7 +58,8 @@ remains the reference.
   felt (`AuctionFelt`, each seat's latest call where it sits and the newest
   alert spelled out; a seat shows its last few calls, North 4, South 3, West
   and East 2, and folds earlier ones into a "+n" card, so a long auction
-  stays on the felt), the trick on the felt (`TrickFelt`) with a line under it
+  stays on the felt; the whole auction is a button away, in Play and in
+  Bidding training), the trick on the felt (`TrickFelt`) with a line under it
   saying who is winning and why (`trickText.ts`), your hand as an overlapping
   fan at the bottom (`Fan`; legal cards rise, the rest grey out), the dummy
   above the felt once it's down. There is no X-ray view of the robots' hands
