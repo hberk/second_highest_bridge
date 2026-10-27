@@ -1034,3 +1034,92 @@ button { touch-action: manipulation; }
 .hv .dd-losses { margin: 0; }
 .hv-seat { width: calc(50% - 4px); margin: 0 auto; }
 .hv-summary { text-align: left; }
+
+/* ── Bidding training (2026-10-27) ───────────────────────────────────────── */
+/* The bidding screen is the table's; once the auction ends the recap takes
+   the bidding box's place, all on one screen. */
+
+.fcard-jp {
+    position: absolute;
+    left: 4px;
+    bottom: 4px;
+    padding: 0 3px;
+    border-radius: 3px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 14px;
+}
+.bt-top { padding-top: 6px; }
+.bt-strip {
+    margin: 6px 0 0;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    font-size: 12.5px;
+    color: var(--dim);
+}
+.bt-strip b { color: var(--text); }
+.table-body.bt-recap { gap: 8px; padding-top: 8px; }
+.bt-card {
+    padding: 9px 12px;
+    border-radius: 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+}
+.bt-result { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.bt-contract { font-size: 19px; font-weight: 800; }
+.bt-sub { font-size: 12.5px; color: var(--dim); }
+.bt-sub b { color: var(--text); font-weight: 600; }
+.bt-diff { color: var(--warn); font-size: 24px; font-weight: 800; text-align: right; line-height: 1; white-space: nowrap; }
+.bt-diff.zero { color: var(--good); }
+.bt-diff small { display: block; margin-top: 3px; font-size: 11px; font-weight: 500; color: var(--dim); }
+.bt-hands { display: flex; gap: 8px; }
+.bt-hand {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 9px;
+    border-radius: 10px;
+    background: var(--card);
+    color: var(--suit-nt);
+    font-size: 15px;
+    line-height: 1.4;
+}
+.bt-hand-head { display: flex; justify-content: space-between; gap: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #4a5a52; }
+.bt-hand-head b { color: #8a5f0c; }
+.bt-hand-sub { font-size: 11px; color: #5d6d65; border-bottom: 1px solid #dcdcd2; padding-bottom: 2px; margin-bottom: 2px; }
+.bt-suit { display: flex; gap: 5px; white-space: nowrap; }
+.bt-pip { width: 14px; }
+.bt-pip.s-s, .bt-pip.s-c { color: var(--suit-s); }
+.bt-pip.s-h { color: var(--suit-h); }
+.bt-pip.s-d { color: var(--suit-d); }
+.bt-jp { box-shadow: inset 0 -2px 0 var(--accent); }
+.bt-links { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--accent); padding: 0 2px; }
+.bt-links .link-btn { font-size: 12px; }
+.bt-meter { position: relative; height: 30px; margin: 20px 2px 18px; border-radius: 6px; background: var(--panel-2); }
+.bt-bar { position: absolute; top: 8px; height: 14px; border-radius: 4px; }
+.bt-bar.you { background: var(--accent); }
+.bt-bar.partner { background: #6fb3d8; }
+.bt-tick { position: absolute; top: 0; height: 30px; border-left: 2px dashed var(--line-2); }
+.bt-tick.hit { border-left-color: var(--accent); }
+.bt-tick i { position: absolute; left: 4px; font-style: normal; font-size: 10.5px; color: var(--dim); white-space: nowrap; }
+.bt-tick.up i { top: -17px; }
+.bt-tick.down i { top: 31px; left: auto; right: 4px; }
+.bt-tick i.left { left: auto; right: 4px; }
+.bt-tick.hit i { color: var(--accent); font-weight: 700; }
+.bt-note { margin: 5px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--dim); }
+.bt-note b { color: var(--text); }
+.bt-auction { display: grid; grid-template-columns: repeat(4, 1fr); row-gap: 2px; text-align: center; font-size: 13px; }
+.bt-head { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+.bt-me { font-weight: 800; }
+.bt-bad { color: var(--warn); }
+.bt-robot { display: block; font-size: 10.5px; font-weight: 600; color: var(--good); }
+.bt-dd { display: grid; grid-template-columns: auto repeat(5, 1fr); align-items: center; text-align: center; font-size: 13px; }
+.bt-dd-l { text-align: left; font-size: 11px; color: var(--dim); }
+.bt-dd .best { color: var(--accent); font-weight: 800; }
+.bt-next { position: sticky; bottom: calc(var(--safe-bottom) + 8px); margin-top: 4px; }
+/* Four tabs, one of them two words: each takes what its label needs. */
+.ts-tab { flex: 1 1 auto; padding: 0 4px; white-space: nowrap; }
+@media (max-width: 420px) { .ts-tab { font-size: 13.5px; } }

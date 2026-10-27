@@ -41,12 +41,12 @@ const NEGATIVE: Record<number, number> = { 1: 6, 2: 8, 3: 10 };
 export const TWO_SUITED_MIN = 8;
 /** Game by judgement points (the user's call, 2026-10-23): GAME for every game
  *  but a major suit's, GAME_MAJOR for a major, NT_GAME opposite our 1NT/2NT. See gib.py. */
-const GAME = 32;
-const GAME_MAJOR = 26;
+export const GAME = 32;
+export const GAME_MAJOR = 26;
 const NT_GAME = 28;
 /** Judge level on the variant's card values (true) or on HCP (false). See gib.py. */
 export const settingsGib = { judgeByVariant: true, cueLimitAt3: true };
-const SLAM = 33;
+export const SLAM = 33;
 const GRAND = 37;
 
 const isSuit = (s: string | null | undefined): s is Suit =>

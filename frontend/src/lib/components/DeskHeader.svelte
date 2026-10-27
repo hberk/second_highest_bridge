@@ -4,11 +4,12 @@
   import type { Game } from '../game.svelte';
   import SettingsPanel from './SettingsPanel.svelte';
 
-  type Screen = 'home' | 'table' | 'challenge' | 'history' | 'howto';
+  type Screen = 'home' | 'table' | 'training' | 'challenge' | 'history' | 'howto';
   let { screen, game, onnav }: { screen: Screen; game: Game; onnav: (s: Screen) => void } = $props();
 
   const tabs = $derived([
     ['table', 'Bridge Table'],
+    ['training', 'Bidding Training'],
     ['challenge', `Challenge${game.challengeLog.length ? ` (${game.challengeLog.length})` : ''}`],
     ['history', `Hand History (${game.history.length})`],
     ['howto', 'How to Play'],

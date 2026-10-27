@@ -5,9 +5,10 @@
   import type { Game } from '../game.svelte';
   import SessionScore from '../components/SessionScore.svelte';
 
-  let { game, onplay, onchallenge, onhowto, onhistory, onsettings }: {
+  let { game, onplay, ontraining, onchallenge, onhowto, onhistory, onsettings }: {
     game: Game;
     onplay: () => void;
+    ontraining: () => void;
     onchallenge: () => void;
     onhowto: () => void;
     onhistory: () => void;
@@ -40,6 +41,7 @@
 
   <nav class="home-actions" aria-label="Start">
     <button class="btn primary full huge" onclick={onplay}>{live ? `Resume board ${game.boardNum}` : 'Play'}</button>
+    <button class="btn ghost full big" onclick={ontraining}>Bidding training</button>
     <button class="btn ghost full big" onclick={onchallenge}>Challenge the robots</button>
     <div class="home-links">
       <button class="link-btn" onclick={onhowto}>How to play</button>
