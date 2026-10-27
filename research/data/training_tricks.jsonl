@@ -57,3 +57,5 @@
 {"id": 11, "strain": "C", "tricks": {"North": 5, "East": 8, "South": 4, "West": 7}, "seconds": 145.0}
 {"id": 11, "strain": "D", "tricks": {"North": 6, "East": 7, "South": 5, "West": 7}, "seconds": 154.4}
 {"id": 12, "strain": "C", "tricks": {"North": 10, "East": 3, "South": 10, "West": 3}, "seconds": 21.0}
+{"id": 12, "strain": "H", "tricks": {"North": 6, "East": 7, "South": 6, "West": 6}, "seconds": 25.3}
+{"id": 12, "strain": "S", "tricks": {"North": 11, "East": 2, "South": 11, "West": 2}, "seconds": 7.2}
