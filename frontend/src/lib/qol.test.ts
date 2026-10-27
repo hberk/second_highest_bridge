@@ -149,3 +149,15 @@ describe('a board in play', () => {
   });
 });
 
+
+describe('Contract labels', () => {
+  it('keep a double or redouble', async () => {
+    const { contractLabel } = await import('./components/format');
+    const c = { level: 1, strain: 'NT', declarer: 'South', dummy: 'North', leader: 'West', tricks_needed: 7,
+      trump: 'NT', doubled: 'None', vulnerability: 'None', side: 'N/S' } as const;
+    expect(contractLabel(c)).toBe('1NT by South');
+    expect(contractLabel({ ...c, doubled: 'X' })).toBe('1NTX by South');
+    expect(contractLabel({ ...c, doubled: 'XX' })).toBe('1NTXX by South');
+    expect(contractLabel(null)).toBe('passed out');
+  });
+});

@@ -10,7 +10,9 @@
 
   const tabs = $derived([
     ['table', 'Play', 0],
-    ['training', 'Bidding training', 0],
+    // "Training" here: the full name (as on the home page) pushed the row
+    // past a 360px phone.
+    ['training', 'Training', 0],
     ['challenge', 'Challenge', game.challengeLog.length],
     ['history', 'History', game.history.length],
   ] as const);

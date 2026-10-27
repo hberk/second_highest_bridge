@@ -78,6 +78,53 @@ describe('Bidding training', () => {
     expect(new Trainer(storage, prng(3)).log).toEqual([]);
   });
 
+  it('carries on with a board half-bid after a reload, rather than dealing another', () => {
+    const storage = new MemoryStorage() as unknown as Storage;
+    const t = new Trainer(storage, prng(4));
+    t.humanBids(t.auction.legalCalls().find((c) => /^\d/.test(c))!, 'my alert');
+    const again = new Trainer(storage, prng(99));
+    expect(again.dealId).toBe(t.dealId);
+    expect(again.boardNum).toBe(t.boardNum);
+    expect(again.calls).toEqual(t.calls);
+    expect(again.alerts).toEqual(t.alerts);
+    bidBoard(again, 0);
+    expect(new Trainer(storage, prng(4)).boardNum).toBe(again.boardNum + 1);
+  });
+
+  it('loads past a damaged save', () => {
+    const storage = new MemoryStorage() as unknown as Storage;
+    const entry = { deal_id: 1, board_num: 1, score: 110, par: 140, diff: -30 };
+    for (const [save, log] of [
+      [{ version: 1, boardNum: 3, log: [null, entry, { deal_id: 'x' }] }, [entry]],
+      [{ version: 1, boardNum: -5, log: [] }, []],
+      [{ version: 1, boardNum: 2.5, log: [] }, []],
+      [{ version: 1, boardNum: 2, log: [], current: { boardNum: 3, dealId: -1, calls: [], alerts: {} } }, []],
+      [{ version: 1, boardNum: 2, log: [], current: { boardNum: 3, dealId: trainingDealIds()[0], calls: [['South', '9Z']], alerts: {} } }, []],
+      [null, []],
+    ] as const) {
+      storage.setItem(TRAINING_KEY, JSON.stringify(save));
+      const t = new Trainer(storage, prng(3));
+      expect(t.log).toEqual(log);
+      expect(Number.isInteger(t.boardNum) && t.boardNum > 0).toBe(true);
+      expect(['North', 'East', 'South', 'West']).toContain(t.dealer);
+    }
+  });
+
+  it('lets a person run the auction long: it still ends in the recap', () => {
+    // Found by fuzzing: robots stopped calling at 60 calls, and the board froze.
+    const t = new Trainer(null, prng(1));
+    t.boardNum = 452;
+    t.newBoard(307);
+    const mine = ['1H', '4C', '4D', '4H', '4S', '4NT', '5C', '6S', '6NT', '7C', '7D', '7H', '7S', '7NT', 'XX'];
+    for (const call of mine) {
+      if (t.recap) break;
+      t.humanBids(t.auction.legalCalls().includes(call) ? call : 'Pass');
+    }
+    for (let guard = 0; guard < 40 && !t.recap; guard++) t.humanBids('Pass');
+    expect(t.calls.length).toBeGreaterThanOrEqual(60);
+    expect(t.recap).not.toBeNull();
+  });
+
   it('says where a hand falls outside what a call showed', () => {
     const hand = parseHand('AS KS QS JS 8S 6S AH 7H 4H 3H QC 10C 7C');
     expect(misfits('5+ ♠, 11-15 HCP.', hand)).toEqual(['16 HCP']);

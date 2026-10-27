@@ -340,6 +340,10 @@ button { touch-action: manipulation; }
     text-align: center;
 }
 .bc-shown { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Earlier calls folded away on a long auction: a narrow card, not overlapped. */
+.bc-more { --w: 26px; align-items: center; justify-content: center; padding: 0; background: var(--panel-2); color: var(--dim-2); font-size: 11px; }
+.bc-stack > .bc-more + .bc { margin-inline-start: 3px; }
+.dk-felt .bc-more { --w: 32px; font-size: 13px; }
 .dk-felt .bc { --w: 58px; --h: 38px; --reveal-x: 38px; font-size: 14px; line-height: 15px; padding: 3px 6px; }
 .dk-felt .bc-top { font-size: 19px; padding: 0; }
 .dk-felt .bc-yours { font-size: 16px; padding: 0 12px; }
@@ -1120,6 +1124,10 @@ button { touch-action: manipulation; }
 .bt-dd-l { text-align: left; font-size: 11px; color: var(--dim); }
 .bt-dd .best { color: var(--accent); font-weight: 800; }
 .bt-next { position: sticky; bottom: calc(var(--safe-bottom) + 8px); margin-top: 4px; }
-/* Four tabs, one of them two words: each takes what its label needs. */
+/* Four tabs: each takes what its label needs. If the counts still outgrow a
+   narrow phone, the tabs scroll sideways inside the row, so the spade and the
+   question mark always stay on screen and the page itself never scrolls. */
 .ts-tab { flex: 1 1 auto; padding: 0 4px; white-space: nowrap; }
-@media (max-width: 420px) { .ts-tab { font-size: 13.5px; } }
+.ts-tabs { min-width: 0; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
+.ts-tabs::-webkit-scrollbar { display: none; }
+@media (max-width: 420px) { .ts-tab { font-size: 13.5px; } .ts-count { margin-left: 3px; padding: 0 5px; } }

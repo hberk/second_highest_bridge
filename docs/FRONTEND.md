@@ -47,13 +47,19 @@ remains the reference.
   but compact): the spade goes home, `?` opens How to play (which keeps a
   back button, `TopBar`), and Challenge and History use the row as their whole
   top bar, so only the table pays for it (about 40px; the bidding box and
-  your hand still fit a 390x844 screen). The screen follows the URL hash
+  your hand still fit a 390x844 screen). On the phone row Bidding training
+  is "Training" (2026-10-27: the full name pushed `?` off a 360px screen),
+  and if the counts still outgrow the row, the tabs scroll inside it, so the
+  page never scrolls sideways. The screen follows the URL hash
   (`#table`, `#history`), so the browser's back button and the phone's back
   swipe work. Settings live in a
   bottom sheet (`Sheet` + `SettingsPanel`), opened from the gear on home and
   at the table. `TableView` is one 520px column: the auction on an oval of
   felt (`AuctionFelt`, each seat's latest call where it sits and the newest
-  alert spelled out), the trick on the felt (`TrickFelt`) with a line under it
+  alert spelled out; a seat shows its last few calls, North 4, South 3, West
+  and East 2, and folds earlier ones into a "+n" card, so a long auction
+  stays on the felt; the whole auction is a button away, in Play and in
+  Bidding training), the trick on the felt (`TrickFelt`) with a line under it
   saying who is winning and why (`trickText.ts`), your hand as an overlapping
   fan at the bottom (`Fan`; legal cards rise, the rest grey out), the dummy
   above the felt once it's down. There is no X-ray view of the robots' hands
@@ -102,7 +108,11 @@ remains the reference.
   `data/training_deals.json`, from `research/solve_training_deals.py`, fresh
   deals solved for all four declarers in every strain. Deals are not
   repeated until all have been trained; the log and the average against par
-  are kept in `localStorage` (`shb-training-v1`). `trainer.test.ts` bids
+  are kept in `localStorage` (`shb-training-v1`), with the board being bid,
+  so a reload carries on with it rather than dealing a new hand; a damaged
+  save is checked and dropped, never trusted. The robots' loop stops only
+  past 319 calls, the longest legal auction (a stop at 60, as in
+  `challenge.ts`, froze a board a person had bid long). `trainer.test.ts` bids
   boards to the end, checks the recap's arithmetic and renders it.
 - **Two-tap bidding with meanings** (`BidPad.svelte`, `meanings.ts`). Every
   call is a button. The first tap opens a box saying what the call would mean

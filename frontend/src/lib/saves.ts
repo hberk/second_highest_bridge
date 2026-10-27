@@ -7,7 +7,7 @@
 // `boards.record`, so boards saved here can be uploaded unchanged once there
 // are accounts.
 import type { ChallengeLogEntry, HistoryRecord } from './game.svelte';
-import { RANKS, SUITS, VULNERABILITIES } from './engine/card';
+import { RANKS, STRAINS, SUITS, VULNERABILITIES } from './engine/card';
 import { PLAYERS } from './engine/auction';
 
 export const SAVE_KEY = 'shb-games-v1';
@@ -53,6 +53,18 @@ const isCard = (v: unknown): boolean =>
 const isPlay = (v: unknown): boolean =>
   Array.isArray(v) && v.length === 2 && isSeat(v[0]) && isCard(v[1]);
 
+const SIDES = ['N/S', 'E/W'];
+const isContract = (v: unknown): boolean =>
+  isObject(v) && Number.isInteger(v.level) && (v.level as number) >= 1 && (v.level as number) <= 7
+  && STRAINS.includes(v.strain as never) && isSeat(v.declarer) && isSeat(v.dummy) && isSeat(v.leader)
+  && isCount(v.tricks_needed) && (SUITS.includes(v.trump as never) || v.trump === 'NT')
+  && ['None', 'X', 'XX'].includes(v.doubled as string)
+  && VULNERABILITIES.includes(v.vulnerability as never) && SIDES.includes(v.side as string);
+const isResult = (v: unknown): boolean =>
+  isObject(v) && SIDES.includes(v.winner as string) && typeof v.made === 'boolean'
+  && ['tricks_won', 'tricks_needed', 'overtricks', 'undertricks', 'points'].every((k) => isCount(v[k]))
+  && typeof v.detail === 'string';
+
 /** One board, checked as deep as the History view reads it: a board that
  *  fails is left out on load rather than breaking the view. */
 export function isRecord(v: unknown): v is HistoryRecord {
@@ -65,13 +77,13 @@ export function isRecord(v: unknown): v is HistoryRecord {
     && Array.isArray(v.auction_calls)
     && v.auction_calls.every((c) => Array.isArray(c) && c.length === 2 && isSeat(c[0]) && typeof c[1] === 'string')
     && isObject(v.bid_alerts) && Object.values(v.bid_alerts).every((a) => typeof a === 'string')
-    && (v.contract === null || isObject(v.contract))
+    && (v.contract === null || isContract(v.contract))
     && typeof v.passed_out === 'boolean'
     && Array.isArray(v.tricks_log)
     && v.tricks_log.every((t) => isObject(t) && isCount(t.trick_num) && isSeat(t.leader)
       && Array.isArray(t.plays) && t.plays.every(isPlay) && isSeat(t.winner) && isCard(t.winning_card))
     && isObject(taken) && isCount(taken['N/S']) && isCount(taken['E/W'])
-    && (v.result === null || isObject(v.result));
+    && (v.result === null || isResult(v.result));
 }
 
 const LOG_FIELDS = ['deal_id', 'board_num', 'you', 'robot', 'margin', 'your_bidding_loss',

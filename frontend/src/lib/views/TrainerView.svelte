@@ -15,6 +15,8 @@
   import BidPad from '../components/BidPad.svelte';
   import Fan from '../components/Fan.svelte';
   import Strain from '../components/Strain.svelte';
+  import AuctionGrid from '../components/AuctionGrid.svelte';
+  import Sheet from '../components/Sheet.svelte';
 
   let { trainer }: { trainer: Trainer } = $props();
 
@@ -27,6 +29,8 @@
   const mine = $derived(new Hand(trainer.hands.South));
   const shape = (h: Hand) => ORDER.map((s) => h.len[s]).join('-');
   let showEW = $state(false);
+  /** The whole auction, call by call: the felt shows only each seat's last few. */
+  let auctionOpen = $state(false);
 
   const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0');
   const pct = (n: number) => `${(n / 40) * 100}%`;
@@ -86,7 +90,9 @@
         <div class="topbar-title">Bidding training · board {trainer.boardNum}</div>
         <div class="topbar-sub">{trainer.dealer} deals · {VUL[trainer.vulnerability]} · bid only, no play</div>
       </div>
-      <span></span>
+      <button class="icon-btn" aria-label="Show the whole auction" onclick={() => (auctionOpen = true)}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"></path></svg>
+      </button>
     </header>
     <div class="table-body">
       <AuctionFelt calls={trainer.calls} alerts={trainer.liveAlerts} dealer={trainer.dealer}
@@ -199,3 +205,8 @@
     </div>
   {/if}
 </div>
+
+<Sheet open={auctionOpen && !recap} title="Auction · board {trainer.boardNum}" onclose={() => (auctionOpen = false)}>
+  <p class="caption">{trainer.dealer} dealt · {VUL[trainer.vulnerability]}. Calls marked ! were alerted: tap one to read it.</p>
+  <AuctionGrid dealer={trainer.dealer} calls={trainer.calls} alerts={trainer.liveAlerts} />
+</Sheet>

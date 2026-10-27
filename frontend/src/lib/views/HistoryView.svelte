@@ -139,7 +139,9 @@
   // worker's memory freed) when another board is picked or the view closes.
   let dd = $state<DdAnalysis | null>(null);
   $effect(() => {
-    if (!analysis || !hb?.contract || hb.passed_out) return;
+    dd = null;
+    // A board claimed before the opening lead has no play to analyse.
+    if (!analysis || !hb?.contract || hb.passed_out || !hb.tricks_log.length) return;
     const a = new DdAnalysis(hb);
     dd = a;
     a.start();
@@ -230,9 +232,11 @@
         {#if dd.error}
           <span class="dd-error">Double dummy: {dd.error}</span>
         {:else}
-          <span>Double dummy: {dd.doneFrom > firstTrick ? 'starting…' : dd.doneFrom === firstTrick ? `trick ${firstTrick}` : `tricks ${dd.doneFrom}–${firstTrick}`}{#if dd.running}<span class="dd-dim">&nbsp;· working on {dd.doneFrom - 1}…</span>{/if}</span>
-          {#if !dd.deep && firstTrick > AUTO_CARDS && !dd.running}
-            <button class="chip-btn" onclick={() => dd?.deeper()}>Add tricks 1–{13 - AUTO_CARDS} (minutes)</button>
+          <span>Double dummy: {dd.doneFrom > firstTrick ? (dd.running ? 'starting…' : 'not analysed yet') : dd.doneFrom === firstTrick ? `trick ${firstTrick}` : `tricks ${dd.doneFrom}–${firstTrick}`}{#if dd.running}<span class="dd-dim">&nbsp;· working on {dd.doneFrom - 1}…</span>{/if}</span>
+          <!-- Tricks 1-2 wait for a tap, on a claimed board too (it may stop
+               before the automatic range even starts). -->
+          {#if !dd.deep && dd.doneFrom > 1 && !dd.running}
+            <button class="chip-btn" onclick={() => dd?.deeper()}>Add tricks 1–{Math.min(13 - AUTO_CARDS, firstTrick)} (minutes)</button>
           {/if}
         {/if}
       </div>

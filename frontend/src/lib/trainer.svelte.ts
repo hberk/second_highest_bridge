@@ -10,7 +10,7 @@
 // all four declarers, so any contract the auction reaches has an exact count.
 import training from '$root/data/training_deals.json';
 import { STRAINS, parseHand, type Card, type Seat, type Strain, type Suit, type Vulnerability } from './engine/card';
-import { AuctionState, DEALER_ROTATION, PLAYERS, VUL_ROTATION, type CallRecord, type Contract } from './engine/auction';
+import { AuctionState, DEALER_ROTATION, PLAYERS, VUL_ROTATION, cleanAlert, type CallRecord, type Contract } from './engine/auction';
 import { aiBidExplained } from './engine/ai';
 import { Hand } from './engine/gib';
 import { scoreFor, type Par } from './engine/challenge';
@@ -30,8 +30,10 @@ const DEALS = new Map<number, TrainingDeal>(
 
 const HUMAN: Seat = 'South';
 export const TRAINING_KEY = 'shb-training-v1';
-/** A board is abandoned if the auction will not terminate (as challenge.ts). */
-const AUCTION_GUARD = 60;
+/** A safety stop for the robots' loop. Not challenge.ts's 60: a person can
+ *  drive a legal auction far past that (it can run to 319 calls), and a
+ *  stop short of the end leaves a robot to call and nothing to tap. */
+const AUCTION_GUARD = 320;
 
 export function trainingDealIds(): number[] {
   return [...DEALS.keys()].sort((a, b) => a - b);
@@ -112,10 +114,36 @@ export interface TrainingLogEntry {
   diff: number;
 }
 
+/** The board being bid, so a reload carries on with it rather than dealing
+ *  a new hand (which would let a hand be skipped). */
+interface CurrentBoard {
+  boardNum: number;
+  dealId: number;
+  calls: CallRecord[];
+  alerts: Record<number, string>;
+}
+
 interface SavedTraining {
   version: 1;
   boardNum: number;
   log: TrainingLogEntry[];
+  current?: CurrentBoard;
+}
+
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+const isCount = (v: unknown): boolean => Number.isInteger(v) && (v as number) >= 0;
+
+function isLogEntry(v: unknown): v is TrainingLogEntry {
+  return isObject(v) && isCount(v.deal_id) && isCount(v.board_num)
+    && Number.isFinite(v.score) && Number.isFinite(v.par) && Number.isFinite(v.diff);
+}
+
+function isCurrent(v: unknown): v is CurrentBoard {
+  return isObject(v) && isCount(v.boardNum) && (v.boardNum as number) > 0 && DEALS.has(v.dealId as number)
+    && Array.isArray(v.calls)
+    && v.calls.every((c) => Array.isArray(c) && c.length === 2 && PLAYERS.includes(c[0]) && typeof c[1] === 'string')
+    && isObject(v.alerts) && Object.values(v.alerts).every((a) => typeof a === 'string');
 }
 
 const SYM: Record<string, string> = { S: '♠', H: '♥', D: '♦', C: '♣' };
@@ -177,25 +205,68 @@ export class Trainer {
       this.boardNum = saved.boardNum;
       this.log = saved.log;
     }
-    this.newBoard();
+    if (!(saved?.current && this.resume(saved.current))) this.newBoard();
   }
 
+  /** The saved training, checked as deep as it is read: a damaged save
+   *  starts training afresh (or drops the bad log entries) rather than
+   *  stopping the app from loading. */
   private load(): SavedTraining | null {
     try {
       const raw = this.storage?.getItem(TRAINING_KEY);
-      const v = raw ? JSON.parse(raw) : null;
-      return v && v.version === 1 && Array.isArray(v.log) && typeof v.boardNum === 'number' ? v : null;
+      const v: unknown = raw ? JSON.parse(raw) : null;
+      if (!isObject(v) || v.version !== 1 || !Array.isArray(v.log) || !isCount(v.boardNum)) return null;
+      return {
+        version: 1,
+        boardNum: v.boardNum as number,
+        log: v.log.filter(isLogEntry),
+        current: isCurrent(v.current) ? v.current : undefined,
+      };
     } catch {
       return null;
     }
   }
 
   private save(): void {
+    const current: CurrentBoard | undefined = this.recap ? undefined : {
+      boardNum: this.boardNum,
+      dealId: this.dealId,
+      calls: $state.snapshot(this.calls) as CallRecord[],
+      alerts: $state.snapshot(this.alerts),
+    };
     try {
       this.storage?.setItem(TRAINING_KEY, JSON.stringify({
-        version: 1, boardNum: this.boardNum, log: $state.snapshot(this.log),
+        version: 1,
+        // The last board finished: a board in progress is counted when it ends.
+        boardNum: this.recap ? this.boardNum : this.boardNum - 1,
+        log: $state.snapshot(this.log),
+        current,
       } satisfies SavedTraining));
     } catch { /* storage full or blocked: training carries on */ }
+  }
+
+  /** Pick up a board saved half-bid. False when its calls no longer replay
+   *  (a changed deal file, say), and a new board is dealt instead. */
+  private resume(saved: CurrentBoard): boolean {
+    const dealer = DEALER_ROTATION[(saved.boardNum - 1) % 4];
+    const vulnerability = VUL_ROTATION[(saved.boardNum - 1) % 16];
+    try {
+      const auction = new AuctionState(dealer, vulnerability);
+      for (const [p, c] of saved.calls) auction.applyCall(p, c);
+      if (auction.isComplete) return false;
+    } catch {
+      return false;
+    }
+    this.boardNum = saved.boardNum;
+    this.dealId = saved.dealId;
+    this.dealer = dealer;
+    this.vulnerability = vulnerability;
+    this.hands = handsOf(saved.dealId);
+    this.calls = saved.calls;
+    this.alerts = saved.alerts;
+    this.recap = null;
+    this.advance();
+    return true;
   }
 
   /** The next deal not trained yet (all of them once used up, over again),
@@ -215,15 +286,18 @@ export class Trainer {
     this.alerts = {};
     this.recap = null;
     this.advance();
+    if (!this.recap) this.save();
   }
 
   humanBids(call: string, alert = ''): void {
     const auction = this.auction;
     if (auction.isComplete || auction.currentPlayer() !== HUMAN) return;
     if (!auction.legalCalls().includes(call)) return;
-    if (alert.trim()) this.alerts[this.calls.length] = alert.trim();
+    const why = cleanAlert(alert);
+    if (why) this.alerts[this.calls.length] = why;
     this.calls.push([HUMAN, call]);
     this.advance();
+    if (!this.recap) this.save();
   }
 
   /** The robots' alerts by call, the human's left out (as Game.robotAlerts). */
