@@ -1131,3 +1131,8 @@ button { touch-action: manipulation; }
 .ts-tabs { min-width: 0; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
 .ts-tabs::-webkit-scrollbar { display: none; }
 @media (max-width: 420px) { .ts-tab { font-size: 13.5px; } .ts-count { margin-left: 3px; padding: 0 5px; } }
+/* Your auction and the robots', one above the other (2026-10-28). The call
+   where they part is ringed in both. */
+.bt-auction-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; font-size: 13px; font-weight: 700; }
+.bt-robots-title { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.bt-part { outline: 2px solid var(--accent); outline-offset: -1px; border-radius: 6px; }
