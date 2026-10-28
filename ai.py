@@ -1229,7 +1229,7 @@ def _winning_suit(cards: list[Card], trump: str | None) -> str:
 
 
 def _outlook(player: str, card: Card, trick: list[tuple[str, Card]],
-             trump: str | None, later: set[Card]) -> tuple[str, int]:
+             trump: str | None, later: set[Card], void: float = 1.0) -> tuple[str, float]:
     """Who takes the trick if `player` plays `card` now, and how many of the cards
     still to come would pull it away from this partnership.
 
@@ -1244,10 +1244,13 @@ def _outlook(player: str, card: Card, trick: list[tuple[str, Card]],
     # Only the deciding suit is counted. A ruff takes the trick whichever card we
     # play, so it is a constant across our candidates: counting it would swamp the
     # differences we are actually choosing between and duck every trick away.
-    exposed = sum(1 for c in later
-                  if c.suit == suit
-                  and resolve_trick(plays + [(_AI_TAG, c)], trump) not in ours)
-    return holder, exposed
+    # A card of another suit than the led one (an overruff) only comes if the
+    # opponent is out of the led suit: it counts `void`, the chance of that.
+    takers = [c for c in later
+              if c.suit == suit
+              and resolve_trick(plays + [(_AI_TAG, c)], trump) not in ours]
+    follows = sum(1 for c in takers if c.suit == plays[0][1].suit)
+    return holder, follows + void * (len(takers) - follows)
 
 
 # ── Main Play Entry Point ────────────────────────────────────────────────────
@@ -1334,7 +1337,10 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         out = (_shown_out(history, trick)
                if SHOWOUT_MIDDLE and history is not None else None)
         later = _later_holdings(player, hand, trick, played, visible or {}, out)
-        choice = _middle_play(player, legal, trick, trump, later)
+        void = (_void_chance(player, hand, trick, played, visible or {}, history,
+                             out or _shown_out(history, trick))
+                if RUFF_IF_FOLLOWS and history is not None and len(trick) == 2 else 1.0)
+        choice = _middle_play(player, legal, trick, trump, later, void)
 
     partner = PARTNERS[player]
     if len(trick) == 1 and visible and partner in visible and len(legal) > 1:
@@ -2889,7 +2895,7 @@ def _shed(legal: list[Card], trump: str | None) -> Card:
 # ── Middle positions (2nd / 3rd to play) ─────────────────────────────────────
 
 def _middle_play(player: str, legal: list[Card], trick: list[tuple[str, Card]],
-                 trump: str | None, later: set[Card]) -> Card:
+                 trump: str | None, later: set[Card], void: float = 1.0) -> Card:
     """Partnership-aware play when 2nd or 3rd to act.
 
     Every legal card is judged on the same two questions: does it leave the
@@ -2907,12 +2913,60 @@ def _middle_play(player: str, legal: list[Card], trick: list[tuple[str, Card]],
     """
     options = []
     for c in legal:
-        holder, exposed = _outlook(player, c, trick, trump, later)
+        holder, exposed = _outlook(player, c, trick, trump, later, void)
         if holder in (player, PARTNERS[player]) and exposed <= 1:
             options.append((exposed, c.value(), c))
     if options:
         return min(options, key=lambda t: (t[0], t[1]))[2]
     return _shed(legal, trump)
+
+
+# ── Ruffing in the middle ────────────────────────────────────────────────────
+#
+# On challenge deal 276 West, declaring 4C and void in spades, threw the 3H
+# under dummy's JS (it held unless North had the QS) rather than ruff: every
+# unseen club counted as an overruff, two threats to the discard's one. But
+# North can only overruff when out of spades, with eight spades unseen. So an
+# overruff counts only as often as the next opponent can be void in the led
+# suit. The discard lost to the QS and cost two tricks double dummy. Third
+# hand only: second hand doing the same was even (-3 tricks over 20 changed
+# cards double dummy, against +87 over 145 for third hand).
+
+#: Third hand counts an overruff threat by the chance the opponent is out of
+#: the led suit (measurement switch).
+RUFF_IF_FOLLOWS = True
+
+
+def _void_chance(player: str, hand: list[Card], trick: list[tuple[str, Card]],
+                 played: list[Card], visible: dict[str, list[Card]], history: list,
+                 out: dict[str, set[str]]) -> float:
+    """The chance the opponent still to play this trick holds none of the led suit,
+    counting every split of the unseen cards between the unseen hands as equally
+    likely."""
+    i = PLAYERS.index(player)
+    later = [PLAYERS[(i + k) % 4] for k in range(1, 4 - len(trick))]
+    opponents = [p for p in later if p != PARTNERS[player]]
+    if not opponents:
+        return 1.0
+    opp = opponents[0]
+    led = trick[0][1].suit
+    if opp in visible:
+        return 0.0 if any(c.suit == led for c in visible[opp]) else 1.0
+    if led in out.get(opp, ()):
+        return 1.0
+    seen = set(played) | {c for _, c in trick} | set(hand)
+    for cards in visible.values():
+        seen |= set(cards)
+    unseen = sum(1 for c in _FULL_DECK if c.suit == led and c not in seen)
+    if unseen == 0:
+        return 1.0
+    in_trick = {p for p, _ in trick}
+    size = {p: 13 - len(history) - (1 if p in in_trick else 0) for p in PLAYERS}
+    rest = sum(size[p] for p in PLAYERS
+               if p not in visible and p not in (player, opp) and led not in out.get(p, ()))
+    if rest < unseen:
+        return 0.0
+    return comb(rest, unseen) / comb(rest + size[opp], unseen)
 
 
 # ── Last to play ──────────────────────────────────────────────────────────────

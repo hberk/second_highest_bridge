@@ -447,6 +447,25 @@ Seated on the challenge library itself: +0.062 tricks, +8.13 points a board
 (t = +2.87), 1,448 of 6,356 boards changed.
 `tests/test_card_play_rules.py` holds deal 10.
 
+**Third hand ruffs when the next opponent can't overruff** (`ai.RUFF_IF_FOLLOWS`;
+the user's deal 276, 2026-10-28). Clubs by West, trick 4: dummy led the J♠,
+South played the K♠, and West, void in spades, threw the 3♥ (double dummy two
+tricks worse than a ruff). `_middle_play` takes the cheapest card that keeps
+the trick and that at most one of the next opponent's possible cards takes
+back. The discard left dummy's jack second-highest unless North had the Q♠,
+one threat; on a ruff both unseen clubs counted as overruffs, two. But North
+can only overruff when out of spades, with eight unseen. So for third hand an
+overruff threat now counts the chance the next opponent is void in the led
+suit (`_void_chance`: every split of the unseen cards between the unseen hands
+equally likely; 9 in 75,582 on deal 276). Seated (800 fresh deals x 16 boards):
+**+0.011 tricks a board (t = +1.61), +1.31 points**, 704 of 12,640 boards
+changed; on the challenge library **+0.018 tricks (t = +2.57), +1.78 points (t = +1.94)**,
+328 of 6,356. Double dummy on each changed card (fresh deals, both sides on):
+third hand's ruffs gained 87 tricks over 145 cards (78 better, 18 worse).
+Second hand doing the same was even (both together +0.007 tricks, t = +1.10;
+its 20 changed cards -3 tricks double dummy), so it is third hand only.
+`tests/test_card_play_rules.py` holds deal 276.
+
 **A cuebid raise that forces the three level needs four trumps or 12+
 judgement points** (`gib.CUE_LIMIT_AT_3`), a small tightening of GIB's "limit
 raise or better"; weaker hands with three trumps raise to the two level. The

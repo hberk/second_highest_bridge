@@ -693,3 +693,25 @@ def test_a_known_major_fit_plays_in_game_not_3nt():
     call, why = bid('QS 9S 8S 7S 2S KH 8H 6H KD 2D QC 8C 5C',
                     '1NT', 'Pass', '2H', 'Pass', '2S', 'Pass')
     assert call == '3NT' and 'choice of games' in why, (call, why)
+
+
+def test_advancers_2nt_is_the_limit_raise_when_the_cuebid_passes_three():
+    """The user's call, 2026-10-28 (Challenge deal 276): over 1♦ (2♣) 2♦ a
+    3♦ cuebid forces 3NT or 4♣, so 2NT is the limit raise or better and
+    partner can sign off in 3♣; the cuebid only asks for a stopper."""
+    east = 'AS JS 8S 4S JH 4H 2H AD 8D 6D QC 6C 3C'
+    call, why = bid(east, '1D', '2C', '2D', dealer='South')
+    assert call == '2NT' and 'Limit raise or better' in why, (call, why)
+    west = 'AH 7H 6H 3H 10D 9D 5D AC KC 10C 9C 8C 5C'
+    call, _ = bid(west, '1D', '2C', '2D', '2NT', 'Pass', dealer='South')
+    assert call == '3C', call
+    call, _ = bid(east, '1D', '2C', '2D', '2NT', 'Pass', '3C', 'Pass', dealer='South')
+    assert call == 'Pass', call
+    # 13+ HCP and no diamond stopper: the cuebid asks for one.
+    asker = 'AS KS 8S 4S KH QH 2H 8D 6D 4D QC 6C 3C'
+    call, why = bid(asker, '1D', '2C', '2D', dealer='South')
+    assert call == '3D' and 'stopper' in why, (call, why)
+    call, _ = bid(west, '1D', '2C', '2D', '3D', 'Pass', dealer='South')
+    assert call == '4C', call
+    call, _ = bid(asker, '1D', '2C', '2D', '3D', 'Pass', '4C', 'Pass', dealer='South')
+    assert call == 'Pass', call

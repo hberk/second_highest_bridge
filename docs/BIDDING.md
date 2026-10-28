@@ -396,6 +396,25 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   user's exact case alone (weak two doubled) +0.04, t = +1.9, 26 auctions;
   over overcalls and three-level pre-empts too +0.26; with one-level majors
   +0.74; majors only +1.22; with `JAM_NEVER_AGAIN` +1.38 (majors only +1.11).
+- **2NT is advancer's limit raise when the cuebid would pass three of
+  partner's suit** (`CUE_2NT`, `_cue_2nt_on`, `_two_nt_raise_reply`; the
+  user's Challenge deal 276, 2026-10-28: 1♦ (2♣) 2♦ (3♦) was alerted 10+
+  HCP, but it forces 3NT or 4♣). When their suit ranks above ours and our
+  suit was bid at the one or two level, 2NT is 3+ support, 10+ HCP, limit
+  raise or better (artificial; no natural 2NT then), and partner signs off
+  at three without extras, as over any limit raise. The cuebid only asks for
+  a stopper for 3NT: 13+ HCP (`CUE_ASK_HCP`) and none of my own. Partner
+  bids 3NT with a stopper, else four (a major game; four of a minor is
+  passed). With 13+ after partner's sign-off over 2NT, advancer bids 3NT
+  with a stopper, game in a major, or the cuebid as the same ask. Deal 276
+  now goes 2NT, 3♣, all pass. 10,000 fresh deals: **+0.07, t = +1.7, 173
+  auctions changed** (73 better, 56 worse). Measured beside it, the same
+  deals: a game-forcing cuebid (13+, limit hands raise to three) +0.12,
+  t = +2.8, a tie with this (-0.05, t = -1.3), and the user chose this
+  one; 2NT as a 10-12 limit raise with a game-forcing cuebid +0.02 (about
+  half of its gap came from the opponents' extra turn after 2NT, and the
+  rest from declined invitations); the same for responder (1♦ (2♥) 2NT)
+  -0.19 and the game-forcing cuebid for responder about 0.
 - **A major raise counts trump length** (`RAISE_TRUMP_POINTS`, the user's
   deal: 1♥ with ♠K5 ♥K9864 ♦K84 ♣832 raised to 2♥). With four or more
   trumps and under 13 HCP, 2M, 3M or 4M is chosen on HCP plus one point a
