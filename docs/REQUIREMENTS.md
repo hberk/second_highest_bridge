@@ -117,7 +117,7 @@ in this game. Approved from the phone mockups the same day.
 | T1 | A Bidding training tab: you bid South with a robot partner, robot opponents bid too, and the board ends with the auction (no play) | P1 | Met (2026-10-27) | `trainer.test.ts` |
 | T2 | Its deals are its own, never the challenge library's, so a hand seen in training isn't met again in Challenge; each solved in every strain for every declarer | P1 | Met: `data/training_deals.json` (`research/solve_training_deals.py`, seeds from 11,000,000) | `trainer.test.ts` checks no deal is a challenge deal |
 | T3 | Scored against par only: the contract's double dummy score minus N/S's best (no IMPs), with the session average kept in the browser | P1 | Met | `trainer.test.ts` |
-| T4 | The recap is one screen the moment the auction ends: score against par, partner's hand beside yours (East-West a tap away), your JP and partner's against the game and slam lines, your calls against the robot's with where your hand fell outside what a call showed, and what each strain makes | P1 | Met | `trainer.test.ts` renders it on every board |
+| T4 | The recap is one screen the moment the auction ends: score against par, partner's hand beside yours (East-West a tap away), your JP and partner's against the game and slam lines, your calls against the robot's with where your hand fell outside what a call showed, the robots' whole auction on the same deal with where the two part (2026-10-28), and what each strain makes | P1 | Met | `trainer.test.ts` renders it on every board |
 
 ## 6. History and analysis
 
