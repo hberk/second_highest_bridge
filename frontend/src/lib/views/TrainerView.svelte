@@ -195,7 +195,7 @@
         </div>
         {#each notes as n (n.index)}
           <p class="bt-note">
-            <b>{@render callText(n.call)}</b>{#if n.meaning}{" "}showed: {n.meaning}{:else if n.call !== 'Pass'} has no agreed meaning here.{:else}.{/if}
+            <b>{@render callText(n.call)}</b>{#if n.meaning}{" "}showed: {n.meaning}{:else if n.call !== 'Pass'}{" "}has no agreed meaning here.{:else}.{/if}
             {#if n.misfits.length}You hold {n.misfits.join(' and ')}.{/if}
             {#if n.robot !== n.call}The robot would bid {@render callText(n.robot)}.{/if}
           </p>
