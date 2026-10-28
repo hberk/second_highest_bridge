@@ -187,6 +187,10 @@ from the variant's side; t as above.
 | 10-28 | ...5+ judgement points | +0.03 | +1.41 | 193 | off |
 | 10-28 | ...6+ judgement points | -0.01 | -1.13 | 86 | off |
 | 10-28 | ...any five cards | +0.13 | +2.19 | 712 | off |
+| 10-28 | Respond 1-level on 5+ HCP with a singleton or void in opener's minor (fresh deals, as below) | **+0.19** | +3.41 | 241 | on (your call) |
+| 10-28 | 3♣ checkback over opener's 2NT rebid (1♦ 1♥ 2NT 3♣) | **+0.08** | +3.28 | 126 | on (your call) |
+| 10-28 | New minor forcing: opener answers at the two level, responder's next call judged on the fit (6-card major 2♠ over 2♥) | +0.03 | +1.63 | 88 | on (your call) |
+| 10-28 | ...responder's next call alone, opener still jumping to 3M on 13-14 | +0.00 | +0.14 | 17 | off |
 
 ### The previous system (`ai_bid`)
 

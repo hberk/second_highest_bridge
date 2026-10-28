@@ -376,6 +376,19 @@ function oneSuit(ctx: Ctx): Decision {
     const decision = openerThird(ctx, x);
     if (decision) return decision;
   }
+  if (n === 5 && seq[2] === '2NT' && seq[3] === '3C') {
+    const ans = seq[4];
+    const s = strainOf(ans);
+    if (ans !== '3NT' && isMajor(s) && ctx.h.len[s as Suit] + (s === strainOf(seq[1]) ? 3 : 4) >= 8) {
+      return [`4${s}`, TO_PLAY];
+    }
+    if (ans === '3NT') return ['Pass', 'Partner placed the contract.'];
+    return ['3NT', TO_PLAY];
+  }
+  if (n === 5 || n === 6) {
+    const decision = afterNmf(ctx, x);
+    if (decision) return decision;
+  }
   return continuation(ctx);
 }
 
@@ -454,12 +467,29 @@ function respondMajor(ctx: Ctx, x: Suit): Decision {
   return ['1NT', `${RESPONSE_MIN}-11 HCP. Forcing.`];
 }
 
+// A light response opposite a minor opening (the user's call, 2026-10-28):
+// with a singleton or void in partner's minor, SHORT_RESPONSE_MIN HCP is
+// enough for a one-level suit. Fresh deals, head to head: +0.19, t = +3.4.
+export const SHORT_RESPONSE_MIN = 5;
+
+function oneLevelResponseAlert(m: Suit, x: Suit): string {
+  return `4+ ${SYM[m]}, ${RESPONSE_MIN}+ HCP, or ${SHORT_RESPONSE_MIN}+ short in ${SYM[x]}.`;
+}
+
 function respondMinor(ctx: Ctx, x: Suit): Decision {
   const h = ctx.h;
   const hcp = h.hcp;
   const sup = h.len[x];
   const passed = ctx.passedHand(ctx.me);
-  if (hcp < RESPONSE_MIN) return ['Pass', `Fewer than ${RESPONSE_MIN} HCP.`];
+  if (hcp < RESPONSE_MIN) {
+    if (hcp >= SHORT_RESPONSE_MIN && sup <= 1) {
+      const order: Suit[] = h.len.H > h.len.S ? ['H', 'S', 'D'] : ['S', 'H', 'D'];
+      for (const m of order) {
+        if (h.len[m] >= 4 && idx(m) > idx(x) && ctx.ok(`1${m}`)) return [`1${m}`, oneLevelResponseAlert(m, x)];
+      }
+    }
+    return ['Pass', `Fewer than ${RESPONSE_MIN} HCP.`];
+  }
   const js = jumpShift(ctx, x);
   if (js) return js;
   const majors = MAJORS.filter((s) => h.len[s] >= 4);
@@ -469,9 +499,9 @@ function respondMinor(ctx: Ctx, x: Suit): Decision {
   }
   if (majors.length) {
     const m = majors.length === 2 && h.len.S > h.len.H ? 'S' : majors[0];
-    return [`1${m}`, `4+ ${SYM[m]}, ${RESPONSE_MIN}+ HCP.`];
+    return [`1${m}`, oneLevelResponseAlert(m, x)];
   }
-  if (x === 'C' && h.len.D >= 4) return ['1D', `4+ ${SYM.D}, ${RESPONSE_MIN}+ HCP.`];
+  if (x === 'C' && h.len.D >= 4) return ['1D', oneLevelResponseAlert('D', x)];
   if (x === 'D' && !passed && hcp >= TWO_OVER_ONE && h.len.C >= 4) {
     return ['2C', `4+ ${SYM.C}, 12+ HCP. Game forcing.`];
   }
@@ -813,6 +843,11 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
   if (o === '2NT') {
     if (hcp + lo >= SLAM) return ['6NT', TO_PLAY];
     if (isMajor(y) && h.len[y as Suit] >= 6) return [`4${y}`, TO_PLAY];
+    if (isMajor(y) && levelOf(r) === 1 && ctx.ok('3C')
+      && !(isMajor(x) && h.len[x] >= 3)
+      && (h.len[y as Suit] === 5 || (y === 'H' && h.len.S >= 4 && x !== 'S'))) {
+      return ['3C', 'Checkback: asks for 3-card support or the other major. Artificial.'];
+    }
     if (isMajor(x) && h.len[x] >= 3) return [`4${x}`, TO_PLAY];
     return ['3NT', TO_PLAY];
   }
@@ -945,6 +980,15 @@ function openerThird(ctx: Ctx, x: Suit): Decision | null {
   const last = seq[3];
   const y = strainOf(r);
   if (last === '3NT' || last === '6NT') return ['Pass', 'Partner placed the contract.'];
+  if (o === '2NT' && last === '3C' && isMajor(y) && levelOf(r) === 1) {
+    const ys = y as Suit;
+    const other: Suit = ys === 'S' ? 'H' : 'S';
+    if (h.len[ys] >= 3) return [`3${ys}`, `3+ ${SYM[ys]}.`];
+    if (other !== x && h.len[other] >= 4 && ctx.ok(`3${other}`)) {
+      return [`3${other}`, `4+ ${SYM[other]}, fewer than 3 ${SYM[ys]}.`];
+    }
+    return ['3NT', `Fewer than 3 ${SYM[ys]}.`];
+  }
   if (levelOf(last) >= 4 && isSuit(strainOf(last)) && !isSplinter(x, last)) {
     if (isMinor(strainOf(last)) && last !== `4${x}`) return null;
     return ['Pass', 'Partner placed the contract.'];
@@ -971,9 +1015,7 @@ function openerThird(ctx: Ctx, x: Suit): Decision | null {
   const nmf = x === 'C' ? '2D' : '2C';
   if (o === '1NT' && last === nmf && isMajor(y)) {
     const ys = y as Suit;
-    if (h.len[ys] >= 3) {
-      return h.hcp >= 13 ? [`3${ys}`, `3 ${SYM[ys]}, 13-14 HCP.`] : [`2${ys}`, `3 ${SYM[ys]}, 11-12 HCP.`];
-    }
+    if (h.len[ys] >= 3) return [`2${ys}`, `3 ${SYM[ys]}.`];
     const other: Suit = ys === 'S' ? 'H' : 'S';
     if (h.len[other] >= 4 && ctx.ok(`2${other}`)) return [`2${other}`, `4 ${SYM[other]}.`];
     return h.hcp >= 13 ? ['3NT', TO_PLAY] : ['2NT', '11-12 HCP, no fit.'];
@@ -990,6 +1032,58 @@ function openerThird(ctx: Ctx, x: Suit): Decision | null {
     }
     const call = ctx.ok('2NT') ? '2NT' : '3NT';
     if (ctx.ok(call)) return [call, 'Game forcing, no better bid.'];
+  }
+  return null;
+}
+
+// Checkback over opener's 2NT rebid (the user's call, 2026-10-28): 3♣ asks
+// for three-card support for responder's major, or four of the other.
+
+// Responder's rebid after new minor forcing and opener's two-level answer
+// (the user's call, 2026-10-28): a 6-card major opposite 1NT's two is an
+// 8-card fit, a raise of opener's other major a 4-4 fit, each judged on the
+// fit: game, an invitation, or the cheapest to play.
+export const NMF_ACCEPT = 14;
+
+function afterNmf(ctx: Ctx, x: Suit): Decision | null {
+  const seq = ctx.seq;
+  const h = ctx.h;
+  if (seq.length < 5 || seq[2] !== '1NT') return null;
+  const y = strainOf(seq[1]);
+  const nmf = x === 'C' ? '2D' : '2C';
+  if (!isMajor(y) || seq[3] !== nmf) return null;
+  const ys = y as Suit;
+  const ans = seq[4];
+  const other: Suit = ys === 'S' ? 'H' : 'S';
+  if (seq.length === 6) {
+    const last = seq[5];
+    if ((last === `3${ys}` || last === `3${other}`) && (ans === `2${ys}` || ans === `2${other}` || ans === '2NT')) {
+      const s = strainOf(last);
+      return h.judge >= NMF_ACCEPT ? [`4${s}`, TO_PLAY] : ['Pass', 'Declining the invitation.'];
+    }
+    return null;
+  }
+  const hcp = h.judge;
+  if (ans === `2${ys}`) {
+    const fit = hcp + fitBonus(h, ys, 3);
+    if (fit + 11 >= GAME_MAJOR && ctx.ok(`4${ys}`)) return [`4${ys}`, TO_PLAY];
+    if (fit + 14 >= GAME_MAJOR && ctx.ok(`3${ys}`)) return [`3${ys}`, `5+ ${SYM[ys]}, invitational.`];
+    return ['Pass', 'No game.'];
+  }
+  if (ans === `2${other}` && h.len[other] >= 4) {
+    const fit = hcp + fitBonus(h, other, 4);
+    if (fit + 11 >= GAME_MAJOR) return [`4${other}`, TO_PLAY];
+    if (fit + 14 >= GAME_MAJOR) return [`3${other}`, '4 ' + SYM[other] + ', invitational.'];
+    return ['Pass', 'No game.'];
+  }
+  if ((ans === `2${other}` || ans === '2NT' || ans === '3NT') && h.len[ys] >= 6) {
+    const [lo, hi] = ans === '3NT' ? [13, 14] : ans === '2NT' ? [11, 12] : [11, 14];
+    const fit = hcp + fitBonus(h, ys, 2);
+    if (fit + lo >= GAME_MAJOR && ctx.ok(`4${ys}`)) return [`4${ys}`, TO_PLAY];
+    if (ans === '3NT') return ['Pass', 'Partner placed the contract.'];
+    if (fit + hi >= GAME_MAJOR && ctx.ok(`3${ys}`)) return [`3${ys}`, `6+ ${SYM[ys]}, invitational.`];
+    const call = ctx.cheapest(ys, 2);
+    if (call && levelOf(call) <= 3) return [call, `6+ ${SYM[ys]}, to play.`];
   }
   return null;
 }
