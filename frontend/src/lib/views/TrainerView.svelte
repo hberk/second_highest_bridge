@@ -144,17 +144,19 @@
             Robots bid {@render contractText(recap.robotContract)} ({signed(recap.robotScore)})
           </div>
         </div>
-        <div class="bt-diff" class:zero={recap.diff >= 0}>{signed(recap.diff)}<small>against par</small></div>
+        <div class="bt-diffs">
+          <div class="bt-diff" class:zero={recap.diff >= 0}>{signed(recap.diff)}<small>vs par</small></div>
+          <div class="bt-diff" class:zero={recap.score >= recap.robotScore}>{signed(recap.score - recap.robotScore)}<small>vs robots</small></div>
+        </div>
       </section>
 
       {#if all}
         <section class="bt-card bt-tally" class:wide={recent} aria-label="Your record against par and the robots">
-          <span class="eyebrow">Per board vs par</span>
+          <span class="eyebrow">You, per board</span>
           <span class="bt-tally-h">{all.boards} {all.boards === 1 ? 'board' : 'boards'}</span>
           {#if recent}<span class="bt-tally-h">last {recent.boards}</span>{/if}
-          <span>You</span><b>{signed(all.you)}</b>{#if recent}<b>{signed(recent.you)}</b>{/if}
-          <span>Robots</span><b>{signed(all.robots)}</b>{#if recent}<b>{signed(recent.robots)}</b>{/if}
-          <span>Gap</span><b class="accent">{all.robots - all.you}</b>{#if recent}<b class="accent">{recent.robots - recent.you}</b>{/if}
+          <span>vs par</span><b>{signed(all.vsPar)}</b>{#if recent}<b>{signed(recent.vsPar)}</b>{/if}
+          <span>vs robots</span><b class="accent">{signed(all.vsRobots)}</b>{#if recent}<b class="accent">{signed(recent.vsRobots)}</b>{/if}
           <p class="bt-note bt-tally-wide">Against the robots: {all.better} better · {all.same} same · {all.worse} worse</p>
         </section>
       {/if}

@@ -97,7 +97,12 @@ remains the reference.
   (`Fan`'s `jp` tags, and the total with HCP and shape). When the auction
   ends the bidding box gives way to the recap, on the same screen: the
   contract's double dummy score against par (N/S's best contract; no IMPs,
-  the user's call), the robots' contract on the same board for reference,
+  the user's call) and against the robots' contract on the same board,
+  then your tally per board vs par and vs the robots, over every board and
+  the last 20 (the user's ask, 2026-10-28: to watch the gap to the robots
+  close as they improve). The log keeps no robot score: `Trainer.tally`
+  reruns today's robots on each logged board (they are deterministic;
+  cached per board), so a robot change moves the tally on old boards too;
   partner's hand beside yours (East-West behind a link), both hands' JP
   against the 26 / 32 / 33 lines (`GAME_MAJOR`, `GAME`, `SLAM`, exported
   from `gib.ts` for it), the auction with each of your calls against the
@@ -110,8 +115,7 @@ remains the reference.
   call: a hand seen here would be seen again in Challenge):
   `data/training_deals.json`, from `research/solve_training_deals.py`, fresh
   deals solved for all four declarers in every strain. Deals are not
-  repeated until all have been trained; the log and the average against par
-  are kept in `localStorage` (`shb-training-v1`), with the board being bid,
+  repeated until all have been trained; the log is kept in `localStorage` (`shb-training-v1`), with the board being bid,
   so a reload carries on with it rather than dealing a new hand; a damaged
   save is checked and dropped, never trusted. The robots' loop stops only
   past 319 calls, the longest legal auction (a stop at 60, as in

@@ -120,12 +120,12 @@ export interface TrainingLogEntry {
   diff: number;
 }
 
-/** Your boards against par, and today's robots on the same boards. */
+/** Your boards against par, and against today's robots on the same boards. */
 export interface Tally {
   boards: number;
-  /** Per board against par, rounded. */
-  you: number;
-  robots: number;
+  /** Per board, rounded: your score less par, and less the robots'. */
+  vsPar: number;
+  vsRobots: number;
   /** Boards you scored more than the robots, the same, less. */
   better: number;
   same: number;
@@ -238,23 +238,19 @@ export class Trainer {
     return out;
   });
 
-  /** Average against par per board, over the boards trained so far. */
-  get average(): number | null {
-    return this.log.length ? Math.round(this.log.reduce((n, e) => n + e.diff, 0) / this.log.length) : null;
-  }
-
   /** Over every board trained, or the last `last`. */
   tally(last?: number): Tally | null {
     const log = last ? this.log.slice(-last) : this.log;
     if (!log.length) return null;
-    let you = 0, robots = 0, better = 0, same = 0, worse = 0;
+    let vsPar = 0, vsRobots = 0, better = 0, same = 0, worse = 0;
     for (const e of log) {
       const r = robotScore(e);
-      you += e.diff;
-      robots += r - e.par;
+      vsPar += e.diff;
+      vsRobots += e.score - r;
       if (e.score > r) better++; else if (e.score < r) worse++; else same++;
     }
-    return { boards: log.length, you: Math.round(you / log.length), robots: Math.round(robots / log.length), better, same, worse };
+    const per = (n: number) => Math.round(n / log.length);
+    return { boards: log.length, vsPar: per(vsPar), vsRobots: per(vsRobots), better, same, worse };
   }
 
   constructor(private storage: Storage | null = browserStorage(),
