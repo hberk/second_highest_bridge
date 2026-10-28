@@ -25,6 +25,13 @@ describe('winningSoFar', () => {
     const trick = [p('South', 'D', 'K'), p('West', 'D', 'A')];
     expect(winningSoFar(trick, 'NT')).toBe('Your K♦ is winning: second-highest of A K.');
   });
+
+  it('speaks to you from whatever seat you sit in', () => {
+    const trick = [p('South', 'D', 'K'), p('West', 'D', 'A')];
+    expect(winningSoFar(trick, 'NT', 'East')).toBe("South's K♦ is winning: second-highest of A K.");
+    const won = [p('South', 'D', '5'), p('West', 'D', 'A'), p('North', 'D', '2'), p('East', 'D', 'K')];
+    expect(trickTaken(won, 'NT', 'East', 2, 'East')).toBe('You take trick 2 with the K♦, second-highest of A K 5 2.');
+  });
 });
 
 describe('trickTaken', () => {

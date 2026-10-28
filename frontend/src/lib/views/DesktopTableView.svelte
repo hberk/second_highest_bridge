@@ -199,9 +199,9 @@
         {@render seats(trickFelt)}
 
         {#if game.phase === 'trick_done' && game.trickWinner}
-          <p class="trick-line trick-won">{trickTaken(game.trick, game.trump, game.trickWinner, m.displayNum)}</p>
+          <p class="trick-line trick-won">{trickTaken(game.trick, game.trump, game.trickWinner, m.displayNum, me)}</p>
         {:else if game.trick.length}
-          <p class="trick-line">{winningSoFar(game.trick, game.trump)}</p>
+          <p class="trick-line">{winningSoFar(game.trick, game.trump, me)}</p>
         {:else}
           <p class="trick-line dim">{m.who === me ? 'Your lead.' : m.who ? `Lead from ${m.name(m.who)}'s hand.` : ''}</p>
         {/if}
@@ -231,7 +231,7 @@
         <div class="dk-panel-head">
           <h2>Auction</h2>
           {#if c}<span class="dk-soft">{@render contractText()} by {m.by(c.declarer)} · {m.by(c.leader) === 'you' ? 'you lead' : `${m.name(c.leader)} leads`}</span>
-          {:else}<span class="dk-soft">{m.name(game.dealer)} deals · {m.vul}</span>{/if}
+          {:else}<span class="dk-soft">{m.dealsText} · {m.vul}</span>{/if}
         </div>
         <AuctionGrid dealer={game.dealer} calls={game.calls} alerts={game.boardOver ? game.alerts : game.liveAlerts} />
       </section>
@@ -269,7 +269,7 @@
                 </div>
               {/each}
             </div>
-            <p class="dk-note">{trickTaken(prevTrick.plays, game.trump, prevTrick.winner, prevTrick.trick_num)}</p>
+            <p class="dk-note">{trickTaken(prevTrick.plays, game.trump, prevTrick.winner, prevTrick.trick_num, me)}</p>
           {:else}
             <p class="dk-note">The first trick is still being played.</p>
           {/if}

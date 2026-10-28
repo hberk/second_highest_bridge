@@ -141,6 +141,13 @@ export class TableModel {
     return p === this.partner ? `${this.name(p)} · partner` : this.name(p);
   }
 
+  /** "West deals", or at a multiplayer table "Sam deals" and "You deal".
+   *  (Solo play keeps the compass point: "South deals".) */
+  get dealsText(): string {
+    const d = this.game.dealer;
+    return this.game.playerName && d === this.me ? 'You deal' : `${this.name(d)} deals`;
+  }
+
   /** "you" for your own seat, else the seat. */
   by(p: Seat): string {
     return p === this.me ? 'you' : this.name(p);

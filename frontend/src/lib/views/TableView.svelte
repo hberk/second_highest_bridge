@@ -116,7 +116,7 @@
     <TopBar onback={onhome}>
       {#snippet center()}
         <div class="topbar-title">Board {game.boardNum}{game.challengeId !== null ? ' · challenge' : ''}</div>
-        <div class="topbar-sub">{m.name(game.dealer)} deals · <span class:vul={usVul}>{m.vul}</span></div>
+        <div class="topbar-sub">{m.dealsText} · <span class:vul={usVul}>{m.vul}</span></div>
       {/snippet}
       {#snippet right()}{@render gear()}{/snippet}
     </TopBar>
@@ -194,12 +194,12 @@
       {/if}
 
       {#if peeking && lastTrick}
-        <p class="trick-line">Previous trick. {trickTaken(lastTrick.plays, game.trump, lastTrick.winner, lastTrick.trick_num)}</p>
+        <p class="trick-line">Previous trick. {trickTaken(lastTrick.plays, game.trump, lastTrick.winner, lastTrick.trick_num, me)}</p>
       {:else}
         {#if game.phase === 'trick_done' && game.trickWinner}
-          <p class="trick-line trick-won">{trickTaken(game.trick, game.trump, game.trickWinner, displayNum)}</p>
+          <p class="trick-line trick-won">{trickTaken(game.trick, game.trump, game.trickWinner, displayNum, me)}</p>
         {:else if game.trick.length}
-          <p class="trick-line">{winningSoFar(game.trick, game.trump)}</p>
+          <p class="trick-line">{winningSoFar(game.trick, game.trump, me)}</p>
         {:else}
           <p class="trick-line dim">{who === me ? 'Your lead.' : who ? `Lead from ${m.name(who)}'s hand.` : ''}</p>
         {/if}
