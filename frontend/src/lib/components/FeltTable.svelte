@@ -1,6 +1,7 @@
 <!-- The green felt: the four cards of the current trick, the led suit and the
      running trick count. -->
 <script lang="ts">
+  import { rankText } from './format';
   import { SUIT_NAMES, SUIT_SYMBOLS, type Card, type Seat, type Side } from '../engine/card';
   import type { Contract, Play } from '../engine/auction';
 
@@ -28,7 +29,7 @@
   {#if c}
     {@const ink = `var(--suit-${c.suit.toLowerCase()})`}
     <div class="felt-card" class:winner-card={winner === p}>
-      <div class="felt-card-rank" style:color={ink}>{c.rank}</div>
+      <div class="felt-card-rank" style:color={ink}>{rankText(c.rank)}</div>
       <div class="felt-card-suit" style:color={ink} aria-hidden="true">{SUIT_SYMBOLS[c.suit]}</div>
       <span class="sr-only">{c.rank} of {SUIT_NAMES[c.suit]}{winner === p ? ', wins the trick' : ''}</span>
       {#if winner === p}<div class="winner-badge">★ 2nd Highest</div>{/if}

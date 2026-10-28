@@ -21,7 +21,7 @@
     <div class="metric"><div class="metric-label">Robot total</div><div class="metric-value">{signed(robot)}</div></div>
     <div class="metric"><div class="metric-label">Margin</div><div class="metric-value">{signed(you - robot)}</div></div>
   </div>
-  <p class="caption">Won {won}, drew {drawn}, lost {n - won - drawn}. Across the library the robots give away a mean of 241 points a board in the auction, and about 6 in the play — the auction is where they are beatable.</p>
+  <p class="caption">Won {won}, drew {drawn}, lost {n - won - drawn}.</p>
   <table class="challenge-table">
     <thead><tr><th>Mean loss per board</th><th>You</th><th>Robots</th></tr></thead>
     <tbody>

@@ -2,6 +2,7 @@
      winner ringed once the trick is over, and a dashed space where your card
      goes when it's your turn. -->
 <script lang="ts">
+  import { rankText } from './format';
   import { SUIT_NAMES, SUIT_SYMBOLS, type Card, type Seat } from '../engine/card';
   import type { Play } from '../engine/auction';
   import type { Snippet } from 'svelte';
@@ -27,7 +28,7 @@
       <span class="tf-label">{labels[p]}</span>
       {#if c}
         <div class="tf-card" class:tf-winner={winner === p} style:color="var(--suit-{c.suit.toLowerCase()})">
-          <span class="tf-rank">{c.rank}</span><span class="tf-suit" aria-hidden="true">{SUIT_SYMBOLS[c.suit]}</span>
+          <span class="tf-rank">{rankText(c.rank)}</span><span class="tf-suit" aria-hidden="true">{SUIT_SYMBOLS[c.suit]}</span>
           <span class="sr-only"> of {SUIT_NAMES[c.suit]}{winner === p ? ', wins the trick' : ''}</span>
           {#if winner === p}<span class="tf-badge" aria-hidden="true">Wins</span>{/if}
         </div>
