@@ -46,6 +46,10 @@ export const GAME_MAJOR = 26;
 const NT_GAME = 28;
 /** Judge level on the variant's card values (true) or on HCP (false). See gib.py. */
 export const settingsGib = { judgeByVariant: true, cueLimitAt3: true };
+/** Advancer's cuebid raise past three of partner's suit: 2NT is the limit
+ *  raise or better and the cuebid asks for a stopper for 3NT. See gib.py. */
+export const CUE_2NT = true;
+const CUE_ASK_HCP = 13;
 export const SLAM = 33;
 const GRAND = 37;
 
@@ -2265,7 +2269,77 @@ function afterSupportDouble(ctx: Ctx): Decision | null {
   return ['Pass', 'No room.'];
 }
 
+function overcalled(ctx: Ctx): boolean {
+  const opening = ctx.calls.find(([, c]) => c !== 'Pass');
+  return opening !== undefined && opening[0] !== ctx.me && opening[0] !== ctx.pd
+    && !opening[1].includes('NT');
+}
+
+function bidLow(ctx: Ctx, x: Suit): boolean {
+  const first = ctx.ours.find(([, c]) => strainOf(c) === x);
+  return first !== undefined && levelOf(first[1]) <= 2;
+}
+
+function cueAsks(ctx: Ctx, cue: string, x: Suit): boolean {
+  return CUE_2NT && overcalled(ctx) && bidLow(ctx, x) && rankOf(cue) > rankOf(`3${x}`);
+}
+
+function cue2ntOn(ctx: Ctx, x: Suit, their: string | null | undefined): boolean {
+  if (!isSuit(their) || !ctx.ok('2NT')) return false;
+  const cue = ctx.cheapest(their, 2);
+  return cue !== null && levelOf(cue) === 3 && cueAsks(ctx, cue, x)
+    && ctx.cheapest(x, 2) === `3${x}`;
+}
+
+function twoNtRaiseReply(ctx: Ctx): Decision | null {
+  const h = ctx.h;
+  const mine = ctx.mine();
+  const partners = ctx.partners();
+  if (!CUE_2NT || !mine.length || !partners.length || !overcalled(ctx)) return null;
+  const theirs = theirSuits(ctx);
+  const their = theirs.length ? theirs[0] : null;
+  if (!isSuit(their)) return null;
+  const lastOurs = ctx.ours[ctx.ours.length - 1];
+  // I overcalled, partner bid 2NT, my turn.
+  let x = strainOf(mine[0]);
+  if (isSuit(x) && mine.length === 1 && partners.length === 1 && partners[0] === '2NT'
+    && lastOurs[0] === ctx.pd && lastOurs[1] === '2NT' && rankOf(`1${their}`) > rankOf(`1${x}`)
+    && bidLow(ctx, x)) {
+    if (h.judge >= 14 || (h.judge >= 12 && h.len[x] >= 6)) {
+      if (isMajor(x) && ctx.ok(`4${x}`)) return [`4${x}`, TO_PLAY];
+      if (h.stopper(their) && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+    }
+    const call = ctx.cheapest(x, 3);
+    if (call && levelOf(call) === 3) return [call, `Minimum, ${SYM[x]}.`];
+    return ['Pass', 'Minimum.'];
+  }
+  // I bid 2NT, partner signed off; my turn.
+  x = strainOf(partners[0]);
+  if (mine.length === 1 && mine[0] === '2NT' && partners.length >= 2 && lastOurs[0] === ctx.pd
+    && isSuit(x) && strainOf(partners[partners.length - 1]) === x
+    && rankOf(`1${their}`) > rankOf(`1${x}`) && bidLow(ctx, x)) {
+    if (partners.length === 2 && h.hcp >= CUE_ASK_HCP) {
+      if (h.stopper(their) && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+      if (isMajor(x) && ctx.ok(`4${x}`)) return [`4${x}`, TO_PLAY];
+      if (ctx.ok(`3${their}`)) return [`3${their}`, `Asks for a ${SYM[their]} stopper for 3NT.`];
+    }
+    return ['Pass', 'No game.'];
+  }
+  // Partner asked for a stopper after my sign-off.
+  x = strainOf(mine[0]);
+  if (mine.length === 2 && partners[0] === '2NT' && partners.length === 2
+    && lastOurs[0] === ctx.pd && strainOf(partners[1]) === their && isSuit(x)) {
+    if (h.stopper(their) && ctx.ok('3NT')) return ['3NT', `${SYM[their]} stopper.`];
+    const call = ctx.cheapest(x, 4);
+    if (call && levelOf(call) === 4) return [call, `No ${SYM[their]} stopper.`];
+    return ['Pass', 'No stopper.'];
+  }
+  return null;
+}
+
 function cuebidRaiseReply(ctx: Ctx): Decision | null {
+  const twoNt = twoNtRaiseReply(ctx);
+  if (twoNt) return twoNt;
   const h = ctx.h;
   const mine = ctx.mine();
   const partners = ctx.partners();
@@ -2278,6 +2352,12 @@ function cuebidRaiseReply(ctx: Ctx): Decision | null {
     && lastOurs[0] === ctx.pd && lastOurs[1] === p) {
     const x = x0;
     const their = strainOf(p) as Suit;
+    if (cueAsks(ctx, p, x)) {
+      if (h.stopper(their) && ctx.ok('3NT')) return ['3NT', `${SYM[their]} stopper.`];
+      if (isMajor(x) && ctx.ok(`4${x}`)) return [`4${x}`, TO_PLAY];
+      const call = ctx.cheapest(x, 4);
+      if (call && levelOf(call) <= 4) return [call, `No ${SYM[their]} stopper.`];
+    }
     if (h.judge >= 14 || (h.judge >= 12 && h.len[x] >= 6)) {
       if (isMajor(x) && ctx.ok(`4${x}`)) return [`4${x}`, TO_PLAY];
       if (h.stopper(their) && ctx.ok('3NT')) return ['3NT', TO_PLAY];
@@ -2293,6 +2373,8 @@ function cuebidRaiseReply(ctx: Ctx): Decision | null {
   if (mine.length === 1 && theirs.includes(strainOf(mine[0]) as Suit) && partners.length
     && lastOurs[0] === ctx.pd && partners.length >= 2) {
     const x = strainOf(partners[partners.length - 1]);
+    if (isSuit(x) && strainOf(partners[0]) === x && levelOf(partners[partners.length - 1]) === 4
+      && cueAsks(ctx, mine[0], x)) return ['Pass', 'No stopper: no game.'];
     if (isSuit(x) && strainOf(partners[0]) === x && h.judge >= 13) {
       if (isMajor(x) && ctx.ok(`4${x}`)) return [`4${x}`, TO_PLAY];
       if (ctx.ok('3NT')) return ['3NT', TO_PLAY];
@@ -2810,6 +2892,12 @@ function advance(ctx: Ctx): Decision | null {
     const sup = h.len[ps];
     if (sup >= 3 && hcp >= 10 && isSuit(their)) {
       const call = ctx.cheapest(their, 2);
+      if (cue2ntOn(ctx, ps, their)) {
+        if (hcp >= CUE_ASK_HCP && !h.stopper(their)) {
+          return [call!, `${CUE_ASK_HCP}+ HCP, no ${SYM[their]} stopper. Asks for one, for 3NT.`];
+        }
+        return ['2NT', `3+ ${SYM[ps]}, 10+ HCP. Limit raise or better. Artificial.`];
+      }
       if (call && levelOf(call) <= 3) return [call, `Cuebid: 3+ ${SYM[ps]}, 10+ HCP. Artificial.`];
     }
     if (sup >= 3 && hcp >= 6 && hcp <= 9) {
@@ -2818,7 +2906,9 @@ function advance(ctx: Ctx): Decision | null {
     }
     if (isSuit(their) && h.stopper(their) && h.balanced) {
       if (hcp >= 8 && hcp <= 11 && ctx.ok('1NT')) return ['1NT', `8-11 HCP, ${SYM[their]} stopper.`];
-      if (hcp >= 12 && hcp <= 14 && ctx.ok('2NT')) return ['2NT', `12-14 HCP, ${SYM[their]} stopper.`];
+      if (hcp >= 12 && hcp <= 14 && ctx.ok('2NT') && !cue2ntOn(ctx, ps, their)) {
+        return ['2NT', `12-14 HCP, ${SYM[their]} stopper.`];
+      }
     }
     for (const s of SUITS) {
       if (!theirs.includes(s) && s !== ps && h.len[s] >= 5 && hcp >= 8) {
