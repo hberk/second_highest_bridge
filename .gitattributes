@@ -1,0 +1,2 @@
+# Shell scripts run under bash (Git Bash here, Linux on the homelab): LF only.
+*.sh text eol=lf
