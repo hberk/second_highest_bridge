@@ -218,6 +218,15 @@ def test_negative_double():
     assert call == 'X' and 'Negative' in why
 
 
+def test_five_card_major_is_bid_not_doubled():
+    """The user's training deal: 1D (1H) with six spades bids 1S."""
+    call, why = bid('AS KS JS TS 5S 3S 8H JD 8D 3D TC 6C 2C', '1D', '1H', dealer='South')
+    assert call == '1S' and why == "4+ \u2660, 6+ HCP.", (call, why)
+    # Four spades still double.
+    call, why = bid('KS JS 5S 3S 8H JD 8D 3D 2D TC 6C 2C AC', '1D', '1H', dealer='South')
+    assert call == 'X', (call, why)
+
+
 def test_answers_to_a_negative_double_say_what_they_show():
     """A user's correction: the answer is a description, not "answering"."""
     # 1D (1H) X (P): five diamonds, three spades -> 2D, denying four spades.

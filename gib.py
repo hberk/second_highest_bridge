@@ -2689,7 +2689,9 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
 
 def _five_card_major(ctx: Ctx, x: str) -> tuple | None:
     """Over their overcall of our minor: bid an unbid five-card major rather
-    than make a negative double -- 1M on 6+ HCP, 2M on 10+."""
+    than make a negative double -- 1M on 6+ HCP, 2M on 10+. The alerts are
+    the ones the same calls carry with four (one level) or five (two level)
+    from the later branch: an alert reads the auction, not the hand."""
     h = ctx.h
     theirs = _their_suits(ctx)
     for s in sorted(MAJORS, key=lambda s: (h.len[s], SUITS.index(s)), reverse=True):
@@ -2699,7 +2701,7 @@ def _five_card_major(ctx: Ctx, x: str) -> tuple | None:
         if not call:
             continue
         if level_of(call) == 1 and h.hcp >= 6:
-            return call, f"5+ {SYM[s]}, 6+ HCP."
+            return call, f"4+ {SYM[s]}, 6+ HCP."
         if level_of(call) == 2 and h.hcp >= 10:
             return call, f"5+ {SYM[s]}, 10+ HCP. Forcing."
     return None

@@ -415,6 +415,16 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   half of its gap came from the opponents' extra turn after 2NT, and the
   rest from declined invitations); the same for responder (1♦ (2♥) 2NT)
   -0.19 and the game-forcing cuebid for responder about 0.
+- **A five-card major is bid, not doubled** (`NEG_BIDS_FIVE`, the user's
+  Bidding training deal, 2026-10-28: 1♦ (1♥) X on ♠AKJT53 ♥8 ♦J83 ♣T62,
+  and the spade fit was lost). Over a minor opening the negative double was
+  tried before any suit; now an unbid five-card major is bid first, 1M on
+  6+ HCP, 2M on 10+, and the double shows exactly four. 10,000 fresh deals:
+  **+0.71, t = +6.5, 1,044 auctions changed** (379 better, 198 worse).
+  Measured beside it, and left off: opener answering partner's negative
+  double only once (`NEG_ANSWER_ONCE`; on that deal opener, having passed
+  over 2♦, came back with 3♣ over 2♥): **-0.09, t = -3.7** (10 better, 41
+  worse).
 - **A major raise counts trump length** (`RAISE_TRUMP_POINTS`, the user's
   deal: 1♥ with ♠K5 ♥K9864 ♦K84 ♣832 raised to 2♥). With four or more
   trumps and under 13 HCP, 2M, 3M or 4M is chosen on HCP plus one point a
