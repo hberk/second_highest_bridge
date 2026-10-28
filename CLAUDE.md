@@ -96,6 +96,7 @@ Full Bridge Bidding (Auction) from 1♣ to 7NT with Pass, Double (X), and Redoub
 | `challenge.py`, `data/solved_deals.json` | head-to-head mode on 400 solved deals | [CHALLENGE](docs/CHALLENGE.md) |
 | `frontend/src/lib/table/` | multiplayer: the table core, the protocol, the browser's `RemoteTable` | [MULTIPLAYER_PLAN](docs/MULTIPLAYER_PLAN.md) |
 | `server/` | the multiplayer table server (Node, SQLite, WebSockets), deployed to the homelab | [MULTIPLAYER_PLAN](docs/MULTIPLAYER_PLAN.md) |
+| `data/training_deals.json` | Bidding training's own solved deals, never the challenge's | [FRONTEND](docs/FRONTEND.md) |
 | `frontend/` | the game: the phone-first web app (Svelte), a static site | [FRONTEND](docs/FRONTEND.md) |
 | `research/` | dataset, fitting, the Rust solver; never imported by the Python app. The web app's History replayer runs `research/solver-rs/wasm` as WebAssembly | [SOLVER](docs/SOLVER.md), [BIDDING](docs/BIDDING.md), [FRONTEND](docs/FRONTEND.md) |
 | `tests/` | the Python suites; `tests/fixtures/endings.json` is frozen solver ground truth | |

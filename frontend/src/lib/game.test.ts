@@ -114,8 +114,8 @@ describe('table flow', () => {
           finished++;
           expect(game.tricksTaken['N/S'] + game.tricksTaken['E/W']).toBe(13);
           // The result is told from your side.
-          const side = seat === 'North' ? 'North-South' : 'East-West';
-          expectBoth(renderAll(game), `to your side, ${side}`);
+          const side = seat === 'North' ? 'N/S' : 'E/W';
+          expectBoth(renderAll(game), `<div class="res-to">to ${side}</div>`);
         }
         game.newBoard();
       }

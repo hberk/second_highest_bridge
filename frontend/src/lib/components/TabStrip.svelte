@@ -1,15 +1,18 @@
-<!-- The phone's tabs: Play, Challenge and History one tap apart, in one slim
+<!-- The phone's tabs: Play, Bidding training, Challenge and History one tap apart, in one slim
      row. The spade goes home; the question mark opens How to play. On
      Challenge and History it is the whole top bar, since the tab already says
      where you are; at the table it sits above the board's own bar. -->
 <script lang="ts">
   import type { Game } from '../game.svelte';
 
-  type Screen = 'home' | 'table' | 'challenge' | 'history' | 'howto';
+  type Screen = 'home' | 'table' | 'training' | 'challenge' | 'history' | 'howto';
   let { screen, game, onnav }: { screen: Screen; game: Game; onnav: (s: Screen) => void } = $props();
 
   const tabs = $derived([
     ['table', 'Play', 0],
+    // "Training" here: the full name (as on the home page) pushed the row
+    // past a 360px phone.
+    ['training', 'Training', 0],
     ['challenge', 'Challenge', game.challengeLog.length],
     ['history', 'History', game.history.length],
   ] as const);

@@ -123,6 +123,10 @@ describe('saved games', () => {
       { ...good[1], [t]: t === 'tricks_log' ? [{ trick_num: 1, plays: 'AS' }] : { North: null } },
       { ...good[1], dealer: 'Nowhere' },
       { ...good[1], initial_hands: { ...good[1].initial_hands, East: [{ suit: 'X', rank: 'A' }] } },
+      // A contract or result the History view can't read blanked the tab.
+      { ...good[1], contract: {} },
+      { ...good[1], contract: { ...good[1].contract, strain: 'Z' } },
+      { ...good[1], result: {} },
       null,
       'board',
     ];

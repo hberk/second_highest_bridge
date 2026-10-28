@@ -3,18 +3,20 @@
      replayer's double dummy values), each card carries how the contract
      would end if it were played, and the card actually played is underlined. -->
 <script lang="ts">
+  import { rankText } from './format';
   import { SUIT_NAMES, SUIT_SYMBOLS, cardKey, value, type Card, type Suit } from '../engine/card';
   import type { Mark } from '../dd/analysis.svelte';
 
-  let { seat, role, hand, marks = null, played = null }:
-    { seat: string; role: string; hand: Card[]; marks?: Record<string, Mark> | null; played?: string | null } = $props();
+  /** `wide` packs the marked cards closer, for a phone's West and East. */
+  let { seat, role, hand, marks = null, played = null, wide = false }:
+    { seat: string; role: string; hand: Card[]; marks?: Record<string, Mark> | null; played?: string | null; wide?: boolean } = $props();
   const roleCls = $derived(role === 'Declarer' ? 'is-declarer' : role === 'Dummy' ? 'is-dummy' : '');
   const SUITS: Suit[] = ['S', 'H', 'D', 'C'];
   const cards = (s: Suit) => hand.filter((c) => c.suit === s).sort((a, b) => value(b) - value(a));
-  const ranks = (s: Suit) => cards(s).map((c) => c.rank).join('') || '—';
+  const ranks = (s: Suit) => cards(s).map((c) => rankText(c.rank)).join('') || '—';
 </script>
 
-<div class="seat-box" class:to-play={marks}>
+<div class="seat-box" class:to-play={marks} class:marks-wide={wide}>
   <div class="seat-box-head">
     <span class="seat-letter">{seat[0]}</span>
     <span class="seat-box-name">{seat}</span>
@@ -31,7 +33,7 @@
             {#each cards(s) as c (cardKey(c))}
               {@const m = marks[cardKey(c)]}
               <span class="hd-card">
-                <span class:hd-played={played === cardKey(c)}>{c.rank}</span>
+                <span class:hd-played={played === cardKey(c)}>{rankText(c.rank)}</span>
                 {#if m}<span class="dd-mark dd-{m.tone}"><span aria-hidden="true">{m.text}</span><span class="sr-only"> ({m.label}{played === cardKey(c) ? ', played' : ''})</span></span>{/if}
               </span>
             {/each}

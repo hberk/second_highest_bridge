@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { gibBid, Hand, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert } from './gib';
+import { gibBid, Hand, jamAlert, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -650,6 +650,11 @@ function doubledOrBase(player: Seat, hand: Card[], auction: AuctionState,
 }
 
 function baseBidExplained(player: Seat, hand: Card[], auction: AuctionState): Decision {
+  const decision = systemBidExplained(player, hand, auction);
+  return settingsAi.useGib ? jamAlert(player, hand, auction, decision) : decision;
+}
+
+function systemBidExplained(player: Seat, hand: Card[], auction: AuctionState): Decision {
   const legal = auction.legalCalls();
   if (!legal.length) return ['Pass', 'Pass. No legal call available.'];
 
@@ -775,16 +780,21 @@ function winningSuit(cards: Card[], trump: string | null): string {
 }
 
 function outlook(player: Seat, c: Card, trick: AnyPlay[], trump: string | null,
-  later: Card[]): [string, number] {
+  later: Card[], voidChance = 1.0): [string, number] {
   const plays: AnyPlay[] = [...trick, [player, c]];
   const holder = resolveTrick(plays, trump);
   const suit = winningSuit(plays.map(([, x]) => x), trump);
   const ours = [player, PARTNERS[player]] as string[];
-  let exposed = 0;
+  // An overruff only comes if the opponent is out of the led suit (see ai.py).
+  let takers = 0;
+  let follows = 0;
   for (const l of later) {
-    if (l.suit === suit && !ours.includes(resolveTrick([...plays, [AI_TAG, l]], trump))) exposed++;
+    if (l.suit === suit && !ours.includes(resolveTrick([...plays, [AI_TAG, l]], trump))) {
+      takers++;
+      if (l.suit === plays[0][1].suit) follows++;
+    }
   }
-  return [holder, exposed];
+  return [holder, follows + voidChance * (takers - follows)];
 }
 
 /** Port of ai.visible_hands: dummy, and declarer's hand for the declaring side. */
@@ -838,7 +848,11 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
   else if (trick.length === 3) choice = playLast(legal, trick, trump, hand, played);
   else {
     const out = SHOWOUT_MIDDLE && history !== null ? shownOut(history, trick) : null;
-    choice = middlePlay(player, legal, trick, trump, laterHoldings(player, hand, trick, played, visible, out));
+    const voidChance = RUFF_IF_FOLLOWS && history !== null && trick.length === 2
+      ? voidChanceOf(player, hand, trick, played, visible, history, out ?? shownOut(history, trick))
+      : 1.0;
+    choice = middlePlay(player, legal, trick, trump,
+      laterHoldings(player, hand, trick, played, visible, out), voidChance);
   }
 
   const partner = PARTNERS[player];
@@ -1599,6 +1613,8 @@ export const SURE_LEAD_DECLARER = true;
 export const RUFF_LEAD = false;
 export const FORCE_DUMMY = false;
 export const DEAD_CARD_LAST = true;
+/** Of the cards that win the trick, fourth hand spends a dead one first (see ai.py). */
+export const DEAD_WINNER_FIRST = true;
 
 /** No other seat can play a higher card of this suit: every one is gone or ours. */
 function dead(c: Card, hand: Card[], gone: Set<string>): boolean {
@@ -1976,11 +1992,43 @@ function shed(legal: Card[], trump: string | null): Card {
   return minBy(legal, (c) => [value(c)]);
 }
 
+/** Third hand counts an overruff threat by the chance the opponent is out of
+ *  the led suit (see ai.py: challenge deal 276). */
+export const RUFF_IF_FOLLOWS = true;
+
+/** Port of ai._void_chance. */
+function voidChanceOf(player: Seat, hand: Card[], trick: AnyPlay[], played: Card[],
+  visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][],
+  out: Record<string, Set<string>>): number {
+  const i = PLAYERS.indexOf(player);
+  const later: Seat[] = [];
+  for (let k = 1; k < 4 - trick.length; k++) later.push(PLAYERS[(i + k) % 4]);
+  const opponents = later.filter((p) => p !== PARTNERS[player]);
+  if (!opponents.length) return 1.0;
+  const opp = opponents[0];
+  const led = trick[0][1].suit;
+  if (opp in visible) return visible[opp]!.some((c) => c.suit === led) ? 0.0 : 1.0;
+  if (out[opp]?.has(led)) return 1.0;
+  const seen = new Set<string>([
+    ...played.map(cardKey), ...trick.map(([, c]) => cardKey(c)), ...hand.map(cardKey)]);
+  for (const h of Object.values(visible)) for (const c of h!) seen.add(cardKey(c));
+  const unseen = FULL_DECK.filter((c) => c.suit === led && !seen.has(cardKey(c))).length;
+  if (unseen === 0) return 1.0;
+  const inTrick = new Set<string>(trick.map(([p]) => p));
+  const size = (p: Seat) => 13 - history.length - (inTrick.has(p) ? 1 : 0);
+  let rest = 0;
+  for (const p of PLAYERS) {
+    if (!(p in visible) && p !== player && p !== opp && !out[p]?.has(led)) rest += size(p);
+  }
+  if (rest < unseen) return 0.0;
+  return comb(rest, unseen) / comb(rest + size(opp), unseen);
+}
+
 function middlePlay(player: Seat, legal: Card[], trick: AnyPlay[], trump: string | null,
-  later: Card[]): Card {
+  later: Card[], voidChance = 1.0): Card {
   const options: [number, number, Card][] = [];
   for (const c of legal) {
-    const [holder, exposed] = outlook(player, c, trick, trump, later);
+    const [holder, exposed] = outlook(player, c, trick, trump, later, voidChance);
     if ((holder === player || holder === PARTNERS[player]) && exposed <= 1) {
       options.push([exposed, value(c), c]);
     }
@@ -1997,7 +2045,14 @@ function playLast(legal: Card[], trick: AnyPlay[], trump: string | null,
   const partner = trick[1][0];
   const ours = settingsPlay.lastHandForPartner ? [AI_TAG, partner] : [AI_TAG];
   const winning = legal.filter((c) => ours.includes(resolveTrick([...trick, [AI_TAG, c]], trump)));
-  if (winning.length) return minBy(winning, (c) => [value(c)]);
+  if (winning.length) {
+    if (DEAD_WINNER_FIRST && hand !== null) {
+      const gone = new Set([...(played ?? []), ...trick.map(([, c]) => c)].map(cardKey));
+      const deadOnes = winning.filter((c) => dead(c, hand, gone));
+      if (deadOnes.length) return minBy(deadOnes, (c) => [value(c)]);
+    }
+    return minBy(winning, (c) => [value(c)]);
+  }
   if (DEAD_CARD_LAST && hand !== null) {
     const led = trick[0][1].suit;
     const gone = new Set([...(played ?? []), ...trick.map(([, c]) => c)].map(cardKey));

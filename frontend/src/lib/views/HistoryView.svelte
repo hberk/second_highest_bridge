@@ -14,7 +14,7 @@
   import { MAX_SAVED_BOARDS } from '../saves';
   import { AUTO_CARDS, DdAnalysis } from '../dd/analysis.svelte';
   import { trickTaken, winningSoFar } from '../trickText';
-  import { signed } from '../components/format';
+  import { signed, rankText } from '../components/format';
 
   /** `onimport` adds the boards it hasn't already got and says how many.
    *  `analysis` shows double dummy values on the replayer (History and Challenge). */
@@ -139,7 +139,9 @@
   // worker's memory freed) when another board is picked or the view closes.
   let dd = $state<DdAnalysis | null>(null);
   $effect(() => {
-    if (!analysis || !hb?.contract || hb.passed_out) return;
+    dd = null;
+    // A board claimed before the opening lead has no play to analyse.
+    if (!analysis || !hb?.contract || hb.passed_out || !hb.tricks_log.length) return;
     const a = new DdAnalysis(hb);
     dd = a;
     a.start();
@@ -157,8 +159,21 @@
     : view.winner ? trickTaken(view.trick, hb.contract.trump, view.winner, view.trickNum)
       : winningSoFar(view.trick, hb.contract.trump));
 
+  // On a phone West and East get a third of the width, too narrow for marks
+  // under the cards: the side to play gets the wider column.
+  let roomy = $state(false);
+  $effect(() => {
+    const mq = window.matchMedia('(min-width: 720px)');
+    roomy = mq.matches;
+    const on = (e: MediaQueryListEvent) => (roomy = e.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  });
+  const sideToPlay = $derived(!roomy && (toPlay?.seat === 'West' || toPlay?.seat === 'East'));
+
   function boxProps(seat: Seat) {
-    return toPlay && toPlay.seat === seat ? { marks: toPlay.marks, played: toPlay.played } : {};
+    if (!toPlay || toPlay.seat !== seat) return {};
+    return { marks: toPlay.marks, played: toPlay.played, wide: sideToPlay };
   }
 
   function cardOf(plays: Play[], p: Seat) {
@@ -166,7 +181,7 @@
   }
 </script>
 
-{#snippet card(x: Card)}<span style:color="var(--suit-{x.suit.toLowerCase()}-lt)">{x.rank}<span aria-hidden="true">{SUIT_SYMBOLS[x.suit]}</span><span class="sr-only"> of {SUIT_NAMES[x.suit]}</span></span>{/snippet}
+{#snippet card(x: Card)}<span style:color="var(--suit-{x.suit.toLowerCase()}-lt)">{rankText(x.rank)}<span aria-hidden="true">{SUIT_SYMBOLS[x.suit]}</span><span class="sr-only"> of {SUIT_NAMES[x.suit]}</span></span>{/snippet}
 
 <div class="hv">
 {#if !records.length}
@@ -229,10 +244,13 @@
       <div class="hv-dd" aria-live="polite">
         {#if dd.error}
           <span class="dd-error">Double dummy: {dd.error}</span>
+          {#if dd.canRetry}<button class="chip-btn" onclick={() => dd?.retry()}>Try again</button>{/if}
         {:else}
-          <span>Double dummy: {dd.doneFrom > firstTrick ? 'starting…' : dd.doneFrom === firstTrick ? `trick ${firstTrick}` : `tricks ${dd.doneFrom}–${firstTrick}`}{#if dd.running}<span class="dd-dim">&nbsp;· working on {dd.doneFrom - 1}…</span>{/if}</span>
-          {#if !dd.deep && firstTrick > AUTO_CARDS && !dd.running}
-            <button class="chip-btn" onclick={() => dd?.deeper()}>Add tricks 1–{13 - AUTO_CARDS} (minutes)</button>
+          <span>Double dummy: {dd.doneFrom > firstTrick ? (dd.running ? 'starting…' : 'not analysed yet') : dd.doneFrom === firstTrick ? `trick ${firstTrick}` : `tricks ${dd.doneFrom}–${firstTrick}`}{#if dd.running}<span class="dd-dim">&nbsp;· working on {dd.doneFrom - 1}…</span>{/if}</span>
+          <!-- Tricks 1-2 wait for a tap, on a claimed board too (it may stop
+               before the automatic range even starts). -->
+          {#if !dd.deep && dd.doneFrom > 1 && !dd.running}
+            <button class="chip-btn" onclick={() => dd?.deeper()}>Add tricks 1–{Math.min(13 - AUTO_CARDS, firstTrick)} (minutes)</button>
           {/if}
         {/if}
       </div>
@@ -245,12 +263,13 @@
     {/if}
 
     <div class="hv-seat"><SeatBox seat="North" role={role(c, 'North')} hand={view.remaining.North} {...boxProps('North')} /></div>
-    <div class="hv-compass">
+    <div class="hv-compass" class:west-wide={sideToPlay && toPlay?.seat === 'West'} class:east-wide={sideToPlay && toPlay?.seat === 'East'}>
       <SeatBox seat="West" role={role(c, 'West')} hand={view.remaining.West} {...boxProps('West')} />
       <TrickFelt trick={view.trick} winner={view.winner} labels={labels!} />
       <SeatBox seat="East" role={role(c, 'East')} hand={view.remaining.East} {...boxProps('East')} />
     </div>
     <p class="trick-line">{trickLine}</p>
+
     <div class="hv-seat"><SeatBox seat="South" role={role(c, 'South')} hand={view.remaining.South} {...boxProps('South')} /></div>
 
     <div class="hv-controls">

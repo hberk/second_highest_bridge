@@ -18,6 +18,8 @@ graded from N/S as the app grades):
 
 | measured | robots | lost in the auction | lost in the card play |
 |---|---|---|---|
+| 2026-10-28 | fourth hand wins with a dead card first (`DEAD_WINNER_FIRST`; from the declaring side the play went from -11.8 to -21.0, see CHALLENGE.md; bidding before PR #40's jam rule) | **240.8** | **20.7** |
+| 2026-10-28 | the same robots without it (PR #32's) | 240.8 | 12.1 |
 | 2026-10-24 | the penalty double where X is free, a cuebid raise read as support (PR #30), with the defender's suit plan | **240.8** | **6.0** |
 | 2026-10-24 | the defender plans the suit it leads (without it: 242.5 / 3.5; from the declaring side the play went from -36.6 to -24.4) | 242.5 | 5.2 |
 | 2026-10-23 | shortness once a fit is agreed (PR #26) and game by points (PR #28) | 240.1 | 2.9 |
@@ -94,6 +96,10 @@ four seats, which nets out a change both declarer and defenders use.
 | 10-25 | ...an honour lead (J+) read by counting alone, not the lead convention (`SHORT_LEAD_HONOUR`, your call: people lead honours from other holdings, deal 356) | +0.002 | +1.28 | +1.52 | 364 of 9,504 | on (your call) |
 | 10-25 | ...with the singleton opening lead as well | +0.004 | -0.35 | -0.58 | 888 of 9,504 | off |
 | 10-25 | ...both together; with low singletons only (ten or below) | +0.011; +0.003 | +0.67; +0.35 | +0.77; +0.39 | 756; 632 | off |
+| 10-28 | Of the cards that keep the trick, fourth hand plays a dead one first: the J♠, not the 6♠, ruffing from A♠ J♠ 6♠ (deal 10, `DEAD_WINNER_FIRST`). 800 fresh deals | **+0.029** | +2.83 | **+4.98** | 2,784 of 12,640 | on (your call; on the library: +0.062, t +3.33, +8.13 points) |
+| 10-28 | ...for ruffs only | -0.001 | +0.65 | +0.87 | 1,528 of 12,640 | off |
+| 10-28 | Third hand counts an overruff only as often as the next opponent can be out of the led suit, so it ruffs instead of discarding (deal 276, `RUFF_IF_FOLLOWS`). 800 fresh deals | +0.011 | +1.61 | +1.31 | 704 of 12,640 | on (your call; on the library: +0.018, t +2.57, +1.78 points) |
+| 10-28 | ...in second hand as well | +0.007 | +1.10 | +0.51 | 744 of 12,640 | off |
 
 The three information rules together: +0.55 points a board, t = +0.48, 556
 boards changed. None is distinguishable from zero; they are kept because a
@@ -159,6 +165,20 @@ from the variant's side; t as above.
 | 10-24 | ...and before the doubled side stopped raising its own suit (the incumbent ran 4♦X to 7♦X) | +10.95 | +13.37 | 1,402 | (a bug's gain) |
 | 10-24 | A cuebid raise shows 3+ of partner's suit to the LoTT (deal 338: 1♦ 1♠ X 2♦ - 2♠ 3♥ passed out on ten spades) | +0.24 | +2.88 | 61 | on (your call) |
 | 10-24 | ...both together | **+4.34** | +7.77 | 809 | on |
+| 10-28 | Ten trumps jam to game at once: partner's opening, my first call, any interference (or a pass after a pre-empt), majors (the user's Challenge deal: 2♠ X with ♠A10652). 10,000 fresh deals, measured before the rule below that nobody bids again after it | **+1.09** | +10.05 | 659 | on (your call) |
+| 10-28 | ...the user's exact case only (weak two doubled) | +0.04 | +1.89 | 26 | (folded into the above) |
+| 10-28 | ...with five of a minor too (with the raise below) | +0.28 more | | 282 | on (your call) |
+| 10-28 | A major raise counts trump length: HCP + 1 a trump past three (deal: 1♥ with ♠K5 ♥K9864 ♦K84 ♣832 raised to 2♥) | +0.13 | +2.94 | 215 | on (your call) |
+| 10-28 | ...4M on any five trumps instead | 0.00 | +0.04 | 41 | off |
+| 10-28 | ...jam (majors) and raise together, nobody bidding again after the jam | +1.11 | +8.98 | 880 | off |
+| 10-28 | ...the same, letting both compete again after the jam | +1.22 | +10.40 | 874 | off |
+| 10-28 | ...with minors, nobody bidding again | +1.38 | +9.54 | 1,162 | off |
+| 10-28 | ...with minors, both competing again after the jam | **+1.50** | +10.64 | 1,156 | on (your call) |
+| 10-28 | Advancer's 2NT is the limit raise or better when the cuebid would pass three of partner's suit; the cuebid asks for a stopper (deal 276: 1♦ (2♣) 2♦ 3♦) | +0.07 | +1.72 | 173 | on (your call) |
+| 10-28 | ...a game-forcing cuebid instead, limit hands raising to three | +0.12 | +2.81 | 159 | off (a tie with the above, -0.05, t = -1.3) |
+| 10-28 | ...2NT a 10-12 limit raise, the cuebid game forcing | +0.02 | +0.38 | 172 | off |
+| 10-28 | ...the game-forcing cuebid for responder too | +0.11 | +1.62 | 402 | off |
+| 10-28 | ...2NT a 10-12 limit raise for responder too | -0.19 | -2.16 | 490 | off |
 
 ### The previous system (`ai_bid`)
 

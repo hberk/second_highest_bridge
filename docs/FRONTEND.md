@@ -47,13 +47,19 @@ remains the reference.
   but compact): the spade goes home, `?` opens How to play (which keeps a
   back button, `TopBar`), and Challenge and History use the row as their whole
   top bar, so only the table pays for it (about 40px; the bidding box and
-  your hand still fit a 390x844 screen). The screen follows the URL hash
+  your hand still fit a 390x844 screen). On the phone row Bidding training
+  is "Training" (2026-10-27: the full name pushed `?` off a 360px screen),
+  and if the counts still outgrow the row, the tabs scroll inside it, so the
+  page never scrolls sideways. The screen follows the URL hash
   (`#table`, `#history`), so the browser's back button and the phone's back
   swipe work. Settings live in a
   bottom sheet (`Sheet` + `SettingsPanel`), opened from the gear on home and
   at the table. `TableView` is one 520px column: the auction on an oval of
   felt (`AuctionFelt`, each seat's latest call where it sits and the newest
-  alert spelled out), the trick on the felt (`TrickFelt`) with a line under it
+  alert spelled out; a seat shows its last few calls, North 4, South 3, West
+  and East 2, and folds earlier ones into a "+n" card, so a long auction
+  stays on the felt; the whole auction is a button away, in Play and in
+  Bidding training), the trick on the felt (`TrickFelt`) with a line under it
   saying who is winning and why (`trickText.ts`), your hand as an overlapping
   fan at the bottom (`Fan`; legal cards rise, the rest grey out), the dummy
   above the felt once it's down. There is no X-ray view of the robots' hands
@@ -84,6 +90,33 @@ remains the reference.
   manifest and `.ico` sizes from it with Pillow, so edit the SVG and rerun it;
   `felt.css` keeps content clear of the notch and home bar with the
   safe-area insets.
+- **Bidding training (2026-10-27, the user's idea and design).** A tab of
+  its own (`TrainerView`, state in `trainer.svelte.ts`, apart from `Game`):
+  you bid South with a robot North, robots bid East and West, and the board
+  ends with the auction. While you bid, your hand shows its judgement points
+  (`Fan`'s `jp` tags, and the total with HCP and shape). When the auction
+  ends the bidding box gives way to the recap, on the same screen: the
+  contract's double dummy score against par (N/S's best contract; no IMPs,
+  the user's call), the robots' contract on the same board for reference,
+  partner's hand beside yours (East-West behind a link), both hands' JP
+  against the 26 / 32 / 33 lines (`GAME_MAJOR`, `GAME`, `SLAM`, exported
+  from `gib.ts` for it), the auction with each of your calls against the
+  robot's call with your hand, the robots' own auction on the same deal
+  under it (the user's ask, 2026-10-28: to see what was reasonable), with
+  the first call where the two part ringed in both and the robots' meaning
+  for theirs, where your hand fell outside what a call
+  showed (`misfits`, from the alert's HCP range and suit lengths), and what
+  each strain makes. **The deals are not the challenge's** (the user's
+  call: a hand seen here would be seen again in Challenge):
+  `data/training_deals.json`, from `research/solve_training_deals.py`, fresh
+  deals solved for all four declarers in every strain. Deals are not
+  repeated until all have been trained; the log and the average against par
+  are kept in `localStorage` (`shb-training-v1`), with the board being bid,
+  so a reload carries on with it rather than dealing a new hand; a damaged
+  save is checked and dropped, never trusted. The robots' loop stops only
+  past 319 calls, the longest legal auction (a stop at 60, as in
+  `challenge.ts`, froze a board a person had bid long). `trainer.test.ts` bids
+  boards to the end, checks the recap's arithmetic and renders it.
 - **Two-tap bidding with meanings** (`BidPad.svelte`, `meanings.ts`). Every
   call is a button. The first tap opens a box saying what the call would mean
   here; tapping the same button again makes it; the box also takes a
@@ -171,6 +204,13 @@ remains the reference.
     leaving the board, which frees the table), and fills in from the last
     trick back with one `Search` kept through the board: the endgame is
     instant and fills the table the earlier tricks reuse.
+  - **When the worker won't load.** A tab opened before a deploy points at a
+    worker file the site no longer has (hashed names), and a weak connection
+    can drop the download; both used to end in "the solver could not start"
+    until a reload. The worker posts `{ready}` as its first act, so an error
+    before it means the script never loaded: the page checks the file (404:
+    "the app has been updated. Reload the page."), otherwise retries once
+    quietly, then offers Try again.
   - **Depth.** Tricks 3-13 at once (`AUTO_CARDS = 11`); tricks 1-2 on a tap.
     Measured on 38 library boards, WebAssembly in Node on the laptop, table
     capped at 1M entries: the last 10 tricks 0.28 s median, 2.0 s worst; the

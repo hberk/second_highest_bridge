@@ -24,19 +24,29 @@ which a single score cannot answer. Measured 2026-10-19, with every card-play ru
 (6,356 boards with a contract, 44 passed out), graded from N/S as the app
 grades, so this is what the "Robots" column of the match table averages to.
 The web app's Challenge caption quotes this table; rerun the script after a
-robot change and update both together. Measured 2026-10-24, after the
-penalty double where X is free, the cuebid raise read as support (PR #30)
-and the defender's suit plan (below), graded with the partner who actually
+robot change and update both together. Measured 2026-10-28, after fourth
+hand wins with a dead card first (below), with the bidding before PR #40's
+jam rule, graded with the partner who actually
 declared (the library holds every declarer's count; par takes the better
 partner):
 
 | | mean per board | median |
 |---|---|---|
 | lost in the auction | **240.8** | 200.0 |
-| lost in the card play | **6.0** | **0.0** |
+| lost in the card play | **20.7** | **0.0** |
 
-Graded from the declaring side: 214.8 in the auction and -24.3 in the card
-play. All four seats bid the new way, so what one side gains head to head
+Graded from the declaring side: 214.8 in the auction and -21.0 in the card
+play. The same robots without the dead winner (the robots of PR #32): 240.8
+and 12.1 from N/S, 214.8 and -11.8 from the declaring side. All four seats use
+the rule, and the N/S figure nets declarer against defence, so it moves with
+whichever side gains more; from the declaring side the play beats double
+dummy by 9.2 points a board more. Seated on the library (one side with the
+rule, sides swapped): +0.062 tricks, +8.13 points a board (t = +2.87).
+
+Measured 2026-10-24, after the penalty double where X is free, the cuebid
+raise read as support (PR #30) and the defender's suit plan: 240.8 in the
+auction and 6.0 in the card play from N/S; 214.8 and -24.3 from the declaring
+side. All four seats bid the new way, so what one side gains head to head
 (+4.34 a board) the other gains back.
 
 Before PR #30, after the defender's suit plan (2026-10-24): 242.5 in the
@@ -419,6 +429,42 @@ DEFENDER_SUIT_PLAN`, 6,356 boards): **-0.113 declarer tricks per board (t =
 0.13 s a board more (the slowest single lead 0.8 s, cold memory); the TS port
 0.17 s a board against 0.12 s over the library (desktop Node), the slowest board
 under a second either way. `tests/test_card_play_rules.py` holds deal 356.
+
+**Fourth hand wins with a dead card first** (`ai.DEAD_WINNER_FIRST`; the
+user's deal 10, 2026-10-28). Spades by East, trick 5: South led the 8♣, dummy
+played the 10♣ and North the 4♣; East, void in clubs, ruffed with the 6♠ from
+A♠ J♠ 6♠ (the K♠ and Q♠ gone) and went one down, where the J♠ or A♠ makes
+(double dummy). `_play_last` played the cheapest card that keeps the trick, and
+a lone trump always wins, so it picked the six. In this game that spends the
+wrong card: a dead card wins later only alone in its suit, while a low card can
+still be second-highest. So of the cards that keep the trick, fourth hand now
+plays the lowest dead one, if any. Seated (`card_play_seated.py`, 800 fresh
+deals x 16 boards): **+0.029 tricks, +4.98 points a board (t = +2.83)**; 2,784
+of 12,640 boards changed. The same for ruffs only measured even (-0.001
+tricks, +0.87 points, t = +0.65, 1,528 boards): a dead trump still pushes
+partner's trump into second place later, and the gain is in following suit.
+Seated on the challenge library itself: +0.062 tricks, +8.13 points a board
+(t = +2.87), 1,448 of 6,356 boards changed.
+`tests/test_card_play_rules.py` holds deal 10.
+
+**Third hand ruffs when the next opponent can't overruff** (`ai.RUFF_IF_FOLLOWS`;
+the user's deal 276, 2026-10-28). Clubs by West, trick 4: dummy led the J♠,
+South played the K♠, and West, void in spades, threw the 3♥ (double dummy two
+tricks worse than a ruff). `_middle_play` takes the cheapest card that keeps
+the trick and that at most one of the next opponent's possible cards takes
+back. The discard left dummy's jack second-highest unless North had the Q♠,
+one threat; on a ruff both unseen clubs counted as overruffs, two. But North
+can only overruff when out of spades, with eight unseen. So for third hand an
+overruff threat now counts the chance the next opponent is void in the led
+suit (`_void_chance`: every split of the unseen cards between the unseen hands
+equally likely; 9 in 75,582 on deal 276). Seated (800 fresh deals x 16 boards):
+**+0.011 tricks a board (t = +1.61), +1.31 points**, 704 of 12,640 boards
+changed; on the challenge library **+0.018 tricks (t = +2.57), +1.78 points (t = +1.94)**,
+328 of 6,356. Double dummy on each changed card (fresh deals, both sides on):
+third hand's ruffs gained 87 tricks over 145 cards (78 better, 18 worse).
+Second hand doing the same was even (both together +0.007 tricks, t = +1.10;
+its 20 changed cards -3 tricks double dummy), so it is third hand only.
+`tests/test_card_play_rules.py` holds deal 276.
 
 **A cuebid raise that forces the three level needs four trumps or 12+
 judgement points** (`gib.CUE_LIMIT_AT_3`), a small tightening of GIB's "limit

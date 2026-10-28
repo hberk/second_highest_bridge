@@ -77,6 +77,14 @@ NT_GAME = 28
 JUDGE_BY_VARIANT = True
 #: A three-level cuebid raise needs 4 trumps or 12+ judgement points.
 CUE_LIMIT_AT_3 = True
+#: Advancer's cuebid raise can pass three of partner's suit (1♦ (2♣) 2♦ 3♦),
+#: forcing 3NT or four. So when their suit ranks above ours, 2NT is the
+#: limit raise or better (artificial), leaving three as partner's sign-off,
+#: and the cuebid only asks for a stopper for 3NT: CUE_ASK_HCP+ and none of
+#: my own (the user's call, 2026-10-28, Challenge deal 276). Fresh deals,
+#: head to head: +0.07 a board, t = +1.7.
+CUE_2NT = True
+CUE_ASK_HCP = 13
 SLAM = 33
 GRAND = 37
 
@@ -240,6 +248,13 @@ def gib_bid(player: str, cards: list[Card], auction: AuctionState) -> tuple | No
     if not ctx.legal:
         return None
     decision = _decide(ctx)
+    placed = _after_jam(ctx)
+    if placed and JAM_NEVER_AGAIN and (not decision or decision[0] != 'X'):
+        return placed
+    if placed and not JAM_NEVER_AGAIN:
+        decision = placed
+    if not decision or decision[0] not in ('X', 'XX'):     # a penalty double outranks the jam
+        decision = _jam_game(ctx) or decision
     decision = _total_tricks(ctx, decision) or decision
     decision = _major_over_notrump(ctx, decision) or decision
     if decision is None:
@@ -388,6 +403,27 @@ def _jump_shift(ctx: Ctx, x: str) -> tuple | None:
     return None
 
 
+#: Count the trump length in a raise of 1M (the user's call, 2026-10-28:
+#: ♠K5 ♥K9864 ♦K84 ♣832 raised 1♥ to 2♥): it is chosen on HCP plus one
+#: point for each trump past three, so four and five trumps reach the limit
+#: raise and game a point and two sooner. +0.13 a board, t = +2.9; bidding
+#: 4M on any five trumps instead measured 0.00.
+RAISE_TRUMP_POINTS = True
+
+
+def _raise_on_trump_points(ctx: Ctx, x: str) -> tuple | None:
+    """1M-2M / 3M / 4M on four or more trumps, judged on HCP + trumps past three."""
+    value = ctx.h.hcp + ctx.h.len[x] - 3
+    passed = ctx.passed_hand(ctx.me)
+    if value > LIMIT[1] and ctx.ok(f"4{x}"):
+        return f"4{x}", f"4+ {SYM[x]}, game values."
+    if value >= LIMIT[0] and not passed:
+        return f"3{x}", f"4+ {SYM[x]}. Limit raise."
+    if value >= RAISE[0] and not (passed and value >= DRURY[0]):
+        return f"2{x}", f"3+ {SYM[x]}. Single raise."
+    return None
+
+
 def respond_major(ctx: Ctx, x: str) -> tuple:
     h = ctx.h
     hcp, sup = h.hcp, h.len[x]
@@ -395,6 +431,10 @@ def respond_major(ctx: Ctx, x: str) -> tuple:
     shortness = h.short(x)
     if sup >= 5 and hcp < 10 and shortness and ctx.ok(f"4{x}"):
         return f"4{x}", f"5+ {SYM[x]}, under 10 HCP. Pre-emptive raise."
+    if RAISE_TRUMP_POINTS and sup >= 4 and hcp < JACOBY_MIN:
+        raise_ = _raise_on_trump_points(ctx, x)
+        if raise_:
+            return raise_
     if hcp < RESPONSE_MIN:
         return 'Pass', f"Fewer than {RESPONSE_MIN} HCP."
     if sup >= 4 and not passed and hcp >= JACOBY_MIN:
@@ -408,8 +448,12 @@ def respond_major(ctx: Ctx, x: str) -> tuple:
     if passed and sup >= 3 and DRURY[0] <= hcp <= DRURY[1]:
         return '2C', f"Drury: 3+ {SYM[x]}, {DRURY[0]}-{DRURY[1]} HCP. Artificial."
     if sup >= 4 and LIMIT[0] <= hcp <= LIMIT[1] and not passed:
+        if RAISE_TRUMP_POINTS:
+            return f"3{x}", f"4+ {SYM[x]}. Limit raise."
         return f"3{x}", f"4+ {SYM[x]}, {LIMIT[0]}-{LIMIT[1]} HCP. Limit raise."
     if sup >= 3 and RAISE[0] <= hcp <= RAISE[1]:
+        if RAISE_TRUMP_POINTS:
+            return f"2{x}", f"3+ {SYM[x]}. Single raise."
         return f"2{x}", f"3+ {SYM[x]}, {RAISE[0]}-{RAISE[1]} HCP."
     js = _jump_shift(ctx, x)
     if js:
@@ -1830,6 +1874,87 @@ def _total_tricks(ctx: Ctx, decision: tuple | None) -> tuple | None:
     return best[1], LOTT_ALERT
 
 
+#: Jam to game on a ten-card fit (the user's call, 2026-10-28, a Challenge
+#: deal: 2♠ (X) with ♠A10652 ♥853 ♦J8 ♣Q96 passed, then bid 4♠ and 5♠ a
+#: round late, and E/W found 6♥). When partner's pre-empt is the only bid
+#: our side has made and they have come in, my first call is game in it if
+#: my length and partner's shown length make JAM_FIT. JAM_OPENINGS are the
+#: opening levels it answers; JAM_OVER_BIDS lets it answer an overcall too,
+#: not only a double; JAM_MINORS lets it bid five of a minor. The user
+#: chose (2026-10-28) to let both partners compete again later
+#: (JAM_NEVER_AGAIN off): +1.50 a board against +1.38 with it on.
+JAM_GAME = True
+JAM_FIT = 10
+JAM_OPENINGS = (1, 2, 3)
+JAM_OVER_BIDS = True
+JAM_UNCONTESTED = True
+JAM_MINORS = True
+JAM_NEVER_AGAIN = False
+JAM_ALERT = "Game in {}: to make or to jam the auction."
+
+
+def _jam_spot(ctx: Ctx) -> str | None:
+    """The game call partner's pre-empt asks of my first call, or None."""
+    if not JAM_GAME or not ctx.we_opened or ctx.i_am_opener() or ctx.seq[1:] or not ctx.seq:
+        return None
+    if any(w == ctx.me for w, _ in ctx.calls[ctx.calls.index(ctx.ours[0]) + 1:]):
+        return None                      # not my first call: the jam is now or never
+    x = strain_of(ctx.seq[0])
+    if x not in SUITS or level_of(ctx.seq[0]) not in JAM_OPENINGS or ctx.seq[0] == '2C' \
+            or (x in MINORS and not JAM_MINORS):
+        return None
+    if not ctx.theirs and (not JAM_UNCONTESTED or level_of(ctx.seq[0]) == 1):
+        return None
+    if not JAM_OVER_BIDS and any(c != 'X' for _, c in ctx.theirs):
+        return None
+    game = f"4{x}" if x in MAJORS else f"5{x}"
+    return game if ctx.ok(game) else None
+
+
+def _jam_game(ctx: Ctx) -> tuple | None:
+    game = _jam_spot(ctx)
+    if game is None:
+        return None
+    x = strain_of(game)
+    if ctx.h.len[x] + _partner_length(ctx, x) >= JAM_FIT:
+        return game, JAM_ALERT.format(SYM[x])
+    return None
+
+
+def _after_jam(ctx: Ctx) -> tuple | None:
+    """After the jump to game in the jam seat the contract is placed: the
+    pre-empter passes over what they bid next (else 3♦ X 5♦ went on to 6♦
+    and 7♦). With JAM_NEVER_AGAIN both of us pass whatever they bid, for
+    the rest of the auction."""
+    if not JAM_GAME or len(ctx.seq) < 2 or not ctx.legal:
+        return None
+    if not JAM_NEVER_AGAIN and (not ctx.i_am_opener() or len(ctx.seq) != 2):
+        return None
+    jammer = ctx.ours[1][0]
+    if ctx.ours[0][0] == jammer:
+        return None
+    at = ctx.calls.index(ctx.ours[1])
+    before = Ctx(jammer, [], _replay(ctx.auction, at))
+    if ctx.seq[1] == _jam_spot(before):
+        return 'Pass', "The contract is placed." if JAM_NEVER_AGAIN else "Partner placed the contract."
+    return None
+
+
+def _replay(auction: AuctionState, n: int) -> AuctionState:
+    a = AuctionState(dealer=auction.dealer, vulnerability=auction.vulnerability)
+    for who, call in auction.calls[:n]:
+        a.apply_call(who, call)
+    return a
+
+
+def jam_alert(player: str, cards: list[Card], auction: AuctionState, decision: tuple) -> tuple:
+    """Any branch's game bid in the jam seat reads JAM_ALERT, so the same call
+    in the same auction says the same thing whoever holds it."""
+    if JAM_GAME and decision[0] == _jam_spot(Ctx(player, cards, auction)):
+        return decision[0], JAM_ALERT.format(SYM[strain_of(decision[0])])
+    return decision
+
+
 #: A major game, not 3NT, on a known eight-card major fit (the user's call,
 #: 2026-10-23): instead of bidding 3NT, or passing partner's 3NT, bid 4M when
 #: my length and what partner's bids have shown (a natural notrump bid shows
@@ -2310,10 +2435,94 @@ def _after_support_double(ctx: Ctx) -> tuple | None:
     return 'Pass', "No room."
 
 
+def _overcalled(ctx: Ctx) -> bool:
+    """They opened (not 1NT) and our side came in over it."""
+    opening = next(((w, c) for w, c in ctx.calls if c != 'Pass'), None)
+    return opening is not None and opening[0] not in (ctx.me, ctx.pd) and 'NT' not in opening[1]
+
+
+def _bid_low(ctx: Ctx, x: str) -> bool:
+    """Our side first bid x at the one or two level: three is a sign-off."""
+    first = next((c for _, c in ctx.ours if strain_of(c) == x), None)
+    return first is not None and level_of(first) <= 2
+
+
+def _cue_asks(ctx: Ctx, cue: str, x: str) -> bool:
+    """Advancer's cuebid that passes three of x is a stopper ask (CUE_2NT)."""
+    return (CUE_2NT and _overcalled(ctx) and _bid_low(ctx, x)
+            and rank_of(cue) > rank_of(f"3{x}"))
+
+
+def _cue_2nt_on(ctx: Ctx, x: str, their: str | None) -> bool:
+    """As advancer, 2NT is the limit raise or better of x: their suit ranks
+    above ours, so the cuebid passes three of x, and 2NT is free."""
+    if their not in SUITS or not ctx.ok('2NT'):
+        return False
+    cue = ctx.cheapest(their, 2)
+    return (cue is not None and level_of(cue) == 3 and _cue_asks(ctx, cue, x)
+            and ctx.cheapest(x, 2) == f"3{x}")
+
+
+def _two_nt_raise_reply(ctx: Ctx) -> tuple | None:
+    """Partner's 2NT was the limit raise or better of my overcall (CUE_2NT):
+    game with extras, else sign off at three. After the sign-off partner
+    passes, or with CUE_ASK_HCP+ bids game or asks for a stopper."""
+    h = ctx.h
+    mine, partners = ctx.mine(), ctx.partners()
+    if not CUE_2NT or not mine or not partners or not _overcalled(ctx):
+        return None
+    theirs = _their_suits(ctx)
+    their = theirs[0] if theirs else None
+    if their not in SUITS:
+        return None
+    # I overcalled, partner bid 2NT, my turn.
+    x = strain_of(mine[0])
+    if (x in SUITS and len(mine) == 1 and partners == ['2NT']
+            and ctx.ours[-1] == (ctx.pd, '2NT') and rank_of(f"1{their}") > rank_of(f"1{x}")
+            and _bid_low(ctx, x)):
+        if h.judge >= 14 or (h.judge >= 12 and h.len[x] >= 6):
+            if x in MAJORS and ctx.ok(f"4{x}"):
+                return f"4{x}", TO_PLAY
+            if h.stopper(their) and ctx.ok('3NT'):
+                return '3NT', TO_PLAY
+        call = ctx.cheapest(x, 3)
+        if call and level_of(call) == 3:
+            return call, f"Minimum, {SYM[x]}."
+        return 'Pass', "Minimum."
+    # I bid 2NT, partner signed off; my turn.
+    x = strain_of(partners[0])
+    if (mine == ['2NT'] and len(partners) >= 2 and ctx.ours[-1][0] == ctx.pd
+            and x in SUITS and strain_of(partners[-1]) == x
+            and rank_of(f"1{their}") > rank_of(f"1{x}") and _bid_low(ctx, x)):
+        if len(partners) == 2 and h.hcp >= CUE_ASK_HCP:
+            if h.stopper(their) and ctx.ok('3NT'):
+                return '3NT', TO_PLAY
+            if x in MAJORS and ctx.ok(f"4{x}"):
+                return f"4{x}", TO_PLAY
+            if ctx.ok(f"3{their}"):
+                return f"3{their}", f"Asks for a {SYM[their]} stopper for 3NT."
+        return 'Pass', "No game."
+    # Partner asked for a stopper after my sign-off.
+    x = strain_of(mine[0])
+    if (len(mine) == 2 and partners[0] == '2NT' and len(partners) == 2
+            and ctx.ours[-1][0] == ctx.pd and strain_of(partners[-1]) == their and x in SUITS):
+        if h.stopper(their) and ctx.ok('3NT'):
+            return '3NT', f"{SYM[their]} stopper."
+        call = ctx.cheapest(x, 4)
+        if call and level_of(call) == 4:
+            return call, f"No {SYM[their]} stopper."
+        return 'Pass', "No stopper."
+    return None
+
+
 def _cuebid_raise_reply(ctx: Ctx) -> tuple | None:
     """Partner made a cuebid raise of my suit (limit raise or better, 10+):
     go to game with extras, else sign off at the cheapest level. And when I
-    made the cuebid and partner signed off, go on to game with 13+."""
+    made the cuebid and partner signed off, go on to game with 13+. With
+    CUE_2NT a cuebid past three of my suit asks for a stopper instead."""
+    two_nt = _two_nt_raise_reply(ctx)
+    if two_nt:
+        return two_nt
     h = ctx.h
     mine, partners = ctx.mine(), ctx.partners()
     if not mine or not partners:
@@ -2325,6 +2534,14 @@ def _cuebid_raise_reply(ctx: Ctx) -> tuple | None:
     if (x in SUITS and len(mine) == 1 and strain_of(p) in theirs and strain_of(p) != x
             and ctx.ours[-1] == (ctx.pd, p)):
         their = strain_of(p)
+        if _cue_asks(ctx, p, x):
+            if h.stopper(their) and ctx.ok('3NT'):
+                return '3NT', f"{SYM[their]} stopper."
+            if x in MAJORS and ctx.ok(f"4{x}"):
+                return f"4{x}", TO_PLAY
+            call = ctx.cheapest(x, 4)
+            if call and level_of(call) <= 4:
+                return call, f"No {SYM[their]} stopper."
         if h.judge >= 14 or (h.judge >= 12 and h.len[x] >= 6):
             if x in MAJORS and ctx.ok(f"4{x}"):
                 return f"4{x}", TO_PLAY
@@ -2342,6 +2559,9 @@ def _cuebid_raise_reply(ctx: Ctx) -> tuple | None:
     if (len(mine) == 1 and strain_of(mine[0]) in theirs and partners
             and ctx.ours[-1][0] == ctx.pd and len(partners) >= 2):
         x = strain_of(partners[-1])
+        if (x in SUITS and strain_of(partners[0]) == x and level_of(partners[-1]) == 4
+                and _cue_asks(ctx, mine[0], x)):
+            return 'Pass', "No stopper: no game."
         if x in SUITS and strain_of(partners[0]) == x and h.judge >= 13:
             if x in MAJORS and ctx.ok(f"4{x}"):
                 return f"4{x}", TO_PLAY
@@ -2874,6 +3094,10 @@ def _advance(ctx: Ctx) -> tuple | None:
         sup = h.len[ps]
         if sup >= 3 and hcp >= 10 and their in SUITS:
             call = ctx.cheapest(their, 2)
+            if _cue_2nt_on(ctx, ps, their):
+                if hcp >= CUE_ASK_HCP and not h.stopper(their):
+                    return call, f"{CUE_ASK_HCP}+ HCP, no {SYM[their]} stopper. Asks for one, for 3NT."
+                return '2NT', f"3+ {SYM[ps]}, 10+ HCP. Limit raise or better. Artificial."
             if call and level_of(call) <= 3:
                 return call, f"Cuebid: 3+ {SYM[ps]}, 10+ HCP. Artificial."
         if sup >= 3 and 6 <= hcp <= 9:
@@ -2883,7 +3107,7 @@ def _advance(ctx: Ctx) -> tuple | None:
         if their in SUITS and h.stopper(their) and h.balanced:
             if 8 <= hcp <= 11 and ctx.ok('1NT'):
                 return '1NT', f"8-11 HCP, {SYM[their]} stopper."
-            if 12 <= hcp <= 14 and ctx.ok('2NT'):
+            if 12 <= hcp <= 14 and ctx.ok('2NT') and not _cue_2nt_on(ctx, ps, their):
                 return '2NT', f"12-14 HCP, {SYM[their]} stopper."
         for s in SUITS:
             if s not in theirs and s != ps and h.len[s] >= 5 and hcp >= 8:

@@ -12,6 +12,7 @@
   import { ALERT_MAX } from '../game.svelte';
   import { callMeanings, describeCall } from '../meanings';
   import Strain from './Strain.svelte';
+  import { tick } from 'svelte';
 
   /** `docked`: the pad sits in a desktop side panel, and the box opens to its
    *  left, pointing at the button, instead of above it. */
@@ -42,6 +43,8 @@
 
   const meaning = $derived(selected && meanings ? describeCall(selected, meanings.get(selected)) : null);
 
+  let passBtn = $state<HTMLButtonElement | null>(null);
+
   function tap(call: string, e: MouseEvent): void {
     if (selected === call) {
       const why = alert;
@@ -49,6 +52,10 @@
       alert = '';
       alertOpen = false;
       oncall(call, why);
+      // From the keyboard (a click with no pointer), the button pressed may now
+      // be disabled, which drops focus to the top of the page: keep it in the
+      // pad, on Pass, for the next call.
+      if (e.detail === 0) void tick().then(() => passBtn?.isConnected && passBtn.focus({ preventScroll: true }));
       return;
     }
     meanings ??= callMeanings(auction);
@@ -71,6 +78,8 @@
   {@const b = parseBid(call)}
   {#if b}<Strain level={b[0]} strain={b[1]} light={false} />{:else}{name(call)}{/if}
 {/snippet}
+
+<svelte:window onkeydown={(e) => { if (selected && e.key === 'Escape') selected = null; }} />
 
 <div class="bidpad" class:docked>
   {#if selected && meaning}
@@ -111,7 +120,8 @@
   <div class="bidpad-actions">
     {#each ACTIONS as [code, label] (code)}
       <button class="bid-act bid-{code.toLowerCase()}" class:selected={selected === code}
-        disabled={!legal.includes(code)} aria-pressed={selected === code} onclick={(e) => tap(code, e)}>
+        disabled={!legal.includes(code)} aria-pressed={selected === code} onclick={(e) => tap(code, e)}
+        bind:this={() => (code === 'Pass' ? passBtn : null), (el) => { if (code === 'Pass') passBtn = el; }}>
         <span>{label}</span>{#if selected === code}<small>{verb} again</small>{/if}
       </button>
     {/each}

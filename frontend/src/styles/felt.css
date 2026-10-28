@@ -257,7 +257,6 @@ button { touch-action: manipulation; }
 }
 .fcard-rank { font-size: var(--rank); }
 /* A crowded fan shows only a sliver of each card: "10" has to fit in it. */
-.fcard-rank.ten { font-size: calc(var(--rank) * 0.86); letter-spacing: -0.12em; margin-left: -1px; }
 .fcard-suit { font-size: var(--suit); margin-top: 3px; }
 .fan.playable .fcard { cursor: pointer; }
 .fan.playable .fcard.legal { transform: translateY(-12px); }
@@ -287,8 +286,10 @@ button { touch-action: manipulation; }
    foot of every label points at the centre: writing-mode lays the seat out
    sideways, so the layout measures it rotated, and West is turned the rest
    of the way round. column-reverse keeps each name at the outer edge. Sizes
-   below are logical, so one set of rules covers both directions. */
-.af-west, .af-east { writing-mode: vertical-lr; flex-direction: column-reverse; }
+   below are logical, so one set of rules covers both directions. Suit symbols
+   stand upright in vertical text by default; sideways turns them with the
+   rest of the label. */
+.af-west, .af-east { writing-mode: vertical-lr; text-orientation: sideways; flex-direction: column-reverse; }
 .af-west { transform: translateY(-50%) rotate(180deg); }
 .bc-stack { display: flex; }
 .bc {
@@ -340,6 +341,10 @@ button { touch-action: manipulation; }
     text-align: center;
 }
 .bc-shown { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Earlier calls folded away on a long auction: a narrow card, not overlapped. */
+.bc-more { --w: 26px; align-items: center; justify-content: center; padding: 0; background: var(--panel-2); color: var(--dim-2); font-size: 11px; }
+.bc-stack > .bc-more + .bc { margin-inline-start: 3px; }
+.dk-felt .bc-more { --w: 32px; font-size: 13px; }
 .dk-felt .bc { --w: 58px; --h: 38px; --reveal-x: 38px; font-size: 14px; line-height: 15px; padding: 3px 6px; }
 .dk-felt .bc-top { font-size: 19px; padding: 0; }
 .dk-felt .bc-yours { font-size: 16px; padding: 0 12px; }
@@ -1030,7 +1035,113 @@ button { touch-action: manipulation; }
 .hv-more { border-top: 1px solid var(--line); padding: 4px 0; }
 .hv-more > summary { padding: 10px 0; cursor: pointer; color: var(--dim-2); font-weight: 600; }
 .hv-more .lin-box { display: flex; flex-direction: column; gap: 8px; }
-.hv .log-table td.hv-won span { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.hv .log-table td.hv-won > span { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 .hv .dd-losses { margin: 0; }
 .hv-seat { width: calc(50% - 4px); margin: 0 auto; }
+/* A phone's West or East to play: its column widens, so the cards and the
+   marks under them wrap less. */
+.hv-compass.west-wide { grid-template-columns: minmax(0, 1.7fr) 84px minmax(0, 1fr); }
+.hv-compass.east-wide { grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1.7fr); }
+.marks-wide .hd-marked { gap: 3px 4px; }
+.marks-wide .hd-card { min-width: 14px; }
+.marks-wide .dd-mark { padding: 1px 2px; min-width: 0; font-size: 9px; border-radius: 3px; }
+.marks-wide .seat-box-head { flex-wrap: wrap; }
 .hv-summary { text-align: left; }
+
+/* ── Bidding training (2026-10-27) ───────────────────────────────────────── */
+/* The bidding screen is the table's; once the auction ends the recap takes
+   the bidding box's place, all on one screen. */
+
+.fcard-jp {
+    position: absolute;
+    left: 4px;
+    bottom: 4px;
+    padding: 0 3px;
+    border-radius: 3px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 14px;
+}
+.bt-top { padding-top: 6px; }
+.bt-strip {
+    margin: 6px 0 0;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    font-size: 12.5px;
+    color: var(--dim);
+}
+.bt-strip b { color: var(--text); }
+.table-body.bt-recap { gap: 8px; padding-top: 8px; }
+.bt-card {
+    padding: 9px 12px;
+    border-radius: 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+}
+.bt-result { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.bt-contract { font-size: 19px; font-weight: 800; }
+.bt-sub { font-size: 12.5px; color: var(--dim); }
+.bt-sub b { color: var(--text); font-weight: 600; }
+.bt-diff { color: var(--warn); font-size: 24px; font-weight: 800; text-align: right; line-height: 1; white-space: nowrap; }
+.bt-diff.zero { color: var(--good); }
+.bt-diff small { display: block; margin-top: 3px; font-size: 11px; font-weight: 500; color: var(--dim); }
+.bt-hands { display: flex; gap: 8px; }
+.bt-hand {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 9px;
+    border-radius: 10px;
+    background: var(--card);
+    color: var(--suit-nt);
+    font-size: 15px;
+    line-height: 1.4;
+}
+.bt-hand-head { display: flex; justify-content: space-between; gap: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #4a5a52; }
+.bt-hand-head b { color: #8a5f0c; }
+.bt-hand-sub { font-size: 11px; color: #5d6d65; border-bottom: 1px solid #dcdcd2; padding-bottom: 2px; margin-bottom: 2px; }
+.bt-suit { display: flex; gap: 5px; white-space: nowrap; }
+.bt-pip { width: 14px; }
+.bt-pip.s-s, .bt-pip.s-c { color: var(--suit-s); }
+.bt-pip.s-h { color: var(--suit-h); }
+.bt-pip.s-d { color: var(--suit-d); }
+.bt-jp { box-shadow: inset 0 -2px 0 var(--accent); }
+.bt-links { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--accent); padding: 0 2px; }
+.bt-links .link-btn { font-size: 12px; }
+.bt-meter { position: relative; height: 30px; margin: 20px 2px 18px; border-radius: 6px; background: var(--panel-2); }
+.bt-bar { position: absolute; top: 8px; height: 14px; border-radius: 4px; }
+.bt-bar.you { background: var(--accent); }
+.bt-bar.partner { background: #6fb3d8; }
+.bt-tick { position: absolute; top: 0; height: 30px; border-left: 2px dashed var(--line-2); }
+.bt-tick.hit { border-left-color: var(--accent); }
+.bt-tick i { position: absolute; left: 4px; font-style: normal; font-size: 10.5px; color: var(--dim); white-space: nowrap; }
+.bt-tick.up i { top: -17px; }
+.bt-tick.down i { top: 31px; left: auto; right: 4px; }
+.bt-tick i.left { left: auto; right: 4px; }
+.bt-tick.hit i { color: var(--accent); font-weight: 700; }
+.bt-note { margin: 5px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--dim); }
+.bt-note b { color: var(--text); }
+.bt-auction { display: grid; grid-template-columns: repeat(4, 1fr); row-gap: 2px; text-align: center; font-size: 13px; }
+.bt-head { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+.bt-me { font-weight: 800; }
+.bt-bad { color: var(--warn); }
+.bt-robot { display: block; font-size: 10.5px; font-weight: 600; color: var(--good); }
+.bt-dd { display: grid; grid-template-columns: auto repeat(5, 1fr); align-items: center; text-align: center; font-size: 13px; }
+.bt-dd-l { text-align: left; font-size: 11px; color: var(--dim); }
+.bt-dd .best { color: var(--accent); font-weight: 800; }
+.bt-next { position: sticky; bottom: calc(var(--safe-bottom) + 8px); margin-top: 4px; }
+/* Four tabs: each takes what its label needs. If the counts still outgrow a
+   narrow phone, the tabs scroll sideways inside the row, so the spade and the
+   question mark always stay on screen and the page itself never scrolls. */
+.ts-tab { flex: 1 1 auto; padding: 0 4px; white-space: nowrap; }
+.ts-tabs { min-width: 0; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
+.ts-tabs::-webkit-scrollbar { display: none; }
+@media (max-width: 420px) { .ts-tab { font-size: 13.5px; } .ts-count { margin-left: 3px; padding: 0 5px; } }
+/* Your auction and the robots', one above the other (2026-10-28). The call
+   where they part is ringed in both. */
+.bt-auction-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; font-size: 13px; font-weight: 700; }
+.bt-robots-title { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.bt-part { outline: 2px solid var(--accent); outline-offset: -1px; border-radius: 6px; }

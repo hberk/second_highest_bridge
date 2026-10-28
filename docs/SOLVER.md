@@ -36,6 +36,10 @@ cd frontend && npm run wasm
 python research/dd_dataset.py --deals 25                            # pure Python
 python research/dd_dataset.py --deals 300 --engine rust --workers 6  # ~67x faster per solve
 
+# Bidding training's own deals, every strain for every declarer (resumable;
+# Rust engine only; about 2 minutes of CPU a deal). Writes data/training_deals.json
+python research/solve_training_deals.py --deals 400 --workers 4
+
 # Slam deals: filter, screen, finish (resumable; Rust engine only)
 python research/slam_deals.py --slams 100 --workers 4
 

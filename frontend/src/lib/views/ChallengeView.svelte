@@ -36,9 +36,9 @@
 <div class="hv">
   <section class="res-card">
     <div class="eyebrow accent">Challenge the robots</div>
-    <p class="res-detail">Play a deal from the {ids.length} solved exactly, then see an all-robot table play the same cards. Every contract is priced against perfect play, so the gap splits into what the <strong>auction</strong> cost and what the <strong>card play</strong> cost.</p>
+    <p class="res-detail">Play a solved deal, then compare with four robots on the same cards.</p>
     {#if game.challengeId !== null && !game.boardOver}
-      <p class="res-detail hv-note">A challenge board is in play at the table. Finish it to see how the robots did with the same cards.</p>
+      <p class="res-detail hv-note">A challenge board is in play at the table.</p>
     {/if}
     <button class="btn primary full big" disabled={!remaining} onclick={deal}>Deal a challenge board</button>
     <p class="caption hv-center">{remaining} of {ids.length} unplayed</p>
@@ -51,8 +51,7 @@
   {/if}
 
   {#if records.length}
-    <div class="eyebrow hv-h">Review the deal</div>
-    <p class="caption">Both boards, the same 52 cards. Each card carries its double dummy value, and the list under the play names each card that gave a trick away.</p>
+    <div class="eyebrow hv-h" id="challenge-review">Review the deal</div>
     <HistoryView {records} analysis />
   {/if}
 

@@ -483,10 +483,32 @@ def test_responder_bids_game_over_a_three_level_jump_overcall():
     """Deal 346: ♠AK96 ♥K ♦QJ10432 ♣J6 passed 1♠ (3♥): the cuebid is above
     three, 3♠ shows 6-9, and nothing else fit. 3+ support and 11+ bids game."""
     assert bid('AS KS 9S 6S KH QD JD 10D 4D 3D 2D JC 6C', '1S', '3H')[0] == '4S'
-    # 10 HCP still does not: deals 1 and 381 went down in game.
-    assert bid('9S 6S 4S KH QH 8H 6H 3H AD 4D 3D JC 2C', '1H', '3D')[0] != '4H'
+    # 10 HCP still does not: deals 1 and 381 went down in game...
+    assert bid('9S 6S 5S 4S KH QH 8H 6H AD 4D 3D JC 2C', '1H', '3D')[0] != '4H'
+    # ...unless five trumps make ten: then it jams at once (gib.JAM_GAME).
+    assert bid('9S 6S 4S KH QH 8H 6H 3H AD 4D 3D JC 2C', '1H', '3D') == \
+        ('4H', 'Game in ♥: to make or to jam the auction.')
     # Weak hands still raise to three.
     assert bid('9S 6S 4S KH QH 6H 3H JD 4D 3D 8C 6C 2C', '1H', '3D')[0] == '3H'
+
+
+def test_ten_trumps_jam_to_game_at_once():
+    """The user's Challenge deal (2026-10-28): 2♠ (X) with ♠A10652 ♥853 ♦J8
+    ♣Q96 passed, bid 4♠ and 5♠ a round late, and E/W made 6♥. Partner's weak
+    two shows six, so eleven trumps: bid game now, and only now."""
+    south = 'AS 10S 6S 5S 2S 8H 5H 3H JD 8D QC 9C 6C'
+    assert bid(south, '2S', 'X', dealer='North') == \
+        ('4S', 'Game in ♠: to make or to jam the auction.')
+    # The pre-empter then leaves it to the jammer.
+    north = 'KS QS JS 8S 4S 3S JH 10D 9D 6D 4D 2D 4C'
+    assert bid(north, '2S', 'X', '4S', '5H', dealer='North')[0] == 'Pass'
+
+
+def test_trump_length_counts_in_a_major_raise():
+    """The user's deal (2026-10-28): 1♥ with ♠K5 ♥K9864 ♦K84 ♣832 raised to
+    2♥. Nine HCP and two trumps past three make eleven: a limit raise."""
+    assert bid('KS 5S KH 9H 8H 6H 4H KD 8D 4D 8C 3C 2C', '1H', 'Pass') == \
+        ('3H', '4+ ♥. Limit raise.')
 
 
 def test_competes_to_the_level_of_the_fit():
@@ -671,3 +693,25 @@ def test_a_known_major_fit_plays_in_game_not_3nt():
     call, why = bid('QS 9S 8S 7S 2S KH 8H 6H KD 2D QC 8C 5C',
                     '1NT', 'Pass', '2H', 'Pass', '2S', 'Pass')
     assert call == '3NT' and 'choice of games' in why, (call, why)
+
+
+def test_advancers_2nt_is_the_limit_raise_when_the_cuebid_passes_three():
+    """The user's call, 2026-10-28 (Challenge deal 276): over 1♦ (2♣) 2♦ a
+    3♦ cuebid forces 3NT or 4♣, so 2NT is the limit raise or better and
+    partner can sign off in 3♣; the cuebid only asks for a stopper."""
+    east = 'AS JS 8S 4S JH 4H 2H AD 8D 6D QC 6C 3C'
+    call, why = bid(east, '1D', '2C', '2D', dealer='South')
+    assert call == '2NT' and 'Limit raise or better' in why, (call, why)
+    west = 'AH 7H 6H 3H 10D 9D 5D AC KC 10C 9C 8C 5C'
+    call, _ = bid(west, '1D', '2C', '2D', '2NT', 'Pass', dealer='South')
+    assert call == '3C', call
+    call, _ = bid(east, '1D', '2C', '2D', '2NT', 'Pass', '3C', 'Pass', dealer='South')
+    assert call == 'Pass', call
+    # 13+ HCP and no diamond stopper: the cuebid asks for one.
+    asker = 'AS KS 8S 4S KH QH 2H 8D 6D 4D QC 6C 3C'
+    call, why = bid(asker, '1D', '2C', '2D', dealer='South')
+    assert call == '3D' and 'stopper' in why, (call, why)
+    call, _ = bid(west, '1D', '2C', '2D', '3D', 'Pass', dealer='South')
+    assert call == '4C', call
+    call, _ = bid(asker, '1D', '2C', '2D', '3D', 'Pass', '4C', 'Pass', dealer='South')
+    assert call == 'Pass', call

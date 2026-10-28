@@ -3,10 +3,11 @@
      while the card itself keeps its size and runs under the next. When the
      hand is playable, legal cards rise and the rest are greyed and disabled. -->
 <script lang="ts">
+  import { rankText } from './format';
   import { SUIT_NAMES, SUIT_SYMBOLS, sameCard, type Card } from '../engine/card';
   import { grouped } from './hand';
 
-  let { cards, trump = null, size = 'lg', playable = false, legal = [], label, onplay }: {
+  let { cards, trump = null, size = 'lg', playable = false, legal = [], label, onplay, jp = false }: {
     cards: Card[];
     trump?: string | null;
     size?: 'lg' | 'md' | 'sm';
@@ -14,7 +15,11 @@
     legal?: Card[];
     label: string;
     onplay?: (c: Card) => void;
+    /** Tag each card that counts judgement points with its value (Bidding training). */
+    jp?: boolean;
   } = $props();
+
+  const JP: Record<string, number> = { K: 3, Q: 3, A: 1, J: 1, '10': 1, '9': 1 };
 
   const groups = $derived(grouped(cards, trump));
   const isLegal = (c: Card) => legal.some((l) => sameCard(l, c));
@@ -31,11 +36,12 @@
           {#if playable}
             <button class="fcard" class:legal={isLegal(c)} disabled={!isLegal(c)} style:color={ink}
               aria-label="{c.rank} of {SUIT_NAMES[suit]}" onclick={() => onplay?.(c)}>
-              <span class="fcard-rank" class:ten={c.rank === '10'}>{c.rank}</span><span class="fcard-suit" aria-hidden="true">{SUIT_SYMBOLS[suit]}</span>
+              <span class="fcard-rank">{rankText(c.rank)}</span><span class="fcard-suit" aria-hidden="true">{SUIT_SYMBOLS[suit]}</span>
             </button>
           {:else}
             <div class="fcard" style:color={ink}>
-              <span class="fcard-rank" class:ten={c.rank === '10'}>{c.rank}</span><span class="fcard-suit" aria-hidden="true">{SUIT_SYMBOLS[suit]}</span><span class="sr-only"> of {SUIT_NAMES[suit]}</span>
+              <span class="fcard-rank">{rankText(c.rank)}</span><span class="fcard-suit" aria-hidden="true">{SUIT_SYMBOLS[suit]}</span><span class="sr-only"> of {SUIT_NAMES[suit]}</span>
+              {#if jp && JP[c.rank]}<span class="fcard-jp" aria-label="{JP[c.rank]} judgement points">{JP[c.rank]}</span>{/if}
             </div>
           {/if}
         </div>
