@@ -62,6 +62,15 @@ WJO = (3, 9)                  # weak jump overcalls, aggressive
 NT_OVERCALL = (15, 18)
 TAKEOUT_MIN = 12
 NEGATIVE = {1: 6, 2: 8, 3: 10}
+#: Over a minor opening, a five-card unbid major is bid, not doubled: 1♠ on
+#: 6+ HCP, 2♠ on 10+ (the user's call, 2026-10-28: 1♦ (1♥) X on ♠AKJT53
+#: lost the spade fit). The negative double then shows exactly four.
+NEG_BIDS_FIVE = True
+#: Opener answers partner's negative double once. Having passed when they
+#: competed, a minimum does not come back in at the three level: 1♦ (1♥) X
+#: (2♦) P (2♥) P P bid 3♣ "4+ ♣", the answer to a double already passed.
+#: Off: 10,000 fresh deals measured -0.09 a board, t = -3.7 (2026-10-28).
+NEG_ANSWER_ONCE = False
 TWO_SUITED_MIN = 8
 #: Game by judgement points (the user's call, 2026-10-23). GAME is every
 #: game but a major suit's: 3NT, a minor, and the "game values" line. 3NT
@@ -2759,6 +2768,9 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
     # Over a MINOR opening the unbid major comes first: partner's 1C may be
     # three cards, and a negative double finds the 4-4 major fit.
     if x in MINORS:
+        five = _five_card_major(ctx, x) if NEG_BIDS_FIVE else None
+        if five:
+            return five
         neg = _negative_double(ctx, x, lvl)
         if neg:
             return neg
@@ -2808,6 +2820,26 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
     return 'Pass', "Nothing to show."
 
 
+def _five_card_major(ctx: Ctx, x: str) -> tuple | None:
+    """Over their overcall of our minor: bid an unbid five-card major rather
+    than make a negative double -- 1M on 6+ HCP, 2M on 10+. The alerts are
+    the ones the same calls carry with four (one level) or five (two level)
+    from the later branch: an alert reads the auction, not the hand."""
+    h = ctx.h
+    theirs = _their_suits(ctx)
+    for s in sorted(MAJORS, key=lambda s: (h.len[s], SUITS.index(s)), reverse=True):
+        if s == x or s in theirs or h.len[s] < 5:
+            continue
+        call = ctx.cheapest(s, 1)
+        if not call:
+            continue
+        if level_of(call) == 1 and h.hcp >= 6:
+            return call, f"4+ {SYM[s]}, 6+ HCP."
+        if level_of(call) == 2 and h.hcp >= 10:
+            return call, f"5+ {SYM[s]}, 10+ HCP. Forcing."
+    return None
+
+
 def _negative_double(ctx: Ctx, x: str, lvl: int) -> tuple | None:
     """Negative double through 3S: the unbid major(s), four each -- or, with no
     major unbid, four in each unbid suit."""
@@ -2835,8 +2867,10 @@ def _answer_negative(ctx: Ctx, x: str) -> tuple | None:
     h = ctx.h
     if ctx.calls[-1][0] not in (ctx.me, ctx.pd) and parse_bid(ctx.calls[-1][1]):
         return _negative_double_competed(ctx, x)
-    # Only a double of a SUIT overcall is negative; over 1NT it is penalty.
     x_at = next(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.pd and c == 'X')
+    if NEG_ANSWER_ONCE and any(w == ctx.me for w, _ in ctx.calls[x_at + 1:]):
+        return None
+    # Only a double of a SUIT overcall is negative; over 1NT it is penalty.
     before = [c for w, c in ctx.calls[:x_at] if w not in (ctx.me, ctx.pd) and parse_bid(c)]
     if not before or strain_of(before[-1]) not in SUITS:
         return 'Pass', "Partner's double is for penalty."

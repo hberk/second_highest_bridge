@@ -134,7 +134,10 @@ def test_no_runaway_levels_over_many_boards():
     """The same guard, swept over real deals rather than one built position:
     GIB bids games and slams, but a five-level contract still needs the
     values for one. Except a jam (`gib.JAM_GAME`): ten trumps bid five of a
-    minor on purpose, to make or to take their game away."""
+    minor on purpose, to make or to take their game away. And except five
+    bid straight over their four-level game, a sacrifice: seed 11 board 112,
+    1C (1S) 2H (2S) 3H P 4H (4S) P P 5H on 21 HCP, one down double dummy
+    against their 4S making (NEG_BIDS_FIVE's 2H first reached it)."""
     random.seed(11)
     for index in range(200):
         hands = deal()
@@ -151,8 +154,12 @@ def test_no_runaway_levels_over_many_boards():
         contract = auction.get_contract()
         jammed = any(who in (contract['declarer'], PARTNERS[contract['declarer']])
                      for who, _ in jams) if contract else False
+        bids = [(who, c) for who, c in auction.calls if c not in ('Pass', 'X', 'XX')]
+        saved = (contract is not None and contract['level'] == 5 and len(bids) >= 2
+                 and bids[-2][1][0] == '4'
+                 and bids[-2][0] not in (contract['declarer'], PARTNERS[contract['declarer']]))
         if contract and contract['level'] >= 5 and contract['doubled'] == 'None' \
-                and not (jammed and contract['level'] == 5):
+                and not (jammed and contract['level'] == 5) and not saved:
             seats = [contract['declarer'], PARTNERS[contract['declarer']]]
             combined = sum(gib.Hand(hands[s]).hcp for s in seats)
             assert combined >= 22, (

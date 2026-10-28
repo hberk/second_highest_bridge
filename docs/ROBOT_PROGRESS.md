@@ -197,6 +197,8 @@ from the variant's side; t as above.
 | 10-28 | A pre-emptor does not bid again unless partner's last call asks (training deal 270: P 2♦ (2♥) 2♠ (3♦) 3NT); the penalty double kept. 10,000 fresh deals | -0.08 | -1.45 | 131 | on (your call: the rule, a tie) |
 | 10-28 | ...no penalty double from the pre-emptor either | -0.20 | -3.08 | 143 | off |
 | 10-28 | ...only the branch that bid 3NT stops reading a pre-empt as forced | +0.01 | +1.34 | 4 | off |
+| 10-28 | Over a minor opening, a five-card major is bid, not doubled (`NEG_BIDS_FIVE`; deal: 1♦ (1♥) X on six spades) | **+0.71** | +6.5 | 1,044 | on |
+| 10-28 | Opener answers a negative double only once (`NEG_ANSWER_ONCE`; same deal, opener came back with 3♣) | -0.09 | -3.7 | 69 | off |
 
 ### The previous system (`ai_bid`)
 

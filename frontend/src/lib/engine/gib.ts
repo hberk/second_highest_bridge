@@ -38,6 +38,9 @@ export const WJO: [number, number] = [3, 9];
 export const NT_OVERCALL: [number, number] = [15, 18];
 export const TAKEOUT_MIN = 12;
 const NEGATIVE: Record<number, number> = { 1: 6, 2: 8, 3: 10 };
+/** Over a minor opening, bid a five-card unbid major (1M on 6+ HCP, 2M on
+ *  10+) rather than make a negative double (the user's call, 2026-10-28). See gib.py. */
+export const NEG_BIDS_FIVE = true;
 export const TWO_SUITED_MIN = 8;
 /** Game by judgement points (the user's call, 2026-10-23): GAME for every game
  *  but a major suit's, GAME_MAJOR for a major, NT_GAME opposite our 1NT/2NT. See gib.py. */
@@ -2560,6 +2563,8 @@ function respondOverInterference(ctx: Ctx, x: Suit): Decision {
   }
   // Over a minor opening the unbid major comes first (see gib.py).
   if (isMinor(x)) {
+    const five = NEG_BIDS_FIVE ? fiveCardMajor(ctx, x) : null;
+    if (five) return five;
     const neg = negativeDouble(ctx, x, lvl);
     if (neg) return neg;
   }
@@ -2598,6 +2603,19 @@ function respondOverInterference(ctx: Ctx, x: Suit): Decision {
     if (hcp >= 13 && ctx.ok('3NT')) return ['3NT', `13+ HCP, ${SYM[their]} stopper.`];
   }
   return ['Pass', 'Nothing to show.'];
+}
+
+function fiveCardMajor(ctx: Ctx, x: Suit): Decision | null {
+  const h = ctx.h;
+  const theirs = theirSuits(ctx);
+  for (const s of sortedBy(MAJORS, (t) => [h.len[t], idx(t)], true)) {
+    if (s === x || theirs.includes(s) || h.len[s] < 5) continue;
+    const call = ctx.cheapest(s, 1);
+    if (!call) continue;
+    if (levelOf(call) === 1 && h.hcp >= 6) return [call, `4+ ${SYM[s]}, 6+ HCP.`];
+    if (levelOf(call) === 2 && h.hcp >= 10) return [call, `5+ ${SYM[s]}, 10+ HCP. Forcing.`];
+  }
+  return null;
 }
 
 function negativeDouble(ctx: Ctx, x: Suit, lvl: number): Decision | null {
