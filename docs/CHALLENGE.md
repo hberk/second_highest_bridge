@@ -25,7 +25,8 @@ which a single score cannot answer. Measured 2026-10-19, with every card-play ru
 grades, so this is what the "Robots" column of the match table averages to.
 The web app's Challenge caption quotes this table; rerun the script after a
 robot change and update both together. Measured 2026-10-28, after fourth
-hand wins with a dead card first (below), graded with the partner who actually
+hand wins with a dead card first (below), with the bidding before PR #40's
+jam rule, graded with the partner who actually
 declared (the library holds every declarer's count; par takes the better
 partner):
 
