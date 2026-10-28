@@ -5,6 +5,7 @@
      judgement points you held together, your calls against the robot's, and
      what each strain makes double dummy. -->
 <script lang="ts">
+  import { rankText } from '../components/format';
   import { STRAIN_SYMBOLS, SUIT_SYMBOLS, parseBid, type Card, type Seat, type Strain as StrainT, type Suit } from '../engine/card';
   import type { Contract } from '../engine/auction';
   import { GAME, GAME_MAJOR, SLAM } from '../engine/gib';
@@ -87,7 +88,7 @@
     {#each ORDER as s (s)}
       {@const cs = cards.filter((c) => c.suit === s)}
       <div class="bt-suit"><span class="bt-pip s-{s.toLowerCase()}">{SUIT_SYMBOLS[s]}</span>
-        {#if cs.length}{#each cs as c (c.rank)}<span class:bt-jp={JP[c.rank]}>{c.rank}</span>{/each}{:else}<span class="dim">—</span>{/if}
+        {#if cs.length}{#each cs as c (c.rank)}<span class:bt-jp={JP[c.rank]}>{rankText(c.rank)}</span>{/each}{:else}<span class="dim">—</span>{/if}
       </div>
     {/each}
   </div>

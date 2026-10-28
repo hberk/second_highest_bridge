@@ -257,7 +257,6 @@ button { touch-action: manipulation; }
 }
 .fcard-rank { font-size: var(--rank); }
 /* A crowded fan shows only a sliver of each card: "10" has to fit in it. */
-.fcard-rank.ten { font-size: calc(var(--rank) * 0.86); letter-spacing: -0.12em; margin-left: -1px; }
 .fcard-suit { font-size: var(--suit); margin-top: 3px; }
 .fan.playable .fcard { cursor: pointer; }
 .fan.playable .fcard.legal { transform: translateY(-12px); }
@@ -1034,9 +1033,17 @@ button { touch-action: manipulation; }
 .hv-more { border-top: 1px solid var(--line); padding: 4px 0; }
 .hv-more > summary { padding: 10px 0; cursor: pointer; color: var(--dim-2); font-weight: 600; }
 .hv-more .lin-box { display: flex; flex-direction: column; gap: 8px; }
-.hv .log-table td.hv-won span { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.hv .log-table td.hv-won > span { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 .hv .dd-losses { margin: 0; }
 .hv-seat { width: calc(50% - 4px); margin: 0 auto; }
+/* A phone's West or East to play: its column widens, so the cards and the
+   marks under them wrap less. */
+.hv-compass.west-wide { grid-template-columns: minmax(0, 1.7fr) 84px minmax(0, 1fr); }
+.hv-compass.east-wide { grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1.7fr); }
+.marks-wide .hd-marked { gap: 3px 4px; }
+.marks-wide .hd-card { min-width: 14px; }
+.marks-wide .dd-mark { padding: 1px 2px; min-width: 0; font-size: 9px; border-radius: 3px; }
+.marks-wide .seat-box-head { flex-wrap: wrap; }
 .hv-summary { text-align: left; }
 
 /* ── Bidding training (2026-10-27) ───────────────────────────────────────── */

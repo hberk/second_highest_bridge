@@ -1,6 +1,9 @@
 import { STRAIN_SYMBOLS } from '../engine/card';
 import type { Contract } from '../engine/auction';
 
+/** A rank as the screen shows it: the ten is T, as in hand records. */
+export const rankText = (rank: string): string => (rank === '10' ? 'T' : rank);
+
 /** Python's f"{n:+d}". */
 export const signed = (n: number): string => (n >= 0 ? `+${n}` : `${n}`);
 
