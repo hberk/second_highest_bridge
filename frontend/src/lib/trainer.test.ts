@@ -75,7 +75,7 @@ describe('Bidding training', () => {
     }
     expect(t.log.length).toBe(12);
     expect(seen.size).toBe(Math.min(12, trainingDealIds().length));
-    expect(t.average).toBe(Math.round(t.log.reduce((n, e) => n + e.diff, 0) / 12));
+    expect(t.tally()!.vsPar).toBe(Math.round(t.log.reduce((n, e) => n + e.diff, 0) / 12));
   });
 
   it('keeps the log between visits', () => {
@@ -87,6 +87,35 @@ describe('Bidding training', () => {
     expect(again.boardNum).toBe(t.boardNum + 1);
     storage.setItem(TRAINING_KEY, 'not json');
     expect(new Trainer(storage, prng(3)).log).toEqual([]);
+  });
+
+  it('tallies you against par and against the robots, saved boards included', () => {
+    const storage = new MemoryStorage() as unknown as Storage;
+    const t = new Trainer(storage, prng(5));
+    const robots: number[] = [];
+    for (let n = 0; n < 4; n++) {
+      if (n) t.newBoard();
+      bidBoard(t, n);
+      robots.push(t.recap!.robotScore);
+    }
+    const per = (xs: number[]) => Math.round(xs.reduce((a, b) => a + b, 0) / xs.length);
+    const scores = t.log.map((e) => e.score);
+    const tally = t.tally()!;
+    expect(tally).toEqual({
+      boards: 4,
+      vsPar: per(t.log.map((e) => e.diff)),
+      vsRobots: per(scores.map((s, i) => s - robots[i])),
+      better: scores.filter((s, i) => s > robots[i]).length,
+      same: scores.filter((s, i) => s === robots[i]).length,
+      worse: scores.filter((s, i) => s < robots[i]).length,
+    });
+    expect(t.tally(2)!.boards).toBe(2);
+    // The log keeps no robot score: a reload reruns the robots to the same tally.
+    expect(new Trainer(storage, prng(5)).tally()).toEqual(tally);
+    expect(new Trainer(null, prng(5)).tally()).toBeNull();
+    const html = render(TrainerView, { props: { trainer: t } }).body;
+    expect(html).toContain('vs robots');
+    expect(html).toContain('4 boards');
   });
 
   it('carries on with a board half-bid after a reload, rather than dealing another', () => {

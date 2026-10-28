@@ -1087,8 +1087,15 @@ button { touch-action: manipulation; }
 .bt-sub { font-size: 12.5px; color: var(--dim); }
 .bt-sub b { color: var(--text); font-weight: 600; }
 .bt-diff { color: var(--warn); font-size: 24px; font-weight: 800; text-align: right; line-height: 1; white-space: nowrap; }
+.bt-diffs { display: flex; flex-direction: column; gap: 6px; }
+.bt-diffs .bt-diff { font-size: 20px; }
 .bt-diff.zero { color: var(--good); }
 .bt-diff small { display: block; margin-top: 3px; font-size: 11px; font-weight: 500; color: var(--dim); }
+.bt-tally { display: grid; grid-template-columns: 1fr 5em; align-items: baseline; row-gap: 2px; font-size: 13.5px; }
+.bt-tally.wide { grid-template-columns: 1fr 5em 5em; }
+.bt-tally b { text-align: right; font-variant-numeric: tabular-nums; }
+.bt-tally-h { text-align: right; font-size: 11px; color: var(--dim); }
+.bt-tally-wide { grid-column: 1 / -1; margin: 4px 0 0; }
 .bt-hands { display: flex; gap: 8px; }
 .bt-hand {
     flex: 1;
