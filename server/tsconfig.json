@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2024", "DOM"],
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    // Types only: the core imports TrickLog from engine/challenge.ts, which
+    // reaches the deal library through Vite's alias. The bundle never does
+    // (build.mjs fails if it would).
+    "paths": { "$root/*": ["../*"] }
+  },
+  "include": ["src", "test"]
+}

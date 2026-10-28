@@ -6,11 +6,23 @@
 // The records are the same `HistoryRecord` shape ONLINE_PLAN stores in
 // `boards.record`, so boards saved here can be uploaded unchanged once there
 // are accounts.
-import type { ChallengeLogEntry } from './game.svelte';
 import { RANKS, SUITS, VULNERABILITIES, type Card, type Seat, type Side, type Vulnerability } from './engine/card';
 import { PLAYERS, type CallRecord, type Contract } from './engine/auction';
 import type { ScoreResult } from './engine/scoring';
 import type { TrickLog } from './engine/challenge';
+
+/** One challenge board's result, for the challenge log. */
+export interface ChallengeLogEntry {
+  deal_id: number;
+  board_num: number;
+  you: number;
+  robot: number;
+  margin: number;
+  your_bidding_loss: number;
+  your_play_loss: number;
+  robot_bidding_loss: number;
+  robot_play_loss: number;
+}
 
 /** One finished board, as History replays it and LIN writes it. Plain data
  *  with no Svelte in it, so the table server builds the same records. */

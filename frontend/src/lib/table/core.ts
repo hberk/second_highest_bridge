@@ -328,6 +328,13 @@ function intent(s: TableState, me: Player, m: ClientMessage, ctx: Context): Outc
 
 // ── Robots ───────────────────────────────────────────────────────────────────
 
+/** A robot is to act next: the board is live and nobody plays that hand. */
+export function robotTurn(s: TableState): boolean {
+  if (!s.board) return false;
+  const d = derive(s.board);
+  return d.toAct !== null && !ownerOf(s, actorOf(d, d.toAct));
+}
+
 /** The robot's call or card, when a robot is to act; null when a person is
  *  (or the board is over). The robots get exactly what they get at a solo
  *  table, so they bid and play the same (`core.test.ts` checks it). */

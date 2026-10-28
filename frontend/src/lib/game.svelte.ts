@@ -14,14 +14,14 @@ import * as challenge from './engine/challenge';
 import type { Grade, RobotTable, TrickLog } from './engine/challenge';
 import {
   SAVE_KEY, askPersistence, boardKey, browserStorage, clearGames, loadGames, mergeGames, saveGames,
-  type HistoryRecord,
+  type ChallengeLogEntry, type HistoryRecord,
 } from './saves';
 import { liveAlerts as liveAlertsFor, robotAlerts, robotShown, type Readings } from './alerts';
 import { partnerOf } from './seats';
 
 export type Phase = 'bidding' | 'auction_done' | 'playing' | 'trick_done' | 'done';
 
-export type { HistoryRecord };
+export type { ChallengeLogEntry, HistoryRecord };
 
 export interface ChallengeResult {
   deal_id: number;
@@ -35,18 +35,6 @@ export interface ChallengeResult {
    *  so the review would otherwise have only the robots' side to show. */
   your_record?: HistoryRecord;
   margin: number;
-}
-
-export interface ChallengeLogEntry {
-  deal_id: number;
-  board_num: number;
-  you: number;
-  robot: number;
-  margin: number;
-  your_bidding_loss: number;
-  your_play_loss: number;
-  robot_bidding_loss: number;
-  robot_play_loss: number;
 }
 
 export { ALERT_MAX, cleanAlert };
