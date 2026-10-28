@@ -6,6 +6,7 @@ import { render } from 'svelte/server';
 import { Trainer, TRAINING_KEY, contractScore, misfits, nsTricks, trainingDealIds, trainingPar } from './trainer.svelte';
 import { prng } from './meanings';
 import { parseHand } from './engine/card';
+import { AuctionState } from './engine/auction';
 import * as challenge from './engine/challenge';
 import TrainerView from './views/TrainerView.svelte';
 
@@ -57,8 +58,18 @@ describe('Bidding training', () => {
       for (const s of ['C', 'D', 'H', 'S', 'NT'] as const) expect(r.dd[s]).toBe(nsTricks(r.dealId, s));
       // Every call South made is looked at.
       expect(r.checks.length).toBe(t.calls.filter(([p]) => p === 'South').length);
+      // The robots' auction on the same board, and where the two part.
+      const robots = new AuctionState(t.dealer, t.vulnerability);
+      for (const [p, c] of r.robotCalls) robots.applyCall(p, c);
+      expect(robots.isComplete).toBe(true);
+      expect(robots.getContract()?.strain ?? null).toBe(r.robotContract?.strain ?? null);
+      if (r.parting === null) expect(r.robotCalls).toEqual(t.calls);
+      else {
+        expect(r.robotCalls.slice(0, r.parting)).toEqual(t.calls.slice(0, r.parting));
+        expect(r.robotCalls[r.parting]?.[1]).not.toBe(t.calls[r.parting]?.[1]);
+      }
       const html = render(TrainerView, { props: { trainer: t } }).body;
-      for (const text of ['against par', 'North · partner', 'Was there a game?', 'Next board']) expect(html).toContain(text);
+      for (const text of ['against par', 'North · partner', 'Was there a game?', "Robots' auction, same deal", 'Next board']) expect(html).toContain(text);
       expect(html).not.toContain('Your call');
       t.newBoard();
     }

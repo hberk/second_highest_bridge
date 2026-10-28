@@ -97,6 +97,12 @@ export interface Recap {
   diff: number;
   robotContract: Contract | null;
   robotScore: number;
+  /** The robots' own auction on this board, all four seats, with their alerts. */
+  robotCalls: CallRecord[];
+  robotAlerts: Record<number, string>;
+  /** The first call where your auction and the robots' part, or null when
+   *  they are the same. */
+  parting: number | null;
   checks: CallCheck[];
   /** N/S tricks double dummy per strain, the better declarer. */
   dd: Record<Strain, number>;
@@ -339,6 +345,12 @@ export class Trainer {
       robots.applyCall(who, call);
     }
     const robotContract = robots.getContract();
+    const robotCalls = [...robots.calls] as CallRecord[];
+    const longest = Math.max(robotCalls.length, this.calls.length);
+    let parting: number | null = null;
+    for (let i = 0; i < longest && parting === null; i++) {
+      if (robotCalls[i]?.[1] !== this.calls[i]?.[1]) parting = i;
+    }
 
     const checks: CallCheck[] = [];
     this.calls.forEach(([who, call], i) => {
@@ -363,6 +375,9 @@ export class Trainer {
       diff: mine.score - par.score,
       robotContract,
       robotScore: contractScore(id, robotContract).score,
+      robotCalls,
+      robotAlerts,
+      parting,
       checks,
       dd: Object.fromEntries(STRAINS.map((s) => [s, nsTricks(id, s)])) as Record<Strain, number>,
       judge: { you: you.judge, partner: partner.judge },

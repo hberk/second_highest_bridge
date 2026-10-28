@@ -101,7 +101,10 @@ remains the reference.
   partner's hand beside yours (East-West behind a link), both hands' JP
   against the 26 / 32 / 33 lines (`GAME_MAJOR`, `GAME`, `SLAM`, exported
   from `gib.ts` for it), the auction with each of your calls against the
-  robot's call with your hand, where your hand fell outside what a call
+  robot's call with your hand, the robots' own auction on the same deal
+  under it (the user's ask, 2026-10-28: to see what was reasonable), with
+  the first call where the two part ringed in both and the robots' meaning
+  for theirs, where your hand fell outside what a call
   showed (`misfits`, from the alert's HCP range and suit lengths), and what
   each strain makes. **The deals are not the challenge's** (the user's
   call: a hand seen here would be seen again in Challenge):
