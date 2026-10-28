@@ -415,6 +415,22 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   half of its gap came from the opponents' extra turn after 2NT, and the
   rest from declined invitations); the same for responder (1♦ (2♥) 2NT)
   -0.19 and the game-forcing cuebid for responder about 0.
+- **Runouts after our 1NT is penalty-doubled** (`NT_RUNOUTS`, `_nt_runout`,
+  `_runout_choice`; the user's system, 2026-10-28, from training board 25,
+  where 1NT (X) P (P) had the opener bid Stayman: systems on read the
+  opener's turn as responder's). The notrump bidder never uses Stayman or
+  transfers: with partner silent it passes (guard in `notrump`, swept by a
+  test). Over the double, DONT-like, 4+ cards in each suit shown: Pass is
+  willing to play (opener pulls to two of a five-card suit,
+  `OPENER_PULLS`); XX is one long suit (5+, `RUNOUT_SINGLE`), opener bids
+  2♣, pass or correct; 2♣ is clubs and a higher suit, 2♦ diamonds and a
+  major, 2♥ both majors. Opener passes with four of the first suit (or three
+  and no four-card suit that partner could hold), else bids the next suit
+  up, which responder passes or corrects. Responder runs only with 4 HCP or
+  less (`RUNOUT_MAX`); with 5+ we have half the deck. 20,000 fresh deals,
+  against systems on: **+0.09, t = +2.2, 374 auctions changed**; running
+  with 7 or less +0.07, with 10 +0.03, and without opener's pull +0.05
+  (with 7).
 - **A major raise counts trump length** (`RAISE_TRUMP_POINTS`, the user's
   deal: 1♥ with ♠K5 ♥K9864 ♦K84 ♣832 raised to 2♥). With four or more
   trumps and under 13 HCP, 2M, 3M or 4M is chosen on HCP plus one point a

@@ -736,6 +736,9 @@ def test_runouts_after_1nt_is_doubled():
     assert call == 'Pass', call
     call, _ = bid('AS KS 3S QH 10H 8H 7H 2H 9D 6D 5D 5C 3C', '1NT', 'X')
     assert call == 'Pass', call                                       # 9 HCP: willing
+    # 5 HCP: we have half the deck, so even a two-suiter stays in (RUNOUT_MAX).
+    call, why = bid('7S 3S KH 10H 8H 7H 9D 6D 5D QD 9C 5C 3C', '1NT', 'X')
+    assert call == 'Pass' and '5+ HCP' in why, (call, why)
     # Opener answers: XX forces 2C; 2D is passed with a fit, else relayed.
     call, _ = bid(opener, '1NT', 'X', 'XX', 'Pass')
     assert call == '2C', call

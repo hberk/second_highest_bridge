@@ -179,6 +179,10 @@ from the variant's side; t as above.
 | 10-28 | ...2NT a 10-12 limit raise, the cuebid game forcing | +0.02 | +0.38 | 172 | off |
 | 10-28 | ...the game-forcing cuebid for responder too | +0.11 | +1.62 | 402 | off |
 | 10-28 | ...2NT a 10-12 limit raise for responder too | -0.19 | -2.16 | 490 | off |
+| 10-28 | Runouts after our 1NT is penalty-doubled (the user's DONT-like system), responder running with 4 HCP or less; the 1NT bidder never uses Stayman or transfers (training board 25). 20,000 fresh deals | **+0.09** | +2.17 | 374 | on (your call) |
+| 10-28 | ...running with 7 HCP or less | +0.07 | +1.55 | 439 | off |
+| 10-28 | ...with 7, opener never pulling a pass | +0.05 | +1.25 | 424 | off |
+| 10-28 | ...running with 10 HCP or less | +0.03 | +0.58 | 460 | off |
 
 ### The previous system (`ai_bid`)
 

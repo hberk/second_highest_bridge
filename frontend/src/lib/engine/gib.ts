@@ -2652,9 +2652,11 @@ function answerExtrasDouble(ctx: Ctx): Decision | null {
  *  clubs and a higher suit, 2♦ diamonds and a higher, 2♥ hearts and spades,
  *  4+ in each. Opener passes with a fit or bids the next suit up, which
  *  responder passes or corrects. Responder runs only with RUNOUT_MAX HCP or
- *  fewer; with more, 1NT doubled is passed. */
+ *  fewer; with 5+ we have half the deck and 1NT doubled is passed (the user's
+ *  pick: 4 measured +0.09 a board, t = 2.2, against 7's +0.07 on 20,000
+ *  fresh deals). */
 export const NT_RUNOUTS = true;
-export const RUNOUT_MAX = 7;
+export const RUNOUT_MAX = 4;
 export const RUNOUT_SINGLE = 5;
 export const OPENER_PULLS = true;
 const RUNOUT_ALERTS: Record<string, string> = {
@@ -2742,14 +2744,14 @@ function ntRunout(ctx: Ctx): Decision | null {
 /** Responder's first call over the double. */
 function runoutChoice(ctx: Ctx): Decision {
   const h = ctx.h;
-  if (h.hcp > RUNOUT_MAX) return ['Pass', 'Willing to play 1NT doubled.'];
+  if (h.hcp > RUNOUT_MAX) return ['Pass', `${RUNOUT_MAX + 1}+ HCP: willing to play 1NT doubled.`];
   const four = SUITS.filter((s) => h.len[s] >= 4);
   let call: string;
   if (four.includes('C') && four.length >= 2) call = '2C';
   else if (four.includes('D') && MAJORS.some((m) => four.includes(m))) call = '2D';
   else if (four.includes('H') && four.includes('S')) call = '2H';
   else if (h.len[h.longest()] >= RUNOUT_SINGLE) call = 'XX';
-  else return ['Pass', 'Willing to play 1NT doubled.'];
+  else return ['Pass', 'No runout: playing 1NT doubled.'];
   if (!ctx.ok(call)) return ['Pass', 'Nothing to add.'];
   return [call, RUNOUT_ALERTS[call]];
 }

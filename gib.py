@@ -2854,9 +2854,11 @@ def _answer_extras_double(ctx: Ctx) -> tuple | None:
 #: clubs and a higher suit, 2♦ diamonds and a higher, 2♥ hearts and spades,
 #: 4+ in each. Opener passes with a fit or bids the next suit up, which
 #: responder passes or corrects. Responder runs only with RUNOUT_MAX HCP or
-#: fewer; with more, 1NT doubled is passed.
+#: fewer; with 5+ we have half the deck and 1NT doubled is passed (the user's
+#: pick: 4 measured +0.09 a board, t = 2.2, against 7's +0.07 on 20,000
+#: fresh deals).
 NT_RUNOUTS = True
-RUNOUT_MAX = 7
+RUNOUT_MAX = 4
 RUNOUT_SINGLE = 5
 OPENER_PULLS = True
 RUNOUT_ALERTS = {
@@ -2945,7 +2947,7 @@ def _runout_choice(ctx: Ctx) -> tuple:
     """Responder's first call over the double."""
     h = ctx.h
     if h.hcp > RUNOUT_MAX:
-        return 'Pass', "Willing to play 1NT doubled."
+        return 'Pass', f"{RUNOUT_MAX + 1}+ HCP: willing to play 1NT doubled."
     four = [s for s in SUITS if h.len[s] >= 4]
     if 'C' in four and len(four) >= 2:
         call = '2C'
@@ -2956,7 +2958,7 @@ def _runout_choice(ctx: Ctx) -> tuple:
     elif h.len[h.longest()] >= RUNOUT_SINGLE:
         call = 'XX'
     else:
-        return 'Pass', "Willing to play 1NT doubled."
+        return 'Pass', "No runout: playing 1NT doubled."
     if not ctx.ok(call):
         return 'Pass', "Nothing to add."
     return call, RUNOUT_ALERTS[call]
