@@ -159,6 +159,13 @@ from the variant's side; t as above.
 | 10-24 | ...and before the doubled side stopped raising its own suit (the incumbent ran 4♦X to 7♦X) | +10.95 | +13.37 | 1,402 | (a bug's gain) |
 | 10-24 | A cuebid raise shows 3+ of partner's suit to the LoTT (deal 338: 1♦ 1♠ X 2♦ - 2♠ 3♥ passed out on ten spades) | +0.24 | +2.88 | 61 | on (your call) |
 | 10-24 | ...both together | **+4.34** | +7.77 | 809 | on |
+| 10-28 | Ten trumps jam to game at once: partner's opening, my first call, any interference (or a pass after a pre-empt), majors (the user's Challenge deal: 2♠ X with ♠A10652). 10,000 fresh deals, measured before the rule below that nobody bids again after it | **+1.09** | +10.05 | 659 | on (your call) |
+| 10-28 | ...the user's exact case only (weak two doubled) | +0.04 | +1.89 | 26 | (folded into the above) |
+| 10-28 | ...with five of a minor too (with the raise below) | +0.27 more | | 282 | off (trips the no-runaway test) |
+| 10-28 | A major raise counts trump length: HCP + 1 a trump past three (deal: 1♥ with ♠K5 ♥K9864 ♦K84 ♣832 raised to 2♥) | +0.13 | +2.94 | 215 | on (your call) |
+| 10-28 | ...4M on any five trumps instead | 0.00 | +0.04 | 41 | off |
+| 10-28 | ...jam and raise together, nobody bidding again after the jam | **+1.11** | +8.98 | 880 | on |
+| 10-28 | ...the same, letting both compete again after the jam | +1.22 | +10.40 | 874 | off (the user's rule: never later) |
 
 ### The previous system (`ai_bid`)
 
