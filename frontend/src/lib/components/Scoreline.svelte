@@ -17,11 +17,9 @@
   <div class="metric">
     <div class="metric-label">Robots</div>
     <div class="metric-value">{signed(result.robot.actual)}</div>
-    <!-- Good for you when the robots scored less, hence the inverted colour. -->
-    <div class="metric-delta {margin > 0 ? 'good' : margin < 0 ? 'bad' : ''}">{signed(margin)}</div>
   </div>
   <div class="metric" title="The most this deal offered your side with perfect bidding and perfect play. It ignores whether the opponents would have competed over it, so treat it as a ceiling rather than a score anyone could guarantee.">
-    <div class="metric-label">Par (best available) ⓘ</div>
+    <div class="metric-label">Par ⓘ</div>
     <div class="metric-value">{signed(result.you.par.score)}</div>
   </div>
 </div>

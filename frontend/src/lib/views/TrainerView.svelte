@@ -5,6 +5,7 @@
      judgement points you held together, your calls against the robot's, and
      what each strain makes double dummy. -->
 <script lang="ts">
+  import { rankText } from '../components/format';
   import { STRAIN_SYMBOLS, SUIT_SYMBOLS, parseBid, type Card, type Seat, type Strain as StrainT, type Suit } from '../engine/card';
   import type { Contract } from '../engine/auction';
   import { GAME, GAME_MAJOR, SLAM } from '../engine/gib';
@@ -36,10 +37,22 @@
   const pct = (n: number) => `${(n / 40) * 100}%`;
 
   /** The auction under its seats, West first, with your calls looked at. */
-  const cells = $derived.by(() => {
+  /** An auction under its seats, West first. */
+  function gridOf(calls: [Seat, string][]) {
     const blanks = (COLUMNS.indexOf(trainer.dealer) + 4) % 4;
     return [...Array.from({ length: blanks }, () => null),
-      ...trainer.calls.map(([who, call], i) => ({ who, call, i }))];
+      ...calls.map(([who, call], i) => ({ who, call, i }))];
+  }
+  const cells = $derived(gridOf(trainer.calls));
+  const robotCells = $derived(recap ? gridOf(recap.robotCalls) : []);
+  /** Where the two auctions part: the seat, your table's call, the robots'. */
+  const parting = $derived.by(() => {
+    if (!recap || recap.parting === null) return null;
+    const i = recap.parting;
+    const mine = trainer.calls[i];
+    const theirs = recap.robotCalls[i];
+    return { i, who: (mine ?? theirs)![0], mine: mine?.[1] ?? null, theirs: theirs?.[1] ?? null,
+      why: recap.robotAlerts[i] ?? null };
   });
   const checkAt = (i: number) => recap?.checks.find((c) => c.index === i) ?? null;
   const notes = $derived(recap ? recap.checks.filter((c) => c.robot !== c.call || c.misfits.length) : []);
@@ -75,7 +88,7 @@
     {#each ORDER as s (s)}
       {@const cs = cards.filter((c) => c.suit === s)}
       <div class="bt-suit"><span class="bt-pip s-{s.toLowerCase()}">{SUIT_SYMBOLS[s]}</span>
-        {#if cs.length}{#each cs as c (c.rank)}<span class:bt-jp={JP[c.rank]}>{c.rank}</span>{/each}{:else}<span class="dim">—</span>{/if}
+        {#if cs.length}{#each cs as c (c.rank)}<span class:bt-jp={JP[c.rank]}>{rankText(c.rank)}</span>{/each}{:else}<span class="dim">—</span>{/if}
       </div>
     {/each}
   </div>
@@ -164,13 +177,16 @@
       </section>
 
       <section class="bt-card">
+        <div class="bt-auction-title"><span class="eyebrow">Your auction</span>
+          <span>{@render contractText(recap.contract)} {signed(recap.score)}</span></div>
         <div class="bt-auction">
           {#each COLUMNS as seat (seat)}<span class="bt-head">{seat}</span>{/each}
           {#each cells as cell, k (k)}
             {#if cell === null}<span></span>
             {:else}
               {@const check = checkAt(cell.i)}
-              <span class:bt-me={cell.who === 'South'} class:bt-bad={check && check.robot !== cell.call}>
+              <span class:bt-me={cell.who === 'South'} class:bt-bad={check && check.robot !== cell.call}
+                class:bt-part={parting?.i === cell.i}>
                 {@render callText(cell.call)}{#if check}{check.robot === cell.call ? ' ✓' : ' ✗'}{/if}
                 {#if check && check.robot !== cell.call}<small class="bt-robot">robot: {@render callText(check.robot)}</small>{/if}
               </span>
@@ -179,11 +195,32 @@
         </div>
         {#each notes as n (n.index)}
           <p class="bt-note">
-            <b>{@render callText(n.call)}</b>{#if n.meaning} showed: {n.meaning}{:else if n.call !== 'Pass'} has no agreed meaning here.{:else}.{/if}
+            <b>{@render callText(n.call)}</b>{#if n.meaning}{" "}showed: {n.meaning}{:else if n.call !== 'Pass'} has no agreed meaning here.{:else}.{/if}
             {#if n.misfits.length}You hold {n.misfits.join(' and ')}.{/if}
             {#if n.robot !== n.call}The robot would bid {@render callText(n.robot)}.{/if}
           </p>
         {/each}
+
+        <div class="bt-auction-title bt-robots-title"><span class="eyebrow">Robots' auction, same deal</span>
+          <span>{@render contractText(recap.robotContract)} {signed(recap.robotScore)}</span></div>
+        <div class="bt-auction">
+          {#each COLUMNS as seat (seat)}<span class="bt-head">{seat}</span>{/each}
+          {#each robotCells as cell, k (k)}
+            {#if cell === null}<span></span>
+            {:else}
+              <span class:bt-me={cell.who === 'South'} class:bt-part={parting?.i === cell.i}>{@render callText(cell.call)}</span>
+            {/if}
+          {/each}
+        </div>
+        <p class="bt-note">
+          {#if parting === null}The robots bid it exactly as you did.
+          {:else}
+            The auctions part at {parting.who === 'South' ? 'your' : `${parting.who}'s`} call:
+            {#if parting.mine}{@render callText(parting.mine)}{:else}the auction over{/if} at your table,
+            {#if parting.theirs}{@render callText(parting.theirs)}{:else}the auction over{/if} at the robots'.
+            {#if parting.theirs && parting.why}The robots' {@render callText(parting.theirs)}: {parting.why}{/if}
+          {/if}
+        </p>
       </section>
 
       <section class="bt-card">

@@ -19,8 +19,9 @@
   import Scoreline from '../components/Scoreline.svelte';
   import Breakdown from '../components/Breakdown.svelte';
 
-  let { game, onhome, onsettings = () => {} }:
-    { game: Game; onhome?: () => void; onsettings?: () => void } = $props();
+  /** `onreview` opens the Challenge tab's review of both boards. */
+  let { game, onhome, onsettings = () => {}, onreview }:
+    { game: Game; onhome?: () => void; onsettings?: () => void; onreview?: () => void } = $props();
 
   const m = new TableModel(() => game);
   useFastPlay(() => game);
@@ -65,6 +66,7 @@
   {#if game.challenge}
     <section class="challenge-result">
       <Scoreline result={game.challenge} />
+      {#if onreview}<button class="btn full" onclick={onreview}>See the robots' board ›</button>{/if}
       <Breakdown result={game.challenge} />
     </section>
   {/if}
@@ -83,9 +85,8 @@
         <div class="res-contract">{@render contractText()} <span class="dim">by {by(c.declarer)}</span></div>
         <div class="res-verdict" class:made={r.made} class:down={!r.made}>{r.made ? 'Contract made' : 'Contract down'}</div>
         <div class="res-points" class:plus={ns > 0} class:minus={ns < 0}>{signed(ns)}</div>
-        <div class="res-to">to your side, North-South</div>
-        <p class="res-detail">{r.detail}</p>
-        <p class="res-detail">Tricks: N/S {game.tricksTaken['N/S']}, E/W {game.tricksTaken['E/W']}. {c.declarer === 'South' || c.declarer === 'North' ? 'You' : 'They'} needed {r.tricks_needed}.</p>
+        <div class="res-to">to N/S</div>
+        <p class="res-detail">N/S {game.tricksTaken['N/S']} tricks · E/W {game.tricksTaken['E/W']} · {r.tricks_needed} needed</p>
       </section>
       <button class="btn primary full big" onclick={() => game.newBoard()}>Deal the next board</button>
       {@render challengeResult()}

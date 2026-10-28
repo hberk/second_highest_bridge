@@ -257,7 +257,6 @@ button { touch-action: manipulation; }
 }
 .fcard-rank { font-size: var(--rank); }
 /* A crowded fan shows only a sliver of each card: "10" has to fit in it. */
-.fcard-rank.ten { font-size: calc(var(--rank) * 0.86); letter-spacing: -0.12em; margin-left: -1px; }
 .fcard-suit { font-size: var(--suit); margin-top: 3px; }
 .fan.playable .fcard { cursor: pointer; }
 .fan.playable .fcard.legal { transform: translateY(-12px); }
@@ -287,8 +286,10 @@ button { touch-action: manipulation; }
    foot of every label points at the centre: writing-mode lays the seat out
    sideways, so the layout measures it rotated, and West is turned the rest
    of the way round. column-reverse keeps each name at the outer edge. Sizes
-   below are logical, so one set of rules covers both directions. */
-.af-west, .af-east { writing-mode: vertical-lr; flex-direction: column-reverse; }
+   below are logical, so one set of rules covers both directions. Suit symbols
+   stand upright in vertical text by default; sideways turns them with the
+   rest of the label. */
+.af-west, .af-east { writing-mode: vertical-lr; text-orientation: sideways; flex-direction: column-reverse; }
 .af-west { transform: translateY(-50%) rotate(180deg); }
 .bc-stack { display: flex; }
 .bc {
@@ -1034,9 +1035,17 @@ button { touch-action: manipulation; }
 .hv-more { border-top: 1px solid var(--line); padding: 4px 0; }
 .hv-more > summary { padding: 10px 0; cursor: pointer; color: var(--dim-2); font-weight: 600; }
 .hv-more .lin-box { display: flex; flex-direction: column; gap: 8px; }
-.hv .log-table td.hv-won span { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.hv .log-table td.hv-won > span { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 .hv .dd-losses { margin: 0; }
 .hv-seat { width: calc(50% - 4px); margin: 0 auto; }
+/* A phone's West or East to play: its column widens, so the cards and the
+   marks under them wrap less. */
+.hv-compass.west-wide { grid-template-columns: minmax(0, 1.7fr) 84px minmax(0, 1fr); }
+.hv-compass.east-wide { grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1.7fr); }
+.marks-wide .hd-marked { gap: 3px 4px; }
+.marks-wide .hd-card { min-width: 14px; }
+.marks-wide .dd-mark { padding: 1px 2px; min-width: 0; font-size: 9px; border-radius: 3px; }
+.marks-wide .seat-box-head { flex-wrap: wrap; }
 .hv-summary { text-align: left; }
 
 /* ── Bidding training (2026-10-27) ───────────────────────────────────────── */
@@ -1131,3 +1140,8 @@ button { touch-action: manipulation; }
 .ts-tabs { min-width: 0; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
 .ts-tabs::-webkit-scrollbar { display: none; }
 @media (max-width: 420px) { .ts-tab { font-size: 13.5px; } .ts-count { margin-left: 3px; padding: 0 5px; } }
+/* Your auction and the robots', one above the other (2026-10-28). The call
+   where they part is ringed in both. */
+.bt-auction-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; font-size: 13px; font-weight: 700; }
+.bt-robots-title { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.bt-part { outline: 2px solid var(--accent); outline-offset: -1px; border-radius: 6px; }

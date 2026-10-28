@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { Game, type HistoryRecord } from './lib/game.svelte';
   import { Trainer } from './lib/trainer.svelte';
   import { settings } from './lib/settings.svelte';
@@ -46,6 +46,13 @@
     window.scrollTo(0, 0);
   }
 
+  /** From a finished challenge board to the review of both boards. */
+  async function review(): Promise<void> {
+    go('challenge');
+    await tick();
+    document.getElementById('challenge-review')?.scrollIntoView();
+  }
+
   $effect(() => {
     settings.applyDeck();
     settings.save();
@@ -84,7 +91,7 @@
   <div class="dk-app">
     <DeskHeader {screen} {game} onnav={go} />
     {#if screen === 'table'}
-      <DesktopTableView {game} />
+      <DesktopTableView {game} onreview={review} />
     {:else}
       <main class="page dk-page">{@render section()}</main>
     {/if}
@@ -92,7 +99,7 @@
 {:else if screen === 'table'}
   <div class="tabbed-table">
     <TabStrip {screen} {game} onnav={go} />
-    <div class="tabbed"><TableView {game} onsettings={() => (settingsOpen = true)} /></div>
+    <div class="tabbed"><TableView {game} onsettings={() => (settingsOpen = true)} onreview={review} /></div>
   </div>
 {:else if screen === 'training'}
   <div class="tabbed-table">

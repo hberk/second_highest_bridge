@@ -6,6 +6,7 @@ import { PARTNERSHIP } from '../engine/auction';
 import { cardKey, type Card, type Seat } from '../engine/card';
 import type { HistoryRecord } from '../game.svelte';
 import type { PlayedBoard } from './solver';
+import workerUrl from './worker.ts?worker&url';
 
 /** Decisions with at most this many cards in hand are analysed at once.
  *  The last 11 tricks took 0.9 s median and 4.9 s at worst on a laptop over
@@ -55,7 +56,11 @@ export function tricksLost(seats: Seat[], plays: Card[], values: Record<number, 
 export class DdAnalysis {
   /** Decision index (cards played before it) -> card key -> N/S tricks for the rest. */
   values = $state<Record<number, Record<string, number>>>({});
+  /** Why the analysis stopped, shown after "Double dummy:". */
   error = $state('');
+  /** The error may pass on a second try (a download or a crash, not a
+   *  refused board or an updated app). */
+  canRetry = $state(false);
   running = $state(false);
   /** The early tricks have been asked for. */
   deep = $state(false);
@@ -64,6 +69,11 @@ export class DdAnalysis {
   private plays: Card[];
   private seats: Seat[];
   private pending: number[] = [];
+  /** The worker's script has run: an error before it means it never loaded. */
+  private ready = false;
+  /** Quiet retries left for a worker that didn't load (a dropped connection). */
+  private retries = 1;
+  private retryTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private record: HistoryRecord) {
     this.plays = record.tricks_log.flatMap((t) => t.plays.map(([, c]) => c));
@@ -84,7 +94,7 @@ export class DdAnalysis {
     const c = this.record.contract;
     if (!c || this.worker || !this.plays.length) return;
     if (typeof Worker === 'undefined') {
-      this.error = 'Double dummy analysis needs a browser with Web Workers.';
+      this.error = 'needs a browser with Web Workers.';
       return;
     }
     const board: PlayedBoard = {
@@ -93,13 +103,53 @@ export class DdAnalysis {
       strain: c.strain,
       plays: this.plays,
     };
-    this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
-    this.worker.onmessage = (e) => this.receive(e.data);
-    this.worker.onerror = (e) => {
-      this.error = `Double dummy analysis stopped: ${e.message || 'the solver could not start'}.`;
-      this.running = false;
+    this.error = '';
+    this.canRetry = false;
+    this.ready = false;
+    const worker = new Worker(workerUrl, { type: 'module' });
+    this.worker = worker;
+    worker.onmessage = (e) => this.receive(e.data);
+    worker.onerror = (e) => {
+      e.preventDefault();
+      if (this.worker === worker) void this.failed(e.message);
     };
-    this.send(this.order(AUTO_CARDS, 0), $state.snapshot(board));
+    // Decisions already in (from before a retry) aren't asked for again.
+    const order = [...this.order(AUTO_CARDS, 0), ...(this.deep ? this.order(13, AUTO_CARDS) : [])];
+    this.send(order.filter((i) => !this.values[i]), $state.snapshot(board));
+  }
+
+  /** Start again after an error that may pass. */
+  retry(): void {
+    this.stop();
+    this.start();
+  }
+
+  /** The worker died. One that never ran its script didn't load: after a
+   *  deploy, the page's copy points at a file the site no longer has. */
+  private async failed(message: string): Promise<void> {
+    const loaded = this.ready;
+    this.stop();
+    if (!loaded) {
+      let status = 0;
+      try {
+        status = (await fetch(workerUrl, { method: 'HEAD', cache: 'no-store' })).status;
+      } catch {
+        // Offline: status stays 0.
+      }
+      if (status === 404) {
+        this.error = 'the app has been updated. Reload the page.';
+        return;
+      }
+      if (this.retries-- > 0) {
+        this.running = true;
+        this.retryTimer = setTimeout(() => this.start(), 1000);
+        return;
+      }
+      this.error = "couldn't load the solver. Check the connection.";
+    } else {
+      this.error = message ? `stopped (${message}).` : 'the solver stopped.';
+    }
+    this.canRetry = true;
   }
 
   /** Analyse the tricks AUTO_CARDS leaves out. */
@@ -110,8 +160,10 @@ export class DdAnalysis {
   }
 
   stop(): void {
+    clearTimeout(this.retryTimer);
     this.worker?.terminate();
     this.worker = null;
+    this.pending = [];
     this.running = false;
   }
 
@@ -121,9 +173,13 @@ export class DdAnalysis {
     this.worker!.postMessage({ board, order });
   }
 
-  private receive(msg: { i?: number; values?: [string, number][]; done?: boolean; error?: string }): void {
-    if (msg.error) {
-      this.error = `Double dummy analysis stopped: ${msg.error}.`;
+  private receive(msg: { ready?: boolean; i?: number; values?: [string, number][]; done?: boolean; error?: string }): void {
+    if (msg.ready) {
+      this.ready = true;
+    } else if (msg.error) {
+      // The solver's own messages start "double dummy:", which the view says.
+      this.error = `${msg.error.replace(/^double dummy: /, '')}.`;
+      this.canRetry = msg.error.startsWith("couldn't load");
       this.stop();
     } else if (msg.values && msg.i !== undefined) {
       this.values[msg.i] = Object.fromEntries(msg.values);

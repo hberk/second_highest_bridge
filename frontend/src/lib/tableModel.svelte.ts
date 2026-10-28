@@ -1,7 +1,7 @@
 // What the table shows, worked out once from the game for both layouts:
 // whose turn it is, which hands are face up, how each seat is labelled, and
 // the last-trick peek. The phone and desktop views only draw it differently.
-import type { Seat, Vulnerability } from './engine/card';
+import type { Seat, Suit, Vulnerability } from './engine/card';
 import { legalPlays } from './engine/auction';
 import { evalHandSh, hcp } from './engine/ai';
 import type { Game } from './game.svelte';
@@ -74,12 +74,15 @@ export class TableModel {
   }
 
   /** Your hand's strength while you bid: HCP, this variant's own valuation
-   *  (one decimal) and shape. Null once a card has been played. */
+   *  (one decimal) and shape, in suit order ♠-♥-♦-♣. Null once a card has
+   *  been played. */
   strength = $derived.by(() => {
     const h = this.game.hands.South;
     if (h.length !== 13) return null;
     const ev = evalHandSh(h);
-    return { hcp: hcp(h), value: ev.total_pts.toFixed(1), shape: ev.lengths.join('-') };
+    const len = (s: Suit) => h.filter((c) => c.suit === s).length;
+    const shape = (['S', 'H', 'D', 'C'] as const).map(len).join('-');
+    return { hcp: hcp(h), value: ev.total_pts.toFixed(1), shape };
   });
 
   // ── Last trick ─────────────────────────────────────────────────────────────
