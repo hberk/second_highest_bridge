@@ -2879,6 +2879,13 @@ def _middle_play(player: str, legal: list[Card], trick: list[tuple[str, Card]],
 
 #: Fourth hand counts partner's winning as its own (measurement switch).
 LAST_HAND_FOR_PARTNER = True
+#: Of the cards that win the trick, fourth hand spends a dead one first: a card
+#: no other seat can beat wins later only alone in its suit, while a low card
+#: can still be second-highest (measurement switch). On challenge deal 10 East
+#: ruffed a club with the 6S from AS JS 6S and went down; the JS or AS makes.
+DEAD_WINNER_FIRST = False
+#: DEAD_WINNER_FIRST only for ruffs, not for following suit (measurement switch).
+DEAD_WINNER_RUFF_ONLY = False
 
 
 def _play_last(legal: list[Card], trick: list[tuple[str, Card]], trump: str | None,
@@ -2902,6 +2909,13 @@ def _play_last(legal: list[Card], trick: list[tuple[str, Card]], trump: str | No
         if resolve_trick(trick + [(_AI_TAG, c)], trump) in ours
     ]
     if winning:
+        if DEAD_WINNER_FIRST and hand is not None:
+            led = trick[0][1].suit
+            gone = set(played or []) | {c for _, c in trick}
+            dead = [c for c in winning if _dead(c, hand, gone)
+                    and not (DEAD_WINNER_RUFF_ONLY and c.suit == led)]
+            if dead:
+                return min(dead, key=lambda c: c.value())
         return min(winning, key=lambda c: c.value())
     if DEAD_CARD_LAST and hand is not None:
         led = trick[0][1].suit
