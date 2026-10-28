@@ -2370,12 +2370,18 @@ def _answer_reopening(ctx: Ctx) -> tuple | None:
     return None
 
 
+#: Only after a one-level opening: a pre-emptor is not forced by it.
+FORCED_ONE_LEVEL_ONLY = False
+
+
 def _opener_over_forcing_response(ctx: Ctx) -> tuple | None:
     """In competition, responder's new suit is forcing for one round
     ("Forcing." in its alert): opener must bid. Raise with support, else
     rebid a long suit, show a stopper in notrump, or name a new suit."""
     seq = ctx.seq
     if not ctx.i_am_opener() or len(seq) != 2 or ctx.ours[1][0] != ctx.pd:
+        return None
+    if FORCED_ONE_LEVEL_ONLY and level_of(seq[0]) != 1:
         return None
     y = strain_of(seq[1])
     x = strain_of(seq[0])
