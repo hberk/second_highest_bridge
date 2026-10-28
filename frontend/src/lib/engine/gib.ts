@@ -244,7 +244,8 @@ export function gibBid(player: Seat, cards: Card[], auction: AuctionState): Deci
   if (!ctx.legal.length) return null;
   let decision = decide(ctx);
   const placedByJam = afterJam(ctx);
-  if (placedByJam && (!decision || decision[0] !== 'X')) return placedByJam;
+  if (placedByJam && JAM_NEVER_AGAIN && (!decision || decision[0] !== 'X')) return placedByJam;
+  if (placedByJam && !JAM_NEVER_AGAIN) decision = placedByJam;
   if (!decision || (decision[0] !== 'X' && decision[0] !== 'XX')) {
     decision = jamGame(ctx) ?? decision;   // a penalty double outranks the jam
   }
@@ -1761,13 +1762,15 @@ function totalTricks(ctx: Ctx, decision: Decision | null): Decision | null {
 /** Jam to game on a ten-card fit (the user's call, 2026-10-28). When
  *  partner's opening is the only bid our side has made, my first call is game
  *  in it if my length and partner's shown length make JAM_FIT: over any call
- *  of theirs, and over a pass too after a pre-empt. See gib.py. */
+ *  of theirs, and over a pass too after a pre-empt; five of a minor too. See gib.py. */
 export const JAM_GAME = true;
 export const JAM_FIT = 10;
 export const JAM_OPENINGS = [1, 2, 3];
 export const JAM_OVER_BIDS = true;
 export const JAM_UNCONTESTED = true;
-export const JAM_MINORS = false;
+export const JAM_MINORS = true;
+/** The user's choice: both partners may compete again after the jam. */
+export const JAM_NEVER_AGAIN = false;
 const jamText = (x: Suit) => `Game in ${SYM[x]}: to make or to jam the auction.`;
 
 /** The game call partner's opening asks of my first call, or null. */
@@ -1791,15 +1794,18 @@ function jamGame(ctx: Ctx): Decision | null {
   return ctx.h.len[x] + partnerLength(ctx, x) >= JAM_FIT ? [game, jamText(x)] : null;
 }
 
-/** Both of us after the jump to game in the jam seat: the contract is placed
- *  and the auction jammed, so pass, whatever they bid next. */
+/** After the jump to game in the jam seat the contract is placed: the
+ *  pre-empter passes over what they bid next. With JAM_NEVER_AGAIN both of us
+ *  pass whatever they bid, for the rest of the auction. */
 function afterJam(ctx: Ctx): Decision | null {
   if (!JAM_GAME || ctx.seq.length < 2 || !ctx.legal.length) return null;
+  if (!JAM_NEVER_AGAIN && (!ctx.iAmOpener() || ctx.seq.length !== 2)) return null;
   const jammer = ctx.ours[1][0];
   if (ctx.ours[0][0] === jammer) return null;
   const at = ctx.calls.findIndex(([w, c]) => w === jammer && c === ctx.ours[1][1]);
   const before = new Ctx(jammer, [], replay(ctx.auction, at));
-  return ctx.seq[1] === jamSpot(before) ? ['Pass', 'The contract is placed.'] : null;
+  if (ctx.seq[1] !== jamSpot(before)) return null;
+  return ['Pass', JAM_NEVER_AGAIN ? 'The contract is placed.' : 'Partner placed the contract.'];
 }
 
 function replay(auction: AuctionState, n: number): AuctionState {

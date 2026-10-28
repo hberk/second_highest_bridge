@@ -241,8 +241,10 @@ def gib_bid(player: str, cards: list[Card], auction: AuctionState) -> tuple | No
         return None
     decision = _decide(ctx)
     placed = _after_jam(ctx)
-    if placed and (not decision or decision[0] != 'X'):
+    if placed and JAM_NEVER_AGAIN and (not decision or decision[0] != 'X'):
         return placed
+    if placed and not JAM_NEVER_AGAIN:
+        decision = placed
     if not decision or decision[0] not in ('X', 'XX'):     # a penalty double outranks the jam
         decision = _jam_game(ctx) or decision
     decision = _total_tricks(ctx, decision) or decision
@@ -1870,13 +1872,16 @@ def _total_tricks(ctx: Ctx, decision: tuple | None) -> tuple | None:
 #: our side has made and they have come in, my first call is game in it if
 #: my length and partner's shown length make JAM_FIT. JAM_OPENINGS are the
 #: opening levels it answers; JAM_OVER_BIDS lets it answer an overcall too,
-#: not only a double; JAM_MINORS lets it bid five of a minor.
+#: not only a double; JAM_MINORS lets it bid five of a minor. The user
+#: chose (2026-10-28) to let both partners compete again later
+#: (JAM_NEVER_AGAIN off): +1.50 a board against +1.38 with it on.
 JAM_GAME = True
 JAM_FIT = 10
 JAM_OPENINGS = (1, 2, 3)
 JAM_OVER_BIDS = True
 JAM_UNCONTESTED = True
-JAM_MINORS = False
+JAM_MINORS = True
+JAM_NEVER_AGAIN = False
 JAM_ALERT = "Game in {}: to make or to jam the auction."
 
 
@@ -1909,10 +1914,13 @@ def _jam_game(ctx: Ctx) -> tuple | None:
 
 
 def _after_jam(ctx: Ctx) -> tuple | None:
-    """Both of us after the jump to game in the jam seat: the contract is
-    placed and the auction jammed, so pass, whatever they bid next. The
-    jam was now or never; bidding on later is what it replaces."""
+    """After the jump to game in the jam seat the contract is placed: the
+    pre-empter passes over what they bid next (else 3♦ X 5♦ went on to 6♦
+    and 7♦). With JAM_NEVER_AGAIN both of us pass whatever they bid, for
+    the rest of the auction."""
     if not JAM_GAME or len(ctx.seq) < 2 or not ctx.legal:
+        return None
+    if not JAM_NEVER_AGAIN and (not ctx.i_am_opener() or len(ctx.seq) != 2):
         return None
     jammer = ctx.ours[1][0]
     if ctx.ours[0][0] == jammer:
@@ -1920,7 +1928,7 @@ def _after_jam(ctx: Ctx) -> tuple | None:
     at = ctx.calls.index(ctx.ours[1])
     before = Ctx(jammer, [], _replay(ctx.auction, at))
     if ctx.seq[1] == _jam_spot(before):
-        return 'Pass', "The contract is placed."
+        return 'Pass', "The contract is placed." if JAM_NEVER_AGAIN else "Partner placed the contract."
     return None
 
 

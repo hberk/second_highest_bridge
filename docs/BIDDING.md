@@ -385,16 +385,17 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   if my length and partner's shown length make ten (`JAM_FIT`): over any
   call of theirs after a one-, two- or three-level opening, and over a pass
   too after a pre-empt (`JAM_OPENINGS`, `JAM_OVER_BIDS`, `JAM_UNCONTESTED`).
-  Majors only (`JAM_MINORS`: five of a minor trips the no-runaway test).
-  Never later: once it has jammed, both partners pass whatever they bid
-  (a penalty double still stands). A penalty double outranks the jam. Every
-  4M in the jam seat, whichever branch bids it, alerts "Game in ♥: to make
-  or to jam the auction." 10,000 fresh deals (`research/gib_fresh_h2h.py`),
-  with the raise below: **+1.11 a board, t = +9.0, 880 auctions changed**
-  (393 better, 237 worse). The user's exact case alone (weak two doubled)
-  +0.04, t = +1.9, 26 auctions; over overcalls and three-level pre-empts too
-  +0.26; with one-level majors +0.74; with minors +0.45 more; letting the
-  partners compete again after the jam +0.11 more.
+  Five of a minor too (`JAM_MINORS`); the no-runaway test lets a jammed
+  five-level contract through. The pre-empter passes over their next bid
+  (else 3♦ X 5♦ went on to 6♦ and 7♦); after that both partners compete as
+  usual (the user's choice; `JAM_NEVER_AGAIN` makes both pass for good). A
+  penalty double outranks the jam. Every game bid in the jam seat, whichever
+  branch bids it, alerts "Game in ♥: to make or to jam the auction." 10,000
+  fresh deals (`research/gib_fresh_h2h.py`), with the raise below: **+1.50 a
+  board, t = +10.6, 1,156 auctions changed** (515 better, 345 worse). The
+  user's exact case alone (weak two doubled) +0.04, t = +1.9, 26 auctions;
+  over overcalls and three-level pre-empts too +0.26; with one-level majors
+  +0.74; majors only +1.22; with `JAM_NEVER_AGAIN` +1.38 (majors only +1.11).
 - **A major raise counts trump length** (`RAISE_TRUMP_POINTS`, the user's
   deal: 1♥ with ♠K5 ♥K9864 ♦K84 ♣832 raised to 2♥). With four or more
   trumps and under 13 HCP, 2M, 3M or 4M is chosen on HCP plus one point a

@@ -499,10 +499,9 @@ def test_ten_trumps_jam_to_game_at_once():
     south = 'AS 10S 6S 5S 2S 8H 5H 3H JD 8D QC 9C 6C'
     assert bid(south, '2S', 'X', dealer='North') == \
         ('4S', 'Game in ♠: to make or to jam the auction.')
-    # The pre-empter, and the jammer, then pass whatever they bid.
+    # The pre-empter then leaves it to the jammer.
     north = 'KS QS JS 8S 4S 3S JH 10D 9D 6D 4D 2D 4C'
     assert bid(north, '2S', 'X', '4S', '5H', dealer='North')[0] == 'Pass'
-    assert bid(south, '2S', 'X', '4S', '5H', 'Pass', 'Pass', dealer='North')[0] in ('Pass', 'X')
 
 
 def test_trump_length_counts_in_a_major_raise():
