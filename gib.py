@@ -89,12 +89,15 @@ CUE_ASK_HCP = 13
 #: user's call, 2026-10-28, Bidding training: 1♥ P P X 2♥ P P 2♠ was read as a
 #: plain overcall). A takeout doubler without them does not bid a new suit,
 #: and advancer raises it, to game on DOUBLER_SUIT_JUDGE (an 18-count's mean
-#: judgement points) plus its own.
-DOUBLE_THEN_SUIT = False
+#: judgement points) plus its own. The suit is bid only through the two level
+#: (DOUBLER_SUIT_LEVEL); higher, the old branches decide, mostly a pass. Fresh
+#: deals, head to head (20,000): +0.04 a board, t = +2.4; through the three
+#: level -0.01, t = -0.2.
+DOUBLE_THEN_SUIT = True
 DOUBLER_SUIT_HCP = 18
 DOUBLER_SUIT_JUDGE = 14
 DOUBLER_RAISE_HCP = 6
-DOUBLER_SUIT_LEVEL = 3
+DOUBLER_SUIT_LEVEL = 2
 SLAM = 33
 GRAND = 37
 

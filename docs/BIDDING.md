@@ -415,6 +415,22 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   half of its gap came from the opponents' extra turn after 2NT, and the
   rest from declined invitations); the same for responder (1♦ (2♥) 2NT)
   -0.19 and the game-forcing cuebid for responder about 0.
+- **Double, then a new suit, shows 18+ HCP** (`DOUBLE_THEN_SUIT`,
+  `_doubler_new_suit`, `_raise_doubler_suit`, `doubler_guard`; the user's
+  Bidding training deal, 2026-10-28: 1♥ P P X 2♥ P P 2♠ with 22 HCP was
+  alerted as a plain overcall, because after the double the old system's
+  overcall code chose it). After a takeout double (our first call, partner
+  silent, of a suit bid through 4♥), the doubler's new suit shows 5+ cards
+  and 18+ HCP, too strong to overcall, and always reads that alert; a
+  doubler without them passes instead (`doubler_guard`, from any branch).
+  GIB bids it at the cheapest level, through the two level only
+  (`DOUBLER_SUIT_LEVEL`). Advancer raises it on 3+ cards and 6+ HCP, or bids
+  game when its judgement points plus 14 (`DOUBLER_SUIT_JUDGE`, an
+  18-count's mean) reach it. 20,000 fresh deals: **+0.04, t = +2.4, 123
+  auctions changed** (52 better, 27 worse). Through the three level -0.01,
+  t = -0.2 (388 changed: the extra three-level suits get doubled); the
+  meaning and the pass alone +0.01, t = +1.9. Game at judge 12 instead of
+  14 changed nothing.
 - **A major raise counts trump length** (`RAISE_TRUMP_POINTS`, the user's
   deal: 1♥ with ♠K5 ♥K9864 ♦K84 ♣832 raised to 2♥). With four or more
   trumps and under 13 HCP, 2M, 3M or 4M is chosen on HCP plus one point a

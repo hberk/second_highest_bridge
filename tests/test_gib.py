@@ -715,3 +715,19 @@ def test_advancers_2nt_is_the_limit_raise_when_the_cuebid_passes_three():
     assert call == '4C', call
     call, _ = bid(asker, '1D', '2C', '2D', '3D', 'Pass', '4C', 'Pass', dealer='South')
     assert call == 'Pass', call
+
+
+def test_double_then_a_new_suit_shows_18():
+    """The user's call, 2026-10-28 (Bidding training): 1♥ P P X 2♥ P P 2♠
+    is too strong to overcall, 18+ HCP and 5+ spades, not an overcall; a
+    doubler without 18 passes, and advancer raises on three."""
+    south = 'AS KS JS 7S 2S AH 8H QD JD AC KC 10C 8C'
+    call, why = bid(south, '1H', 'Pass', 'Pass', 'X', '2H', 'Pass', 'Pass', dealer='West')
+    assert call == '2S' and '18+ HCP' in why, (call, why)
+    weaker = 'AS QS JS 7S 2S 8H KD JD 3D KC 10C 8C 2C'
+    call, _ = bid(weaker, '1H', 'Pass', 'Pass', 'X', '2H', 'Pass', 'Pass', dealer='West')
+    assert call == 'Pass', call
+    north = 'QS 6S 5S 10H 9H KD 9D 8D 7D QC 9C 6C 5C'
+    call, why = bid(north, '1H', 'Pass', 'Pass', 'X', '2H', 'Pass', 'Pass', '2S', 'Pass',
+                    dealer='West')
+    assert call in ('3S', '4S') and '3+' in why, (call, why)

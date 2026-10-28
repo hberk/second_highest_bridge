@@ -50,6 +50,14 @@ export const settingsGib = { judgeByVariant: true, cueLimitAt3: true };
  *  raise or better and the cuebid asks for a stopper for 3NT. See gib.py. */
 export const CUE_2NT = true;
 const CUE_ASK_HCP = 13;
+/** Double, then a new suit: 18+ HCP and 5+ cards, too strong to overcall (the
+ *  user's call, 2026-10-28). A takeout doubler without them does not bid a new
+ *  suit; advancer raises it. Bid only through the two level. See gib.py. */
+export const DOUBLE_THEN_SUIT = true;
+const DOUBLER_SUIT_HCP = 18;
+const DOUBLER_SUIT_JUDGE = 14;
+const DOUBLER_RAISE_HCP = 6;
+const DOUBLER_SUIT_LEVEL = 2;
 export const SLAM = 33;
 const GRAND = 37;
 
@@ -2716,9 +2724,102 @@ function theyOpened(ctx: Ctx): Decision | null {
   if (!seq.length) return defend(ctx);
   const mine = ctx.mine();
   const partners = ctx.partners();
+  if (DOUBLE_THEN_SUIT) {
+    const s = doublerSuit(ctx, ctx.pd);
+    if (s && partners.length === 2 && ctx.ours[ctx.ours.length - 1][0] === ctx.pd) {
+      return raiseDoublerSuit(ctx, s);
+    }
+    if (takeoutDoubler(ctx, ctx.me) && mine.length === 1 && mine[0] === 'X') {
+      const decision = doublerNewSuit(ctx);
+      if (decision) return decision;
+    }
+  }
   if (partners.length && !mine.length) return advance(ctx);
   if (mine.length && !partners.length && defendWasWeak(ctx, mine[0])) return ['Pass', 'Already described: weak.'];
   return cuebidRaiseReply(ctx);
+}
+
+/** Was `seat`'s first call a takeout double: they opened, its partner had
+ *  not bid, and the double was of a suit bid through 4♥? */
+function takeoutDoubler(ctx: Ctx, seat: Seat): boolean {
+  if (ctx.weOpened) return false;
+  for (let i = 0; i < ctx.calls.length; i++) {
+    const [w, c] = ctx.calls[i];
+    if (w === PARTNERS[seat] && c !== 'Pass') return false;
+    if (w === seat && c !== 'Pass') {
+      if (c !== 'X') return false;
+      const bid = ctx.calls.slice(0, i).reverse().find(([, b]) => parseBid(b))![1];
+      return isSuit(strainOf(bid)) && rankOf(bid) <= rankOf('4H');
+    }
+  }
+  return false;
+}
+
+/** The strain of the suit bid at call i, when no one has named it before. */
+function newSuitAt(ctx: Ctx, i: number): Suit | null {
+  const s = strainOf(ctx.calls[i][1]);
+  if (!isSuit(s) || ctx.calls.slice(0, i).some(([, c]) => strainOf(c) === s)) return null;
+  return s;
+}
+
+/** The new suit `seat` bid as its next call after a takeout double. */
+function doublerSuit(ctx: Ctx, seat: Seat): Suit | null {
+  if (!takeoutDoubler(ctx, seat)) return null;
+  const bids: number[] = [];
+  ctx.calls.forEach(([w, c], i) => { if (w === seat && c !== 'Pass') bids.push(i); });
+  return bids.length >= 2 ? newSuitAt(ctx, bids[1]) : null;
+}
+
+const doublerAlert = (s: Suit) =>
+  `5+ ${SYM[s]}, ${DOUBLER_SUIT_HCP}+ HCP. Doubled first: too strong to overcall.`;
+
+/** My takeout double, then my own suit: DOUBLER_SUIT_HCP+ and five cards.
+ *  With four of partner's suit, the raise branches answer instead. */
+function doublerNewSuit(ctx: Ctx): Decision | null {
+  const h = ctx.h;
+  if (h.hcp < DOUBLER_SUIT_HCP) return null;
+  const named = new Set(ctx.calls.map(([, c]) => strainOf(c)));
+  const pSuits = ctx.partners().map(strainOf).filter(isSuit);
+  if (pSuits.some((s) => h.len[s] >= 4)) return null;
+  const own = SUITS.filter((s) => !named.has(s) && h.len[s] >= 5);
+  if (!own.length) return null;
+  const s = maxBy(own, (x) => [h.len[x], idx(x)]);
+  const call = ctx.cheapest(s, 1);
+  if (call && levelOf(call) <= DOUBLER_SUIT_LEVEL) return [call, doublerAlert(s)];
+  return null;
+}
+
+/** Partner doubled, then bid a new suit: 18+ HCP, 5+ cards. Raise it on
+ *  three, to game when DOUBLER_SUIT_JUDGE and my judgement points reach it.
+ *  Without support the general branches answer. */
+function raiseDoublerSuit(ctx: Ctx, s: Suit): Decision | null {
+  const h = ctx.h;
+  if (h.len[s] < 3) return null;
+  const game = `${isMajor(s) ? 4 : 5}${s}`;
+  if (h.judge + DOUBLER_SUIT_JUDGE >= (isMajor(s) ? GAME_MAJOR : GAME) && ctx.ok(game)) {
+    return [game, `3+ ${SYM[s]}, game values. To play.`];
+  }
+  if (h.hcp >= DOUBLER_RAISE_HCP) {
+    const call = ctx.cheapest(s, 1);
+    if (call && call !== game && levelOf(call) <= 4) {
+      return [call, raiseAlert(s, `3+ ${SYM[s]}, ${DOUBLER_RAISE_HCP}+ HCP.`)];
+    }
+  }
+  return ['Pass', 'Not enough to raise.'];
+}
+
+/** A takeout doubler's new suit always reads the 18+ alert, and a hand
+ *  without 18+ and five cards passes instead, whichever branch chose it. */
+export function doublerGuard(player: Seat, cards: Card[], auction: AuctionState,
+  decision: Decision): Decision {
+  if (!DOUBLE_THEN_SUIT) return decision;
+  const ctx = new Ctx(player, cards, auction);
+  const s = strainOf(decision[0]);
+  const mine = ctx.mine();
+  if (!isSuit(s) || mine.length !== 1 || mine[0] !== 'X' || !takeoutDoubler(ctx, player)
+    || ctx.calls.some(([, c]) => strainOf(c) === s)) return decision;
+  if (ctx.h.hcp >= DOUBLER_SUIT_HCP && ctx.h.len[s] >= 5) return [decision[0], doublerAlert(s)];
+  return ['Pass', 'Doubled: a new suit would show 18+.'];
 }
 
 function defendWasWeak(ctx: Ctx, call: string): boolean {

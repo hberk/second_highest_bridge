@@ -178,6 +178,9 @@ from the variant's side; t as above.
 | 10-28 | ...a game-forcing cuebid instead, limit hands raising to three | +0.12 | +2.81 | 159 | off (a tie with the above, -0.05, t = -1.3) |
 | 10-28 | ...2NT a 10-12 limit raise, the cuebid game forcing | +0.02 | +0.38 | 172 | off |
 | 10-28 | ...the game-forcing cuebid for responder too | +0.11 | +1.62 | 402 | off |
+| 10-28 | A takeout doubler's new suit shows 18+ HCP and 5+ cards, bid through the two level; under 18 it passes; advancer raises it (training deal: 1♥ P P X 2♥ P P 2♠ read as an overcall). 20,000 fresh deals | +0.04 | +2.36 | 123 | on (your call) |
+| 10-28 | ...bid through the three level | -0.01 | -0.18 | 388 | off |
+| 10-28 | ...the 18+ meaning and the pass under 18 only, no new bids | +0.01 | +1.89 | 23 | off |
 | 10-28 | ...2NT a 10-12 limit raise for responder too | -0.19 | -2.16 | 490 | off |
 
 ### The previous system (`ai_bid`)
