@@ -31,7 +31,7 @@ echo "== copying to $HOST"
 tar -C "$stage" -czf - . | "${SSH[@]}" 'set -e
   cd /opt/bridge
   rm -rf .incoming && mkdir .incoming
-  tar -xzf - -C .incoming
+  tar -xzmf - -C .incoming
   rm -rf .previous && mkdir .previous
   for f in server.js server.js.map public VERSION; do [ -e "$f" ] && mv "$f" .previous/; done
   mv .incoming/* . && rmdir .incoming'

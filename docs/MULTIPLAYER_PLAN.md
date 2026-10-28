@@ -339,8 +339,22 @@ Retained heap after a forced GC: 5 MB after 1 board, 16 MB after 100,
 **25 MB after 200** (169 MB without the clearing). The price is a colder
 search at the start of each board: the worst card goes from 235 ms to
 905 ms, so a robot very occasionally takes about a second instead of the
-600 ms pace. To run on the container once it exists: `node --expose-gc
-dist/bench.js` there.
+600 ms pace.
+
+**On the container (2026-10-28).** The same bench on LXC 213 (1 core, Node
+24.22.1), 200 boards in 36 s:
+
+| | median | p95 | p99 | worst |
+|---|---|---|---|---|
+| a call | 0.04 ms | 0.7 | 141 | 298 ms |
+| a card | 0.08 ms | 12.2 | 72 | **1,006 ms** |
+| a whole robot board | 133 ms | 425 | 823 | 1,072 ms |
+
+Retained heap 24 MB after 200 boards; peak RSS 146 MB, well under the unit's
+`MemoryMax=512M`. One core does a whole robot board in about a tenth of a
+second at the median, so a handful of tables never queue behind each other.
+To rerun: `node build.mjs bench` in `server/`, copy `dist/bench.js` over,
+`node --expose-gc bench.js` there.
 
 ## The Free plan's budget
 
