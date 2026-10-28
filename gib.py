@@ -2922,9 +2922,9 @@ def _nt_interference(ctx: Ctx) -> tuple | None:
 #: LEAD_DOUBLE_JUDGE+ judgement points in the suit, and asks partner to lead
 #: it. Never takeout: partner passes. The opening lead follows from the
 #: alert's "5+" (`ai._partner_suit_lead`).
-LEAD_DOUBLE = False
+LEAD_DOUBLE = True
 LEAD_DOUBLE_LEN = 5
-LEAD_DOUBLE_JUDGE = 5
+LEAD_DOUBLE_JUDGE = 4
 LEAD_DOUBLE_ALERT = "Lead-directing: {n}+ {sym}, {j}+ judgement points there."
 
 

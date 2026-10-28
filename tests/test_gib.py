@@ -695,6 +695,37 @@ def test_a_known_major_fit_plays_in_game_not_3nt():
     assert call == '3NT' and 'choice of games' in why, (call, why)
 
 
+def test_a_double_of_an_artificial_bid_directs_the_lead():
+    """The user's call, 2026-10-28 (Bidding training): P P P 2♣ P 2♦ X with
+    ♦KJT97 is lead-directing, not takeout -- 5+ cards and 4+ judgement points
+    in the suit. Partner passes, and leads the suit."""
+    south = '10S 7S 8H 4H 3H KD JD 10D 9D 7D JC 9C 6C'
+    calls = ('Pass', 'Pass', 'Pass', '2C', 'Pass', '2D')
+    call, why = bid(south, *calls)
+    assert call == 'X' and why.startswith('Lead-directing') and '5+ \u2666' in why, (call, why)
+    north = 'JS 5S 4S 2S JH 7H AD 5D 4D 3D 7C 4C 2C'
+    call, _ = bid(north, *calls, 'X', '2NT')
+    assert call == 'Pass', call
+    # Over Stayman: five weak clubs (no honour) is no lead to ask for.
+    weak = '8S 7S 6S 5H 4H 3H 8D 7D 8C 7C 6C 5C 4C'
+    call, _ = bid(weak, '1NT', 'Pass', '2C')
+    assert call == 'Pass', call
+    # The opening lead: partner's suit.
+    auction = after(*calls, 'X', '2NT', 'Pass', '3NT', 'Pass', 'Pass', 'Pass')
+    alerts = {i: ai.ai_bid_explained(w, hand(south if w == 'South' else north), _replay(auction, i))[1]
+              for i, (w, c) in enumerate(auction.calls) if c == 'X'}
+    shown = ai.shown_lengths(list(auction.calls), alerts)
+    lead = ai.ai_play('North', hand(north), [], None, [], visible={}, history=[], shown=shown)
+    assert lead.suit == 'D', lead
+
+
+def _replay(auction, n):
+    out = AuctionState(dealer=auction.dealer, vulnerability=auction.vulnerability)
+    for w, c in auction.calls[:n]:
+        out.apply_call(w, c)
+    return out
+
+
 def test_advancers_2nt_is_the_limit_raise_when_the_cuebid_passes_three():
     """The user's call, 2026-10-28 (Challenge deal 276): over 1♦ (2♣) 2♦ a
     3♦ cuebid forces 3NT or 4♣, so 2NT is the limit raise or better and

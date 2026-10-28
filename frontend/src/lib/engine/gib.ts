@@ -2720,9 +2720,9 @@ function ntInterference(ctx: Ctx): Decision | null {
 /** Lead-directing double: a double of their artificial suit bid shows
  *  LEAD_DOUBLE_LEN+ cards there with LEAD_DOUBLE_JUDGE+ judgement points in
  *  the suit, and asks for that lead. Never takeout. See gib.py. */
-export const LEAD_DOUBLE = false;
+export const LEAD_DOUBLE = true;
 const LEAD_DOUBLE_LEN = 5;
-const LEAD_DOUBLE_JUDGE = 5;
+const LEAD_DOUBLE_JUDGE = 4;
 
 function theirArtificial(ctx: Ctx, at: number): Suit | null {
   if (at < 0) return null;

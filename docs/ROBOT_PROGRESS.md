@@ -179,6 +179,10 @@ from the variant's side; t as above.
 | 10-28 | ...2NT a 10-12 limit raise, the cuebid game forcing | +0.02 | +0.38 | 172 | off |
 | 10-28 | ...the game-forcing cuebid for responder too | +0.11 | +1.62 | 402 | off |
 | 10-28 | ...2NT a 10-12 limit raise for responder too | -0.19 | -2.16 | 490 | off |
+| 10-28 | A double of their artificial bid is lead-directing: 5+ cards, 4+ judgement points in the suit, partner leads it (user's board: P P P 2♣ P 2♦ X with ♦KJT97, read as takeout); scored after the robot's real lead | +0.13 | +2.96 | 363 | on (your call) |
+| 10-28 | ...5+ judgement points | +0.03 | +1.41 | 193 | off |
+| 10-28 | ...6+ judgement points | -0.01 | -1.13 | 86 | off |
+| 10-28 | ...any five cards | +0.13 | +2.19 | 712 | off |
 
 ### The previous system (`ai_bid`)
 

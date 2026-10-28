@@ -329,6 +329,20 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     **+1.17 a board, t = +4.5, 516 auctions changed** (3,000 fresh deals).
     With it, 3NT at 34 +1.27 (inside the noise of the same line), at 30
     +0.45, majors at 27 +0.89; a jack worth 2 +0.79.
+- **Lead-directing doubles** (`gib.LEAD_DOUBLE`, `LEAD_DOUBLE_JUDGE`; the
+  user's call, 2026-10-28). A double of an opponents' artificial suit bid
+  (Stayman, a transfer, the 2♣ opening, the 2♦ waiting response, a splinter or
+  any other bid `shown_suit` reads as not showing its suit, while our side has
+  only passed) shows 5+ cards there with 4+ judgement points in the suit, and
+  asks for that lead. It is never takeout: partner passes, the doubler does not
+  bid again, and the alert's "5+" makes partner's opening lead the suit
+  (`ai._partner_suit_lead`). Trigger: the user's double of P P P 2♣ P 2♦ with
+  ♦KJT97, read as takeout, partner bid 3♠ for -800. Scored after the robot's
+  actual opening lead, double dummy from there, 10,000 fresh deals
+  (`/mnt/project-files/lead-double/ld.py`): any five cards +0.13 a board
+  (t = 2.2), 3+ judgement points +0.11, **4+ +0.13 (t = 3.0)**, 5+ +0.03
+  (t = 1.4), 6+ -0.01. Scored with the best lead instead, the auctions alone
+  are worth about nothing: the gain is the lead.
 - **Penalty doubles** (`ai.PENALTY_DOUBLE`, `PENALTY_JUDGE`; the user's rule,
   2026-10-24). Against **two-sided par** (both sides bid perfectly, a failing
   contract is doubled, either side may sacrifice) the robots are 233 points a
