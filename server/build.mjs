@@ -15,6 +15,10 @@ await build({
   target: 'node24',
   sourcemap: true,
   legalComments: 'none',
+  // This tsconfig for every file, frontend/ included: frontend/tsconfig.json
+  // extends a package only frontend/node_modules has, so the bundle would
+  // differ between here and CI, where only server/ is installed.
+  tsconfig: 'tsconfig.json',
   // ws has optional native helpers it does without.
   external: ['bufferutil', 'utf-8-validate'],
   banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" },
