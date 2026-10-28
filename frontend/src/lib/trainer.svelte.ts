@@ -120,6 +120,18 @@ export interface TrainingLogEntry {
   diff: number;
 }
 
+/** Your boards against par, and today's robots on the same boards. */
+export interface Tally {
+  boards: number;
+  /** Per board against par, rounded. */
+  you: number;
+  robots: number;
+  /** Boards you scored more than the robots, the same, less. */
+  better: number;
+  same: number;
+  worse: number;
+}
+
 /** The board being bid, so a reload carries on with it rather than dealing
  *  a new hand (which would let a hand be skipped). */
 interface CurrentBoard {
@@ -170,6 +182,33 @@ export function misfits(alert: string, hand: Card[]): string[] {
   return out;
 }
 
+/** The robots in all four seats on a deal, dealt as board `boardNum`. */
+function robotAuction(dealId: number, boardNum: number) {
+  const hands = handsOf(dealId);
+  const robots = new AuctionState(DEALER_ROTATION[(boardNum - 1) % 4], VUL_ROTATION[(boardNum - 1) % 16]);
+  const robotAlerts: Record<number, string> = {};
+  while (!robots.isComplete && robots.calls.length < AUCTION_GUARD) {
+    const who = robots.currentPlayer();
+    const [call, why] = aiBidExplained(who, hands[who], robots, robotAlerts);
+    robotAlerts[robots.calls.length] = why;
+    robots.applyCall(who, call);
+  }
+  return { robots, robotAlerts };
+}
+
+/** Today's robots' score on a board already trained: rerun rather than
+ *  saved, so a robot change shows at once on every board you have bid. */
+const robotScores = new Map<string, number>();
+function robotScore(e: TrainingLogEntry): number {
+  const key = `${e.deal_id}:${e.board_num}`;
+  let n = robotScores.get(key);
+  if (n === undefined) {
+    n = contractScore(e.deal_id, robotAuction(e.deal_id, e.board_num).robots.getContract()).score;
+    robotScores.set(key, n);
+  }
+  return n;
+}
+
 export class Trainer {
   boardNum = $state(0);
   dealId = $state(0);
@@ -202,6 +241,20 @@ export class Trainer {
   /** Average against par per board, over the boards trained so far. */
   get average(): number | null {
     return this.log.length ? Math.round(this.log.reduce((n, e) => n + e.diff, 0) / this.log.length) : null;
+  }
+
+  /** Over every board trained, or the last `last`. */
+  tally(last?: number): Tally | null {
+    const log = last ? this.log.slice(-last) : this.log;
+    if (!log.length) return null;
+    let you = 0, robots = 0, better = 0, same = 0, worse = 0;
+    for (const e of log) {
+      const r = robotScore(e);
+      you += e.diff;
+      robots += r - e.par;
+      if (e.score > r) better++; else if (e.score < r) worse++; else same++;
+    }
+    return { boards: log.length, you: Math.round(you / log.length), robots: Math.round(robots / log.length), better, same, worse };
   }
 
   constructor(private storage: Storage | null = browserStorage(),
@@ -336,14 +389,7 @@ export class Trainer {
     const par = trainingPar(id, this.vulnerability);
 
     // The robots in all four seats, the same board.
-    const robots = new AuctionState(this.dealer, this.vulnerability);
-    const robotAlerts: Record<number, string> = {};
-    while (!robots.isComplete && robots.calls.length < AUCTION_GUARD) {
-      const who = robots.currentPlayer();
-      const [call, why] = aiBidExplained(who, this.hands[who], robots, robotAlerts);
-      robotAlerts[robots.calls.length] = why;
-      robots.applyCall(who, call);
-    }
+    const { robots, robotAlerts } = robotAuction(id, this.boardNum);
     const robotContract = robots.getContract();
     const robotCalls = [...robots.calls] as CallRecord[];
     const longest = Math.max(robotCalls.length, this.calls.length);
@@ -384,6 +430,7 @@ export class Trainer {
       hcp: { you: you.hcp, partner: partner.hcp },
       fit: { suit: fitSuit, length: you.len[fitSuit] + partner.len[fitSuit] },
     };
+    robotScores.set(`${id}:${this.boardNum}`, this.recap.robotScore);
     this.log.push({ deal_id: id, board_num: this.boardNum, score: mine.score, par: par.score, diff: mine.score - par.score });
     this.save();
   }
