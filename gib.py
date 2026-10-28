@@ -88,6 +88,9 @@ CUE_GF_HCP = 13
 #: partner can still sign off at three; the cuebid stays game forcing.
 CUE_2NT = False
 CUE_2NT_RESPONDER = False
+#: With CUE_2NT, the user's version (2026-10-28): 2NT is a limit raise or
+#: better, and the cuebid only asks for a stopper for 3NT.
+CUE_2NT_ASK = False
 SLAM = 33
 GRAND = 37
 
@@ -2506,7 +2509,25 @@ def _two_nt_cue_reply(ctx: Ctx) -> tuple | None:
             and ctx.ours[-1][0] == ctx.pd and strain_of(partners[0]) in SUITS
             and strain_of(partners[-1]) == strain_of(partners[0])
             and their in SUITS and _cue_2nt_on_after(ctx, strain_of(partners[0]), their)):
+        x = strain_of(partners[0])
+        if CUE_2NT_ASK and len(partners) == 2 and h.hcp >= CUE_GF_HCP:
+            if h.stopper(their) and ctx.ok('3NT'):
+                return '3NT', TO_PLAY
+            if x in MAJORS and ctx.ok(f"4{x}"):
+                return f"4{x}", TO_PLAY
+            if ctx.ok(f"3{their}"):
+                return f"3{their}", f"Asks for a {SYM[their]} stopper for 3NT."
         return 'Pass', "No game."
+    # Partner asked for a stopper after my sign-off (CUE_2NT_ASK).
+    if (CUE_2NT_ASK and partners[-1] != '2NT' and partners[0] == '2NT'
+            and ctx.ours[-1][0] == ctx.pd and strain_of(partners[-1]) == their
+            and their in SUITS and x in SUITS and len(mine) == 2):
+        if h.stopper(their) and ctx.ok('3NT'):
+            return '3NT', f"{SYM[their]} stopper."
+        call = ctx.cheapest(x, 4)
+        if call and level_of(call) == 4:
+            return call, f"No {SYM[their]} stopper."
+        return 'Pass', "No stopper."
     return None
 
 
@@ -2516,6 +2537,8 @@ def _cue_2nt_on_after(ctx: Ctx, x: str, their: str) -> bool:
 
 
 def _limit_2nt_alert(x: str) -> str:
+    if CUE_2NT_ASK:
+        return f"3+ {SYM[x]}, 10+ HCP. Limit raise or better. Artificial."
     return f"3+ {SYM[x]}, 10-{CUE_GF_HCP - 1} HCP. Limit raise. Artificial."
 
 
@@ -2550,7 +2573,7 @@ def _cuebid_raise_reply_suit(ctx: Ctx) -> tuple | None:
                 return '3NT', f"{SYM[their]} stopper."
             if x in MAJORS and ctx.ok(f"4{x}"):
                 return f"4{x}", TO_PLAY
-            if h.judge >= 14 and ctx.ok(f"5{x}"):
+            if h.judge >= 14 and ctx.ok(f"5{x}") and not CUE_2NT_ASK:
                 return f"5{x}", TO_PLAY
             call = ctx.cheapest(x, 4)
             if call and level_of(call) <= 4:
@@ -2572,6 +2595,9 @@ def _cuebid_raise_reply_suit(ctx: Ctx) -> tuple | None:
     if (len(mine) == 1 and strain_of(mine[0]) in theirs and partners
             and ctx.ours[-1][0] == ctx.pd and len(partners) >= 2):
         x = strain_of(partners[-1])
+        if (x in SUITS and strain_of(partners[0]) == x and _cue_gf(ctx, mine[0], x)
+                and level_of(partners[-1]) == 4 and CUE_2NT_ASK):
+            return 'Pass', "No stopper: no game."
         if (x in SUITS and strain_of(partners[0]) == x and _cue_gf(ctx, mine[0], x)
                 and level_of(partners[-1]) == 4 and ctx.ok(f"5{x}")):
             return f"5{x}", TO_PLAY
@@ -3116,6 +3142,10 @@ def _advance(ctx: Ctx) -> tuple | None:
         limit_top = CUE_GF_HCP - 1 if gf and not _cue_2nt_on(ctx, ps, their) else 9
         if sup >= 3 and hcp >= 10 and their in SUITS:
             call = cue
+            if gf and CUE_2NT_ASK and _cue_2nt_on(ctx, ps, their):
+                if hcp >= CUE_GF_HCP and not h.stopper(their):
+                    return call, f"{CUE_GF_HCP}+ HCP, no {SYM[their]} stopper. Asks for one, for 3NT."
+                return '2NT', _limit_2nt_alert(ps)
             if gf:
                 if hcp >= CUE_GF_HCP:
                     return call, _gf_cue_alert(ps, their)
