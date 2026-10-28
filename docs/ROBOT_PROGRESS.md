@@ -174,6 +174,11 @@ from the variant's side; t as above.
 | 10-28 | ...the same, letting both compete again after the jam | +1.22 | +10.40 | 874 | off |
 | 10-28 | ...with minors, nobody bidding again | +1.38 | +9.54 | 1,162 | off |
 | 10-28 | ...with minors, both competing again after the jam | **+1.50** | +10.64 | 1,156 | on (your call) |
+| 10-28 | Advancer's 2NT is the limit raise or better when the cuebid would pass three of partner's suit; the cuebid asks for a stopper (deal 276: 1♦ (2♣) 2♦ 3♦) | +0.07 | +1.72 | 173 | on (your call) |
+| 10-28 | ...a game-forcing cuebid instead, limit hands raising to three | +0.12 | +2.81 | 159 | off (a tie with the above, -0.05, t = -1.3) |
+| 10-28 | ...2NT a 10-12 limit raise, the cuebid game forcing | +0.02 | +0.38 | 172 | off |
+| 10-28 | ...the game-forcing cuebid for responder too | +0.11 | +1.62 | 402 | off |
+| 10-28 | ...2NT a 10-12 limit raise for responder too | -0.19 | -2.16 | 490 | off |
 
 ### The previous system (`ai_bid`)
 
