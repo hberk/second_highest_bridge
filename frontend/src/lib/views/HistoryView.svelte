@@ -244,6 +244,7 @@
       <div class="hv-dd" aria-live="polite">
         {#if dd.error}
           <span class="dd-error">Double dummy: {dd.error}</span>
+          {#if dd.canRetry}<button class="chip-btn" onclick={() => dd?.retry()}>Try again</button>{/if}
         {:else}
           <span>Double dummy: {dd.doneFrom > firstTrick ? (dd.running ? 'starting…' : 'not analysed yet') : dd.doneFrom === firstTrick ? `trick ${firstTrick}` : `tricks ${dd.doneFrom}–${firstTrick}`}{#if dd.running}<span class="dd-dim">&nbsp;· working on {dd.doneFrom - 1}…</span>{/if}</span>
           <!-- Tricks 1-2 wait for a tap, on a claimed board too (it may stop
