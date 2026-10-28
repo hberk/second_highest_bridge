@@ -49,6 +49,34 @@ jobs:
       - name: Test (rules, scoring, bidding, solver, challenge, LIN)
         run: python tests/run_all.py
 
+  # The multiplayer table server (server/): its own tests over real sockets,
+  # and its bundle. It is deployed by hand to the homelab (server/deploy.sh),
+  # never from here, so no homelab key is ever in GitHub.
+  server:
+    if: github.event.repository.visibility == 'public' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      # node:sqlite without a flag needs Node 24.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Install
+        working-directory: server
+        run: npm ci
+      - name: Type-check
+        working-directory: server
+        run: npm run check
+      - name: Test (sockets, limits, restart, static files)
+        working-directory: server
+        run: npm test
+      - name: Bundle (fails if the challenge deal library rides along)
+        working-directory: server
+        run: npm run build
+
   build:
     if: github.event.repository.visibility == 'public' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -92,7 +120,7 @@ jobs:
           path: frontend/dist
 
   deploy:
-    needs: [build, python-tests]
+    needs: [build, python-tests, server]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.visibility == 'public'
     runs-on: ubuntu-latest
     timeout-minutes: 30

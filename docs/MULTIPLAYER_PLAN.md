@@ -1,6 +1,13 @@
 # Multiplayer: the build plan
 
-Status: **plan, 2026-10-26. Nothing built.** It turns the agreed design into
+Status, 2026-10-27: **M1-M4 built and tested on the `multiplayer` branch**
+(the my-seat views, the table core, the Node server, the client). A board
+has been played in a browser by two people and two robots against a local
+server. **M5 and M6 wait on the homelab container (LXC 213)**: the first
+deploy, phones, Playwright. Where the build differs from the plan below, the
+section says so.
+
+The plan turns the agreed design into
 milestones the size of a PR, each with its files, tests and a "done when".
 Revised the same day with the engine measured in Node
 ([What a robot costs](#what-a-robot-costs-measured-2026-10-26)), and on
@@ -179,37 +186,49 @@ can't use unauthorised information. The bidding box's call meanings
 ## Wire protocol
 
 One file, `frontend/src/lib/table/protocol.ts`, imported by both sides.
-JSON over the WebSocket; every message has a `type`. Version it from day one
-(`v: 1` in `hello`), so a stale cached app gets a clean "please reload".
+JSON over the WebSocket; every message has a `type`. Versioned from day one
+(`v: 1` in `hello`): a stale cached app gets a clean "please reload" (close
+code 4000). `parseClientMessage` accepts only these shapes, with no extra
+keys.
 
 **Client to server:**
 
 | type | fields | notes |
 |---|---|---|
-| `hello` | `v`, `token?`, `name?`, `lastSeq?` | first message; no token = spectator of the lobby until `sit` |
-| `sit` | `seat` | free seats only; returns a token |
-| `stand` | | |
-| `deal` | | host, or everyone `ready` |
-| `ready` | | after a board |
+| `hello` | `v`, `token?` | first message; without a token you see the table as a watcher |
+| `join` | `name` | 1-20 characters, cleaned (`cleanName`); the answer is a `welcome` with your token |
+| `sit` | `seat` | an empty seat; also how you move between boards |
+| `stand` | | your seat goes to a robot |
+| `deal` | | after a board: you're ready; the host's deals at once |
 | `call` | `id`, `at`, `call`, `alert?` | `alert` cleaned with `cleanAlert` on the server too |
-| `card` | `id`, `at`, `seat`, `card` | `seat` is own seat or, for declarer, dummy |
-| `robot` | `seat` | hand a disconnected seat to a robot |
-| `host` | `lock?`, `move?`, `remove?` | host only |
+| `card` | `id`, `at`, `seat`, `card` | `seat` is your own or, as declarer, dummy |
+| `robot` | `seat` | a seat whose player has been gone 60 s goes to a robot |
+| `reclaim` | | take your seat back from the robot |
+| `lock` | `locked` | host only |
+| `remove` | `player` | host only |
+| `ping` | | answered with `pong` |
 
 `id` is a client-chosen intent id: a repeated id (a double tap, a resend after
-reconnect) is answered with the original outcome and applied once.
+reconnect) is answered with the original outcome and applied once. `at` is
+the number of actions on the board the client saw; anything else is `stale`.
 
 **Server to client:**
 
 | type | fields |
 |---|---|
-| `welcome` | `you: {seat, isHost}`, `snapshot` |
-| `snapshot` | table, seats and presence, board, dealer, vulnerability, `events` up to now, your hand, dummy if visible, alerts you may see, `seq` |
-| `event` | `seq`, `kind` (`call`/`card`/`dummy`/`result`/`seat`/`presence`), payload filtered for you |
-| `error` | `id?`, `code` (`not_your_turn`, `illegal`, `stale`, `locked`, `full` (too many sockets from this address), `resting` (M7 only: a Cloudflare Free daily limit is spent; `until` gives the UTC reset), …), `message` |
+| `welcome` | `playerId` (null for a watcher), `token` (on `join` only) |
+| `view` | the seat's whole `TableView`: seats and presence, the board as this seat may see it (`viewFor`), and once it's over its `HistoryRecord` |
+| `error` | `id?`, `code` (`not_your_turn`, `illegal`, `stale`, `locked`, `full`, `not_host`, `bad_token`, `version`, …), `message` |
+| `pong` | |
 
-A client that sees a gap in `seq` asks for a snapshot. Inbound messages are
-capped at 2 KB and 20 a second per socket; past either, the socket is closed.
+**Built differently from the first draft (2026-10-27): a whole view after
+every change, not a snapshot plus events.** A view is a few KB and a board
+about 60 changes, so a table sends well under a megabyte a board, and there
+is no event bookkeeping, no gap detection and no resync path: a reconnect is
+the same message as any update. M7 could still move to events if Cloudflare's
+costs ever made it worth it.
+
+Inbound messages are capped at 2 KB and 20 a second per socket; past either, the socket is closed.
 Open sockets are capped per client address (8), and table creation is
 rate-limited per address (10 an hour). The address is the TCP peer, except
 that `X-Real-IP` is believed when, and only when, the peer is Caddy
@@ -300,6 +319,23 @@ V8, so M7 would re-measure there to check, not to discover.
 - The same growth happens in solo play on a phone. Out of scope here; noted
   for ROADMAP.
 
+**At the table, with the memory cleared (2026-10-27).** `npm run bench` in
+`server/` (`src/bench.ts`): 200 seeded robot boards through the table core,
+`clearPositionMemo()` as each ends, Node 24 on the development desktop.
+
+| | median | p95 | p99 | worst |
+|---|---|---|---|---|
+| a call | 0.03 ms | 0.1 | 79 | 150 ms |
+| a card | 0.06 ms | 9.9 | 59 | **905 ms** |
+| a whole robot board | 108 ms | 331 | 615 | 953 ms |
+
+Retained heap after a forced GC: 5 MB after 1 board, 16 MB after 100,
+**25 MB after 200** (169 MB without the clearing). The price is a colder
+search at the start of each board: the worst card goes from 235 ms to
+905 ms, so a robot very occasionally takes about a second instead of the
+600 ms pace. To run on the container once it exists: `node --expose-gc
+dist/bench.js` there.
+
 ## The Free plan's budget
 
 For [M7](#m7-optional-move-to-cloudflare) only; the homelab has no quotas.
@@ -343,11 +379,12 @@ Built and run by the homelab session; its record is `configs/bridge/` and
 
 **Deploy** (`server/deploy.sh`, run from the development machine):
 `npm run build:beta` in `frontend/` and the esbuild bundle in `server/`, then
-`rsync --delete` of `server.js` and `public/` into `/opt/bridge` as
-`builder`, then `sudo systemctl restart bridge.service` (the only sudo
-`builder` has), then a check that `/healthz` answers. The SSH key is a
+a tarball of `server.js` and `public/` over ssh into `/opt/bridge` as
+`builder` (the last release kept in `.previous/`), then `sudo systemctl
+restart bridge.service` (the only sudo `builder` has), then a check that
+`/healthz` answers, run inside the container. The SSH key is a
 dedicated one, `~/.ssh/bridge_deploy`, used for nothing else. The database
-lives outside `/opt/bridge`, so `--delete` can't touch it. A deploy drops
+lives outside `/opt/bridge`, so a deploy can't touch it. A deploy drops
 every socket; clients resume (above).
 
 **The beta build** (`vite build --mode beta`) differs from the Pages build in
@@ -412,23 +449,31 @@ The `.wasm` solver must be sent as `application/wasm`.
 - `HowToPlayView` and `AuctionGrid` keep fixed compass order: they describe
   rules and a written record, not your seat.
 
-**Server, new top-level `server/`:**
-- `src/host.ts`: the `TableHost` interface, and `Tables`, which owns the open
-  tables, loads one on first use (`replay`), routes each socket's intents to
-  `core.ts`, sends each seat its `viewFor`, and drives the ticks. All game
-  logic is a call into `table/core.ts`; nothing here knows Node.
-- `src/node/main.ts`: the Node host. `node:http` for static files, `POST
-  /tables` and `GET /healthz` (uptime, open tables, sockets; port 8787 only,
-  not on Caddy's list), `ws` for sockets, `node:sqlite` in WAL mode for
-  storage, `setTimeout` ticks. Refuses an `Origin` other than
-  `https://bridge.ettamei.com` (and `http://localhost:*` in dev); the per-address
-  limits above. Config from the environment: `PORT`, `BRIDGE_DB`,
-  `ALLOWED_ORIGINS`, `TRUSTED_PROXY`.
+**Server, new top-level `server/` (as built):**
+- `src/tables.ts`: `Tables`, the host around the core. It owns the open
+  tables (loaded from the store on first use), each one's connections and
+  presence, intent ids answered once, robot ticks (`setTimeout`, one decision
+  each), the host hand-off and away checks, persistence after every change,
+  and `clearPositionMemo()` as each board ends. A connection is anything
+  with `send` and `close`, so it knows neither HTTP nor `ws`. (The plan's
+  `TableHost` interface for M7 is this file's storage, timer and socket
+  seams; it gets a name when a second host exists.)
+- `src/store.ts`: `node:sqlite` in WAL mode: `tables` (meta JSON), `boards`
+  (deal, record), `events` (one action a row, `without rowid`).
+- `src/server.ts`: `node:http` for the static beta build, `POST /tables`
+  and `GET /healthz` (uptime, open tables, sockets; never on Caddy's list),
+  `ws` for the table sockets. The Origin check and the per-address limits.
+  The page's CSP sent as a header, with `frame-ancestors 'none'`.
+- `src/main.ts`: starts it from the environment: `PORT`, `HOST`,
+  `BRIDGE_DB`, `PUBLIC_DIR`, `ALLOWED_ORIGINS`, `TRUSTED_PROXY`. SIGTERM closes
+  sockets with 1012 so clients reconnect.
+- `src/bench.ts`: the robot measurement, `npm run bench`.
 - `build.mjs`: esbuild bundles `main.ts` with the engine into one
   `dist/server.js` (only `ws` from npm; bundled too, so the container needs no
-  `npm install`).
-- `deploy.sh`: as in [Hosting the beta](#hosting-the-beta-homelab).
-- `package.json` with `ws`, `esbuild`, `vitest`.
+  `npm install`), and fails if the challenge deal library rides along.
+- `deploy.sh`: as in [Hosting the beta](#hosting-the-beta-homelab); a tarball
+  over ssh (no rsync on Windows), health checked from inside the container.
+- `package.json` with `ws`, `esbuild`, `vitest`; `npm run dev` runs it here.
 
 **Not changed:** `frontend/src/lib/engine/` apart from `clearPositionMemo()`
 (the server imports it as is, so the fixture parity with Python covers the
@@ -465,6 +510,13 @@ the engine.
   of 40 seeded boards.
 - **Done when:** `npm test` and `npm run check` pass, and solo play looks
   unchanged on a 390x844 phone and at 1200px.
+- **Built 2026-10-27.** Solo play renders exactly as before: 1,420 frames of
+  25 seeded boards in both layouts, before and after, differ only in Svelte's
+  hydration comments and one space. `game.test.ts` plays from North, East and
+  West too. `alerts.test.ts` wasn't written: `Game` now calls `alerts.ts`
+  itself, so the render comparison and M2's parity test cover it. Also moved
+  out of Svelte, for the server: `ChallengeLogEntry` (to `saves.ts`); the
+  trick line (`trickText.ts`) speaks from your seat.
 
 ### M2: the pure table core (3-4 days, no network)
 
@@ -485,6 +537,10 @@ the engine.
     `toLin`/`fromLin` to the same score.
   - **Robot takeover** mid-auction and mid-play, and handing the seat back.
 - **Done when:** all of the above pass in plain Vitest.
+- **Built 2026-10-27**, at smaller counts than drafted to keep the suite
+  quick: parity over 60 boards, the leak scan over 120 random tables (1-4
+  people and a watcher; 2,000+ views checked at every step). Idempotency lives
+  in the server (a repeated `at` is `stale` in the core).
 
 ### M3: the server, on the homelab (3-4 days)
 
@@ -511,6 +567,8 @@ the engine.
 - **Done when:** the tests pass; `http://<ct>:8787/healthz` answers from the
   LAN while `https://bridge.ettamei.com/healthz` is a 404; and a board can be
   played end to end over `wss://bridge.ettamei.com` with `wscat`.
+- **Built 2026-10-27** (`server/`, 12 tests, `npm run bench`). Not yet: the
+  first deploy and the measurement on the container, which wait on LXC 213.
 
 ### M4: the client (4-5 days)
 
@@ -526,6 +584,12 @@ the engine.
 - **Done when:** two browser windows on one laptop play a board against the
   local server (`vite` + `server` in dev), and two phones play one on
   `bridge.ettamei.com`.
+- **Built 2026-10-27**: `remote.svelte.ts`, `RemoteView.svelte` (join,
+  seats, share, lock, the strip), the `#/t/<id>` route, the beta build.
+  `remote.test.ts` drives it against an in-process server on the real core.
+  Two browser tabs (two origins, so two people) played a board against the
+  local server, through a server restart in the lobby and a reload in the
+  auction. Two phones on `bridge.ettamei.com` wait on the deploy.
 
 ### M5: hardening (3-4 days)
 

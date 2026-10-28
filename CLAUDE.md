@@ -43,6 +43,22 @@ npm test           # TS engine parity with Python + headless table flow + WASM s
 npm run check      # svelte-check
 npm run dev        # local dev server
 npm run build      # static site in frontend/dist, deployed to GitHub Pages
+npm run dev:beta   # the multiplayer beta: tables proxied to a local server/
+npm run build:beta # the beta site in frontend/dist-beta, served by server/
+```
+
+On this Windows machine Rust is the **GNU** toolchain (`stable-x86_64-pc-windows-gnu`,
+installed 2026-10-27), so no Visual Studio Build Tools are needed; `cargo` is in
+`~/.cargo/bin`, which a shell opened before the install may not have on its PATH.
+
+```bash
+cd server          # the multiplayer table server (Node 24): docs/MULTIPLAYER_PLAN.md
+npm install
+npm test           # real sockets on a random port, a temp SQLite file
+npm run check      # tsc
+npm run dev        # build and run on :8787 (set ALLOWED_ORIGINS=http://localhost:5173)
+npm run bench      # robot decision times and retained memory, 200 boards
+BRIDGE_HOST=<ct ip> ./deploy.sh   # build both and deploy to the homelab (LXC 213)
 ```
 
 ## Environment
@@ -67,7 +83,7 @@ threshold could bid differently on the two. 3.12 is the reference.
 
 This is a Contract Bridge variant where **the second-highest card in the winning suit wins each trick** (not the highest). The winning suit is trump if any trump was played, otherwise the led suit (including in No-Trump contracts). If only one card of the winning suit is played it wins outright.
 
-Full Bridge Bidding (Auction) from 1♣ to 7NT with Pass, Double (X), and Redouble (XX), Dealer and Vulnerability rotations, and complete duplicate Bridge scoring. Human plays South; North, East, and West bid via AI. If N/S wins the contract, dummy is revealed and played by the human declarer.
+Full Bridge Bidding (Auction) from 1♣ to 7NT with Pass, Double (X), and Redouble (XX), Dealer and Vulnerability rotations, and complete duplicate Bridge scoring. Solo: the human plays South; North, East, and West bid via AI. If N/S wins the contract, dummy is revealed and played by the human declarer. Multiplayer (the beta at bridge.ettamei.com): two to four people in any seats, robots in the rest; every view turns so you sit at the bottom.
 
 ## Where things are
 
@@ -78,6 +94,8 @@ Full Bridge Bidding (Auction) from 1♣ to 7NT with Pass, Double (X), and Redoub
 | `bridge/solver/` | double dummy solver | [SOLVER](docs/SOLVER.md) |
 | `gib.py`, `ai.py` | robot bidding (GIB first, the previous system as fallback), hand evaluation, card play | [BIDDING](docs/BIDDING.md), [CHALLENGE](docs/CHALLENGE.md) |
 | `challenge.py`, `data/solved_deals.json` | head-to-head mode on 400 solved deals | [CHALLENGE](docs/CHALLENGE.md) |
+| `frontend/src/lib/table/` | multiplayer: the table core, the protocol, the browser's `RemoteTable` | [MULTIPLAYER_PLAN](docs/MULTIPLAYER_PLAN.md) |
+| `server/` | the multiplayer table server (Node, SQLite, WebSockets), deployed to the homelab | [MULTIPLAYER_PLAN](docs/MULTIPLAYER_PLAN.md) |
 | `frontend/` | the game: the phone-first web app (Svelte), a static site | [FRONTEND](docs/FRONTEND.md) |
 | `research/` | dataset, fitting, the Rust solver; never imported by the Python app. The web app's History replayer runs `research/solver-rs/wasm` as WebAssembly | [SOLVER](docs/SOLVER.md), [BIDDING](docs/BIDDING.md), [FRONTEND](docs/FRONTEND.md) |
 | `tests/` | the Python suites; `tests/fixtures/endings.json` is frozen solver ground truth | |
@@ -123,6 +141,12 @@ it before going against one.
 **Determinism** ([CHALLENGE](docs/CHALLENGE.md))
 - `ai.py` imports no RNG, so the robot table and the benchmark cannot drift. `hands_for`
   rebuilds deals from stored text and must never reseed the global RNG.
+
+**Multiplayer** ([MULTIPLAYER_PLAN](docs/MULTIPLAYER_PLAN.md))
+- A seat receives only what `viewFor` builds (`table/core.ts`); `core.test.ts` scans every view at
+  every step for another hand's cards and partner's live alerts. A new field in a view goes through it.
+- The robots at a table are the solo robots, call for call (the parity test). The server imports the
+  engine as is, never `engine/challenge.ts` (`build.mjs` fails if it would).
 
 **The Svelte port** ([FRONTEND](docs/FRONTEND.md))
 - `frontend/src/lib/engine/` is a line-for-line port held to the Python by fixtures, with exact
