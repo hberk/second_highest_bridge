@@ -958,6 +958,54 @@ def _partner_penalty_stands(player: str, auction: AuctionState, alerts: dict) ->
     return False
 
 
+#: A pre-emptor has described the hand and does not bid again on their own
+#: (the user's rule, 2026-10-28): after a weak two or a three-level or
+#: higher opening, opener passes unless partner's call is the last one made
+#: and asks for an answer -- a bid below game that is not a raise, from an
+#: unpassed hand, or a double that is not for penalty. The penalty double
+#: (`_penalty_double`) is kept, by the user's choice. Training deal 270:
+#: P 2♦ (2♥) 2♠ (3♦) 3NT, read as answering a forcing 2♠, then doubled 4♥
+#: because its own 3NT counted as game values. Fresh deals, head to head:
+#: -0.08 a board, t = -1.5, a tie; without the penalty double -0.20, t = -3.1.
+PREEMPTOR_PASSES = True
+PREEMPTED = "Pre-empted already."
+
+
+def _preemptor_forced(player: str, auction: AuctionState, alerts: dict) -> bool | None:
+    """Is this the pre-emptor, and has partner asked for an answer? None
+    when the player did not pre-empt."""
+    calls = auction.calls
+    first = next((i for i, (_, c) in enumerate(calls) if c != 'Pass'), None)
+    if first is None or calls[first][0] != player:
+        return None
+    opening = parse_bid(calls[first][1])
+    if (not opening or opening[0] < 2 or opening[1] == 'NT'
+            or calls[first][1] == '2C' or (opening[0] == 2 and first == 3)):
+        return None             # not a pre-empt; a fourth-seat two-bid is sound
+    partner = PARTNERS[player]
+    last = next((i for i in range(len(calls) - 1, first, -1) if calls[i][1] != 'Pass'), None)
+    if last is None or calls[last][0] != partner:
+        return False
+    call = calls[last][1]
+    if call == 'X':
+        return not alerts.get(last, '').startswith('Penalty')
+    bid = parse_bid(call)
+    passed = next(c for w, c in calls if w == partner) == 'Pass'
+    return bool(bid and bid[1] != opening[1] and not passed
+                and (not gib._is_game_bid(call) or call in ('4NT', '5NT')))
+
+
+def _preemptor_passes(player: str, hand: list[Card], auction: AuctionState,
+                      alerts: dict) -> tuple | None:
+    if not PREEMPTOR_PASSES or not auction.legal_calls():
+        return None
+    if _preemptor_forced(player, auction, alerts) is not False:
+        return None
+    if PENALTY_DOUBLE:
+        return _penalty_double(player, hand, auction, alerts) or ('Pass', PREEMPTED)
+    return 'Pass', PREEMPTED
+
+
 def ai_bid_explained(player: str, hand: list[Card], auction: AuctionState,
                      alerts: dict | None = None) -> tuple:
     """The bid this hand would make, together with a plain-words alert saying what
@@ -971,7 +1019,8 @@ def ai_bid_explained(player: str, hand: list[Card], auction: AuctionState,
     (`_robot_alerts`), so a plain robot loop needs to pass nothing."""
     if alerts is None:
         alerts = _robot_alerts(auction)
-    decision = _penalty_or_base(player, hand, auction, alerts)
+    decision = (_preemptor_passes(player, hand, auction, alerts)
+                or _penalty_or_base(player, hand, auction, alerts))
     auction.__dict__.setdefault('_robot_said', {})[len(auction.calls)] = decision
     return decision
 

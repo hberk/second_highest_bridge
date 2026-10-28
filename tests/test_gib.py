@@ -846,3 +846,24 @@ def test_light_response_with_a_singleton_in_openers_minor():
     assert call == '1H' and 'short' in why, (call, why)
     call, _ = bid('5S 4S 3S 2S 10H 9H 8H 7H 9D 8D 4D KC QC', '1D', 'Pass')
     assert call == 'Pass', call
+
+
+def test_a_preemptor_does_not_bid_again_unless_partner_asks():
+    """The user's rule, 2026-10-28 (training deal 270): after a weak two the
+    pre-emptor passes unless partner's call is the last one and asks for an
+    answer. Before, North bid 3NT over West's 3♦ cuebid. The penalty double
+    is kept, by the user's choice."""
+    north = hand('8S JH 6H 4H 3H KD QD 10D 6D 4D 3D JC 10C')
+    cue = {4: 'Cuebid: 3+ ♥, 10+ HCP. Artificial.'}
+
+    def north_bids(*calls):
+        return ai.ai_bid_explained('North', north, after(*calls, dealer='West'), cue)
+
+    assert north_bids('Pass', '2D', '2H', '2S', '3D') == ('Pass', ai.PREEMPTED)
+    # Had West passed, North must answer partner's new suit.
+    assert north_bids('Pass', '2D', '2H', '2S', 'Pass')[0] == '3D'
+    # Partner's raise is to play.
+    assert north_bids('Pass', '2D', '2H', '3D', '3H') == ('Pass', ai.PREEMPTED)
+    # Four trumps behind declarer: the penalty double stands.
+    call, why = north_bids('Pass', '2D', '2H', '2S', '3D', 'Pass', '4H', 'Pass', 'Pass')
+    assert call == 'X' and why.startswith('Penalty'), (call, why)
