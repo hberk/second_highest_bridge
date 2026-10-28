@@ -15,8 +15,8 @@ screenshot) and said so.
 
 ## Now (2026-10-26)
 
-The robots lose 240.8 points a board in the auction and 6.0 in the play
-(ROBOT_PROGRESS, measured after PR #30/#31). Against two-sided par, 60% of the
+The robots lose 240.8 points a board in the auction and 20.7 in the play
+(ROBOT_PROGRESS, measured 2026-10-28; the play figure from N/S nets both sides). Against two-sided par, 60% of the
 auction's loss is in competitive auctions, and the robots almost never double
 for penalty, so that comes first.
 

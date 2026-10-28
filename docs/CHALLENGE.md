@@ -24,19 +24,28 @@ which a single score cannot answer. Measured 2026-10-19, with every card-play ru
 (6,356 boards with a contract, 44 passed out), graded from N/S as the app
 grades, so this is what the "Robots" column of the match table averages to.
 The web app's Challenge caption quotes this table; rerun the script after a
-robot change and update both together. Measured 2026-10-24, after the
-penalty double where X is free, the cuebid raise read as support (PR #30)
-and the defender's suit plan (below), graded with the partner who actually
+robot change and update both together. Measured 2026-10-28, after fourth
+hand wins with a dead card first (below), graded with the partner who actually
 declared (the library holds every declarer's count; par takes the better
 partner):
 
 | | mean per board | median |
 |---|---|---|
 | lost in the auction | **240.8** | 200.0 |
-| lost in the card play | **6.0** | **0.0** |
+| lost in the card play | **20.7** | **0.0** |
 
-Graded from the declaring side: 214.8 in the auction and -24.3 in the card
-play. All four seats bid the new way, so what one side gains head to head
+Graded from the declaring side: 214.8 in the auction and -21.0 in the card
+play. The same robots without the dead winner (the robots of PR #32): 240.8
+and 12.1 from N/S, 214.8 and -11.8 from the declaring side. All four seats use
+the rule, and the N/S figure nets declarer against defence, so it moves with
+whichever side gains more; from the declaring side the play beats double
+dummy by 9.2 points a board more. Seated on the library (one side with the
+rule, sides swapped): +0.062 tricks, +8.13 points a board (t = +2.87).
+
+Measured 2026-10-24, after the penalty double where X is free, the cuebid
+raise read as support (PR #30) and the defender's suit plan: 240.8 in the
+auction and 6.0 in the card play from N/S; 214.8 and -24.3 from the declaring
+side. All four seats bid the new way, so what one side gains head to head
 (+4.34 a board) the other gains back.
 
 Before PR #30, after the defender's suit plan (2026-10-24): 242.5 in the
@@ -433,6 +442,8 @@ deals x 16 boards): **+0.029 tricks, +4.98 points a board (t = +2.83)**; 2,784
 of 12,640 boards changed. The same for ruffs only measured even (-0.001
 tricks, +0.87 points, t = +0.65, 1,528 boards): a dead trump still pushes
 partner's trump into second place later, and the gain is in following suit.
+Seated on the challenge library itself: +0.062 tricks, +8.13 points a board
+(t = +2.87), 1,448 of 6,356 boards changed.
 `tests/test_card_play_rules.py` holds deal 10.
 
 **A cuebid raise that forces the three level needs four trumps or 12+
