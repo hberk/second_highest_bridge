@@ -728,6 +728,17 @@ def test_a_double_of_an_artificial_bid_directs_the_lead():
     assert lead.suit == 'D', lead
 
 
+def test_a_lead_directing_doubler_never_bids_again():
+    """The user's rule, 2026-10-28: the double is made because bidding is too
+    dangerous, so the doubler passes whatever partner does next (it used to
+    bid 3♦ and 4♦ here, reading partner's 3♣ and 3♦ as support)."""
+    south = 'AS KS 7S 8H 4H KD QD JD 10D 9D 7D 9C 6C'
+    calls = ('Pass', 'Pass', 'Pass', '2C', 'Pass', '2D', 'X')
+    for more in (('2NT', '3C', 'Pass'), ('2H', '3D', '3H'), ('2NT', '3S', 'Pass')):
+        call, why = bid(south, *calls, *more)
+        assert call == 'Pass' and 'for the lead' in why, (more, call, why)
+
+
 def _replay(auction, n):
     out = AuctionState(dealer=auction.dealer, vulnerability=auction.vulnerability)
     for w, c in auction.calls[:n]:

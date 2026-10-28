@@ -342,7 +342,11 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   (`/mnt/project-files/lead-double/ld.py`): any five cards +0.13 a board
   (t = 2.2), 3+ judgement points +0.11, **4+ +0.13 (t = 3.0)**, 5+ +0.03
   (t = 1.4), 6+ -0.01. Scored with the best lead instead, the auctions alone
-  are worth about nothing: the gain is the lead.
+  are worth about nothing: the gain is the lead. The doubler never bids
+  again, whatever partner does (`ai._lead_doubler_passes`, the user's rule,
+  2026-10-28: the double is made because bidding is too dangerous); it had
+  still bid when partner bid on, reading a cuebid or raise as support. Its
+  penalty double is kept, as for the pre-emptor.
 - **Penalty doubles** (`ai.PENALTY_DOUBLE`, `PENALTY_JUDGE`; the user's rule,
   2026-10-24). Against **two-sided par** (both sides bid perfectly, a failing
   contract is doubled, either side may sacrifice) the robots are 233 points a

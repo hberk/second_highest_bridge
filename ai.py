@@ -1006,6 +1006,21 @@ def _preemptor_passes(player: str, hand: list[Card], auction: AuctionState,
     return 'Pass', PREEMPTED
 
 
+#: A lead-directing doubler never bids again (the user's rule, 2026-10-28):
+#: it doubled because bidding was too dangerous. The penalty double is kept,
+#: as for the pre-emptor.
+LEAD_DOUBLED = "My double showed my suit, for the lead."
+
+
+def _lead_doubler_passes(player: str, hand: list[Card], auction: AuctionState,
+                         alerts: dict) -> tuple | None:
+    if not auction.legal_calls() or not gib.lead_doubler(player, auction):
+        return None
+    if PENALTY_DOUBLE:
+        return _penalty_double(player, hand, auction, alerts) or ('Pass', LEAD_DOUBLED)
+    return 'Pass', LEAD_DOUBLED
+
+
 def ai_bid_explained(player: str, hand: list[Card], auction: AuctionState,
                      alerts: dict | None = None) -> tuple:
     """The bid this hand would make, together with a plain-words alert saying what
@@ -1020,6 +1035,7 @@ def ai_bid_explained(player: str, hand: list[Card], auction: AuctionState,
     if alerts is None:
         alerts = _robot_alerts(auction)
     decision = (_preemptor_passes(player, hand, auction, alerts)
+                or _lead_doubler_passes(player, hand, auction, alerts)
                 or _penalty_or_base(player, hand, auction, alerts))
     auction.__dict__.setdefault('_robot_said', {})[len(auction.calls)] = decision
     return decision

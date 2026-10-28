@@ -2994,6 +2994,12 @@ function wasLeadDouble(ctx: Ctx, seat: Seat): boolean {
   return LEAD_DOUBLE && at >= 0 && ctx.calls[at][1] === 'X' && theirArtificial(ctx, at - 1) !== null;
 }
 
+/** Did `player` make a lead-directing double? It then never bids again
+ *  (`leadDoublerPasses` in ai.ts). See gib.py. */
+export function leadDoubler(player: Seat, auction: AuctionState): boolean {
+  return wasLeadDouble(new Ctx(player, [], auction), player);
+}
+
 function theyOpened(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
   if (!seq.length) return defend(ctx);

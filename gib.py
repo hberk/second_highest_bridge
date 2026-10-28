@@ -3240,6 +3240,13 @@ def _was_lead_double(ctx: Ctx, seat: str) -> bool:
             and _their_artificial(ctx, at - 1) is not None)
 
 
+def lead_doubler(player: str, auction: AuctionState) -> bool:
+    """Did `player` make a lead-directing double? It then never bids again
+    (the user's rule, 2026-10-28: the double is made because bidding is too
+    dangerous); `ai._lead_doubler_passes` applies it."""
+    return _was_lead_double(Ctx(player, [], auction), player)
+
+
 def they_opened(ctx: Ctx) -> tuple | None:
     seq = ctx.seq
     if not seq:

@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { doublerGuard, gibBid, Hand, isGameBid, jamAlert, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert } from './gib';
+import { doublerGuard, gibBid, Hand, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -636,6 +636,19 @@ function preemptorPasses(player: Seat, hand: Card[], auction: AuctionState,
   return ['Pass', PREEMPTED];
 }
 
+/** A lead-directing doubler never bids again; the penalty double is kept.
+ *  See ai.py. */
+const LEAD_DOUBLED = 'My double showed my suit, for the lead.';
+
+function leadDoublerPasses(player: Seat, hand: Card[], auction: AuctionState,
+  alerts: Record<number, string>): Decision | null {
+  if (!auction.legalCalls().length || !leadDoubler(player, auction)) return null;
+  if (PENALTY_DOUBLE && !sampling) {
+    return penaltyDouble(player, hand, auction, alerts) ?? ['Pass', LEAD_DOUBLED];
+  }
+  return ['Pass', LEAD_DOUBLED];
+}
+
 /** `alerts` maps a call's index to the robot's alert for it -- robots' calls
  *  only, as a person's self-alert is free text the robots don't read. The
  *  penalty double reads partner's range from it. */
@@ -643,6 +656,7 @@ export function aiBidExplained(player: Seat, hand: Card[], auction: AuctionState
   alerts?: Record<number, string>): Decision {
   const known = alerts ?? robotAlerts(auction);
   const decision = preemptorPasses(player, hand, auction, known)
+    ?? leadDoublerPasses(player, hand, auction, known)
     ?? penaltyOrBase(player, hand, auction, known);
   if (!robotSaid.has(auction)) robotSaid.set(auction, new Map());
   robotSaid.get(auction)!.set(auction.calls.length, decision);
