@@ -204,6 +204,13 @@ remains the reference.
     leaving the board, which frees the table), and fills in from the last
     trick back with one `Search` kept through the board: the endgame is
     instant and fills the table the earlier tricks reuse.
+  - **When the worker won't load.** A tab opened before a deploy points at a
+    worker file the site no longer has (hashed names), and a weak connection
+    can drop the download; both used to end in "the solver could not start"
+    until a reload. The worker posts `{ready}` as its first act, so an error
+    before it means the script never loaded: the page checks the file (404:
+    "the app has been updated. Reload the page."), otherwise retries once
+    quietly, then offers Try again.
   - **Depth.** Tricks 3-13 at once (`AUTO_CARDS = 11`); tricks 1-2 on a tap.
     Measured on 38 library boards, WebAssembly in Node on the laptop, table
     capped at 1M entries: the last 10 tricks 0.28 s median, 2.0 s worst; the

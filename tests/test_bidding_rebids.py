@@ -133,18 +133,26 @@ def test_a_raise_never_climbs_past_what_the_fit_can_make():
 def test_no_runaway_levels_over_many_boards():
     """The same guard, swept over real deals rather than one built position:
     GIB bids games and slams, but a five-level contract still needs the
-    values for one."""
+    values for one. Except a jam (`gib.JAM_GAME`): ten trumps bid five of a
+    minor on purpose, to make or to take their game away."""
     random.seed(11)
     for index in range(200):
         hands = deal()
         auction = AuctionState(dealer=PLAYERS[index % 4], vulnerability='None')
         guard = 0
+        jams = set()
         while not auction.is_complete and guard < 60:
             who = auction.current_player()
-            auction.apply_call(who, ai.ai_bid(who, hands[who], auction))
+            call, why = ai.ai_bid_explained(who, hands[who], auction)
+            if 'to jam the auction' in why:
+                jams.add((who, call))
+            auction.apply_call(who, call)
             guard += 1
         contract = auction.get_contract()
-        if contract and contract['level'] >= 5 and contract['doubled'] == 'None':
+        jammed = any(who in (contract['declarer'], PARTNERS[contract['declarer']])
+                     for who, _ in jams) if contract else False
+        if contract and contract['level'] >= 5 and contract['doubled'] == 'None' \
+                and not (jammed and contract['level'] == 5):
             seats = [contract['declarer'], PARTNERS[contract['declarer']]]
             combined = sum(gib.Hand(hands[s]).hcp for s in seats)
             assert combined >= 22, (

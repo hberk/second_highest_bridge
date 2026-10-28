@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { gibBid, Hand, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert } from './gib';
+import { gibBid, Hand, jamAlert, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -650,6 +650,11 @@ function doubledOrBase(player: Seat, hand: Card[], auction: AuctionState,
 }
 
 function baseBidExplained(player: Seat, hand: Card[], auction: AuctionState): Decision {
+  const decision = systemBidExplained(player, hand, auction);
+  return settingsAi.useGib ? jamAlert(player, hand, auction, decision) : decision;
+}
+
+function systemBidExplained(player: Seat, hand: Card[], auction: AuctionState): Decision {
   const legal = auction.legalCalls();
   if (!legal.length) return ['Pass', 'Pass. No legal call available.'];
 

@@ -286,8 +286,10 @@ button { touch-action: manipulation; }
    foot of every label points at the centre: writing-mode lays the seat out
    sideways, so the layout measures it rotated, and West is turned the rest
    of the way round. column-reverse keeps each name at the outer edge. Sizes
-   below are logical, so one set of rules covers both directions. */
-.af-west, .af-east { writing-mode: vertical-lr; flex-direction: column-reverse; }
+   below are logical, so one set of rules covers both directions. Suit symbols
+   stand upright in vertical text by default; sideways turns them with the
+   rest of the label. */
+.af-west, .af-east { writing-mode: vertical-lr; text-orientation: sideways; flex-direction: column-reverse; }
 .af-west { transform: translateY(-50%) rotate(180deg); }
 .bc-stack { display: flex; }
 .bc {

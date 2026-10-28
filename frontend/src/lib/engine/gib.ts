@@ -243,6 +243,12 @@ export function gibBid(player: Seat, cards: Card[], auction: AuctionState): Deci
   const ctx = new Ctx(player, cards, auction);
   if (!ctx.legal.length) return null;
   let decision = decide(ctx);
+  const placedByJam = afterJam(ctx);
+  if (placedByJam && JAM_NEVER_AGAIN && (!decision || decision[0] !== 'X')) return placedByJam;
+  if (placedByJam && !JAM_NEVER_AGAIN) decision = placedByJam;
+  if (!decision || (decision[0] !== 'X' && decision[0] !== 'XX')) {
+    decision = jamGame(ctx) ?? decision;   // a penalty double outranks the jam
+  }
   decision = totalTricks(ctx, decision) ?? decision;
   decision = majorOverNotrump(ctx, decision) ?? decision;
   if (decision === null) return null;
@@ -372,6 +378,22 @@ function jumpShift(ctx: Ctx, x: Suit): Decision | null {
   return null;
 }
 
+/** Count the trump length in a raise of 1M (the user's call, 2026-10-28): it
+ *  is chosen on HCP plus one point for each trump past three. See gib.py. */
+export const RAISE_TRUMP_POINTS = true;
+
+/** 1M-2M / 3M / 4M on four or more trumps, judged on HCP + trumps past three. */
+function raiseOnTrumpPoints(ctx: Ctx, x: Suit): Decision | null {
+  const value = ctx.h.hcp + ctx.h.len[x] - 3;
+  const passed = ctx.passedHand(ctx.me);
+  if (value > LIMIT[1] && ctx.ok(`4${x}`)) return [`4${x}`, `4+ ${SYM[x]}, game values.`];
+  if (value >= LIMIT[0] && !passed) return [`3${x}`, `4+ ${SYM[x]}. Limit raise.`];
+  if (value >= RAISE[0] && !(passed && value >= DRURY[0])) {
+    return [`2${x}`, `3+ ${SYM[x]}. Single raise.`];
+  }
+  return null;
+}
+
 function respondMajor(ctx: Ctx, x: Suit): Decision {
   const h = ctx.h;
   const hcp = h.hcp;
@@ -380,6 +402,10 @@ function respondMajor(ctx: Ctx, x: Suit): Decision {
   const shortness = h.short(x);
   if (sup >= 5 && hcp < 10 && shortness.length && ctx.ok(`4${x}`)) {
     return [`4${x}`, `5+ ${SYM[x]}, under 10 HCP. Pre-emptive raise.`];
+  }
+  if (RAISE_TRUMP_POINTS && sup >= 4 && hcp < JACOBY_MIN) {
+    const raise = raiseOnTrumpPoints(ctx, x);
+    if (raise) return raise;
   }
   if (hcp < RESPONSE_MIN) return ['Pass', `Fewer than ${RESPONSE_MIN} HCP.`];
   if (sup >= 4 && !passed && hcp >= JACOBY_MIN) {
@@ -396,9 +422,11 @@ function respondMajor(ctx: Ctx, x: Suit): Decision {
     return ['2C', `Drury: 3+ ${SYM[x]}, ${DRURY[0]}-${DRURY[1]} HCP. Artificial.`];
   }
   if (sup >= 4 && LIMIT[0] <= hcp && hcp <= LIMIT[1] && !passed) {
+    if (RAISE_TRUMP_POINTS) return [`3${x}`, `4+ ${SYM[x]}. Limit raise.`];
     return [`3${x}`, `4+ ${SYM[x]}, ${LIMIT[0]}-${LIMIT[1]} HCP. Limit raise.`];
   }
   if (sup >= 3 && RAISE[0] <= hcp && hcp <= RAISE[1]) {
+    if (RAISE_TRUMP_POINTS) return [`2${x}`, `3+ ${SYM[x]}. Single raise.`];
     return [`2${x}`, `3+ ${SYM[x]}, ${RAISE[0]}-${RAISE[1]} HCP.`];
   }
   const js = jumpShift(ctx, x);
@@ -1729,6 +1757,71 @@ function totalTricks(ctx: Ctx, decision: Decision | null): Decision | null {
     && (shownSuit(ctx.seq, i) === s || cueRaise(ctx, i) === s));
   if (!mine && ctx.h.len[s] >= 3) return [best[1], raiseAlert(s, LOTT_ALERT)];
   return [best[1], LOTT_ALERT];
+}
+
+/** Jam to game on a ten-card fit (the user's call, 2026-10-28). When
+ *  partner's opening is the only bid our side has made, my first call is game
+ *  in it if my length and partner's shown length make JAM_FIT: over any call
+ *  of theirs, and over a pass too after a pre-empt; five of a minor too. See gib.py. */
+export const JAM_GAME = true;
+export const JAM_FIT = 10;
+export const JAM_OPENINGS = [1, 2, 3];
+export const JAM_OVER_BIDS = true;
+export const JAM_UNCONTESTED = true;
+export const JAM_MINORS = true;
+/** The user's choice: both partners may compete again after the jam. */
+export const JAM_NEVER_AGAIN = false;
+const jamText = (x: Suit) => `Game in ${SYM[x]}: to make or to jam the auction.`;
+
+/** The game call partner's opening asks of my first call, or null. */
+function jamSpot(ctx: Ctx): string | null {
+  if (!JAM_GAME || !ctx.weOpened || ctx.iAmOpener() || ctx.seq.length !== 1) return null;
+  const at = ctx.calls.findIndex(([w, c]) => w === ctx.ours[0][0] && c === ctx.ours[0][1]);
+  if (ctx.calls.slice(at + 1).some(([w]) => w === ctx.me)) return null;   // now or never
+  const x = strainOf(ctx.seq[0]);
+  if (!isSuit(x) || !JAM_OPENINGS.includes(levelOf(ctx.seq[0])) || ctx.seq[0] === '2C'
+    || (isMinor(x) && !JAM_MINORS)) return null;
+  if (!ctx.theirs.length && (!JAM_UNCONTESTED || levelOf(ctx.seq[0]) === 1)) return null;
+  if (!JAM_OVER_BIDS && ctx.theirs.some(([, c]) => c !== 'X')) return null;
+  const game = isMajor(x) ? `4${x}` : `5${x}`;
+  return ctx.ok(game) ? game : null;
+}
+
+function jamGame(ctx: Ctx): Decision | null {
+  const game = jamSpot(ctx);
+  if (game === null) return null;
+  const x = strainOf(game) as Suit;
+  return ctx.h.len[x] + partnerLength(ctx, x) >= JAM_FIT ? [game, jamText(x)] : null;
+}
+
+/** After the jump to game in the jam seat the contract is placed: the
+ *  pre-empter passes over what they bid next. With JAM_NEVER_AGAIN both of us
+ *  pass whatever they bid, for the rest of the auction. */
+function afterJam(ctx: Ctx): Decision | null {
+  if (!JAM_GAME || ctx.seq.length < 2 || !ctx.legal.length) return null;
+  if (!JAM_NEVER_AGAIN && (!ctx.iAmOpener() || ctx.seq.length !== 2)) return null;
+  const jammer = ctx.ours[1][0];
+  if (ctx.ours[0][0] === jammer) return null;
+  const at = ctx.calls.findIndex(([w, c]) => w === jammer && c === ctx.ours[1][1]);
+  const before = new Ctx(jammer, [], replay(ctx.auction, at));
+  if (ctx.seq[1] !== jamSpot(before)) return null;
+  return ['Pass', JAM_NEVER_AGAIN ? 'The contract is placed.' : 'Partner placed the contract.'];
+}
+
+function replay(auction: AuctionState, n: number): AuctionState {
+  const a = new AuctionState(auction.dealer, auction.vulnerability);
+  for (const [who, call] of auction.calls.slice(0, n)) a.applyCall(who, call);
+  return a;
+}
+
+/** Any branch's game bid in the jam seat reads the jam's alert, so the same
+ *  call in the same auction says the same thing whoever holds it. */
+export function jamAlert(player: Seat, cards: Card[], auction: AuctionState,
+  decision: Decision): Decision {
+  if (JAM_GAME && decision[0] === jamSpot(new Ctx(player, cards, auction))) {
+    return [decision[0], jamText(strainOf(decision[0]) as Suit)];
+  }
+  return decision;
 }
 
 /** A major game, not 3NT, on a known eight-card major fit (the user's call,

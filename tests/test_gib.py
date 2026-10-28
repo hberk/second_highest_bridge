@@ -483,10 +483,32 @@ def test_responder_bids_game_over_a_three_level_jump_overcall():
     """Deal 346: ♠AK96 ♥K ♦QJ10432 ♣J6 passed 1♠ (3♥): the cuebid is above
     three, 3♠ shows 6-9, and nothing else fit. 3+ support and 11+ bids game."""
     assert bid('AS KS 9S 6S KH QD JD 10D 4D 3D 2D JC 6C', '1S', '3H')[0] == '4S'
-    # 10 HCP still does not: deals 1 and 381 went down in game.
-    assert bid('9S 6S 4S KH QH 8H 6H 3H AD 4D 3D JC 2C', '1H', '3D')[0] != '4H'
+    # 10 HCP still does not: deals 1 and 381 went down in game...
+    assert bid('9S 6S 5S 4S KH QH 8H 6H AD 4D 3D JC 2C', '1H', '3D')[0] != '4H'
+    # ...unless five trumps make ten: then it jams at once (gib.JAM_GAME).
+    assert bid('9S 6S 4S KH QH 8H 6H 3H AD 4D 3D JC 2C', '1H', '3D') == \
+        ('4H', 'Game in ♥: to make or to jam the auction.')
     # Weak hands still raise to three.
     assert bid('9S 6S 4S KH QH 6H 3H JD 4D 3D 8C 6C 2C', '1H', '3D')[0] == '3H'
+
+
+def test_ten_trumps_jam_to_game_at_once():
+    """The user's Challenge deal (2026-10-28): 2♠ (X) with ♠A10652 ♥853 ♦J8
+    ♣Q96 passed, bid 4♠ and 5♠ a round late, and E/W made 6♥. Partner's weak
+    two shows six, so eleven trumps: bid game now, and only now."""
+    south = 'AS 10S 6S 5S 2S 8H 5H 3H JD 8D QC 9C 6C'
+    assert bid(south, '2S', 'X', dealer='North') == \
+        ('4S', 'Game in ♠: to make or to jam the auction.')
+    # The pre-empter then leaves it to the jammer.
+    north = 'KS QS JS 8S 4S 3S JH 10D 9D 6D 4D 2D 4C'
+    assert bid(north, '2S', 'X', '4S', '5H', dealer='North')[0] == 'Pass'
+
+
+def test_trump_length_counts_in_a_major_raise():
+    """The user's deal (2026-10-28): 1♥ with ♠K5 ♥K9864 ♦K84 ♣832 raised to
+    2♥. Nine HCP and two trumps past three make eleven: a limit raise."""
+    assert bid('KS 5S KH 9H 8H 6H 4H KD 8D 4D 8C 3C 2C', '1H', 'Pass') == \
+        ('3H', '4+ ♥. Limit raise.')
 
 
 def test_competes_to_the_level_of_the_fit():
