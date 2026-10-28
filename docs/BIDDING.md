@@ -415,6 +415,25 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   half of its gap came from the opponents' extra turn after 2NT, and the
   rest from declined invitations); the same for responder (1♦ (2♥) 2NT)
   -0.19 and the game-forcing cuebid for responder about 0.
+- **A pre-emptor does not bid again unless partner asks** (`ai.PREEMPTOR_PASSES`,
+  `_preemptor_passes`; the user's rule, 2026-10-28, training deal 270:
+  P 2♦ (2♥) 2♠ (3♦) 3NT, then a double of 4♥). After a weak two or any
+  opening at the three level or higher (not 2♣, not notrump, not a sound
+  fourth-seat two-bid), opener passes unless partner's call is the last one
+  made and asks for an answer: a bid below game (4NT and 5NT count as asks)
+  that is not a raise of opener's suit, from a hand that has not passed, or
+  a double that is not for penalty. The 3NT came from
+  `_opener_over_forcing_response`, written for one-level openers: it took
+  2♠ as forcing after West's 3♦ had released opener, and West's cuebid of
+  our diamonds as their suit to stop. The 4♥ double then came from
+  `_over_their_contract`, counting North's own 3NT as game values. The
+  penalty double (`_penalty_double`) stays open to the pre-emptor, by the
+  user's choice, so North still doubles 4♥ on that deal with four trumps
+  behind declarer. 10,000 fresh deals: **-0.08, t = -1.5, 131 auctions
+  changed**, a tie. Without the penalty double -0.20, t = -3.1, 143
+  auctions: 12 of the pre-emptor's penalty doubles were worth about 690
+  points each, and one deal (three dealers) was a rescue of partner's
+  doubled 3♠. Only fixing the one branch that bid 3NT: +0.01, 4 auctions.
 - **A major raise counts trump length** (`RAISE_TRUMP_POINTS`, the user's
   deal: 1♥ with ♠K5 ♥K9864 ♦K84 ♣832 raised to 2♥). With four or more
   trumps and under 13 HCP, 2M, 3M or 4M is chosen on HCP plus one point a

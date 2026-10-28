@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { gibBid, Hand, jamAlert, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert } from './gib';
+import { gibBid, Hand, isGameBid, jamAlert, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -591,13 +591,59 @@ function partnerPenaltyStands(player: Seat, auction: AuctionState,
   return false;
 }
 
+/** A pre-emptor has described the hand and does not bid again on their own
+ *  (the user's rule, 2026-10-28): after a weak two or a three-level or
+ *  higher opening, opener passes unless partner's call is the last one made
+ *  and asks for an answer -- a bid below game that is not a raise, from an
+ *  unpassed hand, or a double that is not for penalty. The penalty double is
+ *  kept, by the user's choice. See ai.py. */
+export const PREEMPTOR_PASSES = true;
+const PREEMPTED = 'Pre-empted already.';
+
+/** Is this the pre-emptor, and has partner asked for an answer? null when
+ *  the player did not pre-empt. */
+function preemptorForced(player: Seat, auction: AuctionState,
+  alerts: Record<number, string>): boolean | null {
+  const calls = auction.calls;
+  const first = calls.findIndex(([, c]) => c !== 'Pass');
+  if (first < 0 || calls[first][0] !== player) return null;
+  const opening = parseBid(calls[first][1]);
+  if (!opening || opening[0] < 2 || opening[1] === 'NT'
+    || calls[first][1] === '2C' || (opening[0] === 2 && first === 3)) {
+    return null;              // not a pre-empt; a fourth-seat two-bid is sound
+  }
+  const partner = PARTNERS[player];
+  let last = -1;
+  for (let i = calls.length - 1; i > first; i--) {
+    if (calls[i][1] !== 'Pass') { last = i; break; }
+  }
+  if (last < 0 || calls[last][0] !== partner) return false;
+  const call = calls[last][1];
+  if (call === 'X') return !(alerts[last] ?? '').startsWith('Penalty');
+  const bid = parseBid(call);
+  const passed = calls.find(([w]) => w === partner)![1] === 'Pass';
+  return Boolean(bid && bid[1] !== opening[1] && !passed
+    && (!isGameBid(call) || call === '4NT' || call === '5NT'));
+}
+
+function preemptorPasses(player: Seat, hand: Card[], auction: AuctionState,
+  alerts: Record<number, string>): Decision | null {
+  if (!PREEMPTOR_PASSES || !auction.legalCalls().length) return null;
+  if (preemptorForced(player, auction, alerts) !== false) return null;
+  if (PENALTY_DOUBLE && !sampling) {
+    return penaltyDouble(player, hand, auction, alerts) ?? ['Pass', PREEMPTED];
+  }
+  return ['Pass', PREEMPTED];
+}
+
 /** `alerts` maps a call's index to the robot's alert for it -- robots' calls
  *  only, as a person's self-alert is free text the robots don't read. The
  *  penalty double reads partner's range from it. */
 export function aiBidExplained(player: Seat, hand: Card[], auction: AuctionState,
   alerts?: Record<number, string>): Decision {
   const known = alerts ?? robotAlerts(auction);
-  const decision = penaltyOrBase(player, hand, auction, known);
+  const decision = preemptorPasses(player, hand, auction, known)
+    ?? penaltyOrBase(player, hand, auction, known);
   if (!robotSaid.has(auction)) robotSaid.set(auction, new Map());
   robotSaid.get(auction)!.set(auction.calls.length, decision);
   return decision;

@@ -1625,7 +1625,7 @@ const OVER_THEIRS = 'Their contract; nothing more to show.';
 /** ...and our side bidding to the four level counts as those values. */
 export const VALUES_AT_FOUR = true;
 
-function isGameBid(call: string): boolean {
+export function isGameBid(call: string): boolean {
   const st = strainOf(call);
   return call === '3NT' || (levelOf(call) >= 4 && (st === 'H' || st === 'S' || st === 'NT'))
     || (levelOf(call) >= 5 && (st === 'C' || st === 'D'));

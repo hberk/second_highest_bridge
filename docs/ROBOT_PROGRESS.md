@@ -179,6 +179,9 @@ from the variant's side; t as above.
 | 10-28 | ...2NT a 10-12 limit raise, the cuebid game forcing | +0.02 | +0.38 | 172 | off |
 | 10-28 | ...the game-forcing cuebid for responder too | +0.11 | +1.62 | 402 | off |
 | 10-28 | ...2NT a 10-12 limit raise for responder too | -0.19 | -2.16 | 490 | off |
+| 10-28 | A pre-emptor does not bid again unless partner's last call asks (training deal 270: P 2♦ (2♥) 2♠ (3♦) 3NT); the penalty double kept. 10,000 fresh deals | -0.08 | -1.45 | 131 | on (your call: the rule, a tie) |
+| 10-28 | ...no penalty double from the pre-emptor either | -0.20 | -3.08 | 143 | off |
+| 10-28 | ...only the branch that bid 3NT stops reading a pre-empt as forced | +0.01 | +1.34 | 4 | off |
 
 ### The previous system (`ai_bid`)
 
