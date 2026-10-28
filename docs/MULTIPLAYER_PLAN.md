@@ -2,6 +2,13 @@
 
 Status: **plan, 2026-10-26. Nothing built.** It turns the agreed design into
 milestones the size of a PR, each with its files, tests and a "done when".
+Revised the same day with the engine measured in Node
+([What a robot costs](#what-a-robot-costs-measured-2026-10-26)), and on
+2026-10-27 by the user's call: **the beta runs on the user's homelab**, a
+Node server in an LXC behind Caddy at **`bridge.ettamei.com`** (public, the
+user's OK, 2026-10-27). Cloudflare is the optional last milestone, taken only
+once the beta shows the mode is played
+([M7](#m7-optional-move-to-cloudflare)).
 
 - [ONLINE_PLAN.md](ONLINE_PLAN.md) stays the reference for *what* online play
   means: the trust model, alerts, the event log, accounts and friends.
@@ -37,11 +44,14 @@ change at all, and still make no network calls.
 
 | question | decision | why |
 |---|---|---|
-| Backend | **Cloudflare Worker + one Durable Object per table** | The user has a Cloudflare account; ROADMAP recommends Cloudflare-only. A table is small, stateful and real-time, which is what a Durable Object is. |
+| Backend (beta) | **One Node 24 process in a homelab LXC, behind Caddy at `bridge.ettamei.com`** (the user's call, 2026-10-27) | Build, test and play the whole mode before committing to a platform. No quotas, no memory cap, and the homelab already serves public apps this way. |
+| Backend (later) | **Cloudflare Worker + one Durable Object per table, if the beta earns it** ([M7](#m7-optional-move-to-cloudflare)) | A table is small, stateful and real-time, which is what a Durable Object is. Workers **Free**, no paid fallback, `*.workers.dev` (the user's calls, 2026-10-26): see [The Free plan's budget](#the-free-plans-budget). |
+| Keeping the move cheap | **The server is a thin host around `table/core.ts`**, behind one `TableHost` interface (storage, timers, sockets) | The Node host is built now; a Durable Object host is a second implementation, not a rewrite. Same protocol, same SQLite schema. |
+| Where the beta frontend lives | **Served by the same Node process**, a build with the server's address in it | Same origin, so no CORS and a one-line CSP. The GitHub Pages site is untouched and still makes no network calls. |
 | Accounts first or tables first | **Tables first, by invite link** | Accounts are a separate project (auth, mail, RLS or D1). Friends can play without them, and nothing in the table design depends on them. |
-| Static site | **Stays on GitHub Pages** | Only the table server is new. Moving the site to Workers is optional and unrelated. |
-| Where the rules run on the server | **The same `frontend/src/lib/engine/` source**, imported by the Worker | Wrangler bundles TypeScript itself (extensionless imports included), so ONLINE_PLAN's separate esbuild step for Deno isn't needed. |
-| Table logic | **A pure TypeScript module, `frontend/src/lib/table/`**, shared by server and tests | Everything that matters (legality, visibility, robots, scoring) is testable in plain Vitest, without Cloudflare. The Durable Object is a thin shell. |
+| Solo site | **Stays on GitHub Pages** | Only the table server is new. |
+| Where the rules run on the server | **The same `frontend/src/lib/engine/` source**, bundled into the server | esbuild bundles the TypeScript (extensionless imports included) into one `server.js`; wrangler would do the same for M7. |
+| Table logic | **A pure TypeScript module, `frontend/src/lib/table/`**, shared by server and tests | Everything that matters (legality, visibility, robots, scoring) is testable in plain Vitest, with no server at all. The host is a thin shell. |
 | State | **The deal plus an append-only event log** (ONLINE_PLAN principle 4) | Reconnect, replay and the saved record all derive from it. |
 | What a client is sent | **Only what its seat may see, filtered on the server** | Opening dev tools reveals nothing; there's no X-ray to lock. |
 | How a client receives it | **A full snapshot on (re)connect, then events** | A board is a few KB, so resending it is cheaper than delta bookkeeping and can't drift. |
@@ -50,28 +60,38 @@ change at all, and still make no network calls.
 ## How a table works
 
 ```
-Browser (GitHub Pages)                         Cloudflare
-┌───────────────────────────────┐   HTTPS POST ┌─────────────────────────────────┐
-│ Solo / Challenge: unchanged,   │─────────────▶│ Worker  /tables  (create)       │
-│ engine runs locally            │              │         /tables/<id>/ws (join)  │
-│                                │              │   checks Origin, routes by id   │
-│ Table: RemoteTable             │   WebSocket  │              │                  │
-│   sends intents                │◀────────────▶│ TableObject (Durable Object)    │
-│   renders its seat's view      │              │   SQLite: seats, deals, events, │
-│   saves finished boards        │              │           alerts, players       │
-│   to localStorage History      │              │   table/core.ts: validate,      │
-└───────────────────────────────┘              │   apply, robots, views, score   │
-                                                └─────────────────────────────────┘
+Browser at https://bridge.ettamei.com      caddy-pi (.211)     LXC 213 "bridge" (Node 24, :8787)
+┌──────────────────────────────┐  HTTPS  ┌──────────────┐    ┌──────────────────────────────────┐
+│ the beta build of the app     │────────▶│ path allow-  │───▶│ server.js                        │
+│ Solo / Challenge: unchanged,  │  WSS    │ list, TLS,   │    │   static files (/opt/bridge/     │
+│ engine runs locally           │◀───────▶│ X-Real-IP    │◀──▶│     public)                      │
+│ Table: RemoteTable            │         └──────────────┘    │   POST /tables, /tables/<id>/ws  │
+│   sends intents               │                             │   Origin check, rate limits      │
+│   renders its seat's view     │                             │   one Table per open table:      │
+│   saves finished boards       │                             │     table/core.ts: validate,     │
+│   to localStorage History     │                             │     apply, robots, views, score  │
+└──────────────────────────────┘                             │   SQLite /var/lib/bridge/        │
+                                                              │     bridge.db (WAL)              │
+                                                              └──────────────────────────────────┘
 ```
+
+The server is `core.ts` inside a `TableHost`: storage (append an event, load a
+table), a timer (`schedule(table, ms)`, for robot turns and the disconnect and
+expiry checks) and sockets (send to a seat, close). The Node host implements
+it with `node:sqlite`, `setTimeout` and the `ws` package. A Durable Object host
+([M7](#m7-optional-move-to-cloudflare)) would implement the same interface
+with the object's SQLite, alarms and the Hibernation API.
 
 ### Joining
 
 1. The host taps **Play with friends**. The app POSTs to `/tables`, which
-   creates a Durable Object under a random id and returns the id plus the
-   host's **player token**.
-2. The app shows a share link: `…/second_highest_bridge/#/t/<tableId>`. The id
-   is 128 random bits, so the link is the invitation. It's sent with the
-   phone's share sheet (`navigator.share`, with copy-to-clipboard as fallback).
+   creates a table under a random id and returns the id plus the host's
+   **player token**.
+2. The app shows a share link: `https://bridge.ettamei.com/#/t/<tableId>`. The
+   id is 128 random bits as unpadded base64url, **exactly 22 characters**
+   (Caddy's WebSocket route matches `^/tables/[A-Za-z0-9_-]{22}/ws$`), so the
+   link is the invitation. It's sent with the phone's share sheet
+   (`navigator.share`, with copy-to-clipboard as fallback).
 3. A friend opens it, types a display name (1-20 characters, cleaned like an
    alert), picks a free seat, and receives their own player token.
 4. Player tokens live in `localStorage` under `shb-tables`, keyed by table id,
@@ -101,10 +121,13 @@ Browser (GitHub Pages)                         Cloudflare
   | robot declarer, human partner is dummy | the robot plays both; the human watches |
   | human dummy, human declarer | declarer plays; dummy watches |
 
-- **Robot pacing:** each robot action is a separate Durable Object *alarm*,
-  about 600 ms after the last event. That paces the table like a real one
-  instead of robot calls arriving in a burst, and it keeps each invocation to
-  one robot decision, which matters for the CPU limit (see M0).
+- **Robot pacing:** each robot action is its own `schedule()` tick, about
+  600 ms after the last event. That paces the table like a real one instead
+  of robot calls arriving in a burst, and keeps each tick to one robot
+  decision. On Node a tick runs on the one event loop, so the worst decision
+  (235 ms, measured) briefly delays every other table; fine for a few tables,
+  and `worker_threads` is the fix if it ever isn't. (On Cloudflare the tick is
+  an alarm, never `setTimeout`; see M7.)
 - **Pauses are the client's business.** The server doesn't wait at the end
   of a trick or the auction. Each client keeps showing the completed trick (1.2
   s, or until tapped, per the player's own fast-play setting), queueing events
@@ -142,8 +165,16 @@ can't use unauthorised information. The bidding box's call meanings
   back** on return, at their next turn.
 - If the host leaves, the host role passes to the longest-seated connected
   human.
-- A table with no connection for **7 days** deletes itself (an alarm calls
-  `deleteAll()`). Finished boards are already in each player's browser.
+- A table with no connection for **7 days** is deleted (a daily sweep on
+  Node; an alarm calling `deleteAll()` on a Durable Object). Finished boards
+  are already in each player's browser.
+- **Sockets drop routinely**, not only on bad networks: a deploy
+  (`systemctl restart`), a container reboot, a phone sleeping, Wi-Fi handing
+  over to 5G. Resuming from the token and the event log is the normal path,
+  tested as such. Both sides ping every **25 s**, so a dead phone socket is
+  noticed and a quiet table isn't cut by a NAT idle timeout. Caddy keeps open
+  WebSockets for 10 minutes across its own config reloads
+  (`stream_close_delay`).
 
 ## Wire protocol
 
@@ -175,23 +206,160 @@ reconnect) is answered with the original outcome and applied once.
 | `welcome` | `you: {seat, isHost}`, `snapshot` |
 | `snapshot` | table, seats and presence, board, dealer, vulnerability, `events` up to now, your hand, dummy if visible, alerts you may see, `seq` |
 | `event` | `seq`, `kind` (`call`/`card`/`dummy`/`result`/`seat`/`presence`), payload filtered for you |
-| `error` | `id?`, `code` (`not_your_turn`, `illegal`, `stale`, `locked`, …), `message` |
+| `error` | `id?`, `code` (`not_your_turn`, `illegal`, `stale`, `locked`, `full` (too many sockets from this address), `resting` (M7 only: a Cloudflare Free daily limit is spent; `until` gives the UTC reset), …), `message` |
 
 A client that sees a gap in `seq` asks for a snapshot. Inbound messages are
 capped at 2 KB and 20 a second per socket; past either, the socket is closed.
+Open sockets are capped per client address (8), and table creation is
+rate-limited per address (10 an hour). The address is the TCP peer, except
+that `X-Real-IP` is believed when, and only when, the peer is Caddy
+(192.168.169.211).
 
-## Storage in the Durable Object (SQLite)
+## Storage (SQLite)
+
+One file, `/var/lib/bridge/bridge.db` on the homelab (path from `BRIDGE_DB`),
+in WAL mode; the same tables would sit in each Durable Object under M7. A
+`table_id` column leads every key on Node, where one file holds every table.
 
 | table | columns |
 |---|---|
 | `meta` | `id`, `created_at`, `host_player`, `locked`, `board_num`, `status` (`lobby`/`bidding`/`playing`/`done`) |
-| `players` | `player_id`, `token_hash` (SHA-256; the token itself is never stored), `name`, `seat` null, `last_seen` |
+| `players` | `player_id`, `token_hash` (SHA-256; the token itself is never stored), `name`, `seat` null, `last_seen` (written on disconnect, not per message) |
 | `boards` | `board_num`, `dealer`, `vulnerability`, `hands` (JSON, server only), `record` (JSON `HistoryRecord`, once done) |
-| `events` | `board_num`, `seq`, `seat`, `kind`, `payload`, `intent_id`; **`unique(board_num, seq)`** and **`unique(intent_id)`** |
-| `alerts` | `board_num`, `seq` (of the call), `seat`, `text` |
+| `events` | `board_num`, `seq`, `seat`, `kind`, `payload`, `intent_id`, `alert`; **`primary key (board_num, seq)` `without rowid`** |
 
 Visibility is enforced in one function, `viewFor(state, seat)`, not in the
 schema, so that one function is what the leak tests hammer.
+
+The schema is kept lean even on Node, so M7 costs nothing: the events key is
+the table itself (`without rowid`), an alert is a column of its call's event
+rather than a table of its own, and intent ids are checked against the
+current board's events held in memory (a board has ~62) instead of a
+`unique(intent_id)` index. A repeated id from an earlier board is answered
+`stale`, which is the right answer anyway. (Why it matters on Cloudflare:
+[The Free plan's budget](#the-free-plans-budget).)
+
+A table's in-memory state (`TableState`) is lost on a restart (Node: a deploy
+or reboot; a Durable Object: hibernation or eviction). The host rebuilds it
+from `boards` and `events` before handling anything for that table;
+`core.ts` has one `replay(deal, events)` for this, the same function the
+tests use. Pending robot ticks are re-derived from the replayed state, never
+stored.
+
+Backups: the homelab's nightly 03:30 fleet backup takes a `sqlite3 .backup`
+of the file (safe against a live WAL database). Losing it would lose only
+unfinished boards; finished ones are in each player's browser.
+
+## What a robot costs (measured 2026-10-26)
+
+200 seeded fresh deals, four robots, the current engine
+(`frontend/src/lib/engine/`), each `aiBidExplained` and `aiPlay` timed alone,
+in Node 24 on the development desktop: the beta's own runtime. The homelab's
+i7-6700 is older, so M3 re-measures on the container; workerd runs the same
+V8, so M7 would re-measure there to check, not to discover.
+
+| | median | p95 | p99 | worst | over 10 ms |
+|---|---|---|---|---|---|
+| a call | 0.02 ms | 0.10 | 0.90 | **189 ms** | 13 of 1,936 |
+| a card | 0.03 ms | 9.6 | 58 | **235 ms** | 507 of 10,400 |
+| a card at five cards (endgame search) | 2.4 ms | 48 | 90 | 137 ms | 212 of 800 |
+| a card at 12 cards (trick 2) | 0.03 ms | 37 | 101 | 214 ms | 83 of 800 |
+| `scoreContract` | 0.01 ms | | | 0.17 ms | 0 |
+| a whole robot board | 97 ms | 328 | 433 | 470 ms | |
+
+- **188 of 200 boards have at least one decision over 10 ms**, and those
+  decisions are 88% of all robot time. The plan's earlier "~40 ms a board"
+  was too low.
+- Not yet profiled. The slow calls are most likely `doubleIsFree` sampling
+  an auction it hasn't seen (cached per auction afterwards). The slow early
+  cards can't be the endgame search, which starts at five cards, so they're
+  in the declarer and defender planning (`drawTrump`, `defenderSuitPlan`,
+  `runLongSuit` and the like). M3 profiles both, for latency only.
+- **CPU is not a limit on either host.** The 600 ms robot pacing hides the
+  worst decision from the players, and against a Durable Object's 30 s an
+  invocation it is under 1%.
+- **Memory is the limit that matters, on either host.** The shared position memory
+  (`SHARED_POSITIONS`, `POSITION_MEMO_MAX = 600_000` per trump suit) holds on
+  to about 1 MB a board. The heap after a forced GC, by boards played:
+
+  | boards | 1 | 10 | 25 | 50 | 100 | 150 | 200 |
+  |---|---|---|---|---|---|---|---|
+  | retained heap | 16 MB | 26 | 44 | 68 | **122** | 152 | **169** |
+
+  The memo's cap is 600,000 positions per trump suit, five suits, so it keeps
+  growing well past 200 boards. The homelab service runs with
+  `MemoryMax=512M` and would be killed some hundreds of boards after a
+  restart; a Cloudflare isolate has 128 MB, shared by several objects, and
+  would go around the hundredth board.
+  **The fix: clear the position memory when a board ends.** A position's
+  value doesn't depend on who looks or which layout led there (CHALLENGE.md),
+  so clearing it changes no card, only the next board's first searches. It
+  needs one exported `clearPositionMemo()` in `ai.ts`, mirrored in `ai.py` as
+  `clear_position_memo()` so the port stays line for line. The `doubleIsFree`
+  cache (`FREE`) is small and keyed by auction; leave it.
+- The same growth happens in solo play on a phone. Out of scope here; noted
+  for ROADMAP.
+
+## The Free plan's budget
+
+For [M7](#m7-optional-move-to-cloudflare) only; the homelab has no quotas.
+Rows written is the one that shapes the schema now: an insert costs a row for
+the table plus one per index, so a board is about **115 rows written** (62
+events, ~47 `setAlarm`, a few for the board and players).
+
+Daily limits reset at 00:00 UTC. Past one, that kind of operation fails until
+the reset, so the table must show a clear "the table server is resting until
+<time>" rather than a broken board.
+
+| Free limit | a board costs | so Free carries |
+|---|---|---|
+| Worker CPU, 10 ms a request | routing only (`POST /tables`, the WebSocket upgrade) | not a constraint |
+| Durable Object CPU, 30 s an invocation | worst robot decision 235 ms | not a constraint |
+| Memory, 128 MB an isolate | ~1 MB a board until cleared | fine, **with `clearPositionMemo()`** |
+| Requests, 100,000 a day (alarms count; incoming WebSocket messages count 1 in 20) | ~47 robot alarms + ~1 for human messages + connects ≈ 50 | ~2,000 boards a day |
+| Rows written, 100,000 a day | ~115 (above) | **~850 boards a day: the binding limit** |
+| Rows read, 5 million a day | a wake replays one board's events, ~62 | not a constraint |
+| Duration, 13,000 GB-s a day | billed only while awake; hibernation-eligible objects aren't billed | ~29 hours of awake objects a day |
+| Storage, 5 GB | a board record is a few KB; tables delete themselves after 7 days | not a constraint |
+
+The 7-day expiry already keeps storage bounded. The table creation rate limit
+is what keeps a leaked link or a script from spending the day's rows.
+
+## Hosting the beta (homelab)
+
+Built and run by the homelab session; its record is `configs/bridge/` and
+`docs/services.md` in the homelab repo (`e:\Claude\Personal\homelab`). Agreed
+2026-10-27; the user approved the public name and going public directly.
+
+| | |
+|---|---|
+| Container | **LXC 213 `bridge`** on the Proxmox node (192.168.169.24): Debian 13, unprivileged, `nesting=1`, 1 core, 1 GB RAM + 512 MB swap, 8 GB rootfs on local-lvm, `onboot=1`, DHCP pinned by a Firewalla reservation. Node 24 from NodeSource; no Docker. |
+| Edge | **Caddy on caddy-pi (192.168.169.211)**, vhost `bridge.ettamei.com`, Let's Encrypt TLS. A path allow-list, 404 for everything else: GET/HEAD `/`, `/index.html`, `/assets/*`, `/favicon.ico`, `/favicon.svg`, `/icon-*.png`, `/manifest.webmanifest` (compressed); POST `/tables` (16 KB body cap); GET `^/tables/[A-Za-z0-9_-]{22}/ws$` with `Upgrade: websocket`. `X-Real-IP` set from the peer, no `trusted_proxies`, `stream_close_delay 10m`, upstream keep-alive 4 s. HTTP/3 off. |
+| DNS | A Squarespace CNAME to the Firewalla DDNS name, plus a Firewalla rule pointing LAN clients straight at .211. |
+| Service | `bridge.service`: `User=bridge` (no login), `ExecStart=/usr/bin/node /opt/bridge/server.js`, `PORT=8787`, `BRIDGE_DB=/var/lib/bridge/bridge.db` (`StateDirectory=bridge`), `Restart=on-failure`, `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, `ReadWritePaths=/var/lib/bridge`, `MemoryMax=512M`. |
+| Firewall (nftables, in the CT) | 8787 from .211 (Caddy) and .212 (Uptime Kuma) only; SSH from the home LAN and VPN ranges only. |
+| Monitoring | Uptime Kuma probes `http://<ct>:8787/healthz` directly (never public) and `https://bridge.ettamei.com/`; alerts to ntfy. Logs in journald. |
+| Backup | The .db in the nightly fleet backup, by `sqlite3 .backup`. |
+
+**Deploy** (`server/deploy.sh`, run from the development machine):
+`npm run build:beta` in `frontend/` and the esbuild bundle in `server/`, then
+`rsync --delete` of `server.js` and `public/` into `/opt/bridge` as
+`builder`, then `sudo systemctl restart bridge.service` (the only sudo
+`builder` has), then a check that `/healthz` answers. The SSH key is a
+dedicated one, `~/.ssh/bridge_deploy`, used for nothing else. The database
+lives outside `/opt/bridge`, so `--delete` can't touch it. A deploy drops
+every socket; clients resume (above).
+
+**The beta build** (`vite build --mode beta`) differs from the Pages build in
+two ways only: "Play with friends" is shown, and the CSP's `connect-src`
+adds `wss://bridge.ettamei.com`. The Pages build has neither, so the public
+solo site still makes no network calls. Solo History saved on the Pages
+origin doesn't appear on `bridge.ettamei.com` (browser storage is per
+origin); LIN export and import moves boards between them.
+
+Static files: `/assets/*` are hashed and sent `Cache-Control: immutable`;
+`index.html` is `no-cache`, so a deploy reaches phones on their next load.
+The `.wasm` solver must be sent as `application/wasm`.
 
 ## Code changes, by area
 
@@ -212,6 +380,19 @@ schema, so that one function is what the leak tests hammer.
 **Frontend, changed:**
 - `game.svelte.ts`: the `HUMAN = 'South'` constant (line 63) and
   `isHumanSeat` (line 336) become a `mySeat` field, `South` by default.
+- **Alert filtering moves out of Svelte.** `liveAlerts` (line 125, a
+  `$derived` keyed on `HUMAN`) and `robotAlerts` (line 293, the alerts robots
+  may read: robots' own, never a person's free text) become pure functions in
+  a new `src/lib/alerts.ts`, taking the calls, the alerts and the set of human
+  seats. `Game` and `table/core.ts` both call them, so the server can't hide
+  or show a different set than solo does. The server never imports a
+  `.svelte.ts` file.
+- `HistoryRecord` moves from `game.svelte.ts` to `saves.ts` (which already
+  owns the saved shape), re-exported from `game.svelte.ts` so no import
+  breaks.
+- `engine/ai.ts` and `ai.py`: `clearPositionMemo()` /
+  `clear_position_memo()`, exported, not called by solo play (see
+  [What a robot costs](#what-a-robot-costs-measured-2026-10-26)).
 - `tableModel.svelte.ts`: read from a small `TableSource` interface that both
   `Game` and `RemoteTable` implement (phase, hands visible to me, calls,
   alerts, tricks, whose turn, contract, my seat), instead of from `Game`
@@ -224,56 +405,64 @@ schema, so that one function is what the leak tests hammer.
 - `App.svelte`: a `#/t/<id>` route.
 - `saves.ts`: `HistoryRecord` gains optional `table_id` and `my_seat`;
   History shows "your side" from `my_seat` when present.
-- `index.html`: the CSP's `connect-src` adds the Worker's `https://` and
-  `wss://` origins, nothing else.
+- `index.html` and `vite.config.ts`: a `beta` mode. Only its build adds
+  `wss://bridge.ettamei.com` to the CSP's `connect-src` and shows Play with
+  friends ([The beta build](#hosting-the-beta-homelab)).
+  `package.json` gains `build:beta`.
 - `HowToPlayView` and `AuctionGrid` keep fixed compass order: they describe
   rules and a written record, not your seat.
 
 **Server, new top-level `server/`:**
-- `wrangler.toml`: one Worker, one Durable Object class with SQLite storage
-  (`new_sqlite_classes` migration), the allowed origins as a variable.
-- `src/worker.ts`: routes `POST /tables` and `GET /tables/<id>/ws`; refuses an
-  `Origin` other than the Pages site (and `localhost` in dev); per-IP rate
-  limit on table creation.
-- `src/tableObject.ts`: the WebSocket **Hibernation API** (`acceptWebSocket`,
-  tags per player), so idle tables between turns cost no duration;
-  persistence of events; `alarm()` for robot turns, the 60 s disconnect
-  check and 7-day expiry. All game logic is a call into `table/core.ts`.
-- `package.json` with `wrangler` and `@cloudflare/vitest-pool-workers`.
+- `src/host.ts`: the `TableHost` interface, and `Tables`, which owns the open
+  tables, loads one on first use (`replay`), routes each socket's intents to
+  `core.ts`, sends each seat its `viewFor`, and drives the ticks. All game
+  logic is a call into `table/core.ts`; nothing here knows Node.
+- `src/node/main.ts`: the Node host. `node:http` for static files, `POST
+  /tables` and `GET /healthz` (uptime, open tables, sockets; port 8787 only,
+  not on Caddy's list), `ws` for sockets, `node:sqlite` in WAL mode for
+  storage, `setTimeout` ticks. Refuses an `Origin` other than
+  `https://bridge.ettamei.com` (and `http://localhost:*` in dev); the per-address
+  limits above. Config from the environment: `PORT`, `BRIDGE_DB`,
+  `ALLOWED_ORIGINS`, `TRUSTED_PROXY`.
+- `build.mjs`: esbuild bundles `main.ts` with the engine into one
+  `dist/server.js` (only `ws` from npm; bundled too, so the container needs no
+  `npm install`).
+- `deploy.sh`: as in [Hosting the beta](#hosting-the-beta-homelab).
+- `package.json` with `ws`, `esbuild`, `vitest`.
 
-**Not changed:** `frontend/src/lib/engine/` (the server imports it as is, so
-the fixture parity with Python covers the server too), the Python code, the
-fixtures, solo play, Challenge, LIN.
+**Not changed:** `frontend/src/lib/engine/` apart from `clearPositionMemo()`
+(the server imports it as is, so the fixture parity with Python covers the
+server too), the fixtures, solo play, Challenge, LIN. The server imports
+`card`, `auction`, `ai`, `gib`, `scoring` and `../meanings` (which `ai.ts`
+needs for sampling), all plain TypeScript. It must **not** import
+`engine/challenge.ts`, whose `$root/data/solved_deals.json` import is a Vite
+alias that esbuild (and wrangler) doesn't know and would bundle 400 deals for
+nothing; a test in `server/` fails if the bundle contains `solved_deals`.
 
 ## Milestones
 
 Each is one PR, merged green, and each leaves the app shippable.
 
-### M0: spike and measure (1-2 days)
-
-- `wrangler` hello-world Durable Object with SQLite and a WebSocket, deployed
-  to the user's account at a `*.workers.dev` address.
-- Import the engine into it and time, **inside workerd**, the CPU of: one
-  `aiBidExplained`, one `aiPlay` at each trick (the five-card endgame search is
-  the expensive one), `scoreContract`, and `viewFor`.
-- **The risk this retires:** the Workers Free plan caps CPU per invocation
-  (10 ms when last documented; check the current pricing page). An average
-  robot board is ~40 ms, so most single decisions should fit, but the endgame
-  search may not. If the worst decision is over the limit: Workers Paid ($5 a
-  month) raises it to seconds, and that's the recommendation, since there is no
-  fallback that keeps the hands off the clients.
-- **Done when:** a numbers table is added to this doc, and the plan is
-  confirmed or amended.
+The Cloudflare spike that was M0 is now part of the optional
+[M7](#m7-optional-move-to-cloudflare): the homelab has no CPU, memory or
+daily limits to retire first, and the Node measurement above already covers
+the engine.
 
 ### M1: the table view takes "my seat" (2-3 days, no network)
 
 - `mySeat` through `Game`, `TableSource`, `TableModel` and the views, as above.
 - A hidden debug setting (or test-only) seats the solo player anywhere; solo
   stays South.
+- `src/lib/alerts.ts` (`liveAlerts`, `robotAlerts`) and the `HistoryRecord`
+  move, as above.
+- `clearPositionMemo()` in `ai.ts` and `ai.py`, with a test that clearing it
+  between boards changes no card over 40 seeded boards.
 - **Tests:** `game.test.ts` already renders both layouts at every step; run it
   with `mySeat` in each of the four seats and check the bottom hand is always
   `mySeat`'s, the turn indicator and "You" labels follow it, and South's
-  output is byte-identical to today's.
+  output is byte-identical to today's. `alerts.test.ts`: with South the only
+  human, both functions give exactly what `Game` gives today, on every step
+  of 40 seeded boards.
 - **Done when:** `npm test` and `npm run check` pass, and solo play looks
   unchanged on a 390x844 phone and at 1200px.
 
@@ -297,21 +486,31 @@ Each is one PR, merged green, and each leaves the app shippable.
   - **Robot takeover** mid-auction and mid-play, and handing the seat back.
 - **Done when:** all of the above pass in plain Vitest.
 
-### M3: the server (3-4 days)
+### M3: the server, on the homelab (3-4 days)
 
-- `server/` as above; deploy to `workers.dev`.
-- **Tests** with `@cloudflare/vitest-pool-workers` (runs in workerd, real
-  SQLite): create, join, sit, a full board with one human and three robots
-  over a real socket; reconnect with `lastSeq` gets the same view; a second
-  socket with another seat's token is refused; Origin refused; oversized and
-  flooding sockets closed; hibernation then wake keeps the board; robot alarms
-  fire in order; the expiry alarm deletes.
+- `server/` as above, and the first deploy to LXC 213 (`deploy.sh`).
+- **Tests** in Vitest against a real server on a random local port, with a
+  temporary SQLite file: create, join, sit, a full board with one human and
+  three robots over a real socket; reconnect with `lastSeq` gets the same
+  view; a second socket with another seat's token is refused; Origin refused;
+  oversized, flooding and too-many sockets closed; `X-Real-IP` ignored unless
+  the peer is the trusted proxy; **a restart mid-board** (close the server,
+  open a new one on the same file) resumes the board with pending robot turns
+  re-derived; robot ticks fire in order; the expiry sweep deletes; the bundle
+  contains no `solved_deals`.
+- **Measure on the container:** `server/bench.ts`, the measurement above
+  kept as a script (200 seeded robot boards, a `robotTable`-style loop timing
+  each decision), with `clearPositionMemo()` at each board's end: per-decision times
+  on the i7-6700, and retained memory flat across boards. Profile the slowest
+  calls and cards, for latency only. If memory isn't flat, add a
+  `setPositionMemoMax()` and lower the cap for the server; the play doesn't
+  change.
 - CI: a `server` job beside the frontend job in `pages.yml` runs
-  `npm ci && npm test` in `server/`. Deploying the Worker stays manual
-  (`npx wrangler deploy`) until the release, so no Cloudflare secret goes into
-  GitHub before it's needed.
-- **Done when:** the tests pass and a board can be played end to end with
-  `wscat`.
+  `npm ci && npm test` in `server/`. Deploying stays manual (`deploy.sh` from
+  the development machine), so no homelab key goes into GitHub.
+- **Done when:** the tests pass; `http://<ct>:8787/healthz` answers from the
+  LAN while `https://bridge.ettamei.com/healthz` is a 404; and a board can be
+  played end to end over `wss://bridge.ettamei.com` with `wscat`.
 
 ### M4: the client (4-5 days)
 
@@ -324,35 +523,62 @@ Each is one PR, merged green, and each leaves the app shippable.
   `RemoteTable` (trick queue, gap → snapshot, outbox resend after reconnect);
   `game.test.ts`-style rendering of every step of a remote board in both
   layouts.
-- **Done when:** two browser windows on one laptop play a board against
-  `wrangler dev`.
+- **Done when:** two browser windows on one laptop play a board against the
+  local server (`vite` + `server` in dev), and two phones play one on
+  `bridge.ettamei.com`.
 
 ### M5: hardening (3-4 days)
 
 - **End-to-end:** Playwright (preinstalled in the cloud sessions) with four
-  browser contexts against `wrangler dev` + `vite`: four humans play two full
+  browser contexts against the local server + `vite`: four humans play two full
   boards; one context goes offline mid-trick and comes back; one closes and a
   robot takes the seat; the host leaves and the role passes. Assert in the
   browser that no page ever holds another seat's cards (scan the DOM *and* the
   received messages).
 - Phone checks on a real iPhone: Safari suspends sockets when the screen locks,
-  so resume on `visibilitychange` as well as on socket close.
+  so resume on `visibilitychange` as well as on socket close. And a deploy
+  during a live board: every client resumes without a reload.
 - Error copy for every `error.code`; a "table no longer exists" screen.
 - **Done when:** the Playwright suite is green in CI three runs in a row.
 
-### M6: release (1 day)
+### M6: the friends beta (1 day)
 
-- `wrangler deploy`; the production Worker origin in the CSP; the Pages
-  site rebuilt.
+- Friends get links to `bridge.ettamei.com`. The Pages site doesn't change
+  and doesn't link to it (the user's call, 2026-10-27).
 - Docs: REQUIREMENTS gains a Multiplayer section (below), and **S4** ("No
   accounts and no server") is restated as: *solo play and Challenge send
   nothing; a table connects to the table server only when you open one.*
-  FRONTEND.md gets a Multiplayer entry; HOSTING_AND_LOCAL_SAVES moves live
-  tables from "proposed" to "built"; ROADMAP moves the item.
+  FRONTEND.md gets a Multiplayer entry; HOSTING_AND_LOCAL_SAVES records the
+  homelab table server as built; ROADMAP moves the item.
 - **Done when:** the user has played a board with a friend on two phones.
 
-**Total: roughly 3-4 weeks of sessions**, most of it M1, M2 and M4. M0 can
-stop the plan early, cheaply, if the CPU numbers are bad.
+**Total: roughly 3-4 weeks of sessions**, most of it M1, M2 and M4.
+
+### M7 (optional): move to Cloudflare
+
+Only if the beta shows the mode is played, and the homelab isn't the place
+for it. Workers **Free**, no paid fallback, `*.workers.dev` (the user's
+calls, 2026-10-26).
+
+- `server/src/cf/`: a second `TableHost`. `wrangler.toml` with one Worker and
+  one Durable Object class on SQLite (`new_sqlite_classes`); `worker.ts`
+  routes and checks `Origin`; `tableObject.ts` uses the WebSocket
+  **Hibernation API** (`acceptWebSocket`, tags per player) so idle tables
+  cost no duration, and an **alarm** per robot tick, never `setTimeout` (a
+  pending timer keeps the object awake, and on Free every awake second is
+  billed). Tests with `@cloudflare/vitest-pool-workers`, the M3 list plus
+  hibernation then wake.
+- Measure inside workerd: the 200 robot boards, one decision per alarm;
+  retained memory per board (128 MB an isolate); rows written per board from
+  the SQLite cursor's `rowsWritten`, against the ~115 budgeted. If rows
+  written is far over: batch a robot's alarm and its event into one
+  transaction, and chain robot turns inside one alarm when no human is
+  connected.
+- The `resting` error and its screen, for a spent daily limit.
+- Moving tables: none. Live tables are short-lived; the switch happens
+  between boards, and finished boards are in players' browsers.
+- **Done when:** the M3 and M5 suites pass against `wrangler dev`, and the
+  beta's address points at the Worker.
 
 ## Requirements to add (REQUIREMENTS.md)
 
@@ -371,7 +597,17 @@ stop the plan early, cheaply, if the CPU numbers are bad.
 
 ## Security checklist
 
-- Hands exist only in the Durable Object and in `viewFor`'s filtered output.
+- Hands exist only in the server's memory and database, and in `viewFor`'s
+  filtered output.
+- **The server faces the internet from the home network.** It runs
+  unprivileged, as a no-login user, under systemd's sandboxing, reachable only
+  from Caddy and Uptime Kuma; Caddy passes nothing outside the allow-list.
+  It makes no outbound connections and holds no secrets. A compromise of the
+  process reaches the container, not the LAN.
+- `X-Real-IP` is believed only from Caddy's address; Caddy overwrites any
+  client-sent forwarding headers (no `trusted_proxies`).
+- The deploy key is dedicated and can do one privileged thing: restart
+  `bridge.service`.
 - Player tokens: 128 random bits, sent in the first message only, stored
   hashed on the server, revocable by the host (remove).
 - Every string from a client (names, alerts) is length-limited and cleaned on
@@ -379,20 +615,19 @@ stop the plan early, cheaply, if the CPU numbers are bad.
   `{@html}` still covers every component.
 - `Origin` checked on the WebSocket upgrade and on `POST /tables`.
 - Message size and rate limits per socket; table creation rate-limited per IP.
-- No Cloudflare secrets in the repo; `wrangler` authenticates on the user's
-  machine.
-- Pages still can't send `frame-ancestors`; a table page in a hostile frame
-  could be clickjacked into a misplay at worst. Acceptable for friends;
-  revisit if the site moves to Workers, which can send headers.
+- No secrets in the repo: the deploy key stays on the development machine;
+  under M7, `wrangler` authenticates there too.
+- The beta server sends its own headers, so it sends the CSP as a header and
+  `frame-ancestors 'none'`, which Pages can't: no clickjacking a table.
 
 ## After the first release
 
 In rough order, each its own plan when it's next:
 1. **Running score across a table's boards** and **rematch** (cheap: the
-   object already has every board).
+   server already has every board).
 2. **Accounts** (ONLINE_PLAN Phase 1): Supabase Auth or Workers + D1, still
    undecided. A table then accepts an account token in place of a player token,
-   and writes `trusted=true` boards for its players from the object.
+   and writes `trusted=true` boards for its players from the server.
 3. **Friends** and **invite to my table** (ONLINE_PLAN Phase 2), on accounts.
 4. **Claims.** Under second-highest rules a claim is harder to judge by eye
    than in bridge; the double dummy solver could verify one, or opponents
@@ -404,12 +639,16 @@ In rough order, each its own plan when it's next:
 
 ## Open questions for the user
 
+Answered:
+- **If it moves to Cloudflare:** Workers **Free**, no paid fallback;
+  `*.workers.dev` (2026-10-26).
+- **The beta:** on the homelab, at `bridge.ettamei.com`, public from the
+  start (2026-10-27).
+- **The Pages site doesn't link to the beta** (2026-10-27): only people given
+  the address find it, for now.
+
+Still open:
 1. **Promote to P2 now, or wait for the page counts** (ROADMAP's open
-   question)? This plan doesn't change that call; it makes the work ready.
+   question)? Work started on the `multiplayer` branch on 2026-10-26; ROADMAP
+   should say so when M1 merges.
 2. **Tables before accounts?** Recommended, and assumed above.
-3. **Workers Paid ($5/month)** if M0 shows the endgame search over the Free
-   plan's CPU limit?
-4. **A custom domain** for the Worker, or `*.workers.dev`? Either works; a
-   domain is needed only if the site itself later moves to Workers.
-5. The repo must be **public** for Pages to deploy at all (HOSTING); a table
-   server pointing at an undeployed site can only be tested locally.
