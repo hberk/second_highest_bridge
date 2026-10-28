@@ -1212,10 +1212,11 @@ def _outlook(player: str, card: Card, trick: list[tuple[str, Card]],
     # differences we are actually choosing between and duck every trick away.
     # A card of another suit than the led one (an overruff) only comes if the
     # opponent is out of the led suit: it counts `void`, the chance of that.
-    exposed = sum(1 if c.suit == plays[0][1].suit else void for c in later
-                  if c.suit == suit
-                  and resolve_trick(plays + [(_AI_TAG, c)], trump) not in ours)
-    return holder, exposed
+    takers = [c for c in later
+              if c.suit == suit
+              and resolve_trick(plays + [(_AI_TAG, c)], trump) not in ours]
+    follows = sum(1 for c in takers if c.suit == plays[0][1].suit)
+    return holder, follows + void * (len(takers) - follows)
 
 
 # ── Main Play Entry Point ────────────────────────────────────────────────────
@@ -1304,8 +1305,7 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         later = _later_holdings(player, hand, trick, played, visible or {}, out)
         void = (_void_chance(player, hand, trick, played, visible or {}, history,
                              out or _shown_out(history, trick))
-                if RUFF_IF_FOLLOWS and history is not None
-                and (len(trick) == 2 or not RUFF_THIRD_ONLY) else 1.0)
+                if RUFF_IF_FOLLOWS and history is not None and len(trick) == 2 else 1.0)
         choice = _middle_play(player, legal, trick, trump, later, void)
 
     partner = PARTNERS[player]
@@ -2894,13 +2894,13 @@ def _middle_play(player: str, legal: list[Card], trick: list[tuple[str, Card]],
 # unseen club counted as an overruff, two threats to the discard's one. But
 # North can only overruff when out of spades, with eight spades unseen. So an
 # overruff counts only as often as the next opponent can be void in the led
-# suit. The discard lost to the QS and cost two tricks double dummy.
+# suit. The discard lost to the QS and cost two tricks double dummy. Third
+# hand only: second hand doing the same was even (-3 tricks over 20 changed
+# cards double dummy, against +87 over 145 for third hand).
 
-#: An overruff threat counts by the chance the opponent is out of the led suit
-#: (measurement switch).
+#: Third hand counts an overruff threat by the chance the opponent is out of
+#: the led suit (measurement switch).
 RUFF_IF_FOLLOWS = True
-#: Only third hand (measurement switch).
-RUFF_THIRD_ONLY = False
 
 
 def _void_chance(player: str, hand: list[Card], trick: list[tuple[str, Card]],
