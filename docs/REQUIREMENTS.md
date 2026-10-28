@@ -27,7 +27,7 @@ asked about, not planned. **Declined**: settled, don't re-propose.
 ## The order to build
 
 The open P1 requirements, highest first. The reasoning: the auction is where
-the robots lose points (240.8 a board, against 6.0 in the play, ROBOT_PROGRESS),
+the robots lose points (240.8 a board, against 20.7 in the play, ROBOT_PROGRESS),
 and 60% of the auction's loss against two-sided par is in competitive
 auctions, where the robots almost never double for penalty.
 
