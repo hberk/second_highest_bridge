@@ -1,0 +1,18 @@
+# Installs the newest release CI built from main (bridge-pull.mjs).
+# /etc/systemd/system/bridge-pull.service in LXC 213, started by bridge-pull.timer.
+[Unit]
+Description=second_highest_bridge: deploy the newest release from main
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=builder
+# The script restarts bridge.service through builder's one sudo rule, so no
+# NoNewPrivileges here; the script itself is root-owned and read-only to builder.
+ExecStart=/usr/bin/node /opt/bridge-pull/bridge-pull.mjs
+Environment=BRIDGE_REPO=hberk/second_highest_bridge
+TimeoutStartSec=300
+# (No ProtectSystem: sudo needs to write under /run.)
+PrivateTmp=yes
+ProtectHome=read-only

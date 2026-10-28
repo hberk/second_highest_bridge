@@ -405,7 +405,51 @@ restart bridge.service` (the only sudo `builder` has), then a check that
 `/healthz` answers, run inside the container. The SSH key is a
 dedicated one, `~/.ssh/bridge_deploy`, used for nothing else. The database
 lives outside `/opt/bridge`, so a deploy can't touch it. A deploy drops
-every socket; clients resume (above).
+every socket; clients resume (above). First deploy 2026-10-28 (53c4235).
+A manual deploy now writes `/opt/bridge/.hold`, which pauses the deploys
+from main below; `rm /opt/bridge/.hold` resumes them.
+
+### Deploying from main
+
+Chosen 2026-10-28. The homelab **pulls**; GitHub gets no key and no route in.
+A self-hosted runner was ruled out (on a public repo it runs workflow code
+inside the house), and so was pushing over SSH (a homelab key in someone
+else's repo, and an open SSH port or a VPN for the runner).
+
+1. On a push to main, once `build`, `python-tests` and `server` pass, the
+   `release-server` job in `pages.yml` builds the beta site and the server
+   bundle as one `bridge.tar.gz` (`server.js`, `public/`, and `VERSION`, the
+   full commit). It attests it with `actions/attest-build-provenance`, which
+   signs a statement through Sigstore that this workflow built this file from
+   this commit. It publishes both files as a prerelease named
+   `bridge-<12 hex>`. The last five are kept.
+2. In LXC 213, `bridge-pull.timer` runs `server/pull/bridge-pull.mjs` as
+   `builder` every five minutes. It installs the newest `bridge-*` release
+   only if all of these hold:
+   - the download matches the digest GitHub reports for it;
+   - `gh attestation verify` passes with the attached bundle, offline, with no
+     GitHub login. The certificate identity must be exactly
+     `.github/workflows/pages.yml@refs/heads/main` of the repo, the source
+     digest the release's commit, and the runner GitHub-hosted;
+   - the `VERSION` inside is that commit.
+
+   Then it swaps the files in as `deploy.sh` does, restarts, and checks
+   `/healthz`. A release that doesn't come up is rolled back and recorded in
+   `/opt/bridge/.failed`, and is never retried.
+3. The script and its units live root-owned in `/opt/bridge-pull` and
+   `/etc/systemd/system`, so the account that deploys can't loosen its own
+   checks.
+
+Tested 2026-10-28 against a fake GitHub API: no release, a correctly signed
+file from another repo (gh's own release), and a tampered download are all
+refused, and nothing is installed. The first real install waits on this
+landing on main.
+
+**What this means:** whoever can merge to `main` decides what runs in LXC 213.
+That is why the container is walled off from the LAN on the Proxmox host
+(in: Caddy and Uptime Kuma to 8787, SSH from admin hosts; out: DNS and HTTPS
+to the internet only), and why `bridge.service` runs under the full systemd
+sandbox. Branch protection with required review on `main` is the other half.
 
 **The beta build** (`vite build --mode beta`) differs from the Pages build in
 two ways only: "Play with friends" is shown, and the CSP's `connect-src`
@@ -582,8 +626,10 @@ the engine.
   `setPositionMemoMax()` and lower the cap for the server; the play doesn't
   change.
 - CI: a `server` job beside the frontend job in `pages.yml` runs
-  `npm ci && npm test` in `server/`. Deploying stays manual (`deploy.sh` from
-  the development machine), so no homelab key goes into GitHub.
+  `npm ci && npm test` in `server/`. No homelab key goes into GitHub: since
+  2026-10-28 main publishes an attested release and the homelab pulls it
+  ([Deploying from main](#deploying-from-main)); `deploy.sh` stays for manual
+  deploys.
 - **Done when:** the tests pass; `http://<ct>:8787/healthz` answers from the
   LAN while `https://bridge.ettamei.com/healthz` is a 404; and a board can be
   played end to end over `wss://bridge.ettamei.com` with `wscat`.

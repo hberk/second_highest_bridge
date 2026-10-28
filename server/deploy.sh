@@ -9,6 +9,10 @@
 # bridge.service (builder's only sudo), and waits for /healthz. The database
 # lives in /var/lib/bridge, outside what this replaces. A deploy drops every
 # socket; clients reconnect and resume.
+#
+# Normally the container deploys itself from main (server/pull/). A manual
+# deploy holds that off, so the next release doesn't replace what you're
+# testing; `ssh builder@$BRIDGE_HOST rm /opt/bridge/.hold` hands it back.
 set -euo pipefail
 
 HOST="${BRIDGE_HOST:?set BRIDGE_HOST to the container address}"
@@ -25,7 +29,7 @@ stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 cp "$here/dist/server.js" "$here/dist/server.js.map" "$stage/"
 cp -r "$here/../frontend/dist-beta" "$stage/public"
-git -C "$here" rev-parse --short HEAD > "$stage/VERSION" 2>/dev/null || echo unknown > "$stage/VERSION"
+git -C "$here" rev-parse HEAD > "$stage/VERSION" 2>/dev/null || echo unknown > "$stage/VERSION"
 
 echo "== copying to $HOST"
 tar -C "$stage" -czf - . | "${SSH[@]}" 'set -e
@@ -34,7 +38,8 @@ tar -C "$stage" -czf - . | "${SSH[@]}" 'set -e
   tar -xzmf - -C .incoming
   rm -rf .previous && mkdir .previous
   for f in server.js server.js.map public VERSION; do [ -e "$f" ] && mv "$f" .previous/; done
-  mv .incoming/* . && rmdir .incoming'
+  mv .incoming/* . && rmdir .incoming
+  echo "manual deploy of $(cat VERSION) on $(date -u +%FT%TZ)" > .hold'
 
 echo "== restarting bridge.service"
 "${SSH[@]}" sudo /usr/bin/systemctl restart bridge.service
@@ -43,7 +48,8 @@ echo "== restarting bridge.service"
 health='fetch("http://127.0.0.1:8787/healthz").then((r) => r.text()).then(console.log).catch(() => process.exit(1))'
 for _ in $(seq 1 20); do
   if out="$("${SSH[@]}" node -e "'$health'" 2>/dev/null)" && [[ "$out" == *'"ok":true'* ]]; then
-    echo "== up: $out (version $(cat "$stage/VERSION"))"
+    echo "== up: $out (version $(cut -c1-12 "$stage/VERSION"))"
+    echo "== auto-deploy from main is held; resume: ssh builder@$HOST rm /opt/bridge/.hold"
     exit 0
   fi
   sleep 1

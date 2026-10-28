@@ -1,2 +1,4 @@
 # Shell scripts run under bash (Git Bash here, Linux on the homelab): LF only.
 *.sh text eol=lf
+# Copied as is into the Linux container (server/pull/).
+server/pull/* text eol=lf

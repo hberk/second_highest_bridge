@@ -50,8 +50,9 @@ jobs:
         run: python tests/run_all.py
 
   # The multiplayer table server (server/): its own tests over real sockets,
-  # and its bundle. It is deployed by hand to the homelab (server/deploy.sh),
-  # never from here, so no homelab key is ever in GitHub.
+  # and its bundle. Nothing here can reach the homelab and no homelab key is
+  # in GitHub: the release job below publishes a build, and the homelab pulls
+  # it (server/pull/).
   server:
     if: github.event.repository.visibility == 'public' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -133,3 +134,56 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v5
+
+  # The multiplayer beta for the homelab, once everything above passes on main:
+  # the beta site and the server bundle as one tarball, attested (signed
+  # provenance: this workflow, this commit, a GitHub-hosted runner) and
+  # published as a release. LXC 213 checks for one every five minutes and
+  # installs it only if the attestation verifies (server/pull/bridge-pull.mjs).
+  # The last five bridge-* releases are kept.
+  release-server:
+    needs: [build, python-tests, server]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.visibility == 'public'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Rust for WebAssembly
+        run: rustup target add wasm32-unknown-unknown
+      - name: Build the beta site
+        working-directory: frontend
+        run: npm ci && npm run build:beta
+      - name: Build the server
+        working-directory: server
+        run: npm ci && npm run build
+      - name: Package
+        run: |
+          mkdir stage
+          cp server/dist/server.js server/dist/server.js.map stage/
+          cp -r frontend/dist-beta stage/public
+          echo "$GITHUB_SHA" > stage/VERSION
+          tar -C stage -czf bridge.tar.gz .
+      - id: attest
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: bridge.tar.gz
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp "${{ steps.attest.outputs.bundle-path }}" bridge.sigstore.jsonl
+          tag="bridge-${GITHUB_SHA::12}"
+          gh release create "$tag" bridge.tar.gz bridge.sigstore.jsonl \
+            --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "Multiplayer beta ${GITHUB_SHA::12}" \
+            --notes "The multiplayer beta server and site, built from $GITHUB_SHA. The homelab installs it automatically; nothing to do here."
+          gh release list --limit 100 --json tagName,createdAt \
+            --jq '[.[] | select(.tagName | startswith("bridge-"))] | sort_by(.createdAt) | reverse | .[5:] | .[].tagName' |
+            while read -r old; do gh release delete "$old" --yes --cleanup-tag; done
