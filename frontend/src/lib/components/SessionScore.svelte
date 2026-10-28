@@ -11,7 +11,8 @@
   let { history, challengeLog, passedOut, open = false }:
     { history: HistoryRecord[]; challengeLog: ChallengeLogEntry[]; passedOut: number; open?: boolean } = $props();
 
-  const played = $derived(history.filter((h) => !h.imported && h.contract && h.result));
+  // Boards from a multiplayer table are in History but not this session.
+  const played = $derived(history.filter((h) => !h.imported && !h.table_id && h.contract && h.result));
   const margins = $derived(new Map(challengeLog.map((r) => [r.board_num, r.margin])));
 
   /** Points to N/S: positive when N/S scored, whoever declared. */

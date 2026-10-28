@@ -920,6 +920,14 @@ function positionMemo(trump: number): Map<string, number> {
   return table;
 }
 
+/** Forget every searched position. A position's value doesn't depend on who
+ *  looks or which layout led there, so this changes no card, only the time
+ *  the next searches take. The table server calls it as each board ends, to
+ *  keep its memory flat (see ai.py). */
+export function clearPositionMemo(): void {
+  POSITION_MEMO.clear();
+}
+
 const cardOrder = (c: Card): number[] => [suitIndex(c.suit), value(c)];
 
 // ── What the auction told the play (see ai.py) ───────────────────────────────

@@ -6,9 +6,33 @@
 // The records are the same `HistoryRecord` shape ONLINE_PLAN stores in
 // `boards.record`, so boards saved here can be uploaded unchanged once there
 // are accounts.
-import type { ChallengeLogEntry, HistoryRecord } from './game.svelte';
-import { RANKS, SUITS, VULNERABILITIES } from './engine/card';
-import { PLAYERS } from './engine/auction';
+import type { ChallengeLogEntry } from './game.svelte';
+import { RANKS, SUITS, VULNERABILITIES, type Card, type Seat, type Side, type Vulnerability } from './engine/card';
+import { PLAYERS, type CallRecord, type Contract } from './engine/auction';
+import type { ScoreResult } from './engine/scoring';
+import type { TrickLog } from './engine/challenge';
+
+/** One finished board, as History replays it and LIN writes it. Plain data
+ *  with no Svelte in it, so the table server builds the same records. */
+export interface HistoryRecord {
+  board_num: number;
+  label?: string;
+  /** Loaded from LIN rather than played here: not part of the session score. */
+  imported?: boolean;
+  /** Played at a multiplayer table: its id, and the seat you sat in. */
+  table_id?: string;
+  my_seat?: Seat;
+  dealer: Seat;
+  vulnerability: Vulnerability;
+  initial_hands: Record<Seat, Card[]>;
+  auction_calls: CallRecord[];
+  bid_alerts: Record<number, string>;
+  contract: Contract | null;
+  passed_out: boolean;
+  tricks_log: TrickLog[];
+  tricks_taken: Record<Side, number>;
+  result: ScoreResult | null;
+}
 
 export const SAVE_KEY = 'shb-games-v1';
 /** Where an unreadable save is kept rather than overwritten. */

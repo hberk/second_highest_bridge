@@ -1688,6 +1688,16 @@ def _position_memo(trump: int | None) -> dict:
     if len(table) > _POSITION_MEMO_MAX:
         table.clear()
     return table
+
+
+def clear_position_memo() -> None:
+    """Forget every searched position. A position's value doesn't depend on
+    who looks or which layout led there, so this changes no card, only the
+    time the next searches take. The web app's table server calls its twin
+    (`clearPositionMemo`) as each board ends, to keep its memory flat."""
+    _POSITION_MEMO.clear()
+
+
 _NS_SEATS = (0, 2)                         # North, South in PLAYERS order
 
 

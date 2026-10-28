@@ -7,14 +7,20 @@
   import { parseBid, type Seat } from '../engine/card';
   import type { CallRecord } from '../engine/auction';
   import Strain from './Strain.svelte';
+  import { POSITION_CLASS, partnerOf, seatAt, type Position } from '../seats';
 
-  let { calls, alerts, dealer, turn = null }: {
+  let { calls, alerts, dealer, turn = null, me = 'South', names = {} }: {
     calls: CallRecord[];
     alerts: Record<number, string>;
     dealer: Seat;
     turn?: Seat | null;
+    /** The seat at the bottom of the felt: you. */
+    me?: Seat;
+    /** People's names by seat, at a multiplayer table. */
+    names?: Partial<Record<Seat, string>>;
   } = $props();
 
+  const POSITIONS: Position[] = ['top', 'left', 'right', 'bottom'];
   const SEATS: Seat[] = ['North', 'West', 'East', 'South'];
 
   /** Each seat's calls in order, with where each sits in the auction. */
@@ -40,7 +46,8 @@
     return call === 'Pass' ? 'bc-pass' : call === 'X' ? 'bc-dbl' : call === 'XX' ? 'bc-rdbl' : 'bc-bid';
   }
   function role(p: Seat): string {
-    const who = p === 'North' ? 'North · partner' : p;
+    const name = names[p] ?? p;
+    const who = p === partnerOf(me) ? `${name} · partner` : name;
     return p === dealer ? `${who} · dealer` : who;
   }
 </script>
@@ -51,11 +58,12 @@
 {/snippet}
 
 <div class="auction-felt" aria-label="The auction so far">
-  {#each SEATS as p (p)}
+  {#each POSITIONS as pos (pos)}
+    {@const p = seatAt(me, pos)}
     {@const mine = bySeat.get(p)!}
-    {@const waiting = p === 'South' && turn === 'South'}
-    <div class="af-seat af-{p.toLowerCase()}">
-      {#if p !== 'South'}<span class="af-who">{role(p)}</span>{/if}
+    {@const waiting = p === me && turn === me}
+    <div class="af-seat af-{POSITION_CLASS[pos]}">
+      {#if p !== me}<span class="af-who">{role(p)}</span>{/if}
       <div class="bc-stack" role="group" aria-label="{p}'s calls">
         {#each mine as c, k (c.i)}
           {@const top = k === mine.length - 1 && !waiting}
@@ -76,13 +84,13 @@
           <span class="bc bc-none bc-top" aria-label="{p} has not bid"><span class="bc-label">—</span></span>
         {/if}
       </div>
-      {#if p === 'South'}<span class="af-who">You</span>{/if}
+      {#if p === me}<span class="af-who">You</span>{/if}
     </div>
   {/each}
   <div class="af-center" aria-live="polite">
     {#if shown !== null}
       {@const [who, call] = calls[shown]}
-      <span class="af-center-head">{who === 'South' ? 'Your' : `${who}'s`} {@render callText(call, true)}</span>
+      <span class="af-center-head">{who === me ? 'Your' : `${names[who] ?? who}'s`} {@render callText(call, true)}</span>
       <span class="af-center-text">{alerts[shown]}</span>
     {/if}
   </div>

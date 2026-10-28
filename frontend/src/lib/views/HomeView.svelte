@@ -5,17 +5,19 @@
   import type { Game } from '../game.svelte';
   import SessionScore from '../components/SessionScore.svelte';
 
-  let { game, onplay, onchallenge, onhowto, onhistory, onsettings }: {
+  let { game, onplay, onchallenge, onhowto, onhistory, onsettings, onfriends }: {
     game: Game;
     onplay: () => void;
     onchallenge: () => void;
     onhowto: () => void;
     onhistory: () => void;
     onsettings: () => void;
+    /** Multiplayer tables: only in the beta build, which has a table server. */
+    onfriends?: () => void;
   } = $props();
 
   /** A board you've started is waiting for you on the table. */
-  const started = $derived(game.phase !== 'bidding' || game.calls.some(([p]) => p === 'South'));
+  const started = $derived(game.phase !== 'bidding' || game.calls.some(([p]) => p === game.mySeat));
   const live = $derived(started && !game.boardOver);
 </script>
 
@@ -41,6 +43,7 @@
   <nav class="home-actions" aria-label="Start">
     <button class="btn primary full huge" onclick={onplay}>{live ? `Resume board ${game.boardNum}` : 'Play'}</button>
     <button class="btn ghost full big" onclick={onchallenge}>Challenge the robots</button>
+    {#if onfriends}<button class="btn ghost full big" onclick={onfriends}>Play with friends</button>{/if}
     <div class="home-links">
       <button class="link-btn" onclick={onhowto}>How to play</button>
       <button class="link-btn" onclick={onhistory}>Hand history</button>

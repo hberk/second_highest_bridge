@@ -8,31 +8,20 @@ import {
   ALERT_MAX, AuctionState, DEALER_ROTATION, PARTNERSHIP, VUL_ROTATION, cleanAlert, clockwiseFrom, legalPlays, resolveTrick,
   type CallRecord, type Contract, type Play,
 } from './engine/auction';
-import { aiBidExplained, aiPlay, shownLengths, visibleHands } from './engine/ai';
+import { aiBidExplained, aiPlay, visibleHands } from './engine/ai';
 import { scoreContract, type ScoreResult } from './engine/scoring';
 import * as challenge from './engine/challenge';
-import { callMeanings } from './meanings';
 import type { Grade, RobotTable, TrickLog } from './engine/challenge';
-import { SAVE_KEY, askPersistence, boardKey, browserStorage, clearGames, loadGames, mergeGames, saveGames } from './saves';
+import {
+  SAVE_KEY, askPersistence, boardKey, browserStorage, clearGames, loadGames, mergeGames, saveGames,
+  type HistoryRecord,
+} from './saves';
+import { liveAlerts as liveAlertsFor, robotAlerts, robotShown, type Readings } from './alerts';
+import { partnerOf } from './seats';
 
 export type Phase = 'bidding' | 'auction_done' | 'playing' | 'trick_done' | 'done';
 
-export interface HistoryRecord {
-  board_num: number;
-  label?: string;
-  /** Loaded from LIN rather than played here: not part of the session score. */
-  imported?: boolean;
-  dealer: Seat;
-  vulnerability: Vulnerability;
-  initial_hands: Record<Seat, Card[]>;
-  auction_calls: CallRecord[];
-  bid_alerts: Record<number, string>;
-  contract: Contract | null;
-  passed_out: boolean;
-  tricks_log: TrickLog[];
-  tricks_taken: Record<Side, number>;
-  result: ScoreResult | null;
-}
+export type { HistoryRecord };
 
 export interface ChallengeResult {
   deal_id: number;
@@ -60,8 +49,6 @@ export interface ChallengeLogEntry {
   robot_play_loss: number;
 }
 
-const HUMAN: Seat = 'South';
-
 export { ALERT_MAX, cleanAlert };
 
 const copyHands = (h: Record<Seat, Card[]>) =>
@@ -85,6 +72,9 @@ export function asHistoryRecord(table: RobotTable, boardNum: number, label: stri
 }
 
 export class Game {
+  /** The seat the player sits in. South in the app; the tests seat the
+   *  player anywhere, so every view is checked from all four seats. */
+  readonly mySeat: Seat;
   boardNum = $state(0);
   dealer = $state<Seat>('North');
   vulnerability = $state<Vulnerability>('None');
@@ -122,14 +112,7 @@ export class Game {
    *  alerts a natural pass. The reasons stay in `alerts` for the post-mortem.
    *  The human's own alerts are shown, though: a pass the player chose to
    *  alert (a forcing pass, say) is shown like any other alerted call. */
-  liveAlerts = $derived.by(() => {
-    const out: Record<number, string> = {};
-    for (const [i, why] of Object.entries(this.alerts)) {
-      const call = this.calls[Number(i)];
-      if (call && (call[1] !== 'Pass' || call[0] === HUMAN)) out[Number(i)] = why;
-    }
-    return out;
-  });
+  liveAlerts = $derived(liveAlertsFor(this.calls, this.alerts, (i) => this.calls[i]?.[0] === this.mySeat));
 
   auction = $derived.by(() => {
     const a = new AuctionState(this.dealer, this.vulnerability);
@@ -144,14 +127,20 @@ export class Game {
   /** You have called or played on this board and it isn't over: dealing
    *  another would throw it away. */
   get inProgress() {
-    return !this.boardOver && (this.calls.some(([p]) => p === HUMAN) || this.phase !== 'bidding');
+    return !this.boardOver && (this.calls.some(([p]) => p === this.mySeat) || this.phase !== 'bidding');
+  }
+
+  /** Cards left in a seat's hand: what the table shows face down. */
+  cardCount(p: Seat): number {
+    return this.hands[p].length;
   }
 
   /** `storage` is where finished boards are kept between visits: the
    *  browser's localStorage by default, null (nothing kept) in Node.
    *  `random` deals the boards and picks challenge deals; tests seed it. */
   constructor(private storage: Storage | null = browserStorage(),
-              private random: () => number = Math.random) {
+              private random: () => number = Math.random, mySeat: Seat = 'South') {
+    this.mySeat = mySeat;
     const saved = loadGames(storage);
     if (saved) {
       this.boardNum = saved.boardNum;
@@ -263,7 +252,7 @@ export class Game {
     for (const [p, c] of this.calls) auction.applyCall(p, c);
     while (!auction.isComplete) {
       const who = auction.currentPlayer();
-      if (who === HUMAN) break;
+      if (who === this.mySeat) break;
       const [call, why] = aiBidExplained(who, this.hands[who], auction, this.robotAlerts());
       this.alerts[auction.calls.length] = why;
       auction.applyCall(who, call);
@@ -284,59 +273,43 @@ export class Game {
     this.phase = 'auction_done';
   }
 
+  private isHumanCall = (i: number): boolean => this.calls[i]?.[0] === this.mySeat;
+
   /** The robots' own alerts, by call: what a robot bidder may read (the
    *  human's self-alerts are free text the robots don't read). */
   private robotAlerts(): Record<number, string> {
-    const alerts: Record<number, string> = {};
-    for (const [i, why] of Object.entries(this.alerts)) {
-      const call = this.calls[Number(i)];
-      if (call && call[0] !== HUMAN) alerts[Number(i)] = why;
-    }
-    return alerts;
+    return robotAlerts(this.calls, this.alerts, this.isHumanCall);
+  }
+
+  /** GIB's reading of each human call, by auction (`meanings.gib_alert` in Python). */
+  private gibReadings: Readings = new Map();
+
+  /** The lengths the bidding showed, for the robots' play (`alerts.ts`). */
+  robotShown() {
+    return robotShown(this.dealer, this.vulnerability, this.calls, this.alerts, this.isHumanCall, this.gibReadings);
   }
 
   /** `alert` is the player's own explanation of the call, as a self-alert on
    *  BBO. The robots don't read it; it goes into the record and the LIN. */
-  /** GIB's reading of each human call, by auction (`meanings.gib_alert` in Python). */
-  private gibReadings = new Map<string, string | null>();
-
-  /** The lengths the bidding showed, for the robots' play: a robot's call by
-   *  its own alert, the human's by what GIB would mean by it (`callMeanings`)
-   *  -- the self-alert is free text the robots don't read (docs/CHALLENGE.md). */
-  robotShown() {
-    const alerts = this.robotAlerts();
-    this.calls.forEach(([who, call], i) => {
-      if (who !== HUMAN) return;
-      const key = `${this.dealer}|${this.vulnerability}|${this.calls.slice(0, i + 1).map(([, c]) => c).join(' ')}`;
-      if (!this.gibReadings.has(key)) {
-        const prefix = new AuctionState(this.dealer, this.vulnerability);
-        for (const [p, c] of this.calls.slice(0, i)) prefix.applyCall(p, c);
-        this.gibReadings.set(key, call === 'Pass' ? null : callMeanings(prefix).get(call) ?? null);
-      }
-      const why = this.gibReadings.get(key);
-      if (why) alerts[i] = why;
-    });
-    return shownLengths(this.calls.map(([p, c]) => [p, c] as [Seat, string]), alerts);
-  }
-
   humanBids(call: string, alert = ''): void {
     const auction = this.auction;
-    if (auction.isComplete || auction.currentPlayer() !== HUMAN) return;
+    if (auction.isComplete || auction.currentPlayer() !== this.mySeat) return;
     if (!auction.legalCalls().includes(call)) return;
     const why = cleanAlert(alert);
     if (why) this.alerts[this.calls.length] = why;
-    this.calls.push([HUMAN, call]);
+    this.calls.push([this.mySeat, call]);
     this.advanceAuction();
   }
 
   // ── Play ───────────────────────────────────────────────────────────────────
 
-  /** South picks South's card, plus North's when North is South's dummy. When
-   *  North declares, South is dummy and the North robot plays both hands. */
+  /** You pick your own card, plus partner's when partner is your dummy. When
+   *  partner declares, you are dummy and partner's robot plays both hands. */
   isHumanSeat(player: Seat): boolean {
     const declarer = this.contract?.declarer;
-    if (player === 'South') return declarer !== 'North';
-    return player === 'North' && declarer === 'South';
+    const me = this.mySeat;
+    if (player === me) return declarer !== partnerOf(me);
+    return player === partnerOf(me) && declarer === me;
   }
 
   whoseTurn(): Seat | null {
