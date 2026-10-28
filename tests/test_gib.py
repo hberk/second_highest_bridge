@@ -715,3 +715,65 @@ def test_advancers_2nt_is_the_limit_raise_when_the_cuebid_passes_three():
     assert call == '4C', call
     call, _ = bid(asker, '1D', '2C', '2D', '3D', 'Pass', '4C', 'Pass', dealer='South')
     assert call == 'Pass', call
+
+
+def test_runouts_after_1nt_is_doubled():
+    """The user's runouts over a penalty double of 1NT (2026-10-28, training
+    board 25, where the 1NT opener bid Stayman after 1NT-(X)-Pass-(Pass))."""
+    opener = 'AS KS 4S QH JH 3H KD 9D 4D 2D AC 7C 3C'                    # 16, 3-3-4-3
+    call, _ = bid(opener, '1NT', 'X', 'Pass', 'Pass')
+    assert call == 'Pass', call
+    # Opener may pull a pass with a five-card suit.
+    five = 'AS KS 4S QH JH 3H KD 9D 4D 2D 8D AC 3C'
+    call, why = bid(five, '1NT', 'X', 'Pass', 'Pass')
+    assert call == '2D' and '5+' in why, (call, why)
+    # Responder: XX with one long suit, 2C/2D/2H two-suiters, Pass otherwise.
+    call, why = bid('7S 3S QH 10H 8H 7H 2H 9D 6D 5D 9C 5C 3C', '1NT', 'X')
+    assert call == 'XX' and 'Runout' in why, (call, why)
+    call, why = bid('7S 3S QH 10H 8H 7H 9D 6D 5D 2D 9C 5C 3C', '1NT', 'X')
+    assert call == '2D' and 'Runout' in why, (call, why)
+    call, _ = bid('7S 3S 2S 10H 8H 7H 9D 6D 5D 2D QC 5C 3C', '1NT', 'X')
+    assert call == 'Pass', call
+    call, _ = bid('AS KS 3S QH 10H 8H 7H 2H 9D 6D 5D 5C 3C', '1NT', 'X')
+    assert call == 'Pass', call                                       # 9 HCP: willing
+    # Opener answers: XX forces 2C; 2D is passed with a fit, else relayed.
+    call, _ = bid(opener, '1NT', 'X', 'XX', 'Pass')
+    assert call == '2C', call
+    call, _ = bid(opener, '1NT', 'X', '2D', 'Pass')
+    assert call == 'Pass', call
+    call, why = bid('AS KS 4S QH JH 3H 2H KD 9D 4D AC 7C 3C', '1NT', 'X', '2D', 'Pass')
+    assert call == '2H' and 'Pass or correct' in why, (call, why)
+    # Responder passes or corrects.
+    call, _ = bid('7S 3S QH 10H 8H 7H 2H 9D 6D 5D 9C 5C 3C', '1NT', 'X', 'XX', 'Pass', '2C', 'Pass')
+    assert call == '2H', call
+    call, _ = bid('QS 10S 8S 7S 3S 9D 6D 5D 2D 9C 5C 3C 2H', '1NT', 'X', '2D', 'Pass', '2H', 'Pass')
+    assert call == '2S', call
+    call, _ = bid('QS 10S 8S 7S 3S 9D 6D 5D 2D 9C 5C 3C 2H',
+                  '1NT', 'X', '2D', 'Pass', '2H', 'Pass', '2S', 'Pass')
+    assert call == 'Pass', call
+
+
+def test_the_notrump_bidder_never_uses_stayman_or_transfers():
+    """The user, 2026-10-28: the 1NT bidder never has Stayman or transfers;
+    they belong to responder. Robots alone and with a random human seat."""
+    random.seed(2028)
+    alerts = ('Stayman', 'Transfer', 'Texas', 'Gerber', 'Minor Stayman')
+    for index in range(400):
+        hands = deal()
+        auction = AuctionState(dealer=PLAYERS[index % 4], vulnerability='None')
+        rnd = random.Random(index)
+        nt_by = None
+        while not auction.is_complete and len(auction.calls) < 60:
+            who = auction.current_player()
+            if who == 'East' and index % 2 and rnd.random() < 0.5:
+                call = rnd.choice(['Pass', 'X'] if 'X' in auction.legal_calls()
+                                  else ['Pass'])
+                why = ''
+            else:
+                call, why = ai.ai_bid_explained(who, hands[who], auction)
+            bids = [c for _, c in auction.calls if c not in ('Pass', 'X', 'XX')]
+            if nt_by is None and bids == [] and call in ('1NT', '2NT'):
+                nt_by = who
+            if who == nt_by and call not in ('1NT', '2NT'):
+                assert not any(a in why for a in alerts), (auction.calls, call, why)
+            auction.apply_call(who, call)

@@ -247,6 +247,9 @@ def gib_bid(player: str, cards: list[Card], auction: AuctionState) -> tuple | No
     ctx = Ctx(player, cards, auction)
     if not ctx.legal:
         return None
+    runout = _nt_runout(ctx)
+    if runout:
+        return runout[0], _name_the_suit(*runout)
     decision = _decide(ctx)
     placed = _after_jam(ctx)
     if placed and JAM_NEVER_AGAIN and (not decision or decision[0] != 'X'):
@@ -1136,6 +1139,10 @@ def notrump(ctx: Ctx, start: int) -> tuple:
     base = level_of(seq[0])
     lo, hi = NT_OVERCALL if ctx.nt_overcall else _nt_range(ctx.seq, start)
     if n == 1:
+        if ctx.me == ctx.opener:
+            # The notrump bidder again, partner silent: Stayman and transfers
+            # are responder's alone (the user, 2026-10-28).
+            return 'Pass', "Partner left it in."
         return _nt_response(ctx, base, lo, hi)
     if n == 2:
         return _nt_opener_answer(ctx, base, seq[1], lo, hi)
@@ -2124,6 +2131,10 @@ def contested(ctx: Ctx) -> tuple | None:
     # 1NT-(X) and friends: systems on.
     if ctx.we_opened and seq and seq[0] in ('1NT', '2NT', '2C') \
             and all(c == 'X' for _, c in ctx.theirs):
+        if seq == [seq[0]] and seq[0] != '2C' and ctx.i_am_opener():
+            # 1NT-(X)-Pass-(Pass): partner left it in. Systems on were read
+            # as responder's, and the opener bid Stayman (training board 25).
+            return 'Pass', "Partner left it in."
         return uncontested(ctx)
     # (1x)-1NT and they pass: systems on, as over our 1NT opening.
     if ctx.nt_overcall:
@@ -2833,6 +2844,122 @@ def _answer_extras_double(ctx: Ctx) -> tuple | None:
     if call and level_of(call) <= 3:
         return call, "Preference to partner's suit."
     return 'Pass', "Nothing better than defending."
+
+
+# ── Runouts after 1NT is doubled ──────────────────────────────────────────────
+
+#: The user's runouts over a penalty double of our 1NT opening (2026-10-28),
+#: DONT-like. Responder: Pass is willing to play (opener may still pull with a
+#: five-card suit); XX one long suit, opener bids 2♣, pass or correct; 2♣
+#: clubs and a higher suit, 2♦ diamonds and a higher, 2♥ hearts and spades,
+#: 4+ in each. Opener passes with a fit or bids the next suit up, which
+#: responder passes or corrects. Responder runs only with RUNOUT_MAX HCP or
+#: fewer; with more, 1NT doubled is passed.
+NT_RUNOUTS = True
+RUNOUT_MAX = 7
+RUNOUT_SINGLE = 5
+OPENER_PULLS = True
+RUNOUT_ALERTS = {
+    'XX': "Runout: one long suit, asks for 2♣. Artificial.",
+    '2C': f"Runout: 4+ {SYM['C']} and a higher suit.",
+    '2D': f"Runout: 4+ {SYM['D']} and a major.",
+    '2H': f"Runout: 4+ {SYM['H']} and 4+ {SYM['S']}.",
+}
+
+
+def _runout_calls(ctx: Ctx) -> list | None:
+    """Our side's calls (passes included) since their penalty double of our
+    1NT opening, or None if this is not that auction: the double came while
+    1NT was the only bid."""
+    if not NT_RUNOUTS or not ctx.we_opened or not ctx.seq or ctx.seq[0] != '1NT':
+        return None
+    bids = [(i, w, c) for i, (w, c) in enumerate(ctx.calls) if c != 'Pass']
+    if len(bids) < 2:
+        return None
+    i, w, c = bids[1]
+    if c != 'X' or w in (ctx.me, ctx.pd):
+        return None
+    return [(w, c) for w, c in ctx.calls[i + 1:] if w in (ctx.me, ctx.pd)]
+
+
+def _nt_runout(ctx: Ctx) -> tuple | None:
+    ours = _runout_calls(ctx)
+    if ours is None:
+        return None
+    h = ctx.h
+    opener = ctx.i_am_opener()
+    mine = [c for w, c in ours if w == ctx.me]
+    his = [c for w, c in ours if w == ctx.pd]
+    interrupted = any(parse_bid(c) for _, c in ctx.theirs)
+    if not opener and not mine:
+        return _runout_choice(ctx)
+    if opener and not mine:
+        if not his:
+            return 'Pass', "Partner may run."
+        r = his[0]
+        if interrupted:
+            return 'Pass', "Nothing to add."
+        if r == 'Pass':
+            if OPENER_PULLS:
+                five = [s for s in SUITS if h.len[s] >= 5]
+                if five and ctx.ok(f"2{five[0]}"):
+                    return f"2{five[0]}", f"5+ {SYM[five[0]]}, running from 1NT doubled."
+            return 'Pass', "Playing 1NT doubled."
+        if r == 'XX' and ctx.ok('2C'):
+            return '2C', "Forced: partner passes or bids the long suit. Artificial."
+        if r in ('2C', '2D'):
+            s = strain_of(r)
+            up = SUITS[SUITS.index(s) + 1]
+            higher = [x for x in SUITS[SUITS.index(s) + 1:] if s == 'C' or x in MAJORS]
+            fit = h.len[s] >= 4 or (h.len[s] == 3 and not any(h.len[x] >= 4 for x in higher))
+            if fit or not ctx.ok(f"2{up}"):
+                return 'Pass', "Fit for partner's first suit."
+            return f"2{up}", "Pass or correct: asks for partner's other suit. Artificial."
+        if r == '2H':
+            if h.len['S'] > h.len['H'] and ctx.ok('2S'):
+                return '2S', f"Prefers {SYM['S']}."
+            return 'Pass', f"Prefers {SYM['H']}."
+        return 'Pass', "Partner placed the contract."
+    if not opener and len(mine) == 1 and len(his) == 1 and not interrupted:
+        r, o = mine[0], his[0]
+        if r == 'XX':
+            s = h.longest()
+            if o == '2C' and s == 'C':
+                return 'Pass', "Clubs, to play."
+            call = f"2{s}"
+            if ctx.ok(call):
+                return call, f"Runout: the long suit, {SYM[s]}."
+            return 'Pass', "Nothing to add."
+        if r in ('2C', '2D') and o in ('2D', '2H') and o == f"2{SUITS[SUITS.index(strain_of(r)) + 1]}":
+            s = strain_of(o)
+            if h.len[s] >= 4:
+                return 'Pass', "That is my other suit."
+            other = [x for x in SUITS[SUITS.index(s) + 1:] if h.len[x] >= 4]
+            if other and ctx.ok(f"2{other[0]}"):
+                return f"2{other[0]}", f"Runout: 4+ {SYM[other[0]]}, the other suit."
+            return 'Pass', "Nothing to add."
+    return 'Pass', "Nothing to add."
+
+
+def _runout_choice(ctx: Ctx) -> tuple:
+    """Responder's first call over the double."""
+    h = ctx.h
+    if h.hcp > RUNOUT_MAX:
+        return 'Pass', "Willing to play 1NT doubled."
+    four = [s for s in SUITS if h.len[s] >= 4]
+    if 'C' in four and len(four) >= 2:
+        call = '2C'
+    elif 'D' in four and any(m in four for m in MAJORS):
+        call = '2D'
+    elif 'H' in four and 'S' in four:
+        call = '2H'
+    elif h.len[h.longest()] >= RUNOUT_SINGLE:
+        call = 'XX'
+    else:
+        return 'Pass', "Willing to play 1NT doubled."
+    if not ctx.ok(call):
+        return 'Pass', "Nothing to add."
+    return call, RUNOUT_ALERTS[call]
 
 
 def _nt_interference(ctx: Ctx) -> tuple | None:

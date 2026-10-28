@@ -246,6 +246,8 @@ export const ILLEGAL: [Rec[], Decision][] = [];
 export function gibBid(player: Seat, cards: Card[], auction: AuctionState): Decision | null {
   const ctx = new Ctx(player, cards, auction);
   if (!ctx.legal.length) return null;
+  const runout = ntRunout(ctx);
+  if (runout) return [runout[0], nameTheSuit(runout[0], runout[1])];
   let decision = decide(ctx);
   const placedByJam = afterJam(ctx);
   if (placedByJam && JAM_NEVER_AGAIN && (!decision || decision[0] !== 'X')) return placedByJam;
@@ -1064,7 +1066,14 @@ function notrump(ctx: Ctx, start: number): Decision {
   const n = seq.length;
   const base = levelOf(seq[0]);
   const [lo, hi] = ctx.ntOvercall ? NT_OVERCALL : ntRange(ctx.seq, start);
-  if (n === 1) return ntResponse(ctx, base, lo, hi);
+  if (n === 1) {
+    if (ctx.me === ctx.opener) {
+      // The notrump bidder again, partner silent: Stayman and transfers
+      // are responder's alone (the user, 2026-10-28).
+      return ['Pass', 'Partner left it in.'];
+    }
+    return ntResponse(ctx, base, lo, hi);
+  }
   if (n === 2) return ntOpenerAnswer(ctx, base, seq[1], lo, hi);
   if (n === 3) return ntResponderSecond(ctx, base, seq, lo, hi);
   if (n === 4) return ntOpenerThird(ctx, base, seq, lo, hi);
@@ -1980,6 +1989,11 @@ function contested(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
   if (ctx.weOpened && seq.length && ['1NT', '2NT', '2C'].includes(seq[0])
     && ctx.theirs.every(([, c]) => c === 'X')) {
+    if (seq.length === 1 && seq[0] !== '2C' && ctx.iAmOpener()) {
+      // 1NT-(X)-Pass-(Pass): partner left it in. Systems on were read
+      // as responder's, and the opener bid Stayman (training board 25).
+      return ['Pass', 'Partner left it in.'];
+    }
     return uncontested(ctx);
   }
   // (1x)-1NT and they pass: systems on, as over our 1NT opening.
@@ -2628,6 +2642,116 @@ function answerExtrasDouble(ctx: Ctx): Decision | null {
   const call = ctx.cheapest(x, 2);
   if (call && levelOf(call) <= 3) return [call, "Preference to partner's suit."];
   return ['Pass', 'Nothing better than defending.'];
+}
+
+// ── Runouts after 1NT is doubled ──────────────────────────────────────────────
+
+/** The user's runouts over a penalty double of our 1NT opening (2026-10-28),
+ *  DONT-like. Responder: Pass is willing to play (opener may still pull with a
+ *  five-card suit); XX one long suit, opener bids 2♣, pass or correct; 2♣
+ *  clubs and a higher suit, 2♦ diamonds and a higher, 2♥ hearts and spades,
+ *  4+ in each. Opener passes with a fit or bids the next suit up, which
+ *  responder passes or corrects. Responder runs only with RUNOUT_MAX HCP or
+ *  fewer; with more, 1NT doubled is passed. */
+export const NT_RUNOUTS = true;
+export const RUNOUT_MAX = 7;
+export const RUNOUT_SINGLE = 5;
+export const OPENER_PULLS = true;
+const RUNOUT_ALERTS: Record<string, string> = {
+  XX: 'Runout: one long suit, asks for 2♣. Artificial.',
+  '2C': `Runout: 4+ ${SYM.C} and a higher suit.`,
+  '2D': `Runout: 4+ ${SYM.D} and a major.`,
+  '2H': `Runout: 4+ ${SYM.H} and 4+ ${SYM.S}.`,
+};
+
+/** Our side's calls (passes included) since their penalty double of our 1NT
+ *  opening, or null if this is not that auction: the double came while 1NT
+ *  was the only bid. */
+function runoutCalls(ctx: Ctx): Rec[] | null {
+  if (!NT_RUNOUTS || !ctx.weOpened || !ctx.seq.length || ctx.seq[0] !== '1NT') return null;
+  const us = (w: Seat) => w === ctx.me || w === ctx.pd;
+  const bids = ctx.calls.map((r, i) => [i, r] as const).filter(([, [, c]]) => c !== 'Pass');
+  if (bids.length < 2) return null;
+  const [i, [w, c]] = bids[1];
+  if (c !== 'X' || us(w)) return null;
+  return ctx.calls.slice(i + 1).filter(([x]) => us(x));
+}
+
+function ntRunout(ctx: Ctx): Decision | null {
+  const ours = runoutCalls(ctx);
+  if (ours === null) return null;
+  const h = ctx.h;
+  const opener = ctx.iAmOpener();
+  const mine = ours.filter(([w]) => w === ctx.me).map(([, c]) => c);
+  const his = ours.filter(([w]) => w === ctx.pd).map(([, c]) => c);
+  const interrupted = ctx.theirs.some(([, c]) => parseBid(c) !== null);
+  if (!opener && !mine.length) return runoutChoice(ctx);
+  if (opener && !mine.length) {
+    if (!his.length) return ['Pass', 'Partner may run.'];
+    const r = his[0];
+    if (interrupted) return ['Pass', 'Nothing to add.'];
+    if (r === 'Pass') {
+      if (OPENER_PULLS) {
+        const five = SUITS.filter((s) => h.len[s] >= 5);
+        if (five.length && ctx.ok(`2${five[0]}`)) {
+          return [`2${five[0]}`, `5+ ${SYM[five[0]]}, running from 1NT doubled.`];
+        }
+      }
+      return ['Pass', 'Playing 1NT doubled.'];
+    }
+    if (r === 'XX' && ctx.ok('2C')) {
+      return ['2C', 'Forced: partner passes or bids the long suit. Artificial.'];
+    }
+    if (r === '2C' || r === '2D') {
+      const s = strainOf(r) as Suit;
+      const up = SUITS[SUITS.indexOf(s) + 1];
+      const higher = SUITS.slice(SUITS.indexOf(s) + 1).filter((x) => s === 'C' || MAJORS.includes(x));
+      const fit = h.len[s] >= 4 || (h.len[s] === 3 && !higher.some((x) => h.len[x] >= 4));
+      if (fit || !ctx.ok(`2${up}`)) return ['Pass', "Fit for partner's first suit."];
+      return [`2${up}`, "Pass or correct: asks for partner's other suit. Artificial."];
+    }
+    if (r === '2H') {
+      if (h.len.S > h.len.H && ctx.ok('2S')) return ['2S', `Prefers ${SYM.S}.`];
+      return ['Pass', `Prefers ${SYM.H}.`];
+    }
+    return ['Pass', 'Partner placed the contract.'];
+  }
+  if (!opener && mine.length === 1 && his.length === 1 && !interrupted) {
+    const [r, o] = [mine[0], his[0]];
+    if (r === 'XX') {
+      const s = h.longest();
+      if (o === '2C' && s === 'C') return ['Pass', 'Clubs, to play.'];
+      const call = `2${s}`;
+      if (ctx.ok(call)) return [call, `Runout: the long suit, ${SYM[s]}.`];
+      return ['Pass', 'Nothing to add.'];
+    }
+    if ((r === '2C' || r === '2D') && (o === '2D' || o === '2H')
+      && o === `2${SUITS[SUITS.indexOf(strainOf(r) as Suit) + 1]}`) {
+      const s = strainOf(o) as Suit;
+      if (h.len[s] >= 4) return ['Pass', 'That is my other suit.'];
+      const other = SUITS.slice(SUITS.indexOf(s) + 1).filter((x) => h.len[x] >= 4);
+      if (other.length && ctx.ok(`2${other[0]}`)) {
+        return [`2${other[0]}`, `Runout: 4+ ${SYM[other[0]]}, the other suit.`];
+      }
+      return ['Pass', 'Nothing to add.'];
+    }
+  }
+  return ['Pass', 'Nothing to add.'];
+}
+
+/** Responder's first call over the double. */
+function runoutChoice(ctx: Ctx): Decision {
+  const h = ctx.h;
+  if (h.hcp > RUNOUT_MAX) return ['Pass', 'Willing to play 1NT doubled.'];
+  const four = SUITS.filter((s) => h.len[s] >= 4);
+  let call: string;
+  if (four.includes('C') && four.length >= 2) call = '2C';
+  else if (four.includes('D') && MAJORS.some((m) => four.includes(m))) call = '2D';
+  else if (four.includes('H') && four.includes('S')) call = '2H';
+  else if (h.len[h.longest()] >= RUNOUT_SINGLE) call = 'XX';
+  else return ['Pass', 'Willing to play 1NT doubled.'];
+  if (!ctx.ok(call)) return ['Pass', 'Nothing to add.'];
+  return [call, RUNOUT_ALERTS[call]];
 }
 
 function ntInterference(ctx: Ctx): Decision | null {
