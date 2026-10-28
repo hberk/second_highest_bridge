@@ -1,7 +1,7 @@
-"""The card-play rules from the user's review of deals 10, 43, 92, 156, 174 and 356.
+"""The card-play rules from the user's review of deals 10, 43, 92, 156, 174, 276 and 356.
 
 Each is a switch in ai.py (SURE_LEAD_DECLARER, RUFF_LEAD, FORCE_DUMMY,
-DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT, DEFENDER_SUIT_PLAN, DEAD_WINNER_FIRST). Every test sets the switches it needs and puts them back, so
+DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT, DEFENDER_SUIT_PLAN, DEAD_WINNER_FIRST, RUFF_IF_FOLLOWS). Every test sets the switches it needs and puts them back, so
 the result doesn't depend on which rules are adopted.
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ from card import Card
 
 RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'LIVE_LEAD', 'NT_SET_UP_SUIT', 'DEFENDER_SUIT_PLAN', 'RUFF_RETURN',
-         'SHORT_LEAD_RETURN', 'DEAD_WINNER_FIRST')
+         'SHORT_LEAD_RETURN', 'DEAD_WINNER_FIRST', 'RUFF_IF_FOLLOWS')
 
 
 @contextmanager
@@ -292,6 +292,49 @@ def test_dead_winner_first_only_chooses_among_winning_cards():
     hand = [C('AC'), C('9C'), C('2C')]
     with rules(DEAD_WINNER_FIRST=True):
         assert ai._play_last(hand, trick, 'S', hand, []) == C('9C')
+
+
+# Deal 276, 4C by West, dummy East. Tricks 1-3 rebuilt to fit the user's
+# board (the cards left in each hand, N/S 1 trick, E/W 2). At trick 4 dummy
+# leads the JS, South plays the KS, and West is void in spades.
+DEAL_276 = ['N:2D E:6D S:KD W:5D', 'E:3C S:7C W:5C N:JC', 'S:7D W:9D N:3D E:8D']
+
+
+def _third_276() -> Card:
+    hands, played, history = replay(276, DEAL_276)
+    trick = [('East', C('JS')), ('South', C('KS'))]
+    for seat, card in trick:
+        hands[seat].remove(card)
+    visible = ai.visible_hands('West', {'declarer': 'West', 'dummy': 'East'}, hands)
+    return ai.ai_play('West', hands['West'], trick, 'C', played, visible, history)
+
+
+def test_deal_276_threw_a_heart():
+    """Both unseen clubs counted as overruffs, two threats to the discard's
+    one (North's QS), so West threw the 3H under dummy's jack."""
+    with rules():
+        assert _third_276() == C('3H')
+
+
+def test_deal_276_ruff_if_follows_ruffs():
+    """North can only overruff when out of spades, with eight unseen: West
+    ruffs (double dummy the 3H costs two tricks)."""
+    with rules(RUFF_IF_FOLLOWS=True):
+        assert _third_276() == C('8C')
+
+
+def test_void_chance_counts_the_unseen_cards():
+    """Eight spades unseen across North's ten cards and South's nine: North
+    is void in C(9,8)/C(19,8) of the layouts."""
+    hands, played, history = replay(276, DEAL_276)
+    trick = [('East', C('JS')), ('South', C('KS'))]
+    for seat, card in trick:
+        hands[seat].remove(card)
+    visible = ai.visible_hands('West', {'declarer': 'West', 'dummy': 'East'}, hands)
+    chance = ai._void_chance('West', hands['West'], trick, played, visible, history,
+                             ai._shown_out(history, trick))
+    assert chance == 9 / 75582
+
 
 if __name__ == '__main__':
     failed = 0
