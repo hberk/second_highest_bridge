@@ -5,11 +5,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { connect } from 'node:net';
 import WebSocket from 'ws';
 import { legalPlays } from '../../frontend/src/lib/engine/auction';
 import type { Seat } from '../../frontend/src/lib/engine/card';
 import type { ClientMessage, ServerMessage, TableView } from '../../frontend/src/lib/table/protocol';
-import { startServer, type Options } from '../src/server';
+import { limitKey, startServer, type Options } from '../src/server';
 import { EXPIRE_MS, realClock } from '../src/tables';
 
 const ORIGIN = 'https://bridge.example';
@@ -278,6 +279,63 @@ describe('the limits the server keeps', () => {
     offset = EXPIRE_MS + 1000;
     expect(s.tables.sweep()).toEqual([body.id]);
     expect(s.tables.exists(body.id!)).toBe(false);
+  });
+});
+
+/** A raw request line, as curl --path-as-is or a script would send it. */
+function raw(port: number, line: string): Promise<string> {
+  return new Promise((done, fail) => {
+    const s = connect(port, '127.0.0.1', () => s.end(`${line}\r\nHost: x\r\nConnection: close\r\n\r\n`));
+    let out = '';
+    s.on('data', (d) => (out += d.toString()));
+    s.on('end', () => done(out));
+    s.on('error', fail);
+  });
+}
+
+describe('nothing a request sends ends the process', () => {
+  it('answers `//`, `*` and full URLs with a 400, and stays up', async () => {
+    const s = await serve();
+    for (const target of ['//', '///x', '//evil.example/x', '*', 'http://x/']) {
+      expect(await raw(s.port, `GET ${target} HTTP/1.1`), target).toMatch(/^HTTP\/1\.1 400/);
+    }
+    expect((await fetch(`${s.url}/healthz`)).status).toBe(200);
+  });
+
+  it('serves only the files that were there at start, whatever is asked for', async () => {
+    const pub = join(tempDir(), 'public');
+    mkdirSync(pub, { recursive: true });
+    writeFileSync(join(pub, 'index.html'), 'x');
+    const s = await serve({ publicDir: pub });
+    for (let i = 0; i < 50; i++) expect((await fetch(`${s.url}/assets/${'z'.repeat(2000)}${i}.js`)).status).toBe(404);
+    // A file added after start isn't served: the map is fixed.
+    writeFileSync(join(pub, 'late.txt'), 'late');
+    expect((await fetch(`${s.url}/late.txt`)).status).toBe(404);
+    expect((await fetch(`${s.url}/`)).status).toBe(200);
+  });
+
+  it('runs robots only while someone seated is connected', async () => {
+    const s = await serve({ robotDelayMs: 5 });
+    const { body } = await createTable(s.url);
+    const a = await Client.open(s.port, body.id!);
+    await a.join('Alex', 'South');
+    a.send({ type: 'deal' });
+    await a.until(() => !!a.view?.board, 'a board');
+    a.close();
+    await a.until(() => !!a.closed, 'the close');
+    const watcher = await Client.open(s.port, body.id!);
+    watcher.send({ type: 'hello', v: 1 });
+    await watcher.until(() => !!watcher.view?.board, 'a view');
+    const at = watcher.view!.board!.at;
+    await new Promise((r) => setTimeout(r, 300));
+    expect(watcher.view!.board!.at, 'robots played to an empty table').toBe(at);
+  });
+
+  it('counts an IPv6 /64 as one address', () => {
+    expect(limitKey('2001:db8:1:2:aaaa::1')).toBe('2001:db8:1:2::/64');
+    expect(limitKey('2001:0db8:0001:0002:ffff:ffff:ffff:ffff')).toBe('2001:db8:1:2::/64');
+    expect(limitKey('2001:db8::1')).toBe('2001:db8:0:0::/64');
+    expect(limitKey('192.168.1.5')).toBe('192.168.1.5');
   });
 });
 

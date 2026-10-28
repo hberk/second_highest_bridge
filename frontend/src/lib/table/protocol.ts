@@ -162,9 +162,10 @@ export function parseClientMessage(raw: string): ClientMessage | null {
   }
 }
 
-/** Control, zero-width and bidi-override characters, built from code points
+/** Control, zero-width, invisible-filler and bidi-override characters, built from code points
  *  so the source holds none of them. */
-const INVISIBLE = new RegExp(`[${[[0x00, 0x1f], [0x7f, 0x9f], [0x200b, 0x200f], [0x2028, 0x202e], [0x2066, 0x2069]]
+const INVISIBLE = new RegExp(`[${[[0x00, 0x1f], [0x7f, 0x9f], [0xad, 0xad], [0x200b, 0x200f], [0x2028, 0x202e], [0x2060, 0x2069],
+  [0x3164, 0x3164], [0xfeff, 0xfeff]]
   .map(([a, b]) => `${String.fromCharCode(a)}-${String.fromCharCode(b)}`).join('')}]`, 'g');
 
 /** A display name: one line, no control characters, at most 20 characters.

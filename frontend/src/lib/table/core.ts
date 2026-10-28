@@ -205,8 +205,10 @@ export function addPlayer(s: TableState, id: string, tokenHash: string, rawName:
 export function maintain(s: TableState, ctx: Context): boolean {
   const host = playerById(s, s.hostId);
   if (host && !isAway(host, ctx)) return false;
-  const here = s.players.filter((p) => ctx.connected(p.id))
-    .sort((a, b) => Number(a.seat === null) - Number(b.seat === null) || a.joinedAt - b.joinedAt);
+  // Only to someone seated: a watcher holding the link must never become
+  // host (and so able to remove the players) while their phones sleep.
+  const here = s.players.filter((p) => p.seat !== null && ctx.connected(p.id))
+    .sort((a, b) => a.joinedAt - b.joinedAt);
   const next = here[0]?.id ?? (host ? s.hostId : null);
   if (next === s.hostId) return false;
   s.hostId = next;
@@ -240,10 +242,17 @@ export function applyIntent(s: TableState, playerId: string, m: ClientMessage, c
   return out;
 }
 
+/** A board is being played: seats are fixed until it's over. */
+const live = (s: TableState) => !!s.board && derive(s.board).phase !== 'done';
+
 function intent(s: TableState, me: Player, m: ClientMessage, ctx: Context): Outcome {
   const isHost = s.hostId === me.id;
   switch (m.type) {
     case 'sit': {
+      // Never mid-board: a seat's view includes its hand, so sitting in an
+      // empty seat would read it. A player who is away goes to a robot
+      // (`robot`) and comes back (`reclaim`) instead.
+      if (live(s)) return refuse('not_now', 'Seats change between boards.');
       if (playerInSeat(s, m.seat)) return refuse('seat_taken', `${m.seat} is taken.`);
       if (me.seat) s.robotSeats = s.robotSeats.filter((x) => x !== me.seat);
       me.seat = m.seat;
@@ -252,6 +261,7 @@ function intent(s: TableState, me: Player, m: ClientMessage, ctx: Context): Outc
     }
     case 'stand': {
       if (!me.seat) return refuse('not_now', "You aren't sitting at the table.");
+      if (live(s)) return refuse('not_now', 'Seats change between boards.');
       s.robotSeats = s.robotSeats.filter((x) => x !== me.seat);
       me.seat = null;
       s.ready = s.ready.filter((id) => id !== me.id);

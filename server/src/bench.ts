@@ -6,6 +6,7 @@
 import {
   addPlayer, applyIntent, applyRobot, newTable, robotAction, robotTurn, type Context,
 } from '../../frontend/src/lib/table/core';
+// (Seats are fixed mid-board, so the bench hands South to a robot directly.)
 import { clearPositionMemo } from '../../frontend/src/lib/engine/ai';
 import { prng } from '../../frontend/src/lib/meanings';
 import type { Readings } from '../../frontend/src/lib/alerts';
@@ -22,13 +23,12 @@ const ctx: Context = { now: 0, connected: () => true, awaySince: () => null, ran
 const s = newTable('bench', 0);
 addPlayer(s, 'host', '', 'host', 0);
 applyIntent(s, 'host', { type: 'sit', seat: 'South' }, ctx);
-applyIntent(s, 'host', { type: 'stand' }, ctx);
-// A seat-less host can't deal, so deal through a seated one, then stand up:
-// every seat is a robot's.
+// The host deals from South, and a robot plays South too: every seat is a
+// robot's, as if the host had gone and handed the seat over.
 for (let b = 0; b < boards; b++) {
-  applyIntent(s, 'host', { type: 'sit', seat: 'South' }, ctx);
+  s.robotSeats = [];
   applyIntent(s, 'host', { type: 'deal' }, ctx);
-  applyIntent(s, 'host', { type: 'stand' }, ctx);
+  s.robotSeats = ['South'];
   let total = 0;
   while (robotTurn(s)) {
     const t = performance.now();

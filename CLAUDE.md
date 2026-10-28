@@ -56,7 +56,7 @@ cd server          # the multiplayer table server (Node 24): docs/MULTIPLAYER_PL
 npm install
 npm test           # real sockets on a random port, a temp SQLite file
 npm run check      # tsc
-npm run dev        # build and run on :8787 (set ALLOWED_ORIGINS=http://localhost:5173)
+npm run dev        # build and run on :8787 (BRIDGE_DEV=1 ALLOWED_ORIGINS=http://localhost:5173)
 npm run bench      # robot decision times and retained memory, 200 boards
 BRIDGE_HOST=<ct ip> ./deploy.sh   # build both and deploy to the homelab (LXC 213)
 ```

@@ -249,6 +249,25 @@ describe('refusals change nothing', () => {
   });
 });
 
+describe('seats are fixed while a board is played', () => {
+  it('refuses sitting in an empty seat, or standing, mid-board: no hand to read', () => {
+    const c = ctx({ random: prng(31) });
+    const s = table(['South', 'West'], c);
+    addPlayer(s, 'watcher', 'hash', 'watcher', 0);
+    applyIntent(s, 'p-South', { type: 'deal' }, c);
+    const before = JSON.stringify(s);
+    for (const [who, m] of [
+      ['p-South', { type: 'sit', seat: 'North' }], ['watcher', { type: 'sit', seat: 'East' }],
+      ['p-West', { type: 'stand' }],
+    ] as [string, ClientMessage][]) {
+      const out = applyIntent(s, who, m, c);
+      expect(out.ok, `${who} ${m.type}`).toBe(false);
+      expect(JSON.stringify(s)).toBe(before);
+    }
+    expect(viewFor(s, 'watcher', c).board!.hands.East).toEqual([]);
+  });
+});
+
 describe('seats pass to robots and back', () => {
   it('a robot takes an away player\'s seat mid-auction and mid-play, and gives it back', () => {
     let now = 0;

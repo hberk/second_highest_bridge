@@ -64,8 +64,11 @@ interface Live {
   awaySince: Map<string, number>;
   intents: Map<string, Outcome>;
   robotTimer: unknown;
-  checkTimer: unknown;
+  /** One away check per disconnect, so a later one doesn't delay an earlier. */
+  checkTimers: Set<unknown>;
   idleTimer: unknown;
+  /** A robot threw on this table: it stops, rather than taking the server down. */
+  broken: boolean;
   /** Persisted so far: board number and how many of its actions. */
   savedBoard: number;
   savedActions: number;
@@ -121,7 +124,16 @@ export class Tables {
   private load(id: string): Live | null {
     const open = this.live.get(id);
     if (open) return open;
-    const state = this.store.load(id);
+    let state: TableState | null;
+    try {
+      state = this.store.load(id);
+      if (state?.board) derive(state.board);
+    } catch (e) {
+      // A row that doesn't load (or a board that doesn't replay) is one
+      // table lost, never the server: it reads as "no such table".
+      console.error(`${new Date().toISOString()} table ${id} does not load:`, e);
+      return null;
+    }
     if (!state) return null;
     const now = this.clock.now();
     const t: Live = {
@@ -129,7 +141,7 @@ export class Tables {
       // Nobody is connected to a table just loaded: everyone counts as gone
       // from now, so a robot can take a seat whose player never comes back.
       awaySince: new Map(state.players.map((p) => [p.id, now])),
-      intents: new Map(), robotTimer: undefined, checkTimer: undefined, idleTimer: undefined,
+      intents: new Map(), robotTimer: undefined, checkTimers: new Set(), idleTimer: undefined, broken: false,
       savedBoard: state.board?.num ?? 0, savedActions: state.board?.actions.length ?? 0,
     };
     this.live.set(id, t);
@@ -212,7 +224,8 @@ export class Tables {
       }
     }
     this.send(client, { type: 'welcome', playerId: client.playerId });
-    this.changed(t);
+    // Presence only: nothing to write unless the host role moved.
+    this.changed(t, maintain(t.state, this.ctx(t)));
   }
 
   private join(t: Live, client: Client, name: string): void {
@@ -291,20 +304,31 @@ export class Tables {
     }
   }
 
+  private stopTimers(t: Live): void {
+    if (t.robotTimer !== undefined) this.clock.clearTimeout(t.robotTimer);
+    t.robotTimer = undefined;
+    for (const h of t.checkTimers) this.clock.clearTimeout(h);
+    t.checkTimers.clear();
+    if (t.idleTimer !== undefined) this.clock.clearTimeout(t.idleTimer);
+    t.idleTimer = undefined;
+  }
+
   private unload(t: Live): void {
     if (t.clients.size) return;
-    if (t.robotTimer !== undefined) this.clock.clearTimeout(t.robotTimer);
-    if (t.checkTimer !== undefined) this.clock.clearTimeout(t.checkTimer);
+    this.stopTimers(t);
     this.live.delete(t.state.id);
   }
 
   private scheduleCheck(t: Live, ms: number): void {
-    if (t.checkTimer !== undefined) this.clock.clearTimeout(t.checkTimer);
-    t.checkTimer = this.clock.setTimeout(() => {
-      t.checkTimer = undefined;
-      maintain(t.state, this.ctx(t));
-      this.changed(t);
+    const h = this.clock.setTimeout(() => {
+      t.checkTimers.delete(h);
+      try {
+        this.changed(t);
+      } catch (e) {
+        console.error(`${new Date().toISOString()} table ${t.state.id} check:`, e);
+      }
     }, ms);
+    t.checkTimers.add(h);
   }
 
   // ── After every change ─────────────────────────────────────────────────────
@@ -349,15 +373,33 @@ export class Tables {
     }
   }
 
+  /** Robots play only while someone seated is here to watch: a table left
+   *  with only robots (or a script's empty table) costs no CPU. */
+  private someoneHere(t: Live): boolean {
+    return t.state.players.some((p) => p.seat !== null && (t.sockets.get(p.id) ?? 0) > 0);
+  }
+
   private scheduleRobot(t: Live): void {
-    if (t.robotTimer !== undefined || !robotTurn(t.state)) return;
+    if (t.broken || t.robotTimer !== undefined || !this.someoneHere(t) || !robotTurn(t.state)) return;
     t.robotTimer = this.clock.setTimeout(() => {
       t.robotTimer = undefined;
-      // A person may have taken the seat back since this was scheduled.
-      const a = robotAction(t.state, this.readings);
-      if (a) {
-        applyRobot(t.state, a);
-        this.changed(t);
+      // Everyone may have left since this was scheduled; the next to arrive
+      // wakes the robots again.
+      if (!this.someoneHere(t)) return;
+      try {
+        // A person may have taken the seat back since this was scheduled.
+        const a = robotAction(t.state, this.readings);
+        if (a) {
+          applyRobot(t.state, a);
+          this.changed(t);
+        }
+      } catch (e) {
+        // A state the robots can't handle: stop this table, keep the rest.
+        console.error(`${new Date().toISOString()} table ${t.state.id} robot:`, e);
+        t.broken = true;
+        for (const c of t.clients) {
+          this.error(c, 'not_now', 'Something went wrong at this table. Start a new one from the home page.');
+        }
       }
     }, this.robotDelayMs);
   }
@@ -377,9 +419,7 @@ export class Tables {
   shutdown(): void {
     for (const t of this.live.values()) {
       for (const c of t.clients) c.conn.close(1012, 'Restarting');
-      if (t.robotTimer !== undefined) this.clock.clearTimeout(t.robotTimer);
-      if (t.checkTimer !== undefined) this.clock.clearTimeout(t.checkTimer);
-      if (t.idleTimer !== undefined) this.clock.clearTimeout(t.idleTimer);
+      this.stopTimers(t);
     }
     this.live.clear();
   }

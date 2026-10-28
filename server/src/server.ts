@@ -2,9 +2,13 @@
 // for the beta build, POST /tables, the table sockets, and /healthz. Caddy
 // sits in front (TLS, a path allow-list); this checks again what matters:
 // the Origin, message sizes and rates, sockets and tables per address.
+//
+// No request may end the process: every handler is caught and logged, the
+// static files are a fixed map read at start, and a target that isn't a
+// path (`//`) is a 400, not a throw.
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { extname, join, normalize, resolve, sep } from 'node:path';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { extname, join, relative, resolve, sep } from 'node:path';
 import type { Duplex } from 'node:stream';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { MAX_MESSAGE_BYTES, TABLE_ID_RE } from '../../frontend/src/lib/table/protocol';
@@ -44,6 +48,46 @@ const WS_PATH = /^\/tables\/([A-Za-z0-9_-]+)\/ws$/;
 /** `::ffff:192.168.1.2` and `192.168.1.2` are the same peer. */
 const bare = (ip: string | undefined) => (ip ?? '').replace(/^::ffff:/, '');
 
+/** What the per-address limits count: an IPv4 address, or an IPv6 /64
+ *  (one home or phone holds a whole /64 and can rotate within it). */
+export function limitKey(ip: string): string {
+  if (!ip.includes(':')) return ip;
+  const [head, tail = ''] = ip.toLowerCase().split('::');
+  const left = head ? head.split(':') : [];
+  const right = tail ? tail.split(':') : [];
+  const groups = [...left, ...Array<string>(Math.max(0, 8 - left.length - right.length)).fill('0'), ...right];
+  return `${groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, '')).join(':')}::/64`;
+}
+
+/** The request's path, or null for a target that isn't one (`//x`,
+ *  `http://...`, `*`): never a throw. */
+export function pathOf(target: string | undefined): string | null {
+  if (!target || !target.startsWith('/') || target.startsWith('//')) return null;
+  try {
+    return new URL(target, 'http://x').pathname;
+  } catch {
+    return null;
+  }
+}
+
+/** Every file of the build, read once at start. Requests are served from
+ *  this fixed map: no request touches the disk, and none can grow it. */
+function loadFiles(dir: string | null): Map<string, Buffer> {
+  const files = new Map<string, Buffer>();
+  if (!dir) return files;
+  const walk = (d: string) => {
+    for (const name of readdirSync(d)) {
+      const full = join(d, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else files.set(`/${relative(dir, full).split(sep).join('/')}`, readFileSync(full));
+    }
+  };
+  walk(dir);
+  return files;
+}
+
+export const log = (what: string, e: unknown) => console.error(`${new Date().toISOString()} ${what}:`, e);
+
 export async function startServer(o: Options): Promise<{ port: number; close(): Promise<void>; tables: Tables }> {
   const clock = o.clock ?? realClock;
   const store = new Store(o.dbPath);
@@ -53,17 +97,17 @@ export async function startServer(o: Options): Promise<{ port: number; close(): 
   const creates = new Map<string, number[]>();
   const socketsByIp = new Map<string, number>();
   const started = clock.now();
-  const publicDir = o.publicDir ? resolve(o.publicDir) : null;
-  const files = new Map<string, Buffer | null>();
+  const files = loadFiles(o.publicDir ? resolve(o.publicDir) : null);
 
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_MESSAGE_BYTES });
 
-  /** The client's address: the peer, or what Caddy says when Caddy is the peer. */
+  /** The client's address for the limits: the peer, or what Caddy says when
+   *  Caddy is the peer. */
   function clientIp(req: IncomingMessage): string {
     const peer = bare(req.socket.remoteAddress);
     const real = req.headers['x-real-ip'];
-    if (o.trustedProxy && peer === o.trustedProxy && typeof real === 'string' && real) return bare(real.trim());
-    return peer;
+    if (o.trustedProxy && peer === o.trustedProxy && typeof real === 'string' && real) return limitKey(bare(real.trim()));
+    return limitKey(peer);
   }
 
   const originOk = (req: IncomingMessage) => o.allowedOrigins.includes(String(req.headers.origin ?? ''));
@@ -78,26 +122,10 @@ export async function startServer(o: Options): Promise<{ port: number; close(): 
     res.end(JSON.stringify(body));
   }
 
-  async function file(path: string): Promise<Buffer | null> {
-    if (!publicDir) return null;
-    if (files.has(path)) return files.get(path)!;
-    const full = normalize(join(publicDir, path));
-    if (full !== publicDir && !full.startsWith(publicDir + sep)) return null;
-    let body: Buffer | null = null;
-    try {
-      body = await readFile(full);
-    } catch { /* not there */ }
-    // Hashed assets never change; everything else is re-read after a deploy
-    // only because the process restarts, which empties this cache.
-    files.set(path, body);
-    return body;
-  }
-
-  async function serveStatic(req: IncomingMessage, res: ServerResponse, path: string): Promise<void> {
+  function serveStatic(req: IncomingMessage, res: ServerResponse, path: string): void {
     const name = path === '/' ? '/index.html' : path;
-    if (name.includes('\0') || name.includes('..')) return void json(res, 404, { error: 'not found' });
-    const body = await file(name);
-    if (!body) return void json(res, 404, { error: 'not found' });
+    const body = files.get(name);
+    if (!body) return json(res, 404, { error: 'not found' });
     const headers: Record<string, string> = {
       'content-type': TYPES[extname(name)] ?? 'application/octet-stream',
       'x-content-type-options': 'nosniff',
@@ -112,9 +140,9 @@ export async function startServer(o: Options): Promise<{ port: number; close(): 
     res.end(req.method === 'HEAD' ? undefined : body);
   }
 
-  const http = createServer((req, res) => {
-    const url = new URL(req.url ?? '/', 'http://x');
-    const path = url.pathname;
+  function handle(req: IncomingMessage, res: ServerResponse): void {
+    const path = pathOf(req.url);
+    if (path === null) return json(res, 400, { error: 'bad request' });
     if (path === '/healthz' && req.method === 'GET') {
       return json(res, 200, {
         ok: true, uptime_s: Math.round((clock.now() - started) / 1000),
@@ -132,20 +160,26 @@ export async function startServer(o: Options): Promise<{ port: number; close(): 
       creates.set(ip, recent);
       return json(res, 201, { id: tables.create() });
     }
-    if (req.method === 'GET' || req.method === 'HEAD') {
-      serveStatic(req, res, path).catch(() => json(res, 500, { error: 'server' }));
-      return;
-    }
+    if (req.method === 'GET' || req.method === 'HEAD') return serveStatic(req, res, path);
     json(res, 404, { error: 'not found' });
+  }
+
+  const http = createServer((req, res) => {
+    try {
+      handle(req, res);
+    } catch (e) {
+      log('request', e);
+      if (!res.headersSent) json(res, 500, { error: 'server' });
+      else res.destroy();
+    }
   });
 
   function refuse(socket: Duplex, status: number, text: string): void {
     socket.end(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
   }
 
-  http.on('upgrade', (req, socket, head) => {
-    const url = new URL(req.url ?? '/', 'http://x');
-    const match = WS_PATH.exec(url.pathname);
+  function upgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
+    const match = WS_PATH.exec(pathOf(req.url) ?? '');
     if (!match || !TABLE_ID_RE.test(match[1])) return refuse(socket, 404, 'Not Found');
     if (!originOk(req)) return refuse(socket, 403, 'Forbidden');
     const ip = clientIp(req);
@@ -168,22 +202,44 @@ export async function startServer(o: Options): Promise<{ port: number; close(): 
       }, PING_MS);
       ws.on('message', (data, isBinary) => {
         if (isBinary) return ws.close(1003, 'Text only');
-        handlers.message(data.toString());
+        try {
+          handlers.message(data.toString());
+        } catch (e) {
+          log(`table ${id}`, e);
+          ws.close(1011, 'Server error');
+        }
       });
       ws.on('close', () => {
         clearInterval(pinger);
         const n = (socketsByIp.get(ip) ?? 1) - 1;
         if (n > 0) socketsByIp.set(ip, n);
         else socketsByIp.delete(ip);
-        handlers.close();
+        try {
+          handlers.close();
+        } catch (e) {
+          log(`table ${id} close`, e);
+        }
       });
       ws.on('error', () => ws.terminate());
     });
+  }
+
+  http.on('upgrade', (req, socket, head) => {
+    try {
+      upgrade(req, socket, head);
+    } catch (e) {
+      log('upgrade', e);
+      socket.destroy();
+    }
   });
 
   // A daily sweep for week-old tables, and the rate-limit memory with them.
   const sweeper = setInterval(() => {
-    tables.sweep();
+    try {
+      tables.sweep();
+    } catch (e) {
+      log('sweep', e);
+    }
     const now = clock.now();
     for (const [ip, ts] of creates) if (!ts.some((t) => now - t < 3600_000)) creates.delete(ip);
   }, 3600_000);

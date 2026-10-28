@@ -165,13 +165,19 @@ can't use unauthorised information. The bidding box's call meanings
 - On reconnect the client sends `hello {token, lastSeq}` and gets a fresh
   snapshot; there is no other recovery path, so there's nothing to get out of
   sync.
-- A seat disconnected for **60 seconds** while it's that seat's turn shows the
-  others a **Let a robot play** button. A robot then plays the seat, mid-auction
+- A seat whose player has been disconnected for **60 seconds** shows the
+  others a **Let a robot play** button (built: at any point in the board, not
+  only on that seat's turn). A robot then plays the seat, mid-auction
   or mid-play (`aiBidExplained` and `aiPlay` work from any state; the robot
   reads the human's earlier calls as GIB would). The player can **Take my seat
   back** on return, at their next turn.
 - If the host leaves, the host role passes to the longest-seated connected
-  human.
+  human: **seated players only**, never a watcher holding the link.
+- **Seats are fixed while a board is played** (`sit` and `stand` are refused
+  mid-board): a seat's view includes its hand, so sitting in an empty seat
+  would read it. Absence mid-board is `robot` and `reclaim`.
+- **Robots play only while someone seated is connected**: a table left to
+  robots (or a script's empty table) costs no CPU.
 - A table with no connection for **7 days** is deleted (a daily sweep on
   Node; an alarm calling `deleteAll()` on a Durable Object). Finished boards
   are already in each player's browser.
@@ -670,6 +676,14 @@ calls, 2026-10-26).
   process reaches the container, not the LAN.
 - `X-Real-IP` is believed only from Caddy's address; Caddy overwrites any
   client-sent forwarding headers (no `trusted_proxies`).
+- **No request ends the process** (from the pre-release review, 2026-10-27):
+  every HTTP, upgrade, socket and timer handler is caught and logged; a
+  target that isn't a path (`//`) is a 400; the static files are a fixed map
+  read at start, so no URL grows the memory; a stored table that doesn't
+  load is one lost table, and a robot that throws stops its table only.
+- The server refuses to start without `TRUSTED_PROXY` and `PUBLIC_DIR`
+  (`BRIDGE_DEV=1` allows it on a development machine), and the per-address
+  limits count an IPv6 /64 as one address.
 - The deploy key is dedicated and can do one privileged thing: restart
   `bridge.service`.
 - Player tokens: 128 random bits, sent in the first message only, stored

@@ -9,8 +9,7 @@
     "build": "node build.mjs",
     "test": "vitest run",
     "check": "tsc --noEmit -p .",
-    "dev": "node build.mjs && node --env-file-if-exists=.env.dev dist/server.js",
-    "bench": "node build.mjs bench && node --expose-gc dist/bench.js"
+    "dev": "node build.mjs && node --env-file-if-exists=.env.dev dist/server.js",    "bench": "node build.mjs bench && node --expose-gc dist/bench.js"
   },
   "dependencies": {
     "ws": "^8.18.3"

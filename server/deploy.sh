@@ -42,7 +42,7 @@ echo "== restarting bridge.service"
 # Port 8787 takes only Caddy and Uptime Kuma, so ask from inside the container.
 health='fetch("http://127.0.0.1:8787/healthz").then((r) => r.text()).then(console.log).catch(() => process.exit(1))'
 for _ in $(seq 1 20); do
-  if out="$("${SSH[@]}" node -e "'$health'" 2>/dev/null)"; then
+  if out="$("${SSH[@]}" node -e "'$health'" 2>/dev/null)" && [[ "$out" == *'"ok":true'* ]]; then
     echo "== up: $out (version $(cat "$stage/VERSION"))"
     exit 0
   fi
