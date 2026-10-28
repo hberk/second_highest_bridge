@@ -403,6 +403,22 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   alerts drop their HCP ranges ("3+ ♥. Single raise.", "4+ ♥. Limit
   raise."), which a hand counting length would not keep. Alone: **+0.13,
   t = +2.9, 215 auctions changed**. 4M on any five trumps instead: 0.00.
+- **Partner's game stands** (`ai.PARTNERS_GAME_STANDS`; the user's training
+  deal, 2026-10-28: 1♠ 3♦ P P 3♠ P 4♠ P 5♠ with ♠AJ8432 ♥Q862 ♦— ♣AKQ, -50).
+  GIB had no call for opener there, and the previous system read 4♠ as a
+  raise, counted 14.7 tricks and, with 4♠ gone, bid the cheapest spade bid its
+  count allowed. That system has no slam bidding, so it now passes while
+  partner's game is the highest bid (GIB's own calls are untouched). 10,000
+  fresh deals: **+0.36 a board, t = +6.0, 184 auctions changed** (88 better,
+  10 worse). Never bidding past game at all, over their bids too, cost
+  -0.47, t = -3.5: it stopped the robots competing over the opponents' 5-level
+  bids.
+- **A three-level lone rebid shows six** (`ai.REBID_ALONE_SIX_FROM = 3`; the
+  user's rule: no 3♠ on five after a jump overcall). From the three level up,
+  repeating the suit with partner silent needs the sixth card whatever the
+  points, and alerts "6+ ♠"; below it, five cards and 12+ points still
+  rebid ("5+"). **+0.27 a board, t = +3.8, 237 auctions**. Partner raising it
+  on two cards as well: +0.28, so left out.
 
 ## The previous system (`ai.USE_GIB = False`)
 

@@ -172,6 +172,10 @@ from the variant's side; t as above.
 | 10-28 | ...the same, letting both compete again after the jam | +1.22 | +10.40 | 874 | off |
 | 10-28 | ...with minors, nobody bidding again | +1.38 | +9.54 | 1,162 | off |
 | 10-28 | ...with minors, both competing again after the jam | **+1.50** | +10.64 | 1,156 | on (your call) |
+| 10-28 | Partner's game stands: the fallback never raises partner's game while it is the highest bid (the user's training deal: 1♠ 3♦ P P 3♠ P 4♠ P 5♠). 10,000 fresh deals | **+0.36** | +5.99 | 184 | on |
+| 10-28 | ...never bidding past game at all, over their bids too | -0.47 | -3.50 | 498 | off |
+| 10-28 | A lone rebid at the three level or higher needs six cards (the user's rule: no 3♠ on five after a jump overcall). 10,000 fresh deals | **+0.27** | +3.82 | 237 | on (your rule) |
+| 10-28 | ...and partner raises it on two cards | +0.28 | +3.63 | 300 | off (adds nothing) |
 
 ### The previous system (`ai_bid`)
 

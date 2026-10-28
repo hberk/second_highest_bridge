@@ -334,9 +334,9 @@ def _game_call(strain: str, legal: list[str]) -> str | None:
 #: This system has no slam bidding, so it never raises partner's game while
 #: that game is still the highest bid: it used to read a count over eleven
 #: tricks as room to go on, and opener's 5♠ over partner's 4♠ went down (the
-#: user's training deal, 2026-10-28). Bidding on over THEIR bid is untouched;
-#: capping that too measured -0.47 a board, t = -3.50.
-PLACE_STOPS_AT_GAME = False
+#: user's training deal, 2026-10-28; +0.36 a board, t = +6.0). Bidding on
+#: over THEIR bid is untouched: capping that too measured -0.47, t = -3.50.
+PARTNERS_GAME_STANDS = True
 
 
 def _game_level(strain: str) -> int:
@@ -409,8 +409,9 @@ REBID_MINIMUM = 12             # guide: 12-15 is a minimum rebid
 REBID_LENGTH = 6               # extra length is its own reason to bid again
 #: From this level up a lone rebid needs the sixth card whatever the points,
 #: so it shows six (the user's rule, 2026-10-28: no 3♠ on five after a jump
-#: overcall). None: five cards and 12+ points rebid at any level.
-REBID_ALONE_SIX_FROM = None
+#: overcall; +0.27 a board, t = +3.8). None: five cards and 12+ points
+#: rebid at any level.
+REBID_ALONE_SIX_FROM = 3
 
 # The cuebid -- advancer bidding the OPPONENTS' suit to show a good raise of
 # partner's overcall -- has no threshold constant because the AI does not make the
@@ -696,19 +697,6 @@ def _rebid_alone(player: str, auction: AuctionState, ev: dict, groups: dict,
     return 'Pass', "Partner has passed; not enough to bid again alone."
 
 
-#: Raise on two opposite a lone rebid that showed six (`REBID_ALONE_SIX_FROM`).
-RAISE_TWO_OPPOSITE_SIX = False
-
-
-def _support_needed(partner: str, auction: AuctionState, strain: str) -> int:
-    """Cards I need to raise: three, or two once partner's rebid showed six."""
-    named = [lvl for lvl, s in _bids_by(partner, auction) if s == strain]
-    if (RAISE_TWO_OPPOSITE_SIX and REBID_ALONE_SIX_FROM and len(named) >= 2
-            and named[-1] >= REBID_ALONE_SIX_FROM):
-        return 8 - REBID_LENGTH
-    return SUPPORT_LENGTH
-
-
 def _response(player: str, partner: str, auction: AuctionState, ev: dict,
               groups: dict, best_suit: str, best_len: int, legal: list[str]) -> tuple:
     """Partner has bid. Raise with support, else show a suit -- at the two level
@@ -740,8 +728,7 @@ def _response(player: str, partner: str, auction: AuctionState, ev: dict,
                    f"Partner showed support, not their suit.")
         return call, why
 
-    need = _support_needed(partner, auction, p_strain)
-    if held >= need:
+    if held >= SUPPORT_LENGTH:
         # THE AI DOES NOT CUEBID, and this is where it would. Implemented and
         # measured: advancer bidding the opponents' suit on 11+ points with
         # support cost -4.1 points per board head to head (t = -2.66; -16.4 on
@@ -760,7 +747,7 @@ def _response(player: str, partner: str, auction: AuctionState, ev: dict,
             game = _game_call(p_strain, legal)
             if game:
                 return game, (
-                    f"{need}+ {SUIT_SYM[p_strain]} support, game values.")
+                    f"{SUPPORT_LENGTH}+ {SUIT_SYM[p_strain]} support, game values.")
         ceiling = max(1, int(combined) - 6)
         if (ev['total_pts'] >= JUMP_RAISE_TRICKS and pts >= JUMP_RAISE_POINTS
                 and ceiling >= PARTSCORE_LEVEL + 1):
@@ -770,7 +757,7 @@ def _response(player: str, partner: str, auction: AuctionState, ev: dict,
             if (jump and parse_bid(jump)[0] <= ceiling
                     and jump != _cheapest(p_strain, PARTSCORE_LEVEL, legal)):
                 return jump, (
-                    f"{need}+ {SUIT_SYM[p_strain]} support, "
+                    f"{SUPPORT_LENGTH}+ {SUIT_SYM[p_strain]} support, "
                     f"{JUMP_RAISE_POINTS}+ points. Invitational.")
         # The guide's floor for a raise, enforced so the alert can quote it;
         # free on the solved set (0 of 299 deals changed). The alert states the
@@ -780,7 +767,7 @@ def _response(player: str, partner: str, auction: AuctionState, ev: dict,
             return 'Pass', f"Fewer than {RAISE_POINTS} points."
         call, why = _place(p_strain, combined, legal, held)
         if call != 'Pass':
-            why = (f"{need}+ {SUIT_SYM[p_strain]} support, "
+            why = (f"{SUPPORT_LENGTH}+ {SUIT_SYM[p_strain]} support, "
                    f"{RAISE_POINTS}+ points. Limited.")
         return call, why
 
@@ -835,7 +822,7 @@ def _response(player: str, partner: str, auction: AuctionState, ev: dict,
     if best_len >= OPEN_SUIT_LENGTH:
         return 'Pass', "Not enough to introduce a new suit at this level."
     return 'Pass', (
-        f"Fewer than {need} {SUIT_SYM[p_strain]} and no five-card suit.")
+        f"Fewer than {SUPPORT_LENGTH} {SUIT_SYM[p_strain]} and no five-card suit.")
 
 
 def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
@@ -1079,7 +1066,7 @@ def _base_bid_explained(player: str, hand: list[Card], auction: AuctionState) ->
     decision = _previous_system(player, hand, auction, legal)
     hb = auction.highest_bid
     bid = parse_bid(decision[0])
-    if (PLACE_STOPS_AT_GAME and bid and hb and hb[2] == PARTNERS[player]
+    if (PARTNERS_GAME_STANDS and bid and hb and hb[2] == PARTNERS[player]
             and hb[0] >= _game_level(hb[1]) and bid[0] > hb[0]):
         return 'Pass', "Partner's game stands."
     return decision
