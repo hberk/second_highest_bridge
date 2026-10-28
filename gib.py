@@ -38,6 +38,12 @@ NT_AFTER_2C = (22, 24)        # 2C-2D-2NT
 STRONG_2C = 22                # 2C: strong, artificial, 22+ HCP
 WEAK = (5, 10)                # weak twos and pre-empts
 FOURTH_SEAT = (11, 15)        # a fourth-seat two-bid is sound (house, user's call)
+#: A weak two's suit, in judgement points (the user's call, 2026-10-28):
+#: GIB's "two of the top three" means little when the second-highest card
+#: wins. None at favourable or equal, 2 at unfavourable, one more in second
+#: seat. +1.31 a board on 10,000 fresh deals (BIDDING.md, "Weak twos").
+WEAK_TWO_SUIT_JP = {'fav': 0, 'equal': 0, 'unfav': 2}
+WEAK_TWO_SECOND_SEAT = 1
 #: The fewest HCP that respond to a one-level opening (the user's call,
 #: 2026-10-23: 7, not GIB's 6; +0.52 a board on its own). See BIDDING.md.
 RESPONSE_MIN = 7
@@ -350,9 +356,24 @@ def opening(ctx: Ctx) -> tuple:
             return f"4{best}", f"8+ {SYM[best]}, 5-10 HCP. Pre-emptive."
         if n >= 7 and ctx.ok(f"3{best}"):
             return f"3{best}", f"7+ {SYM[best]}, 5-10 HCP. Pre-emptive."
-        if n == 6 and best != 'C' and h.good_suit(best) and ctx.ok(f"2{best}"):
-            return f"2{best}", f"6 {SYM[best]}, 5-10 HCP, good suit. Weak two."
+        if n == 6 and best != 'C' and _weak_two_suit(ctx, best) and ctx.ok(f"2{best}"):
+            return f"2{best}", f"6 {SYM[best]}, 5-10 HCP. Weak two."
     return 'Pass', "Not an opening hand."
+
+
+def _weak_two_suit(ctx: Ctx, suit: str) -> bool:
+    """Enough judgement points in the suit for a weak two, by vulnerability
+    and seat."""
+    v = ctx.auction.vulnerability
+    ns = ctx.me in ('North', 'South')
+    we = v == 'Both' or v == ('N/S' if ns else 'E/W')
+    they = v == 'Both' or v == ('E/W' if ns else 'N/S')
+    bar = WEAK_TWO_SUIT_JP['unfav' if we and not they else 'fav' if they and not we else 'equal']
+    if len(ctx.calls) == 1:
+        bar += WEAK_TWO_SECOND_SEAT
+    jp = sum(3 if c.rank in ('K', 'Q') else 1 if c.rank in ('A', 'J', '10', '9') else 0
+             for c in ctx.h.groups[suit])
+    return jp >= bar
 
 
 # ── Uncontested auctions ──────────────────────────────────────────────────────

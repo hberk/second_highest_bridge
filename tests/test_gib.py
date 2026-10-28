@@ -52,6 +52,30 @@ def test_openings():
     assert bid('8S 4S 9H 6H 5H 7D 4D KC QC 10C 9C 7C 3C')[0] == 'Pass'
 
 
+def test_weak_two_suit_by_seat_and_vulnerability():
+    # The training deal: Q-10-9 of hearts is 5 judgement points, enough
+    # anywhere. Six small is 0: a weak two only at favourable or equal,
+    # and not in second seat; 2 points (a 9 and a 10) is the unfavourable
+    # bar in first or third seat.
+    def opens(cards: str, vul: str, *calls: str) -> str:
+        auction = AuctionState(dealer='North', vulnerability=vul)
+        for call in calls:
+            auction.apply_call(auction.current_player(), call)
+        return ai.ai_bid_explained(auction.current_player(), hand(cards), auction)[0]
+    training = 'JS 2S QH 10H 9H 8H 6H 5H KD 10D 8D 7D 6C'
+    assert opens(training, 'E/W', 'Pass') == '2H'      # 2nd seat, unfavourable
+    assert opens(training, 'N/S', 'Pass') == '2H'
+    small = 'JS 2S 8H 7H 6H 5H 4H 3H KD QD 8D 7D 6C'
+    assert opens(small, 'None') == '2H'
+    assert opens(small, 'E/W') == '2H'                  # favourable for North
+    assert opens(small, 'N/S') == 'Pass'                # unfavourable
+    assert opens(small, 'None', 'Pass') == 'Pass'       # second seat
+    two = 'JS 2S 10H 9H 6H 5H 4H 3H KD QD 8D 7D 6C'
+    assert opens(two, 'N/S') == '2H'
+    assert opens(two, 'N/S', 'Pass', 'Pass') == '2H'    # third seat
+    assert opens(two, 'Both', 'Pass') == '2H'           # second seat, equal: 1
+
+
 # ── Notrump: Stayman, transfers, Texas, Gerber, quantitative ─────────────────
 
 def test_stayman():
