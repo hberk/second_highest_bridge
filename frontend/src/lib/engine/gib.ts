@@ -18,6 +18,10 @@ export const NT_AFTER_2C: [number, number] = [22, 24];
 export const STRONG_2C = 22;
 export const WEAK: [number, number] = [5, 10];
 export const FOURTH_SEAT: [number, number] = [11, 15];
+/** A weak two's suit, in judgement points, by vulnerability, and one more in
+ *  second seat (the user's call, 2026-10-28). See gib.py. */
+export const WEAK_TWO_SUIT_JP = { fav: 0, equal: 0, unfav: 2 };
+export const WEAK_TWO_SECOND_SEAT = 1;
 /** The fewest HCP that respond to a one-level opening (the user's call, 2026-10-23). */
 export const RESPONSE_MIN = 7;
 export const RAISE: [number, number] = [7, 10];
@@ -354,11 +358,24 @@ function opening(ctx: Ctx): Decision {
       return [`4${best}`, `8+ ${SYM[best]}, 5-10 HCP. Pre-emptive.`];
     }
     if (n >= 7 && ctx.ok(`3${best}`)) return [`3${best}`, `7+ ${SYM[best]}, 5-10 HCP. Pre-emptive.`];
-    if (n === 6 && best !== 'C' && h.goodSuit(best) && ctx.ok(`2${best}`)) {
-      return [`2${best}`, `6 ${SYM[best]}, 5-10 HCP, good suit. Weak two.`];
+    if (n === 6 && best !== 'C' && weakTwoSuit(ctx, best) && ctx.ok(`2${best}`)) {
+      return [`2${best}`, `6 ${SYM[best]}, 5-10 HCP. Weak two.`];
     }
   }
   return ['Pass', 'Not an opening hand.'];
+}
+
+/** Enough judgement points in the suit for a weak two, by vulnerability and seat. */
+function weakTwoSuit(ctx: Ctx, suit: Suit): boolean {
+  const v = ctx.auction.vulnerability;
+  const ns = ctx.me === 'North' || ctx.me === 'South';
+  const we = v === 'Both' || v === (ns ? 'N/S' : 'E/W');
+  const they = v === 'Both' || v === (ns ? 'E/W' : 'N/S');
+  let bar = WEAK_TWO_SUIT_JP[we && !they ? 'unfav' : they && !we ? 'fav' : 'equal'];
+  if (ctx.calls.length === 1) bar += WEAK_TWO_SECOND_SEAT;
+  const jp = ctx.h.groups[suit].reduce((n, c) => n + (c.rank === 'K' || c.rank === 'Q' ? 3
+    : c.rank === 'A' || c.rank === 'J' || c.rank === '10' || c.rank === '9' ? 1 : 0), 0);
+  return jp >= bar;
 }
 
 // ── Uncontested auctions ──────────────────────────────────────────────────────

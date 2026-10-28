@@ -521,6 +521,20 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   alerts drop their HCP ranges ("3+ ♥. Single raise.", "4+ ♥. Limit
   raise."), which a hand counting length would not keep. Alone: **+0.13,
   t = +2.9, 215 auctions changed**. 4M on any five trumps instead: 0.00.
+- **Weak twos: the suit by judgement points, by seat and vulnerability**
+  (`WEAK_TWO_SUIT_JP`, `WEAK_TWO_SECOND_SEAT`, `_weak_two_suit`; the user's
+  training deal, 2026-10-28: ♠J2 ♥QT9865 ♦KT87 ♣6 passed in second seat).
+  GIB's "two of the top three honours, or three of the top five" means little
+  when the second-highest card wins, so the suit is counted in judgement
+  points instead: no minimum at favourable or equal vulnerability, 2 at
+  unfavourable, one more in second seat (the user's scheme: favourable
+  lightest, unfavourable strictest, first and third lighter than second).
+  The alert drops "good suit". 10,000 fresh deals: **+1.31, t = +7.5, 2,081
+  auctions changed**. Every bar measured lost to a lower one: no suit test
+  +1.41 (beat this by +0.10, t = +2.45, the user kept the scheme), 2+
+  points flat +1.15, one of A K Q +0.93, 3+/4+/5+ points +0.84/+0.49/+0.04;
+  spreads 0/1/3, 0/2/4 and 0/3/5 +1.18, +1.11, +0.94. With no suit test the
+  extra weak twos gained in every seat and vulnerability.
 
 ## The previous system (`ai.USE_GIB = False`)
 
