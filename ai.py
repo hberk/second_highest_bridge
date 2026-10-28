@@ -2883,9 +2883,9 @@ LAST_HAND_FOR_PARTNER = True
 #: no other seat can beat wins later only alone in its suit, while a low card
 #: can still be second-highest (measurement switch). On challenge deal 10 East
 #: ruffed a club with the 6S from AS JS 6S and went down; the JS or AS makes.
-DEAD_WINNER_FIRST = False
-#: DEAD_WINNER_FIRST only for ruffs, not for following suit (measurement switch).
-DEAD_WINNER_RUFF_ONLY = False
+#: Seated, 800 fresh deals: +0.029 tricks, +4.98 points a board (t 2.83). For
+#: ruffs alone it measured even: the gain is in following suit.
+DEAD_WINNER_FIRST = True
 
 
 def _play_last(legal: list[Card], trick: list[tuple[str, Card]], trump: str | None,
@@ -2910,10 +2910,8 @@ def _play_last(legal: list[Card], trick: list[tuple[str, Card]], trump: str | No
     ]
     if winning:
         if DEAD_WINNER_FIRST and hand is not None:
-            led = trick[0][1].suit
             gone = set(played or []) | {c for _, c in trick}
-            dead = [c for c in winning if _dead(c, hand, gone)
-                    and not (DEAD_WINNER_RUFF_ONLY and c.suit == led)]
+            dead = [c for c in winning if _dead(c, hand, gone)]
             if dead:
                 return min(dead, key=lambda c: c.value())
         return min(winning, key=lambda c: c.value())

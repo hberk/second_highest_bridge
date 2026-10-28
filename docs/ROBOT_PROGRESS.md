@@ -94,6 +94,8 @@ four seats, which nets out a change both declarer and defenders use.
 | 10-25 | ...an honour lead (J+) read by counting alone, not the lead convention (`SHORT_LEAD_HONOUR`, your call: people lead honours from other holdings, deal 356) | +0.002 | +1.28 | +1.52 | 364 of 9,504 | on (your call) |
 | 10-25 | ...with the singleton opening lead as well | +0.004 | -0.35 | -0.58 | 888 of 9,504 | off |
 | 10-25 | ...both together; with low singletons only (ten or below) | +0.011; +0.003 | +0.67; +0.35 | +0.77; +0.39 | 756; 632 | off |
+| 10-28 | Of the cards that keep the trick, fourth hand plays a dead one first: the J♠, not the 6♠, ruffing from A♠ J♠ 6♠ (deal 10, `DEAD_WINNER_FIRST`). 800 fresh deals | **+0.029** | +2.83 | **+4.98** | 2,784 of 12,640 | on (your call) |
+| 10-28 | ...for ruffs only | -0.001 | +0.65 | +0.87 | 1,528 of 12,640 | off |
 
 The three information rules together: +0.55 points a board, t = +0.48, 556
 boards changed. None is distinguishable from zero; they are kept because a

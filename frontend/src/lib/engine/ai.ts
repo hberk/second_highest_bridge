@@ -1591,6 +1591,8 @@ export const SURE_LEAD_DECLARER = true;
 export const RUFF_LEAD = false;
 export const FORCE_DUMMY = false;
 export const DEAD_CARD_LAST = true;
+/** Of the cards that win the trick, fourth hand spends a dead one first (see ai.py). */
+export const DEAD_WINNER_FIRST = true;
 
 /** No other seat can play a higher card of this suit: every one is gone or ours. */
 function dead(c: Card, hand: Card[], gone: Set<string>): boolean {
@@ -1989,7 +1991,14 @@ function playLast(legal: Card[], trick: AnyPlay[], trump: string | null,
   const partner = trick[1][0];
   const ours = settingsPlay.lastHandForPartner ? [AI_TAG, partner] : [AI_TAG];
   const winning = legal.filter((c) => ours.includes(resolveTrick([...trick, [AI_TAG, c]], trump)));
-  if (winning.length) return minBy(winning, (c) => [value(c)]);
+  if (winning.length) {
+    if (DEAD_WINNER_FIRST && hand !== null) {
+      const gone = new Set([...(played ?? []), ...trick.map(([, c]) => c)].map(cardKey));
+      const deadOnes = winning.filter((c) => dead(c, hand, gone));
+      if (deadOnes.length) return minBy(deadOnes, (c) => [value(c)]);
+    }
+    return minBy(winning, (c) => [value(c)]);
+  }
   if (DEAD_CARD_LAST && hand !== null) {
     const led = trick[0][1].suit;
     const gone = new Set([...(played ?? []), ...trick.map(([, c]) => c)].map(cardKey));

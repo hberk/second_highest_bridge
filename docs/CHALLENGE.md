@@ -420,6 +420,21 @@ DEFENDER_SUIT_PLAN`, 6,356 boards): **-0.113 declarer tricks per board (t =
 0.17 s a board against 0.12 s over the library (desktop Node), the slowest board
 under a second either way. `tests/test_card_play_rules.py` holds deal 356.
 
+**Fourth hand wins with a dead card first** (`ai.DEAD_WINNER_FIRST`; the
+user's deal 10, 2026-10-28). Spades by East, trick 5: South led the 8♣, dummy
+played the 10♣ and North the 4♣; East, void in clubs, ruffed with the 6♠ from
+A♠ J♠ 6♠ (the K♠ and Q♠ gone) and went one down, where the J♠ or A♠ makes
+(double dummy). `_play_last` played the cheapest card that keeps the trick, and
+a lone trump always wins, so it picked the six. In this game that spends the
+wrong card: a dead card wins later only alone in its suit, while a low card can
+still be second-highest. So of the cards that keep the trick, fourth hand now
+plays the lowest dead one, if any. Seated (`card_play_seated.py`, 800 fresh
+deals x 16 boards): **+0.029 tricks, +4.98 points a board (t = +2.83)**; 2,784
+of 12,640 boards changed. The same for ruffs only measured even (-0.001
+tricks, +0.87 points, t = +0.65, 1,528 boards): a dead trump still pushes
+partner's trump into second place later, and the gain is in following suit.
+`tests/test_card_play_rules.py` holds deal 10.
+
 **A cuebid raise that forces the three level needs four trumps or 12+
 judgement points** (`gib.CUE_LIMIT_AT_3`), a small tightening of GIB's "limit
 raise or better"; weaker hands with three trumps raise to the two level. The
