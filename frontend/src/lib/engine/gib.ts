@@ -101,6 +101,12 @@ export class Hand {
     this.judge = settingsGib.judgeByVariant ? judge : this.hcp;
   }
 
+  /** Judgement points (K=Q=3, A=J=10=9=1) in one suit. */
+  suitJudge(suit: Suit): number {
+    return this.groups[suit].reduce((n, c) => n + (c.rank === 'K' || c.rank === 'Q' ? 3
+      : c.rank === 'A' || c.rank === 'J' || c.rank === '10' || c.rank === '9' ? 1 : 0), 0);
+  }
+
   has(suit: Suit, rank: string): boolean {
     return this.groups[suit].some((c) => c.rank === rank);
   }
@@ -2837,11 +2843,44 @@ function ntInterference(ctx: Ctx): Decision | null {
 
 // ── When they opened ──────────────────────────────────────────────────────────
 
+/** Lead-directing double: a double of their artificial suit bid shows
+ *  LEAD_DOUBLE_LEN+ cards there with LEAD_DOUBLE_JUDGE+ judgement points in
+ *  the suit, and asks for that lead. Never takeout. See gib.py. */
+export const LEAD_DOUBLE = true;
+const LEAD_DOUBLE_LEN = 5;
+const LEAD_DOUBLE_JUDGE = 4;
+
+function theirArtificial(ctx: Ctx, at: number): Suit | null {
+  if (at < 0) return null;
+  const [who, call] = ctx.calls[at];
+  const s = strainOf(call);
+  const us = (w: Seat) => w === ctx.me || w === ctx.pd;
+  if (us(who) || !isSuit(s)) return null;
+  if (ctx.calls.slice(0, at).some(([w, c]) => us(w) && c !== 'Pass')) return null;
+  const seq = ctx.calls.slice(0, at + 1).filter(([w, c]) => !us(w) && c !== 'Pass').map(([, c]) => c);
+  return shownSuit(seq, seq.length - 1) !== s ? s : null;
+}
+
+function leadDouble(ctx: Ctx): Decision | null {
+  const s = theirArtificial(ctx, ctx.calls.length - 1);
+  if (s && ctx.ok('X') && ctx.h.len[s] >= LEAD_DOUBLE_LEN && ctx.h.suitJudge(s) >= LEAD_DOUBLE_JUDGE) {
+    return ['X', `Lead-directing: ${LEAD_DOUBLE_LEN}+ ${SYM[s]}, ${LEAD_DOUBLE_JUDGE}+ judgement points there.`];
+  }
+  return null;
+}
+
+function wasLeadDouble(ctx: Ctx, seat: Seat): boolean {
+  const at = ctx.calls.findIndex(([w, c]) => w === seat && c !== 'Pass');
+  return LEAD_DOUBLE && at >= 0 && ctx.calls[at][1] === 'X' && theirArtificial(ctx, at - 1) !== null;
+}
+
 function theyOpened(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
   if (!seq.length) return defend(ctx);
   const mine = ctx.mine();
   const partners = ctx.partners();
+  if (wasLeadDouble(ctx, ctx.me) && !partners.length) return ['Pass', 'My double showed my suit, for the lead.'];
+  if (wasLeadDouble(ctx, ctx.pd) && !mine.length) return ['Pass', "Partner's double asks for a lead."];
   if (partners.length && !mine.length) return advance(ctx);
   if (mine.length && !partners.length && defendWasWeak(ctx, mine[0])) return ['Pass', 'Already described: weak.'];
   return cuebidRaiseReply(ctx);
@@ -2871,6 +2910,8 @@ function defend(ctx: Ctx): Decision | null {
   if (lb === null) return null;
   const opening = openingBidOnly(ctx);
   const [lvl, their] = parseBid(lb)!;
+  const lead = LEAD_DOUBLE ? leadDouble(ctx) : null;
+  if (lead) return lead;
 
   if (opening === '1NT') {
     if (hcp >= 15 && ctx.ok('X')) return ['X', '15+ HCP. Penalty.'];
@@ -2935,7 +2976,8 @@ function defend(ctx: Ctx): Decision | null {
       }
     }
   }
-  if (ctx.ok('X') && rankOf(lb) <= rankOf('4H') && isSuit(their)) {
+  if (ctx.ok('X') && rankOf(lb) <= rankOf('4H') && isSuit(their)
+    && !(LEAD_DOUBLE && theirArtificial(ctx, ctx.calls.length - 1))) {
     const shapeOk = h.len[their] <= 2 && SUITS.every((s) => s === their || h.len[s] >= 3);
     const need = lvl === 1 ? TAKEOUT_MIN : 13;
     if ((shapeOk && hcp >= need) || hcp >= 18) return ['X', `Takeout: ${need}+ HCP.`];

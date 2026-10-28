@@ -183,6 +183,10 @@ from the variant's side; t as above.
 | 10-28 | ...running with 7 HCP or less | +0.07 | +1.55 | 439 | off |
 | 10-28 | ...with 7, opener never pulling a pass | +0.05 | +1.25 | 424 | off |
 | 10-28 | ...running with 10 HCP or less | +0.03 | +0.58 | 460 | off |
+| 10-28 | A double of their artificial bid is lead-directing: 5+ cards, 4+ judgement points in the suit, partner leads it (user's board: P P P 2♣ P 2♦ X with ♦KJT97, read as takeout); scored after the robot's real lead | +0.13 | +2.96 | 363 | on (your call) |
+| 10-28 | ...5+ judgement points | +0.03 | +1.41 | 193 | off |
+| 10-28 | ...6+ judgement points | -0.01 | -1.13 | 86 | off |
+| 10-28 | ...any five cards | +0.13 | +2.19 | 712 | off |
 
 ### The previous system (`ai_bid`)
 

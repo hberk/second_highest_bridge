@@ -114,6 +114,11 @@ class Hand:
                     for c in cards)
         self.judge = judge if JUDGE_BY_VARIANT else self.hcp
 
+    def suit_judge(self, suit: str) -> int:
+        """Judgement points (K=Q=3, A=J=10=9=1) in one suit."""
+        return sum(3 if c.rank in ('K', 'Q') else 1 if c.rank in ('A', 'J', '10', '9') else 0
+                   for c in self.groups[suit])
+
     def has(self, suit: str, rank: str) -> bool:
         return any(c.rank == rank for c in self.groups[suit])
 
@@ -3040,12 +3045,60 @@ def _nt_interference(ctx: Ctx) -> tuple | None:
 
 # ── When they opened ──────────────────────────────────────────────────────────
 
+#: Lead-directing double (the user's call, 2026-10-28): a double of their
+#: artificial suit bid -- Stayman, a transfer, the 2♣ opening, the 2♦ waiting
+#: response, a splinter -- shows LEAD_DOUBLE_LEN+ cards there with
+#: LEAD_DOUBLE_JUDGE+ judgement points in the suit, and asks partner to lead
+#: it. Never takeout: partner passes. The opening lead follows from the
+#: alert's "5+" (`ai._partner_suit_lead`).
+LEAD_DOUBLE = True
+LEAD_DOUBLE_LEN = 5
+LEAD_DOUBLE_JUDGE = 4
+LEAD_DOUBLE_ALERT = "Lead-directing: {n}+ {sym}, {j}+ judgement points there."
+
+
+def _their_artificial(ctx: Ctx, at: int) -> str | None:
+    """The suit of their bid `ctx.calls[at]` when it is artificial (it doesn't
+    show that suit) and our side had only passed before it; else None. Their
+    auction is then uncontested, so `shown_suit` reads it as it reads ours."""
+    if at < 0:
+        return None
+    who, call = ctx.calls[at]
+    s = strain_of(call)
+    if who in (ctx.me, ctx.pd) or s not in SUITS:
+        return None
+    if any(c != 'Pass' for w, c in ctx.calls[:at] if w in (ctx.me, ctx.pd)):
+        return None
+    seq = [c for w, c in ctx.calls[:at + 1] if w not in (ctx.me, ctx.pd) and c != 'Pass']
+    return s if shown_suit(seq, len(seq) - 1) != s else None
+
+
+def _lead_double(ctx: Ctx) -> tuple | None:
+    """Double their artificial bid, just made, for the lead."""
+    s = _their_artificial(ctx, len(ctx.calls) - 1)
+    if (s and ctx.ok('X') and ctx.h.len[s] >= LEAD_DOUBLE_LEN
+            and ctx.h.suit_judge(s) >= LEAD_DOUBLE_JUDGE):
+        return 'X', LEAD_DOUBLE_ALERT.format(n=LEAD_DOUBLE_LEN, sym=SYM[s], j=LEAD_DOUBLE_JUDGE)
+    return None
+
+
+def _was_lead_double(ctx: Ctx, seat: str) -> bool:
+    """Was `seat`'s first call other than a pass a lead-directing double?"""
+    at = next((i for i, (w, c) in enumerate(ctx.calls) if w == seat and c != 'Pass'), None)
+    return (LEAD_DOUBLE and at is not None and ctx.calls[at][1] == 'X'
+            and _their_artificial(ctx, at - 1) is not None)
+
+
 def they_opened(ctx: Ctx) -> tuple | None:
     seq = ctx.seq
     if not seq:
         return _defend(ctx)
     mine = ctx.mine()
     partners = ctx.partners()
+    if _was_lead_double(ctx, ctx.me) and not partners:
+        return 'Pass', "My double showed my suit, for the lead."
+    if _was_lead_double(ctx, ctx.pd) and not mine:
+        return 'Pass', "Partner's double asks for a lead."
     if partners and not mine:
         return _advance(ctx)
     if mine and not partners and _defend_was_weak(ctx, mine[0]):
@@ -3082,6 +3135,9 @@ def _defend(ctx: Ctx) -> tuple | None:
         return None                       # they only doubled: ai.py decides
     opening = _opening_bid_only(ctx)
     lvl, their = parse_bid(lb)
+    lead = _lead_double(ctx) if LEAD_DOUBLE else None
+    if lead:
+        return lead
 
     if opening == '1NT':                                      # Cappelletti
         if hcp >= 15 and ctx.ok('X'):
@@ -3145,7 +3201,8 @@ def _defend(ctx: Ctx) -> tuple | None:
                     (level_of(call) <= 2 or hcp >= 12):
                 return call, f"5+ {SYM[s]}, {need[0]}-{need[1]} HCP. Overcall."
     # Takeout double, through 4H.
-    if ctx.ok('X') and rank_of(lb) <= rank_of('4H') and their in SUITS:
+    if (ctx.ok('X') and rank_of(lb) <= rank_of('4H') and their in SUITS
+            and not (LEAD_DOUBLE and _their_artificial(ctx, len(ctx.calls) - 1))):
         shape_ok = h.len[their] <= 2 and all(h.len[s] >= 3 for s in SUITS if s != their)
         need = TAKEOUT_MIN if lvl == 1 else 13
         if (shape_ok and hcp >= need) or hcp >= 18:
