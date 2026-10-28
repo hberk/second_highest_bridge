@@ -174,6 +174,10 @@ from the variant's side; t as above.
 | 10-28 | ...the same, letting both compete again after the jam | +1.22 | +10.40 | 874 | off |
 | 10-28 | ...with minors, nobody bidding again | +1.38 | +9.54 | 1,162 | off |
 | 10-28 | ...with minors, both competing again after the jam | **+1.50** | +10.64 | 1,156 | on (your call) |
+| 10-28 | Partner's game stands: the fallback never raises partner's game while it is the highest bid (the user's training deal: 1♠ 3♦ P P 3♠ P 4♠ P 5♠). 10,000 fresh deals | **+0.36** | +5.99 | 184 | on |
+| 10-28 | ...never bidding past game at all, over their bids too | -0.47 | -3.50 | 498 | off |
+| 10-28 | A lone rebid at the three level or higher needs six cards (the user's rule: no 3♠ on five after a jump overcall). 10,000 fresh deals | **+0.27** | +3.82 | 237 | on (your rule) |
+| 10-28 | ...and partner raises it on two cards | +0.28 | +3.63 | 300 | off (adds nothing) |
 | 10-28 | Advancer's 2NT is the limit raise or better when the cuebid would pass three of partner's suit; the cuebid asks for a stopper (deal 276: 1♦ (2♣) 2♦ 3♦) | +0.07 | +1.72 | 173 | on (your call) |
 | 10-28 | ...a game-forcing cuebid instead, limit hands raising to three | +0.12 | +2.81 | 159 | off (a tie with the above, -0.05, t = -1.3) |
 | 10-28 | ...2NT a 10-12 limit raise, the cuebid game forcing | +0.02 | +0.38 | 172 | off |

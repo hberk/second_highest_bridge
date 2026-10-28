@@ -331,6 +331,18 @@ def _game_call(strain: str, legal: list[str]) -> str | None:
     return None
 
 
+#: This system has no slam bidding, so it never raises partner's game while
+#: that game is still the highest bid: it used to read a count over eleven
+#: tricks as room to go on, and opener's 5♠ over partner's 4♠ went down (the
+#: user's training deal, 2026-10-28; +0.36 a board, t = +6.0). Bidding on
+#: over THEIR bid is untouched: capping that too measured -0.47, t = -3.50.
+PARTNERS_GAME_STANDS = True
+
+
+def _game_level(strain: str) -> int:
+    return 4 if strain in ('H', 'S') else 3 if strain == 'NT' else 5
+
+
 def _cheapest(strain: str, level: int, legal: list[str]) -> str | None:
     """The cheapest legal bid in `strain` at or above `level`."""
     for lvl in range(level, 8):
@@ -395,6 +407,11 @@ REBID_MINIMUM = 12             # guide: 12-15 is a minimum rebid
 # CALL cannot show it: the level is capped either way, so both tiers make the
 # same bid and the alert quotes the 12+ floor rather than leaking strength.
 REBID_LENGTH = 6               # extra length is its own reason to bid again
+#: From this level up a lone rebid needs the sixth card whatever the points,
+#: so it shows six (the user's rule, 2026-10-28: no 3♠ on five after a jump
+#: overcall; +0.27 a board, t = +3.8). None: five cards and 12+ points
+#: rebid at any level.
+REBID_ALONE_SIX_FROM = 3
 
 # The cuebid -- advancer bidding the OPPONENTS' suit to show a good raise of
 # partner's overcall -- has no threshold constant because the AI does not make the
@@ -663,6 +680,13 @@ def _rebid_alone(player: str, auction: AuctionState, ev: dict, groups: dict,
         # 7C was available for +1440. Head to head +3.6, t = +2.92, 26 deals.
         # Capping at 3 as well measured identically (the ceiling never exceeds
         # 3 in practice), so the clamp buys nothing and is left out.
+        level = parse_bid(call)[0] if call else 0
+        long_only = REBID_ALONE_SIX_FROM and level >= REBID_ALONE_SIX_FROM
+        if call and long_only and held < REBID_LENGTH:
+            return 'Pass', "Partner has passed; not enough to bid again alone."
+        if call and long_only and level <= ceiling:
+            return call, (f"{REBID_LENGTH}+ {SUIT_SYM[my_first]}. "
+                          f"Rebidding my own suit.")
         if call and parse_bid(call)[0] <= ceiling:
             # ONE text for both reasons the rebid fires (six cards on any
             # strength, or five with 12+). Quoting whichever applied told the
@@ -1039,7 +1063,17 @@ def _base_bid_explained(player: str, hand: list[Card], auction: AuctionState) ->
         decision = gib.gib_bid(player, hand, auction)
         if decision:
             return decision
+    decision = _previous_system(player, hand, auction, legal)
+    hb = auction.highest_bid
+    bid = parse_bid(decision[0])
+    if (PARTNERS_GAME_STANDS and bid and hb and hb[2] == PARTNERS[player]
+            and hb[0] >= _game_level(hb[1]) and bid[0] > hb[0]):
+        return 'Pass', "Partner's game stands."
+    return decision
 
+
+def _previous_system(player: str, hand: list[Card], auction: AuctionState,
+                     legal: list[str]) -> tuple:
     ev = eval_hand_sh(hand)
     groups = ev['groups']
     best_suit = max(SUITS, key=lambda s: (len(groups[s]), ev['suit_pts'][s],
