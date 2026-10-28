@@ -1,0 +1,13 @@
+# Every five minutes, check for a new release from main.
+# /etc/systemd/system/bridge-pull.timer; enable with
+#   systemctl enable --now bridge-pull.timer
+[Unit]
+Description=second_highest_bridge: check for a new release from main
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30
+
+[Install]
+WantedBy=timers.target

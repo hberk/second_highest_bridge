@@ -3,12 +3,12 @@
 <script lang="ts">
   import type { Seat } from '../engine/card';
 
-  let { seat, role, count }: { seat: Seat; role: string; count: number } = $props();
+  let { seat, name = seat, role, count }: { seat: Seat; name?: string; role: string; count: number } = $props();
 </script>
 
 <section class="seat-card" aria-label={seat}>
   <div>
-    <div class="seat-card-name">{seat}</div>
+    <div class="seat-card-name">{name}{#if name !== seat}<span class="seat-card-compass"> · {seat}</span>{/if}</div>
     <div class="seat-card-role">{role}</div>
   </div>
   {#if count}

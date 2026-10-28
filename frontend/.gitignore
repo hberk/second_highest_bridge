@@ -4,3 +4,4 @@ dist/
 src/lib/engine/__fixtures__/
 # Built from research/solver-rs/wasm: npm run wasm (dev, test and build run it first)
 src/lib/dd/solver.wasm
+dist-beta/
