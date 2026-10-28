@@ -85,6 +85,16 @@ CUE_LIMIT_AT_3 = True
 #: head to head: +0.07 a board, t = +1.7.
 CUE_2NT = True
 CUE_ASK_HCP = 13
+#: Double, then a new suit: 18+ HCP and 5+ cards, too strong to overcall (the
+#: user's call, 2026-10-28, Bidding training: 1♥ P P X 2♥ P P 2♠ was read as a
+#: plain overcall). A takeout doubler without them does not bid a new suit,
+#: and advancer raises it, to game on DOUBLER_SUIT_JUDGE (an 18-count's mean
+#: judgement points) plus its own.
+DOUBLE_THEN_SUIT = False
+DOUBLER_SUIT_HCP = 18
+DOUBLER_SUIT_JUDGE = 14
+DOUBLER_RAISE_HCP = 6
+DOUBLER_SUIT_LEVEL = 3
 SLAM = 33
 GRAND = 37
 
@@ -2917,11 +2927,108 @@ def they_opened(ctx: Ctx) -> tuple | None:
         return _defend(ctx)
     mine = ctx.mine()
     partners = ctx.partners()
+    if DOUBLE_THEN_SUIT:
+        s = _doubler_suit(ctx, ctx.pd)
+        if s and len(partners) == 2 and ctx.ours[-1][0] == ctx.pd:
+            return _raise_doubler_suit(ctx, s)
+        if _takeout_doubler(ctx, ctx.me) and mine == ['X']:
+            decision = _doubler_new_suit(ctx)
+            if decision:
+                return decision
     if partners and not mine:
         return _advance(ctx)
     if mine and not partners and _defend_was_weak(ctx, mine[0]):
         return 'Pass', "Already described: weak."
     return _cuebid_raise_reply(ctx)
+
+
+def _takeout_doubler(ctx: Ctx, seat: str) -> bool:
+    """Was `seat`'s first call a takeout double: they opened, its partner had
+    not bid, and the double was of a suit bid through 4♥?"""
+    if ctx.we_opened:
+        return False
+    for i, (w, c) in enumerate(ctx.calls):
+        if w == PARTNERS[seat] and c != 'Pass':
+            return False
+        if w == seat and c != 'Pass':
+            if c != 'X':
+                return False
+            bid = next(b for _, b in reversed(ctx.calls[:i]) if parse_bid(b))
+            return strain_of(bid) in SUITS and rank_of(bid) <= rank_of('4H')
+    return False
+
+
+def _new_suit_at(ctx: Ctx, i: int) -> str | None:
+    """The strain of the suit bid at call i, when no one has named it before."""
+    s = strain_of(ctx.calls[i][1])
+    if s not in SUITS or any(strain_of(c) == s for _, c in ctx.calls[:i]):
+        return None
+    return s
+
+
+def _doubler_suit(ctx: Ctx, seat: str) -> str | None:
+    """The new suit `seat` bid as its next call after a takeout double."""
+    if not _takeout_doubler(ctx, seat):
+        return None
+    bids = [i for i, (w, c) in enumerate(ctx.calls) if w == seat and c != 'Pass']
+    return _new_suit_at(ctx, bids[1]) if len(bids) >= 2 else None
+
+
+def _doubler_alert(s: str) -> str:
+    return f"5+ {SYM[s]}, {DOUBLER_SUIT_HCP}+ HCP. Doubled first: too strong to overcall."
+
+
+def _doubler_new_suit(ctx: Ctx) -> tuple | None:
+    """My takeout double, then my own suit: DOUBLER_SUIT_HCP+ and five cards.
+    With four of partner's suit, the raise branches answer instead."""
+    h = ctx.h
+    if h.hcp < DOUBLER_SUIT_HCP:
+        return None
+    named = {strain_of(c) for _, c in ctx.calls}
+    p_suits = {strain_of(c) for c in ctx.partners()} & set(SUITS)
+    if any(h.len[s] >= 4 for s in p_suits):
+        return None
+    own = [s for s in SUITS if s not in named and h.len[s] >= 5]
+    if not own:
+        return None
+    s = max(own, key=lambda s: (h.len[s], SUITS.index(s)))
+    call = ctx.cheapest(s, 1)
+    if call and level_of(call) <= DOUBLER_SUIT_LEVEL:
+        return call, _doubler_alert(s)
+    return None
+
+
+def _raise_doubler_suit(ctx: Ctx, s: str) -> tuple | None:
+    """Partner doubled, then bid a new suit: 18+ HCP, 5+ cards. Raise it on
+    three, to game when DOUBLER_SUIT_JUDGE and my judgement points reach it.
+    Without support the general branches answer."""
+    h = ctx.h
+    if h.len[s] < 3:
+        return None
+    game = f"{4 if s in MAJORS else 5}{s}"
+    if h.judge + DOUBLER_SUIT_JUDGE >= (GAME_MAJOR if s in MAJORS else GAME) and ctx.ok(game):
+        return game, f"3+ {SYM[s]}, game values. To play."
+    if h.hcp >= DOUBLER_RAISE_HCP:
+        call = ctx.cheapest(s, 1)
+        if call and call != game and level_of(call) <= 4:
+            return call, _raise_alert(s, f"3+ {SYM[s]}, {DOUBLER_RAISE_HCP}+ HCP.")
+    return 'Pass', "Not enough to raise."
+
+
+def doubler_guard(player: str, cards: list[Card], auction: AuctionState,
+                  decision: tuple) -> tuple:
+    """A takeout doubler's new suit always reads the 18+ alert, and a hand
+    without 18+ and five cards passes instead, whichever branch chose it."""
+    if not DOUBLE_THEN_SUIT:
+        return decision
+    ctx = Ctx(player, cards, auction)
+    s = strain_of(decision[0])
+    if (s not in SUITS or ctx.mine() != ['X'] or not _takeout_doubler(ctx, player)
+            or any(strain_of(c) == s for _, c in ctx.calls)):
+        return decision
+    if ctx.h.hcp >= DOUBLER_SUIT_HCP and ctx.h.len[s] >= 5:
+        return decision[0], _doubler_alert(s)
+    return 'Pass', "Doubled: a new suit would show 18+."
 
 
 def _defend_was_weak(ctx: Ctx, call: str) -> bool:
