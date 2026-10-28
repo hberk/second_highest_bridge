@@ -715,3 +715,38 @@ def test_advancers_2nt_is_the_limit_raise_when_the_cuebid_passes_three():
     assert call == '4C', call
     call, _ = bid(asker, '1D', '2C', '2D', '3D', 'Pass', '4C', 'Pass', dealer='South')
     assert call == 'Pass', call
+
+
+def test_new_minor_forcing_answers_low_and_finds_the_six_two_fit():
+    """The user's calls, 2026-10-28 (Bidding training): opener answers new
+    minor forcing at the two level whatever the strength, and responder with
+    six of the major plays the 6-2 fit rather than pass opener's 2♥."""
+    opener = 'JS 5S 4S 8H 7H 3H AD KD 10D 8D KC QC 9C'               # 13 HCP, 3 ♥
+    call, why = bid(opener, '1D', 'Pass', '1H', 'Pass', '1NT', 'Pass', '2C', 'Pass')
+    assert call == '2H' and why == '3 ♥.', (call, why)
+    north = 'KS 10S 8S 6S 5S 4S 9H 8H QD QC 9C 8C 4C'
+    call, why = bid(north, 'Pass', '1D', 'Pass', '1S', 'Pass', '1NT', 'Pass', '2C', 'Pass',
+                    '2H', 'Pass', dealer='East')
+    assert call == '2S' and '6+' in why, (call, why)
+
+
+def test_checkback_over_openers_2nt_rebid():
+    """The user's call, 2026-10-28: over 1♦ 1♥ 2NT, 3♣ asks for three-card
+    support or the other major before choosing game."""
+    south = '5S 4S 3S 2S 10H 9H 8H 7H 4H 9D KC QC 6C'
+    call, why = bid(south, '1D', 'Pass', '1H', 'Pass', '2NT', 'Pass')
+    assert call == '3C' and 'Checkback' in why, (call, why)
+    north = 'AS KS AH JH 3H AD QD 8D 2D 7C 5C 3C 2C'
+    call, _ = bid(north, '1D', 'Pass', '1H', 'Pass', '2NT', 'Pass', '3C', 'Pass')
+    assert call == '3H', call
+    call, _ = bid(south, '1D', 'Pass', '1H', 'Pass', '2NT', 'Pass', '3C', 'Pass', '3H', 'Pass')
+    assert call == '4H', call
+
+
+def test_light_response_with_a_singleton_in_openers_minor():
+    """The user's call, 2026-10-28: 5 HCP and a singleton diamond respond
+    rather than leave partner in 1♦; with three diamonds it still passes."""
+    call, why = bid('5S 4S 3S 2S 10H 9H 8H 7H 4H 9D KC QC 6C', '1D', 'Pass')
+    assert call == '1H' and 'short' in why, (call, why)
+    call, _ = bid('5S 4S 3S 2S 10H 9H 8H 7H 9D 8D 4D KC QC', '1D', 'Pass')
+    assert call == 'Pass', call

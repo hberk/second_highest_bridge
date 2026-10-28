@@ -415,6 +415,26 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   half of its gap came from the opponents' extra turn after 2NT, and the
   rest from declined invitations); the same for responder (1♦ (2♥) 2NT)
   -0.19 and the game-forcing cuebid for responder about 0.
+- **New minor forcing, answered low** (`_after_nmf`, `NMF_ACCEPT`; the
+  user's training deals, 2026-10-28: 1♦ 1♠ 1NT 2♣ 2♥ with ♠KT8654 ♥98
+  passed 2♥, and opener jumped to 3♥ on 13-14). Opener answers at the two
+  level whatever the strength: 2M with three, the other major with four,
+  else 2NT (11-12) or 3NT. Responder then judges the fit: three-card
+  support or four of the other major is game, an invitation (3M, opener
+  accepts with 14+ judgement points) or pass; six of the major opposite
+  1NT's two is an 8-card fit, bid at the cheapest level unless game or an
+  invitation. 10,000 fresh deals: **+0.03, t = +1.6, 88 auctions changed**
+  (25 better, 6 worse); responder's half alone +0.00.
+- **3♣ checkback over opener's 2NT rebid** (the user's training deal,
+  2026-10-28: 1♦ 1♥ 2NT 3NT with ♠5432 ♥T9874). With five of a one-level
+  major, or 4♠ beside 1♥, 3♣ asks: opener bids 3M with three, the other
+  major with four, else 3NT; responder places game. 10,000 fresh deals:
+  **+0.08, t = +3.3, 126 auctions changed** (34 better, 13 worse).
+- **A light response short in opener's minor** (`SHORT_RESPONSE_MIN`; the
+  user's training deal, 2026-10-28: 1♦ passed out opposite ♠5432 ♥T9874 ♦9
+  ♣KQ6). With 5-6 HCP and a singleton or void in partner's minor, a 4-card
+  suit is bid at the one level; the alert says so. 10,000 fresh deals:
+  **+0.19, t = +3.4, 241 auctions changed** (103 better, 67 worse).
 - **A major raise counts trump length** (`RAISE_TRUMP_POINTS`, the user's
   deal: 1♥ with ♠K5 ♥K9864 ♦K84 ♣832 raised to 2♥). With four or more
   trumps and under 13 HCP, 2M, 3M or 4M is chosen on HCP plus one point a

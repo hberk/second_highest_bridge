@@ -387,7 +387,7 @@ def one_suit(ctx: Ctx) -> tuple:
         decision = opener_third(ctx, x)
         if decision:
             return decision
-    if CHECKBACK_2NT and n == 5 and seq[2] == '2NT' and seq[3] == '3C':
+    if n == 5 and seq[2] == '2NT' and seq[3] == '3C':
         ans = seq[4]
         s = strain_of(ans)
         if ans != '3NT' and s in MAJORS and ctx.h.len[s] + (3 if s == strain_of(seq[1]) else 4) >= 8:
@@ -395,7 +395,7 @@ def one_suit(ctx: Ctx) -> tuple:
         if ans == '3NT':
             return 'Pass', "Partner placed the contract."
         return '3NT', TO_PLAY
-    if NMF_REBID and n in (5, 6):
+    if n in (5, 6):
         decision = _after_nmf(ctx, x)
         if decision:
             return decision
@@ -489,14 +489,12 @@ def respond_major(ctx: Ctx, x: str) -> tuple:
 #: training deal 1♦ all pass: ♠5432 ♥T9874 ♦9 ♣KQ6). With a singleton or void
 #: in partner's minor, SHORT_RESPONSE_MIN HCP is enough for a one-level suit,
 #: rather than leave partner in a 4-1 or worse fit.
-SHORT_RESPONSE = False
+#: Fresh deals, head to head: +0.19 a board, t = +3.4.
 SHORT_RESPONSE_MIN = 5
 
 
-def _one_level_alert(m: str, x: str) -> str:
-    if SHORT_RESPONSE:
-        return f"4+ {SYM[m]}, {RESPONSE_MIN}+ HCP, or {SHORT_RESPONSE_MIN}+ short in {SYM[x]}."
-    return f"4+ {SYM[m]}, {RESPONSE_MIN}+ HCP."
+def _one_level_response_alert(m: str, x: str) -> str:
+    return f"4+ {SYM[m]}, {RESPONSE_MIN}+ HCP, or {SHORT_RESPONSE_MIN}+ short in {SYM[x]}."
 
 
 def respond_minor(ctx: Ctx, x: str) -> tuple:
@@ -504,10 +502,10 @@ def respond_minor(ctx: Ctx, x: str) -> tuple:
     hcp, sup = h.hcp, h.len[x]
     passed = ctx.passed_hand(ctx.me)
     if hcp < RESPONSE_MIN:
-        if SHORT_RESPONSE and hcp >= SHORT_RESPONSE_MIN and sup <= 1:
+        if hcp >= SHORT_RESPONSE_MIN and sup <= 1:
             for m in ('H', 'S', 'D') if h.len['H'] > h.len['S'] else ('S', 'H', 'D'):
                 if h.len[m] >= 4 and SUITS.index(m) > SUITS.index(x) and ctx.ok(f"1{m}"):
-                    return f"1{m}", _one_level_alert(m, x)
+                    return f"1{m}", _one_level_response_alert(m, x)
         return 'Pass', f"Fewer than {RESPONSE_MIN} HCP."
     js = _jump_shift(ctx, x)
     if js:
@@ -518,9 +516,9 @@ def respond_minor(ctx: Ctx, x: str) -> tuple:
         return '2C', f"4+ {SYM['C']}, 12+ HCP. Game forcing."
     if majors:
         m = 'S' if (len(majors) == 2 and h.len['S'] > h.len['H']) else majors[0]
-        return f"1{m}", _one_level_alert(m, x)
+        return f"1{m}", _one_level_response_alert(m, x)
     if x == 'C' and h.len['D'] >= 4:
-        return '1D', _one_level_alert('D', x)
+        return '1D', _one_level_response_alert('D', x)
     if x == 'D' and not passed and hcp >= TWO_OVER_ONE and h.len['C'] >= 4:
         return '2C', f"4+ {SYM['C']}, 12+ HCP. Game forcing."
     need = 5 if x == 'C' else 4
@@ -897,7 +895,7 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
             return '6NT', TO_PLAY
         if y in MAJORS and h.len[y] >= 6:
             return f"4{y}", TO_PLAY
-        if CHECKBACK_2NT and y in MAJORS and level_of(r) == 1 and ctx.ok('3C') \
+        if y in MAJORS and level_of(r) == 1 and ctx.ok('3C') \
                 and not (x in MAJORS and h.len[x] >= 3) \
                 and (h.len[y] == 5 or (y == 'H' and h.len['S'] >= 4 and x != 'S')):
             return '3C', "Checkback: asks for 3-card support or the other major. Artificial."
@@ -1044,7 +1042,7 @@ def opener_third(ctx: Ctx, x: str) -> tuple | None:
     y = strain_of(r)
     if last in ('3NT', '6NT'):
         return 'Pass', "Partner placed the contract."
-    if CHECKBACK_2NT and o == '2NT' and last == '3C' and y in MAJORS and level_of(r) == 1:
+    if o == '2NT' and last == '3C' and y in MAJORS and level_of(r) == 1:
         other = 'H' if y == 'S' else 'S'
         if h.len[y] >= 3:
             return f"3{y}", f"3+ {SYM[y]}."
@@ -1076,10 +1074,7 @@ def opener_third(ctx: Ctx, x: str) -> tuple | None:
     nmf = '2D' if x == 'C' else '2C'
     if o == '1NT' and last == nmf and y in MAJORS:
         if h.len[y] >= 3:
-            if NMF_TWO_LEVEL:
-                return f"2{y}", f"3 {SYM[y]}."
-            return (f"3{y}", f"3 {SYM[y]}, 13-14 HCP.") if h.hcp >= 13 else \
-                (f"2{y}", f"3 {SYM[y]}, 11-12 HCP.")
+            return f"2{y}", f"3 {SYM[y]}."
         other = 'H' if y == 'S' else 'S'
         if h.len[other] >= 4 and ctx.ok(f"2{other}"):
             return f"2{other}", f"4 {SYM[other]}."
@@ -1104,7 +1099,7 @@ def opener_third(ctx: Ctx, x: str) -> tuple | None:
 #: Checkback over opener's 2NT rebid (the user's call, 2026-10-28, training
 #: deal 1♦ 1♥ 2NT 3NT with ♠5432 ♥T9874): 3♣ asks for three-card support
 #: for responder's major, or four of the other, before choosing game.
-CHECKBACK_2NT = False
+#: Fresh deals, head to head: +0.08 a board, t = +3.3.
 
 #: Responder's rebid after new minor forcing and opener's answer (the user's
 #: call, 2026-10-28, training deal 1♦ 1♠ 1NT 2♣ 2♥: ♠KT8654 ♥98 ♦Q ♣Q984
@@ -1112,12 +1107,9 @@ CHECKBACK_2NT = False
 #: major unless it raises, and 1NT promises two, so a 6-card major is an
 #: 8-card fit; a raise of opener's other major is a 4-4 fit. Each is judged
 #: on the fit like any other: game, an invitation, or the cheapest to play.
-NMF_REBID = False
-#: Opener answers NMF at the two level whatever the strength (the user's call,
+#: Opener answers at the two level whatever the strength (the user's call,
 #: 2026-10-28: 2♥ with three, not a jump to 3♥ on 13-14), leaving responder
-#: room to invite or choose.
-NMF_TWO_LEVEL = False
-NMF_PARTS = ('support', 'other', 'six')
+#: room to invite. Fresh deals, head to head: +0.03 a board, t = +1.6.
 #: Opener accepts responder's invitation after NMF with this many judgement points.
 NMF_ACCEPT = 14
 
@@ -1135,29 +1127,27 @@ def _after_nmf(ctx: Ctx, x: str) -> tuple | None:
     other = 'H' if y == 'S' else 'S'
     if len(seq) == 6:                                    # opener, over responder's rebid
         last = seq[5]
-        if last in (f"3{y}", f"3{other}") and (ans in (f"2{other}", '2NT')
-                                                or (NMF_TWO_LEVEL and ans == f"2{y}")):
+        if last in (f"3{y}", f"3{other}") and ans in (f"2{y}", f"2{other}", '2NT'):
             s = strain_of(last)
             return (f"4{s}", TO_PLAY) if h.judge >= NMF_ACCEPT else \
                 ('Pass', "Declining the invitation.")
         return None
     hcp = h.judge
-    if ans in (f"2{y}", f"3{y}") and 'support' in NMF_PARTS:   # three-card support
-        lo = 11 if ans == f"2{y}" else 13
+    if ans == f"2{y}":                                   # three-card support
         fit = hcp + _fit_bonus(h, y, 3)
-        if fit + lo >= GAME_MAJOR and ctx.ok(f"4{y}"):
+        if fit + 11 >= GAME_MAJOR and ctx.ok(f"4{y}"):
             return f"4{y}", TO_PLAY
-        if NMF_TWO_LEVEL and ans == f"2{y}" and fit + 14 >= GAME_MAJOR and ctx.ok(f"3{y}"):
+        if fit + 14 >= GAME_MAJOR and ctx.ok(f"3{y}"):
             return f"3{y}", f"5+ {SYM[y]}, invitational."
         return 'Pass', "No game."
-    if ans == f"2{other}" and h.len[other] >= 4 and 'other' in NMF_PARTS:   # a 4-4 fit
+    if ans == f"2{other}" and h.len[other] >= 4:         # a 4-4 fit
         fit = hcp + _fit_bonus(h, other, 4)
         if fit + 11 >= GAME_MAJOR:
             return f"4{other}", TO_PLAY
         if fit + 14 >= GAME_MAJOR:
             return f"3{other}", "4 " + SYM[other] + ", invitational."
         return 'Pass', "No game."
-    if ans in (f"2{other}", '2NT', '3NT') and h.len[y] >= 6 and 'six' in NMF_PARTS:
+    if ans in (f"2{other}", '2NT', '3NT') and h.len[y] >= 6:   # 6+ opposite two
         lo, hi = (13, 14) if ans == '3NT' else ((11, 12) if ans == '2NT' else (11, 14))
         fit = hcp + _fit_bonus(h, y, 2)
         if fit + lo >= GAME_MAJOR and ctx.ok(f"4{y}"):
