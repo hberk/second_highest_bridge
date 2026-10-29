@@ -7,9 +7,10 @@
   import type { Seat } from '../engine/card';
   import { viewport } from '../viewport.svelte';
   import { NAME_KEY, type RemoteTable } from '../table/remote.svelte';
-  import { NAME_MAX } from '../table/protocol';
+  import { NAME_MAX, NOTE_MAX } from '../table/protocol';
   import { partnerOf, seatAt } from '../seats';
   import TopBar from '../components/TopBar.svelte';
+  import Sheet from '../components/Sheet.svelte';
   import TableView from './TableView.svelte';
   import DesktopTableView from './DesktopTableView.svelte';
 
@@ -66,6 +67,40 @@
     ? [you.seat, seatAt(you.seat, 'left'), partnerOf(you.seat), seatAt(you.seat, 'right')]
     : SEATS);
   const myRobot = $derived(!!you?.seat && !!v?.seats[you.seat].robot);
+
+  // ── Report a problem ───────────────────────────────────────────────────────
+  // The note goes to the game log with what this page shows; the server adds
+  // its own view of the moment. Nothing here is ever shown back in the app.
+  const layout = $derived<'phone' | 'desktop'>(viewport.wide ? 'desktop' : 'phone');
+  let reportOpen = $state(false);
+  let note = $state('');
+  let reportState = $state<'writing' | 'sent' | 'offline'>('writing');
+
+  function openReport(): void {
+    reportState = 'writing';
+    reportOpen = true;
+  }
+  function sendReport(): void {
+    if (table.report(note, layout)) {
+      reportState = 'sent';
+      note = '';
+    } else reportState = 'offline';
+  }
+
+  // Errors this page hits while at the table go to the log too, so a bug
+  // nobody reported still shows up there.
+  $effect(() => {
+    const onError = (e: ErrorEvent) =>
+      table.oops(String(e.message || e.error || 'error'), `${e.filename ?? ''}:${e.lineno ?? 0} ${e.error?.stack ?? ''}`, layout);
+    const onRejection = (e: PromiseRejectionEvent) =>
+      table.oops(String(e.reason?.message ?? e.reason ?? 'rejection'), String(e.reason?.stack ?? ''), layout);
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onRejection);
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onRejection);
+    };
+  });
 </script>
 
 {#snippet banner()}
@@ -93,6 +128,9 @@
         {/if}
       </div>
     {/each}
+    <button class="icon-btn rt-flag" aria-label="Report a problem" title="Report a problem" onclick={openReport}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"></path></svg>
+    </button>
   </div>
   {#if myRobot}
     <button class="btn primary full" onclick={() => table.reclaim()}>A robot is playing your seat: take it back</button>
@@ -184,6 +222,7 @@
           <p class="caption">Waiting for the host to deal.</p>
         {/if}
         <button class="link-btn" onclick={() => table.stand()}>Stand up</button>
+        <button class="link-btn" onclick={openReport}>Report a problem</button>
       {:else}
         <p class="caption">Pick a seat. You can play alone with three robots, or with up to three friends.</p>
       {/if}
@@ -207,6 +246,19 @@
   {/if}
 {/if}
 
+<Sheet open={reportOpen} title="Report a problem" onclose={() => (reportOpen = false)}>
+  {#if reportState === 'sent'}
+    <p class="caption">Sent, thanks. It's in the game log with this board, so it can be looked at later.</p>
+    <button class="btn primary full" onclick={() => (reportOpen = false)}>Back to the table</button>
+  {:else}
+    <p class="caption">What looked wrong? It's saved with this exact moment of the board: what your screen shows and what the server had.</p>
+    <textarea class="rt-input rt-note" bind:value={note} maxlength={NOTE_MAX} rows="4"
+      placeholder="For example: East's cards showed on the wrong side" aria-label="What looked wrong"></textarea>
+    {#if reportState === 'offline'}<p class="caption rt-warn">Not connected to the table right now. Try again in a moment.</p>{/if}
+    <button class="btn primary full" disabled={!note.trim()} onclick={sendReport}>Send</button>
+  {/if}
+</Sheet>
+
 <style>
   .rt-page { display: flex; flex-direction: column; gap: 14px; }
   .rt-banner {
@@ -217,7 +269,7 @@
   .rt-info { background: rgba(52, 131, 90, 0.16); border-color: rgba(82, 177, 120, 0.45); }
   .rt-top { padding: calc(var(--safe-top) + 4px) 0 0; }
   .rt-strip {
-    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px;
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 5px;
     padding: 4px 12px 0; max-width: 520px; margin: 0 auto; box-sizing: border-box; width: 100%;
   }
   .rt-seat {
@@ -232,6 +284,10 @@
   .rt-dot { display: inline-block; flex-shrink: 0; width: 7px; height: 7px; border-radius: 4px; background: #6f857a; margin-left: 6px; }
   .rt-seat .rt-dot { margin-left: 0; }
   .rt-dot.on { background: var(--good); }
+  /* Narrow, so the four seats keep their room for names. */
+  .rt-flag { align-self: stretch; width: 28px; height: auto; min-height: 40px; border: 0; border-radius: 8px; padding: 0; color: var(--dim); }
+  .rt-note { min-height: 96px; padding: 10px 14px; font-size: 16px; resize: vertical; }
+  .rt-warn { color: var(--text); }
   .rt-form { display: flex; flex-direction: column; gap: 10px; }
   .rt-input {
     min-height: 48px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line-2);

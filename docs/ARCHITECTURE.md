@@ -103,4 +103,8 @@ broken by hand at some point:
 
 Alert text reaches the page only as text: the web app renders no raw HTML
 (`{@html}` is banned by `lin.test.ts`), so Svelte escapes it. The same holds for
-the self-alert box and LIN import, the two places the app accepts text.
+the other places the app accepts text: the self-alert box, LIN import, and at a
+multiplayer table your name (`cleanName`: one line, no invisible characters, 20
+at most) and the "Report a problem" note. The note (`cleanNote`, 500 at most) is
+never shown in the app at all: it goes to the server's game log and comes out
+JSON-escaped in an export.

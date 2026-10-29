@@ -451,6 +451,68 @@ That is why the container is walled off from the LAN on the Proxmox host
 to the internet only), and why `bridge.service` runs under the full systemd
 sandbox. Branch protection with required review on `main` is the other half.
 
+### Game logs
+
+Added 2026-10-28, for a small group of friends: the point is to review games,
+find bugs and watch performance. There's no privacy policy, so the log keeps
+names, not addresses. It all lives in the same SQLite file as the tables
+(`server/src/store.ts`):
+
+- **Every action, timed.** Each row of `events` (a call or a card, person or
+  robot, with its alert) has `ts`, when it landed, and for a robot's, `ms`, how
+  long `robotAction` thought. That is enough to tell a slow robot from a slow
+  network, or a slow person.
+- **What happened around the play.** The `log` table has one row per
+  happening, by table, board and player:
+  - the table: `created`, `joined` (the name), `back` (rejoined with a token),
+    `gone` (a person's last socket closed);
+  - the seats and the board: `sit`, `stand`, `deal`, `robot` (a seat handed to
+    a robot), `reclaim`, `lock`, `remove`, `dealt` (who sat where, which seats
+    were robots), `finished` (the contract and the score);
+  - trouble: `refused` (an intent the core turned down, with its code and, for
+    a call or card, the action count it claimed against the real one),
+    `bad_message`, `rate_closed` and `robot_error` (its stack);
+  - from the page: `report` and `client_error`.
+
+  A failed log write is reported in the journal and never stops a game.
+- **Boards are kept.** A table that expires after a week of no play loses its
+  `tables` row (seats and token hashes), so nobody can sit at it again. Its
+  boards, actions and log stay, ending in a `closed` row that lists who sat
+  where. At a few KB a board, thousands of boards are a few MB.
+- **"Report a problem".** The flag in the seat strip at the table, or a link
+  in the lobby, opens a note (500 characters at most). It is sent with what
+  only the page knows:
+  - its layout and size, its user agent and its build (`VITE_BUILD`, the
+    commit);
+  - the board and action count it shows, and the moment it holds (a finished
+    trick or contract can trail the server).
+
+  The server stores it beside its own `viewFor` of that moment for that seat.
+  Comparing the two tells a drawing bug (like the side dummy, fixed in #47)
+  from a state bug. The page also sends its uncaught errors (`oops`), each
+  message once and five at most. A socket's reports and errors together stop
+  at 10. The note is cleaned (`cleanNote`) and never shown in the app.
+- **Reading it.** `node server.js export` opens the database read-only beside
+  the live server. It prints JSON for every table with activity in the window
+  (`--since 7d|36h|<date>`, or `--table <id>`):
+  - each board's deal, its timed actions and its LIN, with names;
+  - the table's log;
+  - stats: boards, people, robot thinking time, people's time to act,
+    reports, errors, refusals by code.
+
+  `--lin` prints only the finished boards, for History's "Import LIN", where
+  the replayer steps through them with the solver. From the development
+  machine, `BRIDGE_HOST=<ct> server/fetch-logs.sh --since 7d` runs both through
+  one sudo rule:
+
+  ```
+  builder ALL=(bridge) NOPASSWD: /usr/bin/node --disable-warning=ExperimentalWarning /opt/bridge/server.js export *
+  ```
+
+  It saves `logs/<when>/export.json` and `boards.lin` (gitignored) and prints
+  a summary. The rule gives `builder` nothing new, because `builder` already
+  writes the `server.js` that runs as `bridge`.
+
 **The beta build** (`vite build --mode beta`) differs from the Pages build in
 two ways only: "Play with friends" is shown, and the CSP's `connect-src`
 adds `wss://bridge.ettamei.com`. The Pages build has neither, so the public

@@ -11,7 +11,11 @@ import { legalPlays } from '../../frontend/src/lib/engine/auction';
 import type { Seat } from '../../frontend/src/lib/engine/card';
 import type { ClientMessage, ServerMessage, TableView } from '../../frontend/src/lib/table/protocol';
 import { limitKey, startServer, type Options } from '../src/server';
-import { EXPIRE_MS, realClock } from '../src/tables';
+import { EXPIRE_MS, NOTES_PER_SOCKET, realClock } from '../src/tables';
+import { exportLogs } from '../src/export';
+import { Store } from '../src/store';
+import { fromLinFile } from '../../frontend/src/lib/lin';
+import { DatabaseSync } from 'node:sqlite';
 
 const ORIGIN = 'https://bridge.example';
 const dirs: string[] = [];
@@ -271,7 +275,7 @@ describe('the limits the server keeps', () => {
     expect(c.lastError()!.code).toBe('version');
   });
 
-  it('deletes tables nobody has opened for a week', async () => {
+  it('closes tables nobody has opened for a week', async () => {
     let offset = 0;
     const s = await serve({ clock: { ...realClock, now: () => Date.now() + offset } });
     const { body } = await createTable(s.url);
@@ -364,5 +368,134 @@ describe('static files and health', () => {
 
     const health = await (await fetch(`${s.url}/healthz`)).json() as { ok: boolean };
     expect(health.ok).toBe(true);
+  });
+});
+
+/** The whole log, as `node server.js export` prints it. */
+function exported(dir: string, table: string | null = null) {
+  return JSON.parse(exportLogs(join(dir, 'bridge.db'), { since: 0, table, lin: false }).text) as {
+    stats: { boardsFinished: number; robotMs: { n: number }; reports: number; clientErrors: number; refused: Record<string, number> };
+    tables: {
+      id: string; open: boolean; players: { name: string; seat: Seat | null }[];
+      boards: { num: number; lin?: string; actions: { ts: string | null; ms: number | null; human: boolean }[] }[];
+      log: { kind: string; player: string | null; board: number | null; detail: Record<string, unknown> | null }[];
+    }[];
+  };
+}
+
+/** Everything sent so far has been handled: the server answers in order. */
+async function settled(c: Client) {
+  const pongs = c.messages.filter((m) => m.type === 'pong').length;
+  c.send({ type: 'ping' });
+  await c.until(() => c.messages.filter((m) => m.type === 'pong').length > pongs, 'a pong');
+}
+
+const CLIENT = { layout: 'phone', width: 390, height: 844, ua: 'test', build: 'abc', board: 1, shownAt: 0, hold: 'none' };
+
+describe('the game log', () => {
+  it("times every action, a robot's thinking included, and exports the board as LIN", async () => {
+    const s = await serve();
+    const { body } = await createTable(s.url);
+    const c = await Client.open(s.port, body.id!);
+    await c.join('Alex', 'South');
+    c.send({ type: 'deal' });
+    const board = await playOut(c);
+
+    const out = exported(s.dir);
+    expect(out.tables.map((t) => t.id)).toEqual([body.id]);
+    const t = out.tables[0];
+    const kinds = t.log.map((l) => l.kind);
+    for (const k of ['created', 'joined', 'sit', 'deal', 'dealt', 'finished']) expect(kinds, k).toContain(k);
+    expect(t.log.find((l) => l.kind === 'dealt')!.detail!.people).toEqual([{ id: c.view!.you.playerId, name: 'Alex', seat: 'South' }]);
+    const actions = t.boards[0].actions;
+    expect(actions.length).toBe(board.calls.length + board.tricksLog.reduce((n, x) => n + x.plays.length, 0));
+    expect(actions.every((a) => a.ts !== null)).toBe(true);
+    expect(actions.filter((a) => !a.human).every((a) => typeof a.ms === 'number' && a.ms >= 0)).toBe(true);
+    expect(actions.filter((a) => a.human).every((a) => a.ms === null)).toBe(true);
+    expect(out.stats.boardsFinished).toBe(1);
+    expect(out.stats.robotMs.n).toBe(actions.filter((a) => !a.human).length);
+
+    // The LIN reads back as the board that was played, names and all.
+    const lin = exportLogs(join(s.dir, 'bridge.db'), { since: 0, table: null, lin: true }).text;
+    expect(lin).toBe(`${t.boards[0].lin}\n`);
+    expect(lin).toContain('Alex');
+    const [back] = fromLinFile(lin);
+    expect(back.auction_calls).toEqual(board.record!.auction_calls);
+    expect(back.tricks_log.map((x) => x.plays)).toEqual(board.record!.tricks_log.map((x) => x.plays));
+  });
+
+  it("keeps a closed table's boards and log, and who sat where", async () => {
+    let offset = 0;
+    const s = await serve({ clock: { ...realClock, now: () => Date.now() + offset } });
+    const { body } = await createTable(s.url);
+    const c = await Client.open(s.port, body.id!);
+    await c.join('Sam', 'West');
+    c.send({ type: 'deal' });
+    await playOut(c);
+    c.close();
+    await c.until(() => !!c.closed, 'the close');
+    // The server has seen it go too: a table with someone connected stays.
+    while (s.tables.sockets) await new Promise((r) => setTimeout(r, 20));
+    offset = EXPIRE_MS + 1000;
+    expect(s.tables.sweep()).toEqual([body.id]);
+
+    const t = exported(s.dir).tables[0];
+    expect(t.open).toBe(false);
+    expect(t.players).toEqual([expect.objectContaining({ name: 'Sam', seat: 'West' })]);
+    expect(t.boards.length).toBe(1);
+    expect(t.boards[0].lin).toBeTruthy();
+    expect(t.log.at(-1)!.kind).toBe('closed');
+  });
+
+  it("logs reports with the server's view, refusals and caught errors, a few per socket", async () => {
+    const s = await serve({ robotDelayMs: 60_000 });
+    const { body } = await createTable(s.url);
+    const c = await Client.open(s.port, body.id!);
+    await c.join('Alex', 'South');
+    c.send({ type: 'deal' });
+    await c.until(() => !!c.view?.board, 'a board');
+    // A fresh second for the rate limit: what follows is 19 messages.
+    await new Promise((r) => setTimeout(r, 1100));
+    // Out of turn or stale, either way refused, and logged with the reason.
+    c.send({ type: 'card', id: 'early', at: 0, seat: 'South', card: c.view!.board!.hands.South[0] });
+    c.send({ type: 'report', note: "East's cards\non the wrong side", client: CLIENT });
+    c.send({ type: 'oops', message: 'TypeError: x is undefined', where: 'TableView.svelte:12', client: { ...CLIENT, layout: 'desktop' } });
+    // Not one of the shapes: refused, never stored.
+    c.send({ type: 'report', note: 'x'.repeat(501), client: CLIENT });
+    c.send({ type: 'report', note: 'hi', client: { ...CLIENT, extra: 1 } });
+    for (let i = 0; i < NOTES_PER_SOCKET + 3; i++) c.send({ type: 'report', note: `more ${i}`, client: CLIENT });
+    await settled(c);
+
+    const out = exported(s.dir);
+    const log = out.tables[0].log;
+    const report = log.find((l) => l.kind === 'report')!;
+    expect(report.detail!.note).toBe("East's cards\non the wrong side");
+    expect(report.detail!.seat).toBe('South');
+    expect(report.detail!.client).toEqual(CLIENT);
+    // The server's own view of that moment: this seat's hand, nobody else's.
+    const view = report.detail!.view as TableView;
+    expect(view.you.seat).toBe('South');
+    expect(view.board!.hands.South.length).toBe(13);
+    expect(view.board!.hands.North).toEqual([]);
+    expect(log.find((l) => l.kind === 'client_error')!.detail).toMatchObject({ message: 'TypeError: x is undefined', client: { layout: 'desktop' } });
+    expect(log.find((l) => l.kind === 'refused' && l.detail!.intent === 'card')).toBeTruthy();
+    expect(log.filter((l) => l.kind === 'bad_message').length).toBe(2);
+    expect(out.stats.reports + out.stats.clientErrors).toBe(NOTES_PER_SOCKET);
+  });
+
+  it('opens a database from before the log, and adds the two columns', () => {
+    const dir = tempDir();
+    const path = join(dir, 'bridge.db');
+    const old = new DatabaseSync(path);
+    old.exec(`create table events (table_id text not null, board_num integer not null, seq integer not null, action text not null,
+      primary key (table_id, board_num, seq)) without rowid;
+      insert into events values ('t', 1, 0, '{}');`);
+    old.close();
+    new Store(path).close();
+    const db = new DatabaseSync(path);
+    const cols = (db.prepare('pragma table_info(events)').all() as { name: string }[]).map((x) => x.name);
+    expect(cols).toEqual(expect.arrayContaining(['ts', 'ms']));
+    expect(db.prepare('select count(*) as n from events').get()).toEqual({ n: 1 });
+    db.close();
   });
 });

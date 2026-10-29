@@ -14,7 +14,9 @@ import type { ScoreResult } from '../engine/scoring';
 import type { ChallengeLogEntry, ChallengeResult, Phase } from '../game.svelte';
 import type { HistoryRecord } from '../saves';
 import type { TableSource } from '../tableModel.svelte';
-import { PROTOCOL_VERSION, type BoardView, type ClientMessage, type ServerMessage, type TableView } from './protocol';
+import {
+  PROTOCOL_VERSION, cleanNote, type BoardView, type ClientInfo, type ClientMessage, type ServerMessage, type TableView,
+} from './protocol';
 
 /** What the browser needs of a WebSocket; the tests pass a fake. */
 export interface SocketLike {
@@ -36,6 +38,8 @@ const BACKOFF_MS = [1000, 2000, 4000, 8000, 15000];
 const PING_MS = 25_000;
 /** No message at all for this long: the socket is dead, whatever it says. */
 const SILENT_MS = 60_000;
+/** Distinct errors a page sends to the game log. */
+const OOPS_MAX = 5;
 
 interface Saved { token: string }
 
@@ -98,6 +102,7 @@ export class RemoteTable implements TableSource {
   private url: string;
   private timers: NonNullable<RemoteOptions['timers']>;
   private onfinished: (record: HistoryRecord) => void;
+  private oopsSent = new Set<string>();
 
   constructor(tableId: string, o: RemoteOptions = {}) {
     this.tableId = tableId;
@@ -405,4 +410,36 @@ export class RemoteTable implements TableSource {
   reclaim(): void { this.raw({ type: 'reclaim' }); }
   lock(locked: boolean): void { this.raw({ type: 'lock', locked }); }
   remove(playerId: string): void { this.raw({ type: 'remove', player: playerId }); }
+
+  // ── The game log ───────────────────────────────────────────────────────────
+
+  /** What only the page knows: its layout and size, its build, and which
+   *  moment of the board it shows. */
+  private clientInfo(layout: 'phone' | 'desktop'): ClientInfo {
+    const g = globalThis as { innerWidth?: number; innerHeight?: number; navigator?: Navigator };
+    const size = (n: number | undefined) => Math.max(0, Math.min(99_999, Math.round(n ?? 0)));
+    return {
+      layout, width: size(g.innerWidth), height: size(g.innerHeight),
+      ua: (g.navigator?.userAgent ?? '').slice(0, 200), build: String(import.meta.env.VITE_BUILD ?? 'dev').slice(0, 40),
+      board: this.shown?.num ?? null, shownAt: this.shown?.at ?? null, hold: this.hold,
+    };
+  }
+
+  /** "Report a problem": the note, with what this page shows, to the game
+   *  log. False when the table isn't connected, so the page can say so. */
+  report(note: string, layout: 'phone' | 'desktop'): boolean {
+    if (!this.socket || this.socket.readyState !== 1) return false;
+    // Cleaned here as on the server, so escaping can't push it past the size cap.
+    this.raw({ type: 'report', note: cleanNote(note), client: this.clientInfo(layout) });
+    return true;
+  }
+
+  /** An error this page caught, to the game log: each message once, and a
+   *  few at most, so a loop can't flood it. */
+  oops(message: string, where: string, layout: 'phone' | 'desktop'): void {
+    const key = cleanNote(message, 300);
+    if (this.oopsSent.has(key) || this.oopsSent.size >= OOPS_MAX) return;
+    this.oopsSent.add(key);
+    this.raw({ type: 'oops', message: key, where: cleanNote(where, 600), client: this.clientInfo(layout) });
+  }
 }

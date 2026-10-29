@@ -58,7 +58,8 @@ npm test           # real sockets on a random port, a temp SQLite file
 npm run check      # tsc
 npm run dev        # build and run on :8787 (BRIDGE_DEV=1 ALLOWED_ORIGINS=http://localhost:5173)
 npm run bench      # robot decision times and retained memory, 200 boards
-BRIDGE_HOST=<ct ip> ./deploy.sh   # build both and deploy to the homelab (LXC 213)
+BRIDGE_HOST=<ct ip> ./deploy.sh   # a manual deploy to the homelab (main deploys itself)
+BRIDGE_HOST=<ct ip> ./fetch-logs.sh --since 7d   # the game log, into logs/ (gitignored)
 ```
 
 ## Environment
@@ -137,7 +138,8 @@ it before going against one.
   hidden while the board is live. The first two are machine-checked. The web app's bidding box
   explains every call by reading the robots' alerts, so it relies on the second.
 - No `{@html}` in Svelte (a test bans it), so every string the app shows is escaped. The app
-  takes text in two places, the self-alert box and LIN import; a new one needs the same care.
+  takes text in four places: the self-alert box, LIN import, a table name and the problem report
+  (stored, never shown). A new one needs the same care.
 
 **Determinism** ([CHALLENGE](docs/CHALLENGE.md))
 - `ai.py` imports no RNG, so the robot table and the benchmark cannot drift. `hands_for`

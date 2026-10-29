@@ -21,7 +21,7 @@ import {
 } from './engine/card';
 import { scoreContract } from './engine/scoring';
 import type { TrickLog } from './engine/challenge';
-import type { HistoryRecord } from './game.svelte';
+import type { HistoryRecord } from './saves';
 
 /** LIN lists hands, and numbers the dealer, starting from South. */
 const LIN_SEATS: readonly Seat[] = ['South', 'West', 'North', 'East'];

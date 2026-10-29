@@ -13,7 +13,7 @@ import type { Readings } from '../alerts';
 import {
   addPlayer, applyIntent, applyRobot, newTable, robotAction, viewFor, type Context, type TableState,
 } from './core';
-import { parseClientMessage, type ServerMessage } from './protocol';
+import { parseClientMessage, type ClientMessage, type ServerMessage } from './protocol';
 import { RemoteTable, type SocketLike } from './remote.svelte';
 import TableView from '../views/TableView.svelte';
 import DesktopTableView from '../views/DesktopTableView.svelte';
@@ -75,6 +75,8 @@ class FakeServer {
   private intents = new Set<string>();
   private readings: Readings = new Map();
   applied = 0;
+  /** Reports and caught errors, as the game log would get them. */
+  notes: ClientMessage[] = [];
   connect(): FakeSocket {
     const sock = new FakeSocket(this);
     queueMicrotask(() => {});
@@ -92,6 +94,7 @@ class FakeServer {
     const m = parseClientMessage(raw)!;
     expect(m, `the client sent something the server can't parse: ${raw}`).not.toBeNull();
     if (m.type === 'ping') return sock.receive({ type: 'pong' });
+    if (m.type === 'report' || m.type === 'oops') return void this.notes.push(m);
     if (m.type === 'hello') {
       const id = m.token ? this.tokens.get(m.token) ?? null : null;
       this.player.set(sock, id);
@@ -270,5 +273,22 @@ describe('RemoteTable', () => {
     t.humanBids('Pass');
     t.humanPlays('North', t.hands.North[0]);
     expect(sockets.at(-1)!.sent.length, 'sent an action during a held moment').toBe(sent);
+  });
+
+  it('reports a problem with the moment on screen, and each caught error once', async () => {
+    const server = new FakeServer();
+    const { t, sockets } = await seated(server, 'East');
+    t.newBoard();
+    expect(t.report('Cards on the wrong side\n', 'phone')).toBe(true);
+    const [report] = server.notes as Extract<ClientMessage, { type: 'report' }>[];
+    expect(report.note).toBe('Cards on the wrong side');
+    expect(report.client).toMatchObject({ layout: 'phone', board: 1, hold: 'none', build: 'dev' });
+    expect(report.client.shownAt).toBe(server.s.board!.actions.length);
+    for (let i = 0; i < 3; i++) t.oops('TypeError: boom', 'here', 'desktop');
+    for (let i = 0; i < 10; i++) t.oops(`Error ${i}`, '', 'desktop');
+    expect(server.notes.filter((n) => n.type === 'oops').length, 'one per message, five at most').toBe(5);
+    // No connection: the page is told, so it can say so.
+    sockets.at(-1)!.cut();
+    expect(t.report('again', 'phone')).toBe(false);
   });
 });

@@ -11,7 +11,7 @@ import {
   playerById, robotAction, robotTurn, viewFor, type Context, type Outcome, type TableState,
 } from '../../frontend/src/lib/table/core';
 import {
-  PROTOCOL_VERSION, parseClientMessage, type ClientMessage, type ErrorCode, type ServerMessage,
+  PROTOCOL_VERSION, cleanNote, parseClientMessage, type ClientMessage, type ErrorCode, type ServerMessage,
 } from '../../frontend/src/lib/table/protocol';
 import { clearPositionMemo } from '../../frontend/src/lib/engine/ai';
 import type { Readings } from '../../frontend/src/lib/alerts';
@@ -44,6 +44,8 @@ const IDLE_MS = 10 * 60 * 1000;
 const INTENTS_KEPT = 500;
 /** GIB's readings of people's calls, shared by every table; cleared past this. */
 const READINGS_MAX = 20_000;
+/** Reports and caught errors one socket may log; past this they are dropped. */
+export const NOTES_PER_SOCKET = 10;
 
 const b64url = (n: number) => randomBytes(n).toString('base64url');
 export const newTableId = () => b64url(16);
@@ -55,6 +57,8 @@ interface Client {
   greeted: boolean;
   /** Message timestamps in the last second, for the rate limit. */
   recent: number[];
+  /** Reports and errors this socket has logged. */
+  notes: number;
 }
 
 interface Live {
@@ -77,6 +81,8 @@ interface Live {
 export class Tables {
   private live = new Map<string, Live>();
   private readings: Readings = new Map();
+  /** Shut down: sockets still closing log nothing (the store is closed). */
+  private stopped = false;
 
   /** `robotDelayMs`: the robots' pace; the tests shorten it. */
   constructor(private store: Store, private clock: Clock = realClock,
@@ -95,6 +101,7 @@ export class Tables {
     const id = newTableId();
     const s = newTable(id, this.clock.now());
     this.store.save(s, this.clock.now(), false, 0, null);
+    this.note(id, 'created');
     return id;
   }
 
@@ -109,7 +116,7 @@ export class Tables {
   open(id: string, conn: Conn): { message(raw: string): void; close(): void } | null {
     const t = this.load(id);
     if (!t) return null;
-    const client: Client = { conn, playerId: null, greeted: false, recent: [] };
+    const client: Client = { conn, playerId: null, greeted: false, recent: [], notes: 0 };
     t.clients.add(client);
     if (t.idleTimer !== undefined) {
       this.clock.clearTimeout(t.idleTimer);
@@ -168,16 +175,35 @@ export class Tables {
     this.send(client, { type: 'error', code, message, ...(id ? { id } : {}) });
   }
 
+  /** A line in the table's log. The log is for reading later: a write that
+   *  fails is reported and the game goes on. */
+  private note(tableId: string, kind: string, detail: Record<string, unknown> | null = null,
+               playerId: string | null = null, boardNum: number | null = null): void {
+    if (this.stopped) return;
+    try {
+      this.store.log(tableId, this.clock.now(), kind, detail, boardNum, playerId);
+    } catch (e) {
+      console.error(`${new Date().toISOString()} table ${tableId} log ${kind}:`, e);
+    }
+  }
+
+  private noteAt(t: Live, kind: string, detail: Record<string, unknown> | null = null, playerId: string | null = null): void {
+    this.note(t.state.id, kind, detail, playerId, t.state.board?.num ?? null);
+  }
+
   private onMessage(t: Live, client: Client, raw: string): void {
     const now = this.clock.now();
     client.recent = client.recent.filter((x) => now - x < 1000);
     client.recent.push(now);
     if (client.recent.length > RATE_PER_SECOND) {
+      // Logged once: the socket closes now.
+      if (client.recent.length === RATE_PER_SECOND + 1) this.noteAt(t, 'rate_closed', null, client.playerId);
       client.conn.close(1008, 'Too many messages');
       return;
     }
     const m = parseClientMessage(raw);
     if (!m) {
+      this.noteAt(t, 'bad_message', { length: raw.length, head: cleanNote(raw, 120) }, client.playerId);
       this.error(client, 'bad_message', 'Not a message this table understands.');
       return;
     }
@@ -194,6 +220,10 @@ export class Tables {
       return;
     }
     if (m.type === 'hello') return;
+    if (m.type === 'report' || m.type === 'oops') {
+      this.clientNote(t, client, m);
+      return;
+    }
     if (m.type === 'join') {
       this.join(t, client, m.name);
       return;
@@ -217,10 +247,12 @@ export class Tables {
       const p = t.state.players.find((x) => x.tokenHash === hash);
       if (!p) {
         // An unknown token: removed, or from another table. Join afresh.
+        this.noteAt(t, 'bad_token');
         this.error(client, 'bad_token', 'That seat is no longer yours here.');
       } else {
         client.playerId = p.id;
         this.arrived(t, p.id);
+        this.noteAt(t, 'back', { name: p.name, seat: p.seat }, p.id);
       }
     }
     this.send(client, { type: 'welcome', playerId: client.playerId });
@@ -237,11 +269,13 @@ export class Tables {
     const token = b64url(16);
     const out = addPlayer(t.state, id, sha256(token), name, this.clock.now());
     if (!out.ok) {
+      this.noteAt(t, 'refused', { intent: 'join', code: out.code });
       this.error(client, out.code, out.message);
       return;
     }
     client.playerId = id;
     this.arrived(t, id);
+    this.noteAt(t, 'joined', { name: playerById(t.state, id)!.name }, id);
     this.send(client, { type: 'welcome', playerId: id, token });
     this.changed(t);
   }
@@ -267,8 +301,16 @@ export class Tables {
       if (t.intents.size > INTENTS_KEPT) t.intents.delete(t.intents.keys().next().value!);
     }
     if (!out.ok) {
+      const at = 'at' in m ? { at: m.at, actions: t.state.board?.actions.length ?? null } : {};
+      this.noteAt(t, 'refused', { intent: m.type, code: out.code, ...at }, playerId);
       this.error(client, out.code, out.message, 'id' in m ? m.id : undefined);
       return;
+    }
+    // Calls and cards are the board's own actions (the events table); the
+    // rest is what happened around them.
+    if (m.type !== 'call' && m.type !== 'card') {
+      const { type, ...detail } = m as ClientMessage & Record<string, unknown>;
+      this.noteAt(t, type, Object.keys(detail).length ? detail : null, playerId);
     }
     if (m.type === 'remove') {
       for (const c of t.clients) {
@@ -293,6 +335,7 @@ export class Tables {
       else {
         t.sockets.delete(id);
         t.awaySince.set(id, this.clock.now());
+        this.noteAt(t, 'gone', null, id);
         // Once they have been gone long enough, the others get the
         // "Let a robot play" button and the host role may move.
         this.scheduleCheck(t, TAKEOVER_MS + 50);
@@ -333,18 +376,19 @@ export class Tables {
 
   // ── After every change ─────────────────────────────────────────────────────
 
-  /** Save what changed, show everyone their view, and wake the robots. */
-  private changed(t: Live, persist = true): void {
+  /** Save what changed, show everyone their view, and wake the robots.
+   *  `robotMs`: the change was a robot's action, and how long it thought. */
+  private changed(t: Live, persist = true, robotMs: number | null = null): void {
     const s = t.state;
     if (persist) {
       maintain(s, this.ctx(t));
-      this.persist(t);
+      this.persist(t, robotMs);
     }
     this.broadcast(t);
     this.scheduleRobot(t);
   }
 
-  private persist(t: Live): void {
+  private persist(t: Live, robotMs: number | null): void {
     const s = t.state;
     const b = s.board;
     const newBoard = !!b && b.num !== t.savedBoard;
@@ -360,7 +404,18 @@ export class Tables {
         if (this.readings.size > READINGS_MAX) this.readings.clear();
       }
     }
-    this.store.save(s, this.clock.now(), newBoard, from, record);
+    this.store.save(s, this.clock.now(), newBoard, from, record, robotMs);
+    if (b && newBoard) {
+      const people = s.players.filter((p) => p.seat).map((p) => ({ id: p.id, name: p.name, seat: p.seat }));
+      this.noteAt(t, 'dealt', { dealer: b.dealer, vulnerability: b.vulnerability, people, robots: s.robotSeats });
+    }
+    if (record) {
+      const c = record.contract;
+      this.noteAt(t, 'finished', {
+        contract: c ? `${c.level}${c.strain}${c.doubled === 'None' ? '' : c.doubled} ${c.declarer}` : 'passed out',
+        tricks: record.tricks_taken, points: record.result?.points ?? 0, winner: record.result?.winner ?? null,
+      });
+    }
     t.savedBoard = b?.num ?? 0;
     t.savedActions = b?.actions.length ?? 0;
   }
@@ -388,14 +443,17 @@ export class Tables {
       if (!this.someoneHere(t)) return;
       try {
         // A person may have taken the seat back since this was scheduled.
+        const started = performance.now();
         const a = robotAction(t.state, this.readings);
+        const ms = Math.round((performance.now() - started) * 100) / 100;
         if (a) {
           applyRobot(t.state, a);
-          this.changed(t);
+          this.changed(t, true, ms);
         }
       } catch (e) {
         // A state the robots can't handle: stop this table, keep the rest.
         console.error(`${new Date().toISOString()} table ${t.state.id} robot:`, e);
+        this.noteAt(t, 'robot_error', { error: cleanNote(String((e as Error)?.stack ?? e), 1000) });
         t.broken = true;
         for (const c of t.clients) {
           this.error(c, 'not_now', 'Something went wrong at this table. Start a new one from the home page.');
@@ -404,10 +462,26 @@ export class Tables {
     }, this.robotDelayMs);
   }
 
-  /** Delete tables nobody has opened for a week. */
+  /** A person's report or the page's caught error, with the server's own
+   *  view of the moment beside what the page says it showed. */
+  private clientNote(t: Live, client: Client, m: Extract<ClientMessage, { type: 'report' | 'oops' }>): void {
+    if (++client.notes > NOTES_PER_SOCKET) return;
+    const p = client.playerId ? playerById(t.state, client.playerId) : null;
+    const b = t.state.board;
+    const at = { seat: p?.seat ?? null, name: p?.name ?? null, actions: b?.actions.length ?? null, client: m.client };
+    if (m.type === 'report') {
+      const view = viewFor(t.state, client.playerId, this.ctx(t));
+      this.noteAt(t, 'report', { note: cleanNote(m.note), ...at, view }, client.playerId);
+    } else {
+      this.noteAt(t, 'client_error', { message: cleanNote(m.message, 300), where: cleanNote(m.where, 600), ...at }, client.playerId);
+    }
+  }
+
+  /** Close tables nobody has opened for a week: their seats and tokens go,
+   *  their boards and log stay. */
   sweep(): string[] {
     const busy = new Set([...this.live.values()].filter((t) => t.clients.size).map((t) => t.state.id));
-    const gone = this.store.expire(this.clock.now() - EXPIRE_MS, busy);
+    const gone = this.store.expire(this.clock.now() - EXPIRE_MS, busy, this.clock.now());
     for (const id of gone) {
       const t = this.live.get(id);
       if (t) this.unload(t);
@@ -417,6 +491,7 @@ export class Tables {
 
   /** Close every socket, saying the server is restarting: clients reconnect. */
   shutdown(): void {
+    this.stopped = true;
     for (const t of this.live.values()) {
       for (const c of t.clients) c.conn.close(1012, 'Restarting');
       this.stopTimers(t);
