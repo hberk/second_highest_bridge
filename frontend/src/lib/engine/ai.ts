@@ -125,6 +125,8 @@ export const TAKEOUT_MIN_ELSEWHERE = 3;
 export const ADVANCE_JUMP_POINTS = 8;
 export const REBID_MINIMUM = 12;
 export const REBID_LENGTH = 6;
+// From this level up a lone rebid needs the sixth card, so it shows six.
+export const REBID_ALONE_SIX_FROM: number | null = 3;
 export const RAISE_POINTS = 6;
 export const JUMP_RAISE_POINTS = 10;
 export const RESPONSE_POINTS_SHOWN = 6;
@@ -200,6 +202,14 @@ function gameCall(strain: string, legal: string[]): string | null {
     return legal.includes(call) ? call : null;
   }
   return null;
+}
+
+// No slam bidding here, so partner's game is never raised while it is still
+// the highest bid (ai.py).
+export const PARTNERS_GAME_STANDS = true;
+
+function gameLevel(strain: string): number {
+  return strain === 'H' || strain === 'S' ? 4 : strain === 'NT' ? 3 : 5;
 }
 
 function cheapest(strain: string, level: number, legal: string[]): string | null {
@@ -358,6 +368,14 @@ function rebidAlone(player: Seat, auction: AuctionState, ev: HandEval, groups: G
     const combined = ev.suit_pts[myFirst] + PROMISE_RESPONDED_1;
     const ceiling = Math.max(1, trunc(combined) - 6);
     const call = cheapest(myFirst, PARTSCORE_LEVEL, legal);
+    const level = call ? levelOf(call) : 0;
+    const longOnly = REBID_ALONE_SIX_FROM !== null && level >= REBID_ALONE_SIX_FROM;
+    if (call && longOnly && held < REBID_LENGTH) {
+      return ['Pass', 'Partner has passed; not enough to bid again alone.'];
+    }
+    if (call && longOnly && level <= ceiling) {
+      return [call, `${REBID_LENGTH}+ ${SUIT_SYM[myFirst]}. Rebidding my own suit.`];
+    }
     if (call && levelOf(call) <= ceiling) {
       // One text for both reasons it fires; only their common floor is quoted.
       return [call, `${OPEN_SUIT_LENGTH}+ ${SUIT_SYM[myFirst]}. Rebidding my own suit.`];
@@ -726,7 +744,18 @@ function systemBidExplained(player: Seat, hand: Card[], auction: AuctionState): 
     const decision = gibBid(player, hand, auction);
     if (decision) return decision;
   }
+  const decision = previousSystem(player, hand, auction, legal);
+  const hb = auction.highestBid;
+  const bid = parseBid(decision[0]);
+  if (PARTNERS_GAME_STANDS && bid && hb && hb[2] === PARTNERS[player]
+      && hb[0] >= gameLevel(hb[1]) && bid[0] > hb[0]) {
+    return ['Pass', "Partner's game stands."];
+  }
+  return decision;
+}
 
+function previousSystem(player: Seat, hand: Card[], auction: AuctionState,
+  legal: string[]): Decision {
   const ev = evalHandSh(hand);
   const groups = ev.groups;
   let bestSuit = maxBy(SUITS, (s) => [groups[s].length, ev.suit_pts[s], suitIndex(s)]);
@@ -994,6 +1023,14 @@ function positionMemo(trump: number): Map<string, number> {
   if (!table) { table = new Map(); POSITION_MEMO.set(trump, table); }
   if (table.size > POSITION_MEMO_MAX) table.clear();
   return table;
+}
+
+/** Forget every searched position. A position's value doesn't depend on who
+ *  looks or which layout led there, so this changes no card, only the time
+ *  the next searches take. The table server calls it as each board ends, to
+ *  keep its memory flat (see ai.py). */
+export function clearPositionMemo(): void {
+  POSITION_MEMO.clear();
 }
 
 const cardOrder = (c: Card): number[] => [suitIndex(c.suit), value(c)];

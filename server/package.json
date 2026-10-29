@@ -1,0 +1,24 @@
+{
+  "name": "second-highest-bridge-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The multiplayer table server: the frontend's table core behind HTTP and WebSockets.",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "vitest run",
+    "check": "tsc --noEmit -p .",
+    "dev": "node build.mjs && node --env-file-if-exists=.env.dev dist/server.js",    "bench": "node build.mjs bench && node --expose-gc dist/bench.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.28.2",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5"
+  }
+}

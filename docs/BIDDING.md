@@ -535,6 +535,22 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   points flat +1.15, one of A K Q +0.93, 3+/4+/5+ points +0.84/+0.49/+0.04;
   spreads 0/1/3, 0/2/4 and 0/3/5 +1.18, +1.11, +0.94. With no suit test the
   extra weak twos gained in every seat and vulnerability.
+- **Partner's game stands** (`ai.PARTNERS_GAME_STANDS`; the user's training
+  deal, 2026-10-28: 1♠ 3♦ P P 3♠ P 4♠ P 5♠ with ♠AJ8432 ♥Q862 ♦— ♣AKQ, -50).
+  GIB had no call for opener there, and the previous system read 4♠ as a
+  raise, counted 14.7 tricks and, with 4♠ gone, bid the cheapest spade bid its
+  count allowed. That system has no slam bidding, so it now passes while
+  partner's game is the highest bid (GIB's own calls are untouched). 10,000
+  fresh deals: **+0.36 a board, t = +6.0, 184 auctions changed** (88 better,
+  10 worse). Never bidding past game at all, over their bids too, cost
+  -0.47, t = -3.5: it stopped the robots competing over the opponents' 5-level
+  bids.
+- **A three-level lone rebid shows six** (`ai.REBID_ALONE_SIX_FROM = 3`; the
+  user's rule: no 3♠ on five after a jump overcall). From the three level up,
+  repeating the suit with partner silent needs the sixth card whatever the
+  points, and alerts "6+ ♠"; below it, five cards and 12+ points still
+  rebid ("5+"). **+0.27 a board, t = +3.8, 237 auctions**. Partner raising it
+  on two cards as well: +0.28, so left out.
 
 ## The previous system (`ai.USE_GIB = False`)
 

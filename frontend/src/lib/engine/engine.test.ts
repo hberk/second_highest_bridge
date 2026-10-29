@@ -163,3 +163,17 @@ describe('double, then a new suit', () => {
     expect(['3S', '4S']).toContain(call);
   });
 });
+
+describe("partner's game stands, a three-level lone rebid shows six", () => {
+  // The user's training deal (2026-10-28), as tests/test_bidding.py has it.
+  const north = parseHand('AS JS 8S 4S 3S 2S QH 8H 6H 2H AC KC QC');
+  const five = parseHand('AS JS 8S 4S 3S QH 8H 6H 2H AC KC QC 2C');
+  it('rebids 3♠ on six, passes on five, and passes partner’s 4♠', () => {
+    const a = new AuctionState('North', 'None');
+    for (const [who, c] of [['North', '1S'], ['East', '3D'], ['South', 'Pass'], ['West', 'Pass']] as [Seat, string][]) a.applyCall(who, c);
+    expect(aiBidExplained('North', north, a)).toEqual(['3S', '6+ ♠. Rebidding my own suit.']);
+    expect(aiBidExplained('North', five, a)[0]).toBe('Pass');
+    for (const [who, c] of [['North', '3S'], ['East', 'Pass'], ['South', '4S'], ['West', 'Pass']] as [Seat, string][]) a.applyCall(who, c);
+    expect(aiBidExplained('North', north, a)[0]).toBe('Pass');
+  });
+});

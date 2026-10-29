@@ -9,6 +9,8 @@
     "dev": "vite",
     "prebuild": "npm run wasm",
     "build": "vite build",
+    "dev:beta": "npm run wasm && vite --mode beta",
+    "build:beta": "npm run wasm && vite build --mode beta",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "pretest": "npm run wasm",

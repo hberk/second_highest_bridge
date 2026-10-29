@@ -6,6 +6,8 @@ import { render } from 'svelte/server';
 import { Game } from './game.svelte';
 import { prng } from './meanings';
 import { legalPlays } from './engine/auction';
+import type { Seat } from './engine/card';
+import { seatAt } from './seats';
 import TableView from './views/TableView.svelte';
 import DesktopTableView from './views/DesktopTableView.svelte';
 import HistoryView from './views/HistoryView.svelte';
@@ -37,6 +39,10 @@ function playBoard(game: Game): void {
     if (game.phase === 'bidding') {
       if (auction.passedOut) return;
       expectBoth(htmls, 'Your call');
+      // Your calls sit at the bottom of the felt, whatever seat you're in.
+      const bottom = /af-seat af-south">(?:<!--[^>]*-->|\s)*<div class="bc-stack" role="group" aria-label="(\w+)'s calls"/;
+      expect(htmls[0], 'phone: no auction seat at the bottom').toMatch(bottom);
+      expect(htmls[0].match(bottom)![1], 'phone: someone else at the bottom of the auction').toBe(game.mySeat);
       const legal = auction.legalCalls();
       const bid = legal.find((c) => c === '2C' || c === '2S' || c === '3H');
       game.humanBids(guard % 3 === 0 && bid ? bid : 'Pass');
@@ -54,9 +60,12 @@ function playBoard(game: Game): void {
         for (const html of htmls) expect(html, 'dummy face-up before the opening lead').not.toContain('dummy-zone');
         openingLeads++;
       }
-      // An East or West dummy sits on its own side of the table, not on top.
+      // You sit at the bottom of the trick, in both layouts.
+      expectBoth(htmls, 'tf-seat tf-south"><span class="tf-label">You', 'you at the bottom of the felt');
+      // An opponent's dummy sits on its own side of the table, not on top.
       const c = game.contract!;
-      if ((game.trickNum > 1 || game.trick.length > 0) && (c.dummy === 'East' || c.dummy === 'West')) {
+      const me = game.mySeat;
+      if ((game.trickNum > 1 || game.trick.length > 0) && (c.dummy === seatAt(me, 'left') || c.dummy === seatAt(me, 'right'))) {
         expect(htmls[0], 'phone: dummy beside the felt').toContain('side-hand');
         expect(htmls[1], 'desktop: dummy in its seat panel').toContain('dk-side-dummy');
         sideDummies++;
@@ -93,6 +102,25 @@ describe('table flow', () => {
     expect(sideDummies, 'no East or West dummy was exercised').toBeGreaterThan(0);
     expect(game.history.length).toBe(finished);
     expect(game.history.every((h) => h.tricks_log.length === 13)).toBe(true);
+  });
+
+  it('seats the player anywhere: you are always at the bottom, partner across', () => {
+    for (const seat of ['North', 'East', 'West'] as Seat[]) {
+      const game = new Game(null, prng(30), seat);
+      let finished = 0;
+      for (let i = 0; i < 10; i++) {
+        playBoard(game);
+        if (game.phase === 'done') {
+          finished++;
+          expect(game.tricksTaken['N/S'] + game.tricksTaken['E/W']).toBe(13);
+          // The result is told from your side.
+          const side = seat === 'North' ? 'N/S' : 'E/W';
+          expectBoth(renderAll(game), `<div class="res-to">to ${side}</div>`);
+        }
+        game.newBoard();
+      }
+      expect(finished, `${seat}: no board finished`).toBeGreaterThan(2);
+    }
   });
 
   it('grades challenge boards against the robot table', () => {

@@ -253,6 +253,21 @@ remains the reference.
     hands and calls, since two tabs can each deal "board 11"), and each tab
     takes on another tab's save or clear through the `storage` event.
     Before, a tab wrote its own copy over whatever another tab had saved.
+- **Multiplayer (the beta, 2026-10-27; [MULTIPLAYER_PLAN.md](MULTIPLAYER_PLAN.md)).**
+  Every table view reads a `TableSource` (`tableModel.svelte.ts`): the solo
+  `Game` or a `RemoteTable` (`table/remote.svelte.ts`), and seats everything
+  from `mySeat` (`seats.ts`: you at the bottom, partner across). Solo play is
+  `mySeat = 'South'` and renders as it always did. `RemoteView.svelte` is the
+  table's own screen: join with a name, the seats, the share link, lock, and a
+  strip of who sits where above the ordinary table. The route is `#/t/<id>`.
+  Only the **beta build** (`npm run build:beta`, `--mode beta`, `.env.beta`,
+  out to `dist-beta/`) shows Play with friends: its CSP allows one socket
+  origin, `wss://bridge.ettamei.com`, and it drops page-view counting; the
+  Pages build is unchanged and opens no socket. `npm run dev:beta` proxies
+  `/tables` to a table server on `localhost:8787` (`server/`, `npm run dev`
+  with `ALLOWED_ORIGINS=http://localhost:5173`). Boards finished at a table
+  go into Hand history with `table_id` and `my_seat`, outside the solo
+  session score.
 - Deployment: `.github/workflows/pages.yml` exports fixtures, type-checks,
   tests and builds, and deploys `frontend/dist` to GitHub Pages from `main`.
   **Nothing runs while the repo is private** (metered Actions minutes; every

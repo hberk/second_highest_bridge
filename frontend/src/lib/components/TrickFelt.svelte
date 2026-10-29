@@ -6,25 +6,29 @@
   import { SUIT_NAMES, SUIT_SYMBOLS, type Card, type Seat } from '../engine/card';
   import type { Play } from '../engine/auction';
   import type { Snippet } from 'svelte';
+  import { POSITION_CLASS, seatAt, type Position } from '../seats';
 
-  let { trick, winner = null, labels, awaiting = null, info }: {
+  let { trick, winner = null, labels, awaiting = null, info, me = 'South' }: {
     trick: Play[];
     winner?: Seat | null;
     labels: Record<Seat, string>;
     awaiting?: Seat | null;
     /** Text for the middle of the felt (the desktop table's trick header). */
     info?: Snippet;
+    /** The seat at the bottom of the felt. */
+    me?: Seat;
   } = $props();
 
   const played = $derived(new Map<Seat, Card>(trick));
-  const SEATS: Seat[] = ['North', 'West', 'East', 'South'];
+  const POSITIONS: Position[] = ['top', 'left', 'right', 'bottom'];
 </script>
 
 <div class="trick-felt" role="group" aria-label="The trick">
   {#if info}<div class="tf-info">{@render info()}</div>{/if}
-  {#each SEATS as p (p)}
+  {#each POSITIONS as pos (pos)}
+    {@const p = seatAt(me, pos)}
     {@const c = played.get(p)}
-    <div class="tf-seat tf-{p.toLowerCase()}">
+    <div class="tf-seat tf-{POSITION_CLASS[pos]}">
       <span class="tf-label">{labels[p]}</span>
       {#if c}
         <div class="tf-card" class:tf-winner={winner === p} style:color="var(--suit-{c.suit.toLowerCase()})">

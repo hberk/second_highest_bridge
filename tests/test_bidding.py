@@ -371,6 +371,28 @@ def test_a_trick_declarer_could_ruff_is_not_sure():
     assert ai._sure_lead('East', east, 'S', played, view, []) is None
 
 
+
+def _cards(text: str) -> list[Card]:
+    return [Card(suit, '10' if r == 'T' else r)
+            for suit, part in zip('SHDC', text.split()) if part != '-' for r in part]
+
+
+def test_partners_game_stands_and_a_three_level_lone_rebid_shows_six():
+    """The user's training deal (2026-10-28): 1S 3D P P 3S P 4S P, and North
+    bid 5S. The previous system read 4S as a raise and, with 4S gone, bid on."""
+    import ai
+    north = _cards('AJ8432 Q862 - AKQ')
+    a = AuctionState('North', 'None')
+    for who, call in [('North', '1S'), ('East', '3D'), ('South', 'Pass'), ('West', 'Pass')]:
+        a.apply_call(who, call)
+    assert ai.ai_bid_explained('North', north, a) == ('3S', '6+ \u2660. Rebidding my own suit.')
+    five = _cards('AJ843 Q862 - AKQ2')
+    assert ai.ai_bid('North', five, a) == 'Pass'
+    for who, call in [('North', '3S'), ('East', 'Pass'), ('South', '4S'), ('West', 'Pass')]:
+        a.apply_call(who, call)
+    assert ai.ai_bid('North', north, a) == 'Pass'
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):

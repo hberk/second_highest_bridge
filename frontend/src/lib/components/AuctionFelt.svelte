@@ -7,20 +7,26 @@
   import { parseBid, type Seat } from '../engine/card';
   import type { CallRecord } from '../engine/auction';
   import Strain from './Strain.svelte';
+  import { POSITION_CLASS, partnerOf, seatAt, type Position } from '../seats';
 
-  let { calls, alerts, dealer, turn = null }: {
+  let { calls, alerts, dealer, turn = null, me = 'South', names = {} }: {
     calls: CallRecord[];
     alerts: Record<number, string>;
     dealer: Seat;
     turn?: Seat | null;
+    /** The seat at the bottom of the felt: you. */
+    me?: Seat;
+    /** People's names by seat, at a multiplayer table. */
+    names?: Partial<Record<Seat, string>>;
   } = $props();
 
+  const POSITIONS: Position[] = ['top', 'left', 'right', 'bottom'];
   const SEATS: Seat[] = ['North', 'West', 'East', 'South'];
   /** The most calls a seat shows on the felt; earlier ones fold into a "+n"
-   *  card. West and East stand on the felt's short side. Without a cap a long
-   *  auction ran off the felt, over the alert and the title (the whole
-   *  auction is a tap away). */
-  const SHOWN: Record<Seat, number> = { North: 4, South: 3, West: 2, East: 2 };
+   *  card, by where the seat sits on the felt: left and right stand on its
+   *  short side. Without a cap a long auction ran off the felt, over the
+   *  alert and the title (the whole auction is a tap away). */
+  const SHOWN: Record<Position, number> = { top: 4, bottom: 3, left: 2, right: 2 };
 
   /** Each seat's calls in order, with where each sits in the auction. */
   const bySeat = $derived.by(() => {
@@ -45,7 +51,8 @@
     return call === 'Pass' ? 'bc-pass' : call === 'X' ? 'bc-dbl' : call === 'XX' ? 'bc-rdbl' : 'bc-bid';
   }
   function role(p: Seat): string {
-    const who = p === 'North' ? 'North · partner' : p;
+    const name = names[p] ?? p;
+    const who = p === partnerOf(me) ? `${name} · partner` : name;
     return p === dealer ? `${who} · dealer` : who;
   }
 </script>
@@ -56,14 +63,15 @@
 {/snippet}
 
 <div class="auction-felt" aria-label="The auction so far">
-  {#each SEATS as p (p)}
+  {#each POSITIONS as pos (pos)}
+    {@const p = seatAt(me, pos)}
     {@const all = bySeat.get(p)!}
-    {@const waiting = p === 'South' && turn === 'South'}
+    {@const waiting = p === me && turn === me}
     <!-- "Your call" takes a card's room in your row. -->
-    {@const mine = all.slice(-(SHOWN[p] - (waiting ? 1 : 0)))}
+    {@const mine = all.slice(-(SHOWN[pos] - (waiting ? 1 : 0)))}
     {@const folded = all.length - mine.length}
-    <div class="af-seat af-{p.toLowerCase()}">
-      {#if p !== 'South'}<span class="af-who">{role(p)}</span>{/if}
+    <div class="af-seat af-{POSITION_CLASS[pos]}">
+      {#if p !== me}<span class="af-who">{role(p)}</span>{/if}
       <div class="bc-stack" role="group" aria-label="{p}'s calls">
         {#if folded}<span class="bc bc-more" aria-label="{folded} earlier call{folded === 1 ? '' : 's'}"><span class="bc-label">+{folded}</span></span>{/if}
         {#each mine as c, k (c.i)}
@@ -85,13 +93,13 @@
           <span class="bc bc-none bc-top" aria-label="{p} has not bid"><span class="bc-label">—</span></span>
         {/if}
       </div>
-      {#if p === 'South'}<span class="af-who">You</span>{/if}
+      {#if p === me}<span class="af-who">You</span>{/if}
     </div>
   {/each}
   <div class="af-center" aria-live="polite">
     {#if shown !== null}
       {@const [who, call] = calls[shown]}
-      <span class="af-center-head">{who === 'South' ? 'Your' : `${who}'s`} {@render callText(call, true)}</span>
+      <span class="af-center-head">{who === me ? 'Your' : `${names[who] ?? who}'s`} {@render callText(call, true)}</span>
       <span class="af-center-text">{alerts[shown]}</span>
     {/if}
   </div>

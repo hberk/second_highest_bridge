@@ -5,6 +5,9 @@ existing Svelte app in `frontend/`, deployed to GitHub Pages.
 The Streamlit app this plan left offline was retired on 2026-10-21; the
 Python engine stays as the reference and gets no accounts.
 
+> **Build plan for live tables (2026-10-26):** [MULTIPLAYER_PLAN.md](MULTIPLAYER_PLAN.md),
+> on Cloudflare, played by invite link before accounts exist.
+
 > **Changes since this plan (2026-10-13), see
 > [HOSTING_AND_LOCAL_SAVES.md](HOSTING_AND_LOCAL_SAVES.md):**
 > - **Host (done):** GitHub Pages replaced Azure Static Web Apps, which was
