@@ -927,3 +927,38 @@ def test_double_then_a_new_suit_shows_18():
     call, why = bid(north, '1H', 'Pass', 'Pass', 'X', '2H', 'Pass', 'Pass', '2S', 'Pass',
                     dealer='West')
     assert call in ('3S', '4S') and '3+' in why, (call, why)
+
+
+def test_a_takeout_doubler_answers_partners_cuebid():
+    # The cuebid forces an answer; passing it left us in their suit (review
+    # of the combined bidding PR, 2026-10-29). Main bid 2S here.
+    doubler = 'AS QS 7S 2S KH 9H 7H 2H 4D AC 9C 7C 3C'
+    for opening in ('1C', '1D'):
+        call, _ = bid(doubler, opening, 'X', 'Pass', f"2{opening[1]}", 'Pass')
+        assert call in ('2H', '2S'), (opening, call)
+    # Without the cuebid, a new suit still needs 18+.
+    call, _ = bid('AS QS 7S 3H 2H KD QD 4D 2D AC 9C 7C 3C', '1H', 'X', '2H', 'Pass', 'Pass')
+    assert call == 'Pass', call
+
+
+def test_runouts_end_when_they_run_first():
+    # 1NT (X) P (2H) P P: responder's pass of the double was "willing to
+    # play", not a runout, so the usual competition decides. Main bid 2S.
+    call, _ = bid('AS KS 9S 8S 7S 6S 4H 2H QD 4D 2D 7C 3C',
+                  '1NT', 'X', 'Pass', '2H', 'Pass', 'Pass')
+    assert call == '2S', call
+
+
+def test_light_response_bids_up_the_line():
+    # Four of each major, short in opener's diamonds: 1H, as with 7+.
+    call, why = bid('KS 7S 5S 4S QH 9H 8H 4H 3D 9C 7C 6C 2C', '1D', 'Pass')
+    assert call == '1H' and 'short' in why, (call, why)
+
+
+def test_checkback_continuation_needs_a_one_level_major():
+    # 1D 2C 2NT 3C 4C: 3C showed clubs, not checkback, so responder's
+    # checkback continuation (3NT, illegal over 4C) must not answer.
+    gib.ILLEGAL.clear()
+    auction = after('1D', 'Pass', '2C', 'Pass', '2NT', 'Pass', '3C', 'Pass', '4C', 'Pass')
+    gib.gib_bid(auction.current_player(), hand('KS 9S 4S 3S 2H KD 4D AC KC QC 9C 7C 3C'), auction)
+    assert not gib.ILLEGAL, gib.ILLEGAL

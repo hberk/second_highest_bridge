@@ -438,7 +438,8 @@ def one_suit(ctx: Ctx) -> tuple:
         decision = opener_third(ctx, x)
         if decision:
             return decision
-    if n == 5 and seq[2] == '2NT' and seq[3] == '3C':
+    if (n == 5 and seq[2] == '2NT' and seq[3] == '3C' and level_of(seq[1]) == 1
+            and strain_of(seq[1]) in MAJORS):
         ans = seq[4]
         s = strain_of(ans)
         if ans != '3NT' and s in MAJORS and ctx.h.len[s] + (3 if s == strain_of(seq[1]) else 4) >= 8:
@@ -554,7 +555,7 @@ def respond_minor(ctx: Ctx, x: str) -> tuple:
     passed = ctx.passed_hand(ctx.me)
     if hcp < RESPONSE_MIN:
         if hcp >= SHORT_RESPONSE_MIN and sup <= 1:
-            for m in ('H', 'S', 'D') if h.len['H'] > h.len['S'] else ('S', 'H', 'D'):
+            for m in ('H', 'S', 'D') if h.len['H'] >= h.len['S'] else ('S', 'H', 'D'):
                 if h.len[m] >= 4 and SUITS.index(m) > SUITS.index(x) and ctx.ok(f"1{m}"):
                     return f"1{m}", _one_level_response_alert(m, x)
         return 'Pass', f"Fewer than {RESPONSE_MIN} HCP."
@@ -3070,6 +3071,8 @@ def _nt_runout(ctx: Ctx) -> tuple | None:
     mine = [c for w, c in ours if w == ctx.me]
     his = [c for w, c in ours if w == ctx.pd]
     interrupted = any(parse_bid(c) for _, c in ctx.theirs)
+    if interrupted and all(c == 'Pass' for _, c in ours):
+        return None             # they ran before we did: the usual competition
     if not opener and not mine:
         return _runout_choice(ctx)
     if opener and not mine:
@@ -3367,16 +3370,26 @@ def _raise_doubler_suit(ctx: Ctx, s: str) -> tuple | None:
     return 'Pass', "Not enough to raise."
 
 
+def _partner_cuebid(ctx: Ctx) -> bool:
+    """Is our side's last call partner's bid of a suit they bid?"""
+    if not ctx.ours or ctx.ours[-1][0] != ctx.pd:
+        return False
+    return strain_of(ctx.ours[-1][1]) in _their_suits(ctx)
+
+
 def doubler_guard(player: str, cards: list[Card], auction: AuctionState,
                   decision: tuple) -> tuple:
     """A takeout doubler's new suit always reads the 18+ alert, and a hand
-    without 18+ and five cards passes instead, whichever branch chose it."""
+    without 18+ and five cards passes instead, whichever branch chose it --
+    unless partner's last call cuebid their suit: that forces an answer, and
+    the answer is the doubler's best suit at any strength."""
     if not DOUBLE_THEN_SUIT:
         return decision
     ctx = Ctx(player, cards, auction)
     s = strain_of(decision[0])
     if (s not in SUITS or ctx.mine() != ['X'] or not _takeout_doubler(ctx, player)
-            or any(strain_of(c) == s for _, c in ctx.calls)):
+            or any(strain_of(c) == s for _, c in ctx.calls)
+            or _partner_cuebid(ctx)):
         return decision
     if ctx.h.hcp >= DOUBLER_SUIT_HCP and ctx.h.len[s] >= 5:
         return decision[0], _doubler_alert(s)

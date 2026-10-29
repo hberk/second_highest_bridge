@@ -404,7 +404,7 @@ function oneSuit(ctx: Ctx): Decision {
     const decision = openerThird(ctx, x);
     if (decision) return decision;
   }
-  if (n === 5 && seq[2] === '2NT' && seq[3] === '3C') {
+  if (n === 5 && seq[2] === '2NT' && seq[3] === '3C' && levelOf(seq[1]) === 1 && isMajor(strainOf(seq[1]))) {
     const ans = seq[4];
     const s = strainOf(ans);
     if (ans !== '3NT' && isMajor(s) && ctx.h.len[s as Suit] + (s === strainOf(seq[1]) ? 3 : 4) >= 8) {
@@ -511,7 +511,7 @@ function respondMinor(ctx: Ctx, x: Suit): Decision {
   const passed = ctx.passedHand(ctx.me);
   if (hcp < RESPONSE_MIN) {
     if (hcp >= SHORT_RESPONSE_MIN && sup <= 1) {
-      const order: Suit[] = h.len.H > h.len.S ? ['H', 'S', 'D'] : ['S', 'H', 'D'];
+      const order: Suit[] = h.len.H >= h.len.S ? ['H', 'S', 'D'] : ['S', 'H', 'D'];
       for (const m of order) {
         if (h.len[m] >= 4 && idx(m) > idx(x) && ctx.ok(`1${m}`)) return [`1${m}`, oneLevelResponseAlert(m, x)];
       }
@@ -2830,6 +2830,8 @@ function ntRunout(ctx: Ctx): Decision | null {
   const mine = ours.filter(([w]) => w === ctx.me).map(([, c]) => c);
   const his = ours.filter(([w]) => w === ctx.pd).map(([, c]) => c);
   const interrupted = ctx.theirs.some(([, c]) => parseBid(c) !== null);
+  // They ran before we did: the usual competition.
+  if (interrupted && ours.every(([, c]) => c === 'Pass')) return null;
   if (!opener && !mine.length) return runoutChoice(ctx);
   if (opener && !mine.length) {
     if (!his.length) return ['Pass', 'Partner may run.'];
@@ -3109,8 +3111,16 @@ function raiseDoublerSuit(ctx: Ctx, s: Suit): Decision | null {
   return ['Pass', 'Not enough to raise.'];
 }
 
+/** Is our side's last call partner's bid of a suit they bid? */
+function partnerCuebid(ctx: Ctx): boolean {
+  const last = ctx.ours[ctx.ours.length - 1];
+  return Boolean(last && last[0] === ctx.pd && theirSuits(ctx).includes(strainOf(last[1]) as Suit));
+}
+
 /** A takeout doubler's new suit always reads the 18+ alert, and a hand
- *  without 18+ and five cards passes instead, whichever branch chose it. */
+ *  without 18+ and five cards passes instead, whichever branch chose it --
+ *  unless partner's last call cuebid their suit: that forces an answer, and
+ *  the answer is the doubler's best suit at any strength. */
 export function doublerGuard(player: Seat, cards: Card[], auction: AuctionState,
   decision: Decision): Decision {
   if (!DOUBLE_THEN_SUIT) return decision;
@@ -3118,7 +3128,7 @@ export function doublerGuard(player: Seat, cards: Card[], auction: AuctionState,
   const s = strainOf(decision[0]);
   const mine = ctx.mine();
   if (!isSuit(s) || mine.length !== 1 || mine[0] !== 'X' || !takeoutDoubler(ctx, player)
-    || ctx.calls.some(([, c]) => strainOf(c) === s)) return decision;
+    || ctx.calls.some(([, c]) => strainOf(c) === s) || partnerCuebid(ctx)) return decision;
   if (ctx.h.hcp >= DOUBLER_SUIT_HCP && ctx.h.len[s] >= 5) return [decision[0], doublerAlert(s)];
   return ['Pass', 'Doubled: a new suit would show 18+.'];
 }
