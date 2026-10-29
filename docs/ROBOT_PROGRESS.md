@@ -206,6 +206,7 @@ from the variant's side; t as above.
 | 10-28 | Weak two suit by judgement points: none at favourable or equal, 2 unfavourable, +1 in second seat (training deal: ♥QT9865 passed) | **+1.31** | +7.46 | 2,081 | on (your call) |
 | 10-28 | ...no suit test at all; 2+ points flat; one of A K Q; 3+, 4+, 5+ points | +1.41; +1.15; +0.93; +0.84, +0.49, +0.04 | +7.83; +6.69; +5.98; +5.85, +3.88, +0.39 | 2,186; 1,932; 1,618 | off (no test beat the chosen bar by +0.10, t = +2.45) |
 | 10-28 | ...other spreads (fav/equal/unfav, +1 second seat): 0/1/3, 0/2/4, 0/3/5 | +1.18; +1.11; +0.94 | +6.87; +6.82; +6.48 | | off |
+| 10-29 | The seven 10-28 fixes together (runouts, lead-directing double and the doubler never bidding again, NMF/checkback/light response, pre-emptor passes, double-then-suit 18+, five-card major over a negative double, weak two by judgement points) against main before PR #44; 1,000 fresh deals, scored after the robot's real opening lead (`/mnt/project-files/combined-bidding/combo.py`) | **+2.47** | +3.10 | 402 | on (PR #48); with the best lead instead +0.92, t = +1.24 |
 
 ### The previous system (`ai_bid`)
 
