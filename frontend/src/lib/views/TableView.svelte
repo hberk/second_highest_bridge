@@ -184,8 +184,10 @@
         {/if}
       {/snippet}
       {#if m.sideDummy}
-        <!-- An East or West dummy on its own side; the felt moves over. -->
-        <div class="play-row" class:dummy-east={m.sideDummy === 'East'}>
+        <!-- An opponent's dummy on its own side, left or right of you as its
+             cards land on the felt; the felt moves over. (`dummy-east` is
+             the right-hand side: East when you sit South.) -->
+        <div class="play-row" class:dummy-east={m.sideDummy === m.right}>
           <SideHand cards={game.hands[m.sideDummy]} trump={displayTrump} title={labels[m.sideDummy]} />
           <div class="play-felt">{@render felt()}</div>
         </div>

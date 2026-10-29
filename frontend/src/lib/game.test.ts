@@ -68,6 +68,12 @@ function playBoard(game: Game): void {
       if ((game.trickNum > 1 || game.trick.length > 0) && (c.dummy === seatAt(me, 'left') || c.dummy === seatAt(me, 'right'))) {
         expect(htmls[0], 'phone: dummy beside the felt').toContain('side-hand');
         expect(htmls[1], 'desktop: dummy in its seat panel').toContain('dk-side-dummy');
+        // On the side its cards land on the felt: right of you is right,
+        // whatever the compass says.
+        const onRight = c.dummy === seatAt(me, 'right');
+        expect(htmls[0].includes('class="play-row dummy-east"'),
+          `phone: ${me} sees ${c.dummy}'s dummy on the ${onRight ? 'left' : 'right'}; its cards land on the ${onRight ? 'right' : 'left'}`)
+          .toBe(onRight);
         sideDummies++;
       }
       game.humanPlays(who!, legalPlays(game.hands[who!], led)[0]);
