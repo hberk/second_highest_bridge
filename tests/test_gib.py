@@ -962,3 +962,42 @@ def test_checkback_continuation_needs_a_one_level_major():
     auction = after('1D', 'Pass', '2C', 'Pass', '2NT', 'Pass', '3C', 'Pass', '4C', 'Pass')
     gib.gib_bid(auction.current_player(), hand('KS 9S 4S 3S 2H KD 4D AC KC QC 9C 7C 3C'), auction)
     assert not gib.ILLEGAL, gib.ILLEGAL
+
+
+# ── Championship study (2026-10-29) ───────────────────────────────────────────
+
+def test_balancing_lowers_the_floor_not_the_ceiling():
+    # 1♦ P P: a five-card suit reopens 4 HCP lighter, and a 17 count still
+    # overcalls (the review found it passing when the top dropped too).
+    call, why = bid('AS KS JS 5S 4S KH QH 3H 7D 6D 3D AC 2C', '1D', 'Pass', 'Pass')
+    assert call == '1S' and 'Balancing' in why
+    call, why = bid('9S 4S 3S 6H 2H AD KD 7D 6D 5D JC 6C 2C', '1H', 'Pass', 'Pass')
+    assert call == '2D' and 'Balancing' in why
+    # Not in the direct seat: 8 HCP there passes.
+    assert bid('9S 4S 3S 6H 2H AD KD 7D 6D 5D JC 6C 2C', '1H')[0] == 'Pass'
+
+
+def test_lott_total_competes_one_level_more_with_values_only():
+    # 1♠ 2♥ 3♠: nine hearts, a singleton spade, their eight-card fit: 4♥ with
+    # 6 HCP, but never with 3 (the user's call after review).
+    assert bid('4S KH QH 8H 2H JD 9D 7D 6D 5D 8C 6C 2C', '1S', '2H', '3S')[0] == '4H'
+    assert bid('4S QH 10H 8H 2H JD 9D 7D 6D 5D 8C 6C 2C', '1S', '2H', '3S')[0] == 'Pass'
+
+
+def test_forced_continuation_reads_partners_call():
+    # 1♦ 1♠ P 1NT 2♦ P P: partner's 1♠ is natural, so my own 1NT forces
+    # nothing and four clubs stay silent (it used to bid 3♣).
+    assert bid('8S 4S KH 9H 3H QD 10D 4D 3D KC 8C 6C 2C',
+               '1D', '1S', 'Pass', '1NT', '2D', 'Pass', 'Pass')[0] == 'Pass'
+
+
+def test_takeout_doubler_answers_partners_cuebid():
+    # 1♥ X P 2♥ P: forcing, never passed (the user's call, 2026-10-29).
+    call, why = bid('AS QS 3S AH KH JH 4H KD QD 3D QC 3C 2C',
+                    '1H', 'X', 'Pass', '2H', 'Pass')
+    assert call == '3NT' and 'cuebid' in why
+    assert bid('AS QS 3S KS 4H 2H KD QD 3D 9D QC 3C 2C',
+               '1H', 'X', 'Pass', '2H', 'Pass')[0] == '2S'
+    call, why = bid('AS QS 3S 5S 4H 2H KD QD 3D 9D QC 3C 2C',
+                    '1D', 'X', 'Pass', '2D', 'Pass')
+    assert call == '2S' and why.startswith('4+')

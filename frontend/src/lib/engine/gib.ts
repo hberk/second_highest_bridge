@@ -1814,6 +1814,7 @@ export const LOTT_SHORT = true;
  *  fits on both sides (championship study, 2026-10-29). See gib.py. */
 export const LOTT_TOTAL: number | null = 18;
 export const LOTT_TOTAL_ALERT = 'Competing: both sides have a fit.';
+export const LOTT_TOTAL_HCP = 6;
 
 /** Have both opponents bid `s` naturally? */
 function theyRaised(ctx: Ctx, s: Suit): boolean {
@@ -1823,6 +1824,7 @@ function theyRaised(ctx: Ctx, s: Suit): boolean {
 function totalBonus(ctx: Ctx, n: number): number {
   const hb = ctx.auction.highestBid!;
   if (LOTT_TOTAL === null || hb[0] !== 3 || !isSuit(hb[1]) || !theyRaised(ctx, hb[1] as Suit)) return 0;
+  if (ctx.h.hcp < LOTT_TOTAL_HCP) return 0;
   const k = ctx.h.len[hb[1] as Suit];
   return n + 8 + (k <= 1 ? 1 : 0) + (k === 0 ? 1 : 0) >= LOTT_TOTAL ? 1 : 0;
 }
@@ -3079,6 +3081,8 @@ function theyOpened(ctx: Ctx): Decision | null {
       if (decision) return decision;
     }
   }
+  const cue = answerCuebid(ctx);
+  if (cue) return cue;
   if (partners.length && !mine.length) return advance(ctx);
   if (mine.length && !partners.length && defendWasWeak(ctx, mine[0])) return ['Pass', 'Already described: weak.'];
   return cuebidRaiseReply(ctx);
@@ -3158,6 +3162,40 @@ function raiseDoublerSuit(ctx: Ctx, s: Suit): Decision | null {
 function partnerCuebid(ctx: Ctx): boolean {
   const last = ctx.ours[ctx.ours.length - 1];
   return Boolean(last && last[0] === ctx.pd && theirSuits(ctx).includes(strainOf(last[1]) as Suit));
+}
+
+/** Partner cuebid their suit over my takeout double (1♥ X P 2♥): forcing,
+ *  so I never pass it. See gib.py. */
+export const CUE_ANSWER = true;
+export const CUE_ANSWER_3NT = 15;
+
+function answerCuebid(ctx: Ctx): Decision | null {
+  const mine = ctx.mine();
+  if (!CUE_ANSWER || mine.length !== 1 || mine[0] !== 'X' || !takeoutDoubler(ctx, ctx.me)
+    || !partnerCuebid(ctx) || ctx.partners().length !== 1
+    || ctx.calls[ctx.calls.length - 1][1] !== 'Pass') return null;
+  const h = ctx.h;
+  const named = new Set(ctx.calls.map(([, c]) => strainOf(c)));
+  const their = strainOf(ctx.ours[ctx.ours.length - 1][1]) as Suit;
+  const pick = (xs: Suit[]) => xs.reduce((a, b) =>
+    h.len[b] > h.len[a] || (h.len[b] === h.len[a] && SUITS.indexOf(b) > SUITS.indexOf(a)) ? b : a);
+  const majors = (['H', 'S'] as Suit[]).filter((x) => !named.has(x) && h.len[x] >= 4);
+  if (majors.length) {
+    const s = pick(majors);
+    const call = ctx.cheapest(s, 1);
+    if (call) return [call, `4+ ${SYM[s]}. Answering the cuebid.`];
+  }
+  if (h.stopper(their)) {
+    if (h.hcp >= CUE_ANSWER_3NT && ctx.ok('3NT')) {
+      return ['3NT', `${SYM[their]} stopper, ${CUE_ANSWER_3NT}+ HCP. Answering the cuebid.`];
+    }
+    if (ctx.ok('2NT')) return ['2NT', `${SYM[their]} stopper. Answering the cuebid.`];
+  }
+  const own = (['C', 'D'] as Suit[]).filter((x) => !named.has(x));
+  if (!own.length) return null;
+  const s = pick(own);
+  const call = ctx.cheapest(s, 1);
+  return call ? [call, 'No 4-card major or stopper. Answering the cuebid.'] : null;
 }
 
 /** A takeout doubler's new suit always reads the 18+ alert, and a hand
@@ -3262,7 +3300,7 @@ function defend(ctx: Ctx): Decision | null {
     const call = ctx.cheapest(s, 1);
     if (call) {
       const base = levelOf(call) === 1 ? OVERCALL_1 : OVERCALL_2;
-      const need = [base[0] - bal, base[1] - bal];
+      const need = [base[0] - bal, base[1]];
       if (levelOf(call) <= 3 && need[0] <= hcp && hcp <= need[1] && (levelOf(call) <= 2 || hcp >= 12 - bal)) {
         if (bal) return [call, `5+ ${SYM[s]}, ${need[0]}-${need[1]} HCP. Balancing.`];
         return [call, `5+ ${SYM[s]}, ${need[0]}-${need[1]} HCP. Overcall.`];

@@ -563,15 +563,23 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   - **Reopening after 1x P P** (`BALANCE`, `BALANCE_DISCOUNT = 4`). The
     robots passed 85% of hands without a five-card suit there, experts 30%.
     Every overcall and takeout floor in `_defend` drops 4 HCP in the pass-out
-    seat ("Balancing." / "Balancing takeout: 8+ HCP."), and there is no weak
-    jump. 3,000 fresh deals at three seeds: +0.85, +0.19, +0.10 a board
-    (t = +4.2, +0.9, +0.4). A 3 HCP discount was weaker.
+    seat ("Balancing." / "Balancing takeout: 8+ HCP."), the ceilings stay, and
+    there is no weak jump. 3,000 fresh deals at three seeds: +0.85, +0.19,
+    +0.10 a board (t = +4.2, +0.9, +0.4). A 3 HCP discount was weaker. Those
+    runs dropped the overcall ceiling too, so 14-17 HCP passed (found in
+    review); keeping it added +0.27 a board (t = +2.9, seed 8M).
   - **One level past the LoTT over their three level** (`LOTT_TOTAL = 18`).
     When they bid and raised their suit to three, and our known fit plus 8 plus
     one for my singleton (two for a void) in it reaches 18, `_total_tricks`
     allows one level more ("Competing: both sides have a fit."). Rare (12-27
-    auctions in 12,000 boards) but 35 better and 3 worse: +0.06, +0.17, +0.18,
-    t = +2.4 to +2.7 at each seed.
+    auctions in each set of 3,000 deals) but 35 better and 3 worse: +0.06,
+    +0.17, +0.18, t = +2.4 to +2.7 at each seed. Not below `LOTT_TOTAL_HCP = 6`
+    (the user's call after review: 3 HCP bid 4♥ over 1♠ 2♥ 3♠), which gives
+    back 0.09 a board; staying out when vulnerable cost the same.
+  - **The takeout doubler answers partner's cuebid** (`CUE_ANSWER`): 1♥ X P
+    2♥ P is forcing, and a 19 HCP doubler used to pass it. An unbid four-card
+    major, then notrump with their suit stopped (3NT with 15+), else a minor.
+    The robots never cuebid there, so it is for a human partner.
   Measured and left off: balancing over their raise (1x P 2x P P; the robots
   pass 98%, experts act 25-48%) lost 0.14-0.26 a board because the robots'
   penalty doubles punish a light balance; weak jump overcalls by vulnerability

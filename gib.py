@@ -1934,9 +1934,12 @@ LOTT_SHORT = True
 #: One level past the LoTT over their three level when the deal has big fits
 #: on both sides (championship study, 2026-10-29): they bid and raised their
 #: suit (8+), and our known fit plus theirs, plus one for my singleton or void
-#: in their suit, reaches LOTT_TOTAL. None leaves the LoTT level alone.
+#: in their suit, reaches LOTT_TOTAL. None leaves the LoTT level alone. Never
+#: below LOTT_TOTAL_HCP (the user's call after review: 3 HCP and four trumps
+#: bid 4♥ over 1♠ 2♥ 3♠); that costs 0.09 a board of the measured gain.
 LOTT_TOTAL = 18
 LOTT_TOTAL_ALERT = "Competing: both sides have a fit."
+LOTT_TOTAL_HCP = 6
 
 
 def _they_raised(ctx: Ctx, s: str) -> bool:
@@ -1947,6 +1950,8 @@ def _they_raised(ctx: Ctx, s: str) -> bool:
 def _total_bonus(ctx: Ctx, n: int) -> int:
     hb = ctx.auction.highest_bid
     if LOTT_TOTAL is None or hb[0] != 3 or hb[1] not in SUITS or not _they_raised(ctx, hb[1]):
+        return 0
+    if ctx.h.hcp < LOTT_TOTAL_HCP:
         return 0
     return 1 if n + 8 + (ctx.h.len[hb[1]] <= 1) + (ctx.h.len[hb[1]] == 0) >= LOTT_TOTAL else 0
 
@@ -3338,6 +3343,9 @@ def they_opened(ctx: Ctx) -> tuple | None:
             decision = _doubler_new_suit(ctx)
             if decision:
                 return decision
+    cue = _answer_cuebid(ctx)
+    if cue:
+        return cue
     if partners and not mine:
         return _advance(ctx)
     if mine and not partners and _defend_was_weak(ctx, mine[0]):
@@ -3424,6 +3432,43 @@ def _partner_cuebid(ctx: Ctx) -> bool:
     if not ctx.ours or ctx.ours[-1][0] != ctx.pd:
         return False
     return strain_of(ctx.ours[-1][1]) in _their_suits(ctx)
+
+
+#: Partner cuebid their suit over my takeout double (1♥ X P 2♥): forcing,
+#: so I never pass it (the user's call, 2026-10-29: a 19 HCP doubler passed
+#: and left us in their suit). An unbid four-card major first, then notrump
+#: with their suit stopped (3NT with CUE_ANSWER_3NT+), else an unbid minor.
+#: Each call has one branch, so its alert depends only on the call.
+CUE_ANSWER = True
+CUE_ANSWER_3NT = 15
+
+
+def _answer_cuebid(ctx: Ctx) -> tuple | None:
+    if (not CUE_ANSWER or ctx.mine() != ['X'] or not _takeout_doubler(ctx, ctx.me)
+            or not _partner_cuebid(ctx) or len(ctx.partners()) != 1
+            or ctx.calls[-1][1] != 'Pass'):
+        return None
+    h = ctx.h
+    named = {strain_of(c) for _, c in ctx.calls}
+    their = strain_of(ctx.ours[-1][1])
+    pick = lambda xs: max(xs, key=lambda x: (h.len[x], SUITS.index(x)))
+    majors = [x for x in ('H', 'S') if x not in named and h.len[x] >= 4]
+    if majors:
+        s = pick(majors)
+        call = ctx.cheapest(s, 1)
+        if call:
+            return call, f"4+ {SYM[s]}. Answering the cuebid."
+    if h.stopper(their):
+        if h.hcp >= CUE_ANSWER_3NT and ctx.ok('3NT'):
+            return '3NT', f"{SYM[their]} stopper, {CUE_ANSWER_3NT}+ HCP. Answering the cuebid."
+        if ctx.ok('2NT'):
+            return '2NT', f"{SYM[their]} stopper. Answering the cuebid."
+    own = [x for x in ('C', 'D') if x not in named]
+    if not own:
+        return None
+    s = pick(own)
+    call = ctx.cheapest(s, 1)
+    return (call, "No 4-card major or stopper. Answering the cuebid.") if call else None
 
 
 def doubler_guard(player: str, cards: list[Card], auction: AuctionState,
@@ -3537,7 +3582,7 @@ def _defend(ctx: Ctx) -> tuple | None:
         call = ctx.cheapest(s, 1)
         if call:
             need = OVERCALL_1 if level_of(call) == 1 else OVERCALL_2
-            need = (need[0] - bal, need[1] - bal)
+            need = (need[0] - bal, need[1])
             if level_of(call) <= 3 and need[0] <= hcp <= need[1] and \
                     (level_of(call) <= 2 or hcp >= 12 - bal):
                 if bal:
