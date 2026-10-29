@@ -207,6 +207,11 @@ from the variant's side; t as above.
 | 10-28 | ...no suit test at all; 2+ points flat; one of A K Q; 3+, 4+, 5+ points | +1.41; +1.15; +0.93; +0.84, +0.49, +0.04 | +7.83; +6.69; +5.98; +5.85, +3.88, +0.39 | 2,186; 1,932; 1,618 | off (no test beat the chosen bar by +0.10, t = +2.45) |
 | 10-28 | ...other spreads (fav/equal/unfav, +1 second seat): 0/1/3, 0/2/4, 0/3/5 | +1.18; +1.11; +0.94 | +6.87; +6.82; +6.48 | | off |
 | 10-29 | The seven 10-28 fixes together (runouts, lead-directing double and the doubler never bidding again, NMF/checkback/light response, pre-emptor passes, double-then-suit 18+, five-card major over a negative double, weak two by judgement points) against main before PR #44; 1,000 fresh deals, scored after the robot's real opening lead (`/mnt/project-files/combined-bidding/combo.py`) | **+2.47** | +3.10 | 402 | on (PR #48); with the best lead instead +0.92, t = +1.24 |
+| 10-29 | Reopening after 1x P P, every overcall and takeout floor 4 HCP lighter (`BALANCE`; championship study, see BIDDING.md); three sets of 3,000 fresh deals | +0.85, +0.19, +0.10 | +4.19, +0.86, +0.42 | 280, 279, 255 | on |
+| 10-29 | One level past the LoTT over their raised three-level suit when our fit + 8 + my shortness reach 18 (`LOTT_TOTAL`) | +0.06, +0.17, +0.18 | +2.40, +2.73, +2.47 | 12, 26, 27 | on |
+| 10-29 | Both together | **+0.91, +0.36, +0.27** | +4.46, +1.59, +1.12 | 292, 305, 282 | on |
+| 10-29 | Balancing over their raise, 1x P 2x P P, 4-5 HCP lighter (suit bids, or takeout doubles only) | -0.14 to -0.26 | -1.6 to -2.1 | 76-92 | off (light balances get doubled); measured against pre-#48 robots |
+| 10-29 | No weak jump overcall at unfavourable vulnerability / when vulnerable | -0.29 / -0.69 | -1.60 / -2.35 | 210 / 440 | off; measured against pre-#48 robots |
 
 ### The previous system (`ai_bid`)
 

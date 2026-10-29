@@ -384,11 +384,29 @@ def opening(ctx: Ctx) -> tuple:
         n = h.len[best]
         if best in MAJORS and n >= 8 and ctx.ok(f"4{best}"):
             return f"4{best}", f"8+ {SYM[best]}, 5-10 HCP. Pre-emptive."
-        if n >= 7 and ctx.ok(f"3{best}"):
+        if n >= 7 and _preempt_suit(ctx, best) and ctx.ok(f"3{best}"):
             return f"3{best}", f"7+ {SYM[best]}, 5-10 HCP. Pre-emptive."
         if n == 6 and best != 'C' and _weak_two_suit(ctx, best) and ctx.ok(f"2{best}"):
             return f"2{best}", f"6 {SYM[best]}, 5-10 HCP. Weak two."
     return 'Pass', "Not an opening hand."
+
+
+#: Experts open a seven-card suit at the three level 21-22% of the time, the
+#: robots 42-47% (championship study, 2026-10-29). PREEMPT_SUIT_JP is the
+#: suit's judgement points a three-level pre-empt needs, by vulnerability
+#: (None: no test). Without them the hand passes.
+PREEMPT_SUIT_JP = None
+
+
+def _preempt_suit(ctx: Ctx, suit: str) -> bool:
+    if PREEMPT_SUIT_JP is None:
+        return True
+    v = ctx.auction.vulnerability
+    ns = ctx.me in ('North', 'South')
+    we = v == 'Both' or v == ('N/S' if ns else 'E/W')
+    they = v == 'Both' or v == ('E/W' if ns else 'N/S')
+    bar = PREEMPT_SUIT_JP['unfav' if we and not they else 'fav' if they and not we else 'equal']
+    return ctx.h.suit_judge(suit) >= bar
 
 
 def _weak_two_suit(ctx: Ctx, suit: str) -> bool:
@@ -1935,7 +1953,7 @@ LOTT_SHORT = True
 #: on both sides (championship study, 2026-10-29): they bid and raised their
 #: suit (8+), and our known fit plus theirs, plus one for my singleton or void
 #: in their suit, reaches LOTT_TOTAL. None leaves the LoTT level alone.
-LOTT_TOTAL = None
+LOTT_TOTAL = 18
 LOTT_TOTAL_ALERT = "Competing: both sides have a fit."
 
 
@@ -2281,7 +2299,8 @@ def continuation(ctx: Ctx) -> tuple:
             return '3NT', TO_PLAY
         return 'Pass', "Game reached."
     if partner_last and _forcing(ctx, partner_last):
-        s = h.longest()
+        # Never their suit: a natural bid there reads as a cuebid.
+        s = h.longest([x for x in SUITS if x not in _their_suits(ctx)] or SUITS)
         call = ctx.cheapest(s, 1)
         if call and level_of(call) <= 3:
             return call, natural(s)
@@ -2827,8 +2846,8 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
                         and sup < 4 and h.judge < 12)
         if call and level_of(call) <= 3 and not cue_too_high:
             return call, f"Cuebid: 3+ {SYM[x]}, 10+ HCP. Artificial."
-    if sup >= 4 and hcp <= 9 and ctx.ok(f"3{x}") and lvl <= 2 and \
-            rank_of(f"3{x}") > rank_of(ctx.cheapest(x, 1) or '1C'):
+    if sup >= (JUMP_RAISE_MINOR if x in MINORS else 4) and hcp <= 9 and ctx.ok(f"3{x}") \
+            and lvl <= 2 and rank_of(f"3{x}") > rank_of(ctx.cheapest(x, 1) or '1C'):
         if ctx.cheapest(x, 2) != f"3{x}":
             return f"3{x}", f"4+ {SYM[x]}, under 10 HCP. Pre-emptive."
     if sup >= 3 and hcp >= 6:
@@ -3295,8 +3314,25 @@ def lead_doubler(player: str, auction: AuctionState) -> bool:
 #: BALANCE lowers every overcall and takeout floor there by BALANCE_DISCOUNT
 #: HCP, and makes no weak jump. Balancing over their raise (1x P 2x P P) was
 #: measured too and lost: a light balance there gets doubled.
-BALANCE = False
+BALANCE = True
 BALANCE_DISCOUNT = 4
+#: Experts overcall a five-card suit at the two level 8-13% of the time,
+#: the robots 39-40%: OVERCALL_2_FIVE is the HCP floor for that (None: the
+#: OVERCALL_2 range alone). With 5 cards, 0-1 in their suit and 3+ in each
+#: other suit, TAKEOUT_OVER_FIVE doubles a one-level opening instead
+#: (experts 18-28%, robots 1-2%).
+OVERCALL_2_FIVE = None
+TAKEOUT_OVER_FIVE = False
+#: Over a weak two, experts overcall a five-card suit at the three level 4%
+#: of the time, the robots 32%: OVERCALL_3_FIVE is its HCP floor (None: 12).
+OVERCALL_3_FIVE = None
+#: Over 1M, experts make a three-level weak jump overcall on 8% of 6-card
+#: hands, the robots 38%: WJO_TOP is the highest level a weak jump reaches.
+WJO_TOP = 3
+#: Experts rarely jump-raise partner's minor pre-emptively over an overcall
+#: (1% of hands without a five-card suit, robots 23%): JUMP_RAISE_MINOR is
+#: the trumps that raise needs.
+JUMP_RAISE_MINOR = 4
 
 
 def _balancing(ctx: Ctx) -> int:
@@ -3518,8 +3554,14 @@ def _defend(ctx: Ctx) -> tuple | None:
             cheap = ctx.cheapest(s, 1)
             if cheap:
                 jump = f"{level_of(cheap) + 1}{s}"
-                if level_of(jump) <= 3 and ctx.ok(jump):
+                if level_of(jump) <= WJO_TOP and ctx.ok(jump):
                     return jump, f"6+ {SYM[s]}, 3-9 HCP. Weak jump overcall."
+    # Takeout double rather than overcall a five-card suit, short in theirs.
+    if (TAKEOUT_OVER_FIVE and not bal and ctx.ok('X') and lvl == 1 and their in SUITS
+            and h.len[their] <= 1 and all(h.len[s] >= 3 for s in SUITS if s != their)
+            and h.shape[0] == 5 and TAKEOUT_MIN <= hcp
+            and not (LEAD_DOUBLE and _their_artificial(ctx, len(ctx.calls) - 1))):
+        return 'X', f"Takeout: {TAKEOUT_MIN}+ HCP."
     # Simple overcall.
     own = [s for s in SUITS if s not in theirs and h.len[s] >= 5]
     if own and hcp <= 17:
@@ -3528,7 +3570,11 @@ def _defend(ctx: Ctx) -> tuple | None:
         if call:
             need = OVERCALL_1 if level_of(call) == 1 else OVERCALL_2
             need = (need[0] - bal, need[1] - bal)
-            if level_of(call) <= 3 and need[0] <= hcp <= need[1] and \
+            five_two = (OVERCALL_2_FIVE is not None and not bal and level_of(call) == 2
+                        and h.len[s] == 5 and hcp < OVERCALL_2_FIVE) or \
+                (OVERCALL_3_FIVE is not None and level_of(call) == 3
+                 and h.len[s] == 5 and hcp < OVERCALL_3_FIVE)
+            if level_of(call) <= 3 and need[0] <= hcp <= need[1] and not five_two and \
                     (level_of(call) <= 2 or hcp >= 12 - bal):
                 if bal:
                     return call, f"5+ {SYM[s]}, {need[0]}-{need[1]} HCP. Balancing."

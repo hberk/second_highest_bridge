@@ -1810,6 +1810,23 @@ export const LOTT_ALERT = 'Competing to the level of our fit.';
  *  instead of quoting HCP, so one alert stays true of both. */
 export const LOTT_SHORT = true;
 
+/** One level past the LoTT over their three level when the deal has big
+ *  fits on both sides (championship study, 2026-10-29). See gib.py. */
+export const LOTT_TOTAL: number | null = 18;
+export const LOTT_TOTAL_ALERT = 'Competing: both sides have a fit.';
+
+/** Have both opponents bid `s` naturally? */
+function theyRaised(ctx: Ctx, s: Suit): boolean {
+  return new Set(ctx.theirs.filter(([, c]) => strainOf(c) === s).map(([w]) => w)).size === 2;
+}
+
+function totalBonus(ctx: Ctx, n: number): number {
+  const hb = ctx.auction.highestBid!;
+  if (LOTT_TOTAL === null || hb[0] !== 3 || !isSuit(hb[1]) || !theyRaised(ctx, hb[1] as Suit)) return 0;
+  const k = ctx.h.len[hb[1] as Suit];
+  return n + 8 + (k <= 1 ? 1 : 0) + (k === 0 ? 1 : 0) >= LOTT_TOTAL ? 1 : 0;
+}
+
 export function raiseAlert(x: Suit, text: string): string {
   return LOTT && LOTT_SHORT ? `3+ ${SYM[x]}, competitive.` : text;
 }
@@ -1877,7 +1894,7 @@ function totalTricks(ctx: Ctx, decision: Decision | null): Decision | null {
   if (!LOTT || !ctx.theirs.length || (decision && decision[0] !== 'Pass')) return null;
   const hb = ctx.auction.highestBid;
   if (!hb || hb[2] === ctx.me || hb[2] === ctx.pd || ctx.auction.doubled !== 'None') return null;
-  let best: [number[], string] | null = null;
+  let best: [number[], string, boolean] | null = null;
   for (const s of SUITS) {
     const p = partnerLength(ctx, s);
     const n = ctx.h.len[s] + p;
@@ -1888,16 +1905,17 @@ function totalTricks(ctx: Ctx, decision: Decision | null): Decision | null {
       && ctx.h.short(s).length > 0;
     if (!mine && !weak && !(LOTT_RAISE[0] <= ctx.h.hcp && ctx.h.hcp <= LOTT_RAISE[1])) continue;
     const call = ctx.cheapest(s, 1);
-    if (call === null || levelOf(call) > Math.min(n - 6, LOTT_MAX)) continue;
+    if (call === null || levelOf(call) > Math.min(n - 6 + totalBonus(ctx, n), LOTT_MAX)) continue;
     const key = [n, isMajor(s) ? 1 : 0, idx(s)];
-    if (best === null || cmpTuple(key, best[0]) > 0) best = [key, call];
+    if (best === null || cmpTuple(key, best[0]) > 0) best = [key, call, levelOf(call) > n - 6];
   }
   if (best === null) return null;
   const s = strainOf(best[1]) as Suit;
   const mine = ctx.ours.some(([w], i) => w === ctx.me
     && (shownSuit(ctx.seq, i) === s || cueRaise(ctx, i) === s));
-  if (!mine && ctx.h.len[s] >= 3) return [best[1], raiseAlert(s, LOTT_ALERT)];
-  return [best[1], LOTT_ALERT];
+  const alert = best[2] ? LOTT_TOTAL_ALERT : LOTT_ALERT;
+  if (!mine && ctx.h.len[s] >= 3) return [best[1], raiseAlert(s, alert)];
+  return [best[1], alert];
 }
 
 /** Jam to game on a ten-card fit (the user's call, 2026-10-28). When
@@ -2098,7 +2116,10 @@ function continuation(ctx: Ctx): Decision {
     return ['Pass', 'Game reached.'];
   }
   if (partnerLast && forcing(ctx, partnerLast)) {
-    const s = h.longest();
+    // Never their suit: a natural bid there reads as a cuebid.
+    const ts = theirSuits(ctx);
+    const unbid = SUITS.filter((x) => !ts.includes(x));
+    const s = h.longest(unbid.length ? unbid : SUITS);
     const call = ctx.cheapest(s, 1);
     if (call && levelOf(call) <= 3) return [call, natural(s)];
   }
@@ -3019,6 +3040,21 @@ export function leadDoubler(player: Seat, auction: AuctionState): boolean {
   return wasLeadDouble(new Ctx(player, [], auction), player);
 }
 
+/** Lessons from championship auctions (2026-10-29): in the pass-out seat
+ *  after 1x P P, every overcall and takeout floor drops BALANCE_DISCOUNT HCP,
+ *  and no weak jump. See gib.py. */
+export const BALANCE = true;
+export const BALANCE_DISCOUNT = 4;
+
+/** The HCP discount in the pass-out seat after 1x P P. */
+function balancing(ctx: Ctx): number {
+  if (!BALANCE || ctx.calls.length < 3 || ctx.calls.slice(-2).some(([, c]) => c !== 'Pass')) return 0;
+  const bids = ctx.calls.filter(([, c]) => c !== 'Pass');
+  if (bids.length !== 1 || bids[0][0] === ctx.me || bids[0][0] === ctx.pd
+    || levelOf(bids[0][1]) !== 1 || !isSuit(strainOf(bids[0][1]))) return 0;
+  return BALANCE_DISCOUNT;
+}
+
 function theyOpened(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
   if (!seq.length) return defend(ctx);
@@ -3201,7 +3237,8 @@ function defend(ctx: Ctx): Decision | null {
     && h.stopper(their as Suit) && ctx.ok('1NT')) {
     return ['1NT', `15-18 HCP, balanced, ${SYM[their as Suit]} stopper.`];
   }
-  if (opening && levelOf(opening) === 1 && WJO[0] <= hcp && hcp <= WJO[1]) {
+  const bal = balancing(ctx);
+  if (opening && levelOf(opening) === 1 && WJO[0] <= hcp && hcp <= WJO[1] && !bal) {
     const long = SUITS.filter((s) => s !== their && h.len[s] >= 6);
     if (long.length) {
       const s = maxBy(long, (t) => [h.len[t], idx(t)]);
@@ -3217,8 +3254,10 @@ function defend(ctx: Ctx): Decision | null {
     const s = maxBy(own, (t) => [h.len[t], idx(t)]);
     const call = ctx.cheapest(s, 1);
     if (call) {
-      const need = levelOf(call) === 1 ? OVERCALL_1 : OVERCALL_2;
-      if (levelOf(call) <= 3 && need[0] <= hcp && hcp <= need[1] && (levelOf(call) <= 2 || hcp >= 12)) {
+      const base = levelOf(call) === 1 ? OVERCALL_1 : OVERCALL_2;
+      const need = [base[0] - bal, base[1] - bal];
+      if (levelOf(call) <= 3 && need[0] <= hcp && hcp <= need[1] && (levelOf(call) <= 2 || hcp >= 12 - bal)) {
+        if (bal) return [call, `5+ ${SYM[s]}, ${need[0]}-${need[1]} HCP. Balancing.`];
         return [call, `5+ ${SYM[s]}, ${need[0]}-${need[1]} HCP. Overcall.`];
       }
     }
@@ -3226,8 +3265,10 @@ function defend(ctx: Ctx): Decision | null {
   if (ctx.ok('X') && rankOf(lb) <= rankOf('4H') && isSuit(their)
     && !(LEAD_DOUBLE && theirArtificial(ctx, ctx.calls.length - 1))) {
     const shapeOk = h.len[their] <= 2 && SUITS.every((s) => s === their || h.len[s] >= 3);
-    const need = lvl === 1 ? TAKEOUT_MIN : 13;
-    if ((shapeOk && hcp >= need) || hcp >= 18) return ['X', `Takeout: ${need}+ HCP.`];
+    const need = (lvl === 1 ? TAKEOUT_MIN : 13) - bal;
+    if ((shapeOk && hcp >= need) || hcp >= 18) {
+      return ['X', bal ? `Balancing takeout: ${need}+ HCP.` : `Takeout: ${need}+ HCP.`];
+    }
   }
   if (lvl === 3 && h.balanced && hcp >= 16 && isSuit(their) && h.stopper(their) && ctx.ok('3NT')) {
     return ['3NT', `16+ HCP, ${SYM[their]} stopper.`];
