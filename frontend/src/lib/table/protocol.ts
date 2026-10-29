@@ -33,7 +33,28 @@ export type ClientMessage =
   | { type: 'reclaim' }
   | { type: 'lock'; locked: boolean }
   | { type: 'remove'; player: string }
-  | { type: 'ping' };
+  | { type: 'ping' }
+  // For the game log (MULTIPLAYER_PLAN.md, "Game logs"): a person's "Report a
+  // problem", and an error the page caught. Stored, never shown in the app.
+  | { type: 'report'; note: string; client: ClientInfo }
+  | { type: 'oops'; message: string; where: string; client: ClientInfo };
+
+/** What only the browser knows, sent with a report or an error: which layout
+ *  it drew, how big, which build, and which moment of the board it showed
+ *  (a held trick or contract can trail the server). */
+export interface ClientInfo {
+  layout: 'phone' | 'desktop';
+  width: number;
+  height: number;
+  ua: string;
+  build: string;
+  /** The board and action count on screen, and the moment held there. */
+  board: number | null;
+  shownAt: number | null;
+  hold: 'none' | 'contract' | 'trick';
+}
+
+export const NOTE_MAX = 500;
 
 export type ErrorCode =
   | 'bad_message' | 'version' | 'no_table' | 'bad_token' | 'not_joined' | 'locked' | 'full'
@@ -115,6 +136,21 @@ function keys(m: Record<string, unknown>, allowed: string[]): boolean {
   return Object.keys(m).every((k) => allowed.includes(k));
 }
 
+const isSize = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) < 100_000;
+const isNumOrNull = (v: unknown): v is number | null => v === null || isCount(v);
+
+function parseClient(v: unknown): ClientInfo | null {
+  if (!isObj(v) || !keys(v, ['layout', 'width', 'height', 'ua', 'build', 'board', 'shownAt', 'hold'])) return null;
+  if (v.layout !== 'phone' && v.layout !== 'desktop') return null;
+  if (!isSize(v.width) || !isSize(v.height) || !isStr(v.ua, 200) || !isStr(v.build, 40)) return null;
+  if (!isNumOrNull(v.board) || !isNumOrNull(v.shownAt)) return null;
+  if (v.hold !== 'none' && v.hold !== 'contract' && v.hold !== 'trick') return null;
+  return {
+    layout: v.layout, width: v.width, height: v.height, ua: v.ua, build: v.build,
+    board: v.board, shownAt: v.shownAt, hold: v.hold,
+  };
+}
+
 /** The message, or null if it isn't exactly a known one. */
 export function parseClientMessage(raw: string): ClientMessage | null {
   if (raw.length > MAX_MESSAGE_BYTES) return null;
@@ -157,6 +193,16 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case 'stand': case 'deal': case 'reclaim': case 'ping':
       if (!keys(m, ['type'])) return null;
       return { type: m.type };
+    case 'report': {
+      if (!keys(m, ['type', 'note', 'client']) || !isStr(m.note, NOTE_MAX)) return null;
+      const client = parseClient(m.client);
+      return client ? { type: 'report', note: m.note, client } : null;
+    }
+    case 'oops': {
+      if (!keys(m, ['type', 'message', 'where', 'client']) || !isStr(m.message, 300) || !isStr(m.where, 600)) return null;
+      const client = parseClient(m.client);
+      return client ? { type: 'oops', message: m.message, where: m.where, client } : null;
+    }
     default:
       return null;
   }
@@ -173,4 +219,12 @@ const INVISIBLE = new RegExp(`[${[[0x00, 0x1f], [0x7f, 0x9f], [0xad, 0xad], [0x2
 export function cleanName(text: string): string {
   const flat = text.replace(INVISIBLE, ' ');
   return [...flat.replace(/\s+/g, ' ').trim()].slice(0, NAME_MAX).join('').trim();
+}
+
+/** A report's note or an error's text, for the log: line breaks kept, every
+ *  other invisible character a space, at most `max` characters. The log is
+ *  read in an export (JSON-escaped), never shown in the app. */
+export function cleanNote(text: string, max = NOTE_MAX): string {
+  return [...text.split(/\r?\n/).map((l) => l.replace(INVISIBLE, ' ').replace(/[ \t]+$/, '')).join('\n').trim()]
+    .slice(0, max).join('');
 }

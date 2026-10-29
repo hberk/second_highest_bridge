@@ -159,6 +159,9 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
       - name: Build the beta site
         working-directory: frontend
+        # The commit, for the game log: a report says which build drew it.
+        env:
+          VITE_BUILD: ${{ github.sha }}
         run: npm ci && npm run build:beta
       - name: Build the server
         working-directory: server

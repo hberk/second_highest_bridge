@@ -29,3 +29,6 @@ Thumbs.db
 #   figure in docs/BIDDING.md's "Hand evaluation and bidding research" is fitted from
 #   it, and regenerating it costs hours of solver time, so it belongs in the
 #   repo even though it is generated.
+
+# Game logs pulled from the homelab (server/fetch-logs.sh)
+/logs/

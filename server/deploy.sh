@@ -21,7 +21,7 @@ SSH=(ssh -i "$KEY" -o IdentitiesOnly=yes -o BatchMode=yes "builder@$HOST")
 here="$(cd "$(dirname "$0")" && pwd)"
 
 echo "== building the beta site"
-(cd "$here/../frontend" && npm run build:beta)
+(cd "$here/../frontend" && VITE_BUILD="$(git rev-parse HEAD 2>/dev/null || echo manual)" npm run build:beta)
 echo "== building the server"
 (cd "$here" && npm run build)
 
