@@ -212,6 +212,12 @@ from the variant's side; t as above.
 | 10-29 | Both together | **+0.91, +0.36, +0.27** | +4.46, +1.59, +1.12 | 292, 305, 282 | on |
 | 10-29 | Balancing over their raise, 1x P 2x P P, 4-5 HCP lighter (suit bids, or takeout doubles only) | -0.14 to -0.26 | -1.6 to -2.1 | 76-92 | off (light balances get doubled); measured against pre-#48 robots |
 | 10-29 | No weak jump overcall at unfavourable vulnerability / when vulnerable | -0.29 / -0.69 | -1.60 / -2.35 | 210 / 440 | off; measured against pre-#48 robots |
+| 10-29 | Sounder two-level overcalls on a five-card suit, 12+ / 14+ HCP (experts 8-13% of such hands, robots 39-40%); seed 8M, 3,000 deals | -1.15 / -1.43 | -3.99 / -3.99 | 633 / 921 | off |
+| 10-29 | Takeout double, not an overcall, with a five-card suit and 0-1 in theirs | -0.32 | -1.85 | 195 | off |
+| 10-29 | A three-level pre-empt needs 3+ judgement points in the suit (all vulnerabilities / not favourable) | -0.27 / -0.23 | -2.70 / -2.59 | 41 / 45 | off |
+| 10-29 | Weak jump overcalls only to the two level | -0.53 | -2.25 | 357 | off |
+| 10-29 | A three-level overcall of a weak two on five cards needs 15+ | -0.04 | -0.27 | 154 | off |
+| 10-29 | A pre-emptive jump raise of partner's minor over an overcall needs five trumps | -0.04 | -0.47 | 130 | off |
 
 ### The previous system (`ai_bid`)
 

@@ -579,7 +579,15 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   jumps pay here. Two expert habits failed the double dummy check outright:
   doubling their five-level save instead of bidding on (the robots' 5-over-5
   beat it on all 36 library boards) and fewer trump-stack penalty doubles
-  (they break even). The study, scripts and data are in
+  (they break even). Six more expert habits, all more conservative than the
+  robots, lost head to head on 3,000 fresh deals: sounder two-level overcalls
+  on five cards (-1.15 to -1.43 a board), a takeout double instead of
+  overcalling a five-card suit (-0.32), suit quality for three-level pre-empts
+  (-0.23 to -0.27), weak jumps only to the two level (-0.53), and sounder
+  three-level overcalls of a weak two or five-card minor jump raises (-0.04
+  each). Where the robots compete more than experts, the stronger Law of
+  Total Tricks here rewards it; what transferred were the spots where the
+  robots competed less. The study, scripts and data are in
   `/mnt/project-files/championship-study/`.
 
 ## The previous system (`ai.USE_GIB = False`)
