@@ -2281,17 +2281,26 @@ def continuation(ctx: Ctx) -> tuple:
             return '3NT', TO_PLAY
         return 'Pass', "Game reached."
     if partner_last and _forcing(ctx, partner_last):
-        # Never their suit: a natural bid there reads as a cuebid.
+        # Never their suit: a natural bid there reads as a cuebid. And never
+        # a three-card suit (the user's rule, 2026-10-29): pass instead.
         s = h.longest([x for x in SUITS if x not in _their_suits(ctx)] or SUITS)
         call = ctx.cheapest(s, 1)
-        if call and level_of(call) <= 3:
+        if call and level_of(call) <= 3 and h.len[s] >= FORCED_SUIT_MIN:
             return call, natural(s)
     return 'Pass', "No game."
 
 
+#: The fewest cards a forced natural bid of my longest unbid suit needs.
+FORCED_SUIT_MIN = 4
+
+
 def _forcing(ctx: Ctx, call: str) -> bool:
+    """Is partner's last call, `call`, an artificial suit bid? Read at
+    partner's own place in our auction, not at its end: when my notrump came
+    after it (1S-1NT), the last call shows no suit and partner's natural
+    suit read as forcing."""
     seq = ctx.seq
-    i = len(seq) - 1
+    i = max(k for k, (w, _) in enumerate(ctx.ours) if w == ctx.pd)
     if shown_suit(seq, i) is None and strain_of(call) in SUITS:
         return True
     return False

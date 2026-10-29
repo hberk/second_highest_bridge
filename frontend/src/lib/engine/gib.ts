@@ -2116,19 +2116,26 @@ function continuation(ctx: Ctx): Decision {
     return ['Pass', 'Game reached.'];
   }
   if (partnerLast && forcing(ctx, partnerLast)) {
-    // Never their suit: a natural bid there reads as a cuebid.
+    // Never their suit: a natural bid there reads as a cuebid. And never
+    // a three-card suit (the user's rule, 2026-10-29): pass instead.
     const ts = theirSuits(ctx);
     const unbid = SUITS.filter((x) => !ts.includes(x));
     const s = h.longest(unbid.length ? unbid : SUITS);
     const call = ctx.cheapest(s, 1);
-    if (call && levelOf(call) <= 3) return [call, natural(s)];
+    if (call && levelOf(call) <= 3 && h.len[s] >= FORCED_SUIT_MIN) return [call, natural(s)];
   }
   return ['Pass', 'No game.'];
 }
 
+/** The fewest cards a forced natural bid of my longest unbid suit needs. */
+export const FORCED_SUIT_MIN = 4;
+
+/** Is partner's last call, `call`, an artificial suit bid? Read at
+ *  partner's own place in our auction, not at its end. See gib.py. */
 function forcing(ctx: Ctx, call: string): boolean {
   const seq = ctx.seq;
-  const i = seq.length - 1;
+  let i = -1;
+  ctx.ours.forEach(([w], k) => { if (w === ctx.pd) i = k; });
   return shownSuit(seq, i) === null && isSuit(strainOf(call));
 }
 

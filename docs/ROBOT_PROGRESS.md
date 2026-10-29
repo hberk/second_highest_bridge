@@ -218,6 +218,7 @@ from the variant's side; t as above.
 | 10-29 | Weak jump overcalls only to the two level | -0.53 | -2.25 | 357 | off |
 | 10-29 | A three-level overcall of a weak two on five cards needs 15+ | -0.04 | -0.27 | 154 | off |
 | 10-29 | A pre-emptive jump raise of partner's minor over an overcall needs five trumps | -0.04 | -0.47 | 130 | off |
+| 10-29 | A forced continuation reads partner's own call, not my notrump after it (1S-1NT no longer treats a natural 1S as forcing), and never bids a three-card suit (`FORCED_SUIT_MIN = 4`, the user's rule); seed 8M, 3,000 deals | +0.10 / +0.21 | +0.64 / +1.87 | 49 / 8 | on (bug fix) |
 
 ### The previous system (`ai_bid`)
 
