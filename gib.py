@@ -1931,6 +1931,25 @@ LOTT_ALERT = "Competing to the level of our fit."
 #: instead of quoting HCP, so one alert stays true of both.
 LOTT_SHORT = True
 
+#: One level past the LoTT over their three level when the deal has big fits
+#: on both sides (championship study, 2026-10-29): they bid and raised their
+#: suit (8+), and our known fit plus theirs, plus one for my singleton or void
+#: in their suit, reaches LOTT_TOTAL. None leaves the LoTT level alone.
+LOTT_TOTAL = None
+LOTT_TOTAL_ALERT = "Competing: both sides have a fit."
+
+
+def _they_raised(ctx: Ctx, s: str) -> bool:
+    """Have both opponents bid `s` naturally?"""
+    return len({w for w, c in ctx.theirs if strain_of(c) == s}) == 2
+
+
+def _total_bonus(ctx: Ctx, n: int) -> int:
+    hb = ctx.auction.highest_bid
+    if LOTT_TOTAL is None or hb[0] != 3 or hb[1] not in SUITS or not _they_raised(ctx, hb[1]):
+        return 0
+    return 1 if n + 8 + (ctx.h.len[hb[1]] <= 1) + (ctx.h.len[hb[1]] == 0) >= LOTT_TOTAL else 0
+
 
 def _raise_alert(x: str, text: str) -> str:
     return f"3+ {SYM[x]}, competitive." if LOTT and LOTT_SHORT else text
@@ -2019,19 +2038,19 @@ def _total_tricks(ctx: Ctx, decision: tuple | None) -> tuple | None:
         if not mine and not weak and not LOTT_RAISE[0] <= ctx.h.hcp <= LOTT_RAISE[1]:
             continue
         call = ctx.cheapest(s, 1)
-        if call is None or level_of(call) > min(n - 6, LOTT_MAX):
+        if call is None or level_of(call) > min(n - 6 + _total_bonus(ctx, n), LOTT_MAX):
             continue
         key = (n, s in MAJORS, SUITS.index(s))
         if best is None or key > best[0]:
-            best = (key, call)
+            best = (key, call, level_of(call) > n - 6)
     if best is None:
         return None
     s = strain_of(best[1])
     mine = any(w == ctx.me and s in (shown_suit(ctx.seq, i), _cue_raise(ctx, i))
                for i, (w, _) in enumerate(ctx.ours))
     if not mine and ctx.h.len[s] >= 3:
-        return best[1], _raise_alert(s, LOTT_ALERT)
-    return best[1], LOTT_ALERT
+        return best[1], _raise_alert(s, LOTT_TOTAL_ALERT if best[2] else LOTT_ALERT)
+    return best[1], LOTT_TOTAL_ALERT if best[2] else LOTT_ALERT
 
 
 #: Jam to game on a ten-card fit (the user's call, 2026-10-28, a Challenge
@@ -3270,6 +3289,26 @@ def lead_doubler(player: str, auction: AuctionState) -> bool:
     dangerous); `ai._lead_doubler_passes` applies it."""
     return _was_lead_double(Ctx(player, [], auction), player)
 
+#: Lessons from championship auctions (2026-10-29, ContractBridge/pbn-files):
+#: in the pass-out seat after 1x P P, experts act far more often than the
+#: robots did, playing partner for the missing values ("borrow a king").
+#: BALANCE lowers every overcall and takeout floor there by BALANCE_DISCOUNT
+#: HCP, and makes no weak jump. Balancing over their raise (1x P 2x P P) was
+#: measured too and lost: a light balance there gets doubled.
+BALANCE = False
+BALANCE_DISCOUNT = 4
+
+
+def _balancing(ctx: Ctx) -> int:
+    """The HCP discount in the pass-out seat after 1x P P."""
+    if not BALANCE or len(ctx.calls) < 3 or any(c != 'Pass' for _, c in ctx.calls[-2:]):
+        return 0
+    bids = [(w, c) for w, c in ctx.calls if c != 'Pass']
+    if (len(bids) != 1 or bids[0][0] in (ctx.me, ctx.pd)
+            or level_of(bids[0][1]) != 1 or strain_of(bids[0][1]) not in SUITS):
+        return 0
+    return BALANCE_DISCOUNT
+
 
 def they_opened(ctx: Ctx) -> tuple | None:
     seq = ctx.seq
@@ -3470,8 +3509,9 @@ def _defend(ctx: Ctx) -> tuple | None:
     if lvl == 1 and h.balanced and NT_OVERCALL[0] <= hcp <= NT_OVERCALL[1] \
             and h.stopper(their) and ctx.ok('1NT'):
         return '1NT', f"15-18 HCP, balanced, {SYM[their]} stopper."
+    bal = _balancing(ctx)
     # Weak jump overcall.
-    if opening and level_of(opening) == 1 and WJO[0] <= hcp <= WJO[1]:
+    if opening and level_of(opening) == 1 and WJO[0] <= hcp <= WJO[1] and not bal:
         long = [s for s in SUITS if s != their and h.len[s] >= 6]
         if long:
             s = max(long, key=lambda s: (h.len[s], SUITS.index(s)))
@@ -3487,16 +3527,19 @@ def _defend(ctx: Ctx) -> tuple | None:
         call = ctx.cheapest(s, 1)
         if call:
             need = OVERCALL_1 if level_of(call) == 1 else OVERCALL_2
+            need = (need[0] - bal, need[1] - bal)
             if level_of(call) <= 3 and need[0] <= hcp <= need[1] and \
-                    (level_of(call) <= 2 or hcp >= 12):
+                    (level_of(call) <= 2 or hcp >= 12 - bal):
+                if bal:
+                    return call, f"5+ {SYM[s]}, {need[0]}-{need[1]} HCP. Balancing."
                 return call, f"5+ {SYM[s]}, {need[0]}-{need[1]} HCP. Overcall."
     # Takeout double, through 4H.
     if (ctx.ok('X') and rank_of(lb) <= rank_of('4H') and their in SUITS
             and not (LEAD_DOUBLE and _their_artificial(ctx, len(ctx.calls) - 1))):
         shape_ok = h.len[their] <= 2 and all(h.len[s] >= 3 for s in SUITS if s != their)
-        need = TAKEOUT_MIN if lvl == 1 else 13
+        need = (TAKEOUT_MIN if lvl == 1 else 13) - bal
         if (shape_ok and hcp >= need) or hcp >= 18:
-            return 'X', f"Takeout: {need}+ HCP."
+            return 'X', f"Balancing takeout: {need}+ HCP." if bal else f"Takeout: {need}+ HCP."
     if lvl == 3 and h.balanced and hcp >= 16 and h.stopper(their) and ctx.ok('3NT'):
         return '3NT', f"16+ HCP, {SYM[their]} stopper."
     return 'Pass', "No action."
