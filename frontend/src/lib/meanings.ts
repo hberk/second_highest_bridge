@@ -205,7 +205,7 @@ const PLAIN: Record<string, string> = {
   'Keycard answer': 'Answers the keycard question, so partner can judge whether slam is there.',
   'Asking for kings': 'Every keycard is present: this asks for kings, on the way to a grand slam.',
   'Trump queen': 'Answers whether you hold the queen of trumps.',
-  'Weak two': 'A weak hand with a good six-card suit. It takes bidding room away from the opponents.',
+  'Weak two': 'A weak hand with a six-card suit. It takes bidding room away from the opponents.',
   'Weak jump overcall': 'A jump that shows a weak hand with a long suit, to take bidding room away.',
   'Weak jump shift': 'A jump in a new suit showing a weak hand with a long suit.',
   'Strong jump shift': 'A jump in a new suit showing a strong hand, interested in slam.',

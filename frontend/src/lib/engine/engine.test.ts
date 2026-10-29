@@ -144,6 +144,26 @@ describe('challenge', () => {
   }, LONG);
 });
 
+describe('double, then a new suit', () => {
+  // The user's Bidding training deal, 2026-10-28; mirrors test_gib.py.
+  const bidAfter = (cards: string, calls: string[]) => {
+    const auction = new AuctionState('West', 'None');
+    for (const c of calls) auction.applyCall(auction.currentPlayer(), c);
+    return aiBidExplained(auction.currentPlayer(), parseHand(cards), auction);
+  };
+  const start = ['1H', 'Pass', 'Pass', 'X', '2H', 'Pass', 'Pass'];
+  it('shows 18+ HCP, and a doubler without them passes', () => {
+    const [call, why] = bidAfter('AS KS JS 7S 2S AH 8H QD JD AC KC 10C 8C', start);
+    expect(call).toBe('2S');
+    expect(why).toContain('18+ HCP');
+    expect(bidAfter('AS QS JS 7S 2S 8H KD JD 3D KC 10C 8C 2C', start)[0]).toBe('Pass');
+  });
+  it('is raised on three', () => {
+    const [call] = bidAfter('QS 6S 5S 10H 9H KD 9D 8D 7D QC 9C 6C 5C', [...start, '2S', 'Pass']);
+    expect(['3S', '4S']).toContain(call);
+  });
+});
+
 describe("partner's game stands, a three-level lone rebid shows six", () => {
   // The user's training deal (2026-10-28), as tests/test_bidding.py has it.
   const north = parseHand('AS JS 8S 4S 3S 2S QH 8H 6H 2H AC KC QC');

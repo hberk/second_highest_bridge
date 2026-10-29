@@ -329,6 +329,24 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     **+1.17 a board, t = +4.5, 516 auctions changed** (3,000 fresh deals).
     With it, 3NT at 34 +1.27 (inside the noise of the same line), at 30
     +0.45, majors at 27 +0.89; a jack worth 2 +0.79.
+- **Lead-directing doubles** (`gib.LEAD_DOUBLE`, `LEAD_DOUBLE_JUDGE`; the
+  user's call, 2026-10-28). A double of an opponents' artificial suit bid
+  (Stayman, a transfer, the 2♣ opening, the 2♦ waiting response, a splinter or
+  any other bid `shown_suit` reads as not showing its suit, while our side has
+  only passed) shows 5+ cards there with 4+ judgement points in the suit, and
+  asks for that lead. It is never takeout: partner passes, the doubler does not
+  bid again, and the alert's "5+" makes partner's opening lead the suit
+  (`ai._partner_suit_lead`). Trigger: the user's double of P P P 2♣ P 2♦ with
+  ♦KJT97, read as takeout, partner bid 3♠ for -800. Scored after the robot's
+  actual opening lead, double dummy from there, 10,000 fresh deals
+  (`/mnt/project-files/lead-double/ld.py`): any five cards +0.13 a board
+  (t = 2.2), 3+ judgement points +0.11, **4+ +0.13 (t = 3.0)**, 5+ +0.03
+  (t = 1.4), 6+ -0.01. Scored with the best lead instead, the auctions alone
+  are worth about nothing: the gain is the lead. The doubler never bids
+  again, whatever partner does (`ai._lead_doubler_passes`, the user's rule,
+  2026-10-28: the double is made because bidding is too dangerous); it had
+  still bid when partner bid on, reading a cuebid or raise as support. Its
+  penalty double is kept, as for the pre-emptor.
 - **Penalty doubles** (`ai.PENALTY_DOUBLE`, `PENALTY_JUDGE`; the user's rule,
   2026-10-24). Against **two-sided par** (both sides bid perfectly, a failing
   contract is doubled, either side may sacrifice) the robots are 233 points a
@@ -415,6 +433,87 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   half of its gap came from the opponents' extra turn after 2NT, and the
   rest from declined invitations); the same for responder (1♦ (2♥) 2NT)
   -0.19 and the game-forcing cuebid for responder about 0.
+- **Runouts after our 1NT is penalty-doubled** (`NT_RUNOUTS`, `_nt_runout`,
+  `_runout_choice`; the user's system, 2026-10-28, from training board 25,
+  where 1NT (X) P (P) had the opener bid Stayman: systems on read the
+  opener's turn as responder's). The notrump bidder never uses Stayman or
+  transfers: with partner silent it passes (guard in `notrump`, swept by a
+  test). Over the double, DONT-like, 4+ cards in each suit shown: Pass is
+  willing to play (opener pulls to two of a five-card suit,
+  `OPENER_PULLS`); XX is one long suit (5+, `RUNOUT_SINGLE`), opener bids
+  2♣, pass or correct; 2♣ is clubs and a higher suit, 2♦ diamonds and a
+  major, 2♥ both majors. Opener passes with four of the first suit (or three
+  and no four-card suit that partner could hold), else bids the next suit
+  up, which responder passes or corrects. Responder runs only with 4 HCP or
+  less (`RUNOUT_MAX`); with 5+ we have half the deck. 20,000 fresh deals,
+  against systems on: **+0.09, t = +2.2, 374 auctions changed**; running
+  with 7 or less +0.07, with 10 +0.03, and without opener's pull +0.05
+  (with 7).
+- **New minor forcing, answered low** (`_after_nmf`, `NMF_ACCEPT`; the
+  user's training deals, 2026-10-28: 1♦ 1♠ 1NT 2♣ 2♥ with ♠KT8654 ♥98
+  passed 2♥, and opener jumped to 3♥ on 13-14). Opener answers at the two
+  level whatever the strength: 2M with three, the other major with four,
+  else 2NT (11-12) or 3NT. Responder then judges the fit: three-card
+  support or four of the other major is game, an invitation (3M, opener
+  accepts with 14+ judgement points) or pass; six of the major opposite
+  1NT's two is an 8-card fit, bid at the cheapest level unless game or an
+  invitation. 10,000 fresh deals: **+0.03, t = +1.6, 88 auctions changed**
+  (25 better, 6 worse); responder's half alone +0.00.
+- **3♣ checkback over opener's 2NT rebid** (the user's training deal,
+  2026-10-28: 1♦ 1♥ 2NT 3NT with ♠5432 ♥T9874). With five of a one-level
+  major, or 4♠ beside 1♥, 3♣ asks: opener bids 3M with three, the other
+  major with four, else 3NT; responder places game. 10,000 fresh deals:
+  **+0.08, t = +3.3, 126 auctions changed** (34 better, 13 worse).
+- **A light response short in opener's minor** (`SHORT_RESPONSE_MIN`; the
+  user's training deal, 2026-10-28: 1♦ passed out opposite ♠5432 ♥T9874 ♦9
+  ♣KQ6). With 5-6 HCP and a singleton or void in partner's minor, a 4-card
+  suit is bid at the one level; the alert says so. 10,000 fresh deals:
+  **+0.19, t = +3.4, 241 auctions changed** (103 better, 67 worse).
+- **A pre-emptor does not bid again unless partner asks** (`ai.PREEMPTOR_PASSES`,
+  `_preemptor_passes`; the user's rule, 2026-10-28, training deal 270:
+  P 2♦ (2♥) 2♠ (3♦) 3NT, then a double of 4♥). After a weak two or any
+  opening at the three level or higher (not 2♣, not notrump, not a sound
+  fourth-seat two-bid), opener passes unless partner's call is the last one
+  made and asks for an answer: a bid below game (4NT and 5NT count as asks)
+  that is not a raise of opener's suit, from a hand that has not passed, or
+  a double that is not for penalty. The 3NT came from
+  `_opener_over_forcing_response`, written for one-level openers: it took
+  2♠ as forcing after West's 3♦ had released opener, and West's cuebid of
+  our diamonds as their suit to stop. The 4♥ double then came from
+  `_over_their_contract`, counting North's own 3NT as game values. The
+  penalty double (`_penalty_double`) stays open to the pre-emptor, by the
+  user's choice, so North still doubles 4♥ on that deal with four trumps
+  behind declarer. 10,000 fresh deals: **-0.08, t = -1.5, 131 auctions
+  changed**, a tie. Without the penalty double -0.20, t = -3.1, 143
+  auctions: 12 of the pre-emptor's penalty doubles were worth about 690
+  points each, and one deal (three dealers) was a rescue of partner's
+  doubled 3♠. Only fixing the one branch that bid 3NT: +0.01, 4 auctions.
+- **Double, then a new suit, shows 18+ HCP** (`DOUBLE_THEN_SUIT`,
+  `_doubler_new_suit`, `_raise_doubler_suit`, `doubler_guard`; the user's
+  Bidding training deal, 2026-10-28: 1♥ P P X 2♥ P P 2♠ with 22 HCP was
+  alerted as a plain overcall, because after the double the old system's
+  overcall code chose it). After a takeout double (our first call, partner
+  silent, of a suit bid through 4♥), the doubler's new suit shows 5+ cards
+  and 18+ HCP, too strong to overcall, and always reads that alert; a
+  doubler without them passes instead (`doubler_guard`, from any branch).
+  GIB bids it at the cheapest level, through the two level only
+  (`DOUBLER_SUIT_LEVEL`). Advancer raises it on 3+ cards and 6+ HCP, or bids
+  game when its judgement points plus 14 (`DOUBLER_SUIT_JUDGE`, an
+  18-count's mean) reach it. 20,000 fresh deals: **+0.04, t = +2.4, 123
+  auctions changed** (52 better, 27 worse). Through the three level -0.01,
+  t = -0.2 (388 changed: the extra three-level suits get doubled); the
+  meaning and the pass alone +0.01, t = +1.9. Game at judge 12 instead of
+  14 changed nothing.
+- **A five-card major is bid, not doubled** (`NEG_BIDS_FIVE`, the user's
+  Bidding training deal, 2026-10-28: 1♦ (1♥) X on ♠AKJT53 ♥8 ♦J83 ♣T62,
+  and the spade fit was lost). Over a minor opening the negative double was
+  tried before any suit; now an unbid five-card major is bid first, 1M on
+  6+ HCP, 2M on 10+, and the double shows exactly four. 10,000 fresh deals:
+  **+0.71, t = +6.5, 1,044 auctions changed** (379 better, 198 worse).
+  Measured beside it, and left off: opener answering partner's negative
+  double only once (`NEG_ANSWER_ONCE`; on that deal opener, having passed
+  over 2♦, came back with 3♣ over 2♥): **-0.09, t = -3.7** (10 better, 41
+  worse).
 - **A major raise counts trump length** (`RAISE_TRUMP_POINTS`, the user's
   deal: 1♥ with ♠K5 ♥K9864 ♦K84 ♣832 raised to 2♥). With four or more
   trumps and under 13 HCP, 2M, 3M or 4M is chosen on HCP plus one point a
@@ -422,6 +521,20 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   alerts drop their HCP ranges ("3+ ♥. Single raise.", "4+ ♥. Limit
   raise."), which a hand counting length would not keep. Alone: **+0.13,
   t = +2.9, 215 auctions changed**. 4M on any five trumps instead: 0.00.
+- **Weak twos: the suit by judgement points, by seat and vulnerability**
+  (`WEAK_TWO_SUIT_JP`, `WEAK_TWO_SECOND_SEAT`, `_weak_two_suit`; the user's
+  training deal, 2026-10-28: ♠J2 ♥QT9865 ♦KT87 ♣6 passed in second seat).
+  GIB's "two of the top three honours, or three of the top five" means little
+  when the second-highest card wins, so the suit is counted in judgement
+  points instead: no minimum at favourable or equal vulnerability, 2 at
+  unfavourable, one more in second seat (the user's scheme: favourable
+  lightest, unfavourable strictest, first and third lighter than second).
+  The alert drops "good suit". 10,000 fresh deals: **+1.31, t = +7.5, 2,081
+  auctions changed**. Every bar measured lost to a lower one: no suit test
+  +1.41 (beat this by +0.10, t = +2.45, the user kept the scheme), 2+
+  points flat +1.15, one of A K Q +0.93, 3+/4+/5+ points +0.84/+0.49/+0.04;
+  spreads 0/1/3, 0/2/4 and 0/3/5 +1.18, +1.11, +0.94. With no suit test the
+  extra weak twos gained in every seat and vulnerability.
 - **Partner's game stands** (`ai.PARTNERS_GAME_STANDS`; the user's training
   deal, 2026-10-28: 1♠ 3♦ P P 3♠ P 4♠ P 5♠ with ♠AJ8432 ♥Q862 ♦— ♣AKQ, -50).
   GIB had no call for opener there, and the previous system read 4♠ as a

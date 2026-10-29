@@ -52,6 +52,30 @@ def test_openings():
     assert bid('8S 4S 9H 6H 5H 7D 4D KC QC 10C 9C 7C 3C')[0] == 'Pass'
 
 
+def test_weak_two_suit_by_seat_and_vulnerability():
+    # The training deal: Q-10-9 of hearts is 5 judgement points, enough
+    # anywhere. Six small is 0: a weak two only at favourable or equal,
+    # and not in second seat; 2 points (a 9 and a 10) is the unfavourable
+    # bar in first or third seat.
+    def opens(cards: str, vul: str, *calls: str) -> str:
+        auction = AuctionState(dealer='North', vulnerability=vul)
+        for call in calls:
+            auction.apply_call(auction.current_player(), call)
+        return ai.ai_bid_explained(auction.current_player(), hand(cards), auction)[0]
+    training = 'JS 2S QH 10H 9H 8H 6H 5H KD 10D 8D 7D 6C'
+    assert opens(training, 'E/W', 'Pass') == '2H'      # 2nd seat, unfavourable
+    assert opens(training, 'N/S', 'Pass') == '2H'
+    small = 'JS 2S 8H 7H 6H 5H 4H 3H KD QD 8D 7D 6C'
+    assert opens(small, 'None') == '2H'
+    assert opens(small, 'E/W') == '2H'                  # favourable for North
+    assert opens(small, 'N/S') == 'Pass'                # unfavourable
+    assert opens(small, 'None', 'Pass') == 'Pass'       # second seat
+    two = 'JS 2S 10H 9H 6H 5H 4H 3H KD QD 8D 7D 6C'
+    assert opens(two, 'N/S') == '2H'
+    assert opens(two, 'N/S', 'Pass', 'Pass') == '2H'    # third seat
+    assert opens(two, 'Both', 'Pass') == '2H'           # second seat, equal: 1
+
+
 # ── Notrump: Stayman, transfers, Texas, Gerber, quantitative ─────────────────
 
 def test_stayman():
@@ -216,6 +240,15 @@ def test_two_over_one_is_game_forcing():
 def test_negative_double():
     call, why = bid('7S 3S KH QH 7H 2H AD 9D 6D 5D 9C 5C 3C', '1C', '1S')
     assert call == 'X' and 'Negative' in why
+
+
+def test_five_card_major_is_bid_not_doubled():
+    """The user's training deal: 1D (1H) with six spades bids 1S."""
+    call, why = bid('AS KS JS TS 5S 3S 8H JD 8D 3D TC 6C 2C', '1D', '1H', dealer='South')
+    assert call == '1S' and why == "4+ \u2660, 6+ HCP.", (call, why)
+    # Four spades still double.
+    call, why = bid('KS JS 5S 3S 8H JD 8D 3D 2D TC 6C 2C AC', '1D', '1H', dealer='South')
+    assert call == 'X', (call, why)
 
 
 def test_answers_to_a_negative_double_say_what_they_show():
@@ -695,6 +728,48 @@ def test_a_known_major_fit_plays_in_game_not_3nt():
     assert call == '3NT' and 'choice of games' in why, (call, why)
 
 
+def test_a_double_of_an_artificial_bid_directs_the_lead():
+    """The user's call, 2026-10-28 (Bidding training): P P P 2♣ P 2♦ X with
+    ♦KJT97 is lead-directing, not takeout -- 5+ cards and 4+ judgement points
+    in the suit. Partner passes, and leads the suit."""
+    south = '10S 7S 8H 4H 3H KD JD 10D 9D 7D JC 9C 6C'
+    calls = ('Pass', 'Pass', 'Pass', '2C', 'Pass', '2D')
+    call, why = bid(south, *calls)
+    assert call == 'X' and why.startswith('Lead-directing') and '5+ \u2666' in why, (call, why)
+    north = 'JS 5S 4S 2S JH 7H AD 5D 4D 3D 7C 4C 2C'
+    call, _ = bid(north, *calls, 'X', '2NT')
+    assert call == 'Pass', call
+    # Over Stayman: five weak clubs (no honour) is no lead to ask for.
+    weak = '8S 7S 6S 5H 4H 3H 8D 7D 8C 7C 6C 5C 4C'
+    call, _ = bid(weak, '1NT', 'Pass', '2C')
+    assert call == 'Pass', call
+    # The opening lead: partner's suit.
+    auction = after(*calls, 'X', '2NT', 'Pass', '3NT', 'Pass', 'Pass', 'Pass')
+    alerts = {i: ai.ai_bid_explained(w, hand(south if w == 'South' else north), _replay(auction, i))[1]
+              for i, (w, c) in enumerate(auction.calls) if c == 'X'}
+    shown = ai.shown_lengths(list(auction.calls), alerts)
+    lead = ai.ai_play('North', hand(north), [], None, [], visible={}, history=[], shown=shown)
+    assert lead.suit == 'D', lead
+
+
+def test_a_lead_directing_doubler_never_bids_again():
+    """The user's rule, 2026-10-28: the double is made because bidding is too
+    dangerous, so the doubler passes whatever partner does next (it used to
+    bid 3♦ and 4♦ here, reading partner's 3♣ and 3♦ as support)."""
+    south = 'AS KS 7S 8H 4H KD QD JD 10D 9D 7D 9C 6C'
+    calls = ('Pass', 'Pass', 'Pass', '2C', 'Pass', '2D', 'X')
+    for more in (('2NT', '3C', 'Pass'), ('2H', '3D', '3H'), ('2NT', '3S', 'Pass')):
+        call, why = bid(south, *calls, *more)
+        assert call == 'Pass' and 'for the lead' in why, (more, call, why)
+
+
+def _replay(auction, n):
+    out = AuctionState(dealer=auction.dealer, vulnerability=auction.vulnerability)
+    for w, c in auction.calls[:n]:
+        out.apply_call(w, c)
+    return out
+
+
 def test_advancers_2nt_is_the_limit_raise_when_the_cuebid_passes_three():
     """The user's call, 2026-10-28 (Challenge deal 276): over 1♦ (2♣) 2♦ a
     3♦ cuebid forces 3NT or 4♣, so 2NT is the limit raise or better and
@@ -715,3 +790,175 @@ def test_advancers_2nt_is_the_limit_raise_when_the_cuebid_passes_three():
     assert call == '4C', call
     call, _ = bid(asker, '1D', '2C', '2D', '3D', 'Pass', '4C', 'Pass', dealer='South')
     assert call == 'Pass', call
+
+
+def test_runouts_after_1nt_is_doubled():
+    """The user's runouts over a penalty double of 1NT (2026-10-28, training
+    board 25, where the 1NT opener bid Stayman after 1NT-(X)-Pass-(Pass))."""
+    opener = 'AS KS 4S QH JH 3H KD 9D 4D 2D AC 7C 3C'                    # 16, 3-3-4-3
+    call, _ = bid(opener, '1NT', 'X', 'Pass', 'Pass')
+    assert call == 'Pass', call
+    # Opener may pull a pass with a five-card suit.
+    five = 'AS KS 4S QH JH 3H KD 9D 4D 2D 8D AC 3C'
+    call, why = bid(five, '1NT', 'X', 'Pass', 'Pass')
+    assert call == '2D' and '5+' in why, (call, why)
+    # Responder: XX with one long suit, 2C/2D/2H two-suiters, Pass otherwise.
+    call, why = bid('7S 3S QH 10H 8H 7H 2H 9D 6D 5D 9C 5C 3C', '1NT', 'X')
+    assert call == 'XX' and 'Runout' in why, (call, why)
+    call, why = bid('7S 3S QH 10H 8H 7H 9D 6D 5D 2D 9C 5C 3C', '1NT', 'X')
+    assert call == '2D' and 'Runout' in why, (call, why)
+    call, _ = bid('7S 3S 2S 10H 8H 7H 9D 6D 5D 2D QC 5C 3C', '1NT', 'X')
+    assert call == 'Pass', call
+    call, _ = bid('AS KS 3S QH 10H 8H 7H 2H 9D 6D 5D 5C 3C', '1NT', 'X')
+    assert call == 'Pass', call                                       # 9 HCP: willing
+    # 5 HCP: we have half the deck, so even a two-suiter stays in (RUNOUT_MAX).
+    call, why = bid('7S 3S KH 10H 8H 7H 9D 6D 5D QD 9C 5C 3C', '1NT', 'X')
+    assert call == 'Pass' and '5+ HCP' in why, (call, why)
+    # Opener answers: XX forces 2C; 2D is passed with a fit, else relayed.
+    call, _ = bid(opener, '1NT', 'X', 'XX', 'Pass')
+    assert call == '2C', call
+    call, _ = bid(opener, '1NT', 'X', '2D', 'Pass')
+    assert call == 'Pass', call
+    call, why = bid('AS KS 4S QH JH 3H 2H KD 9D 4D AC 7C 3C', '1NT', 'X', '2D', 'Pass')
+    assert call == '2H' and 'Pass or correct' in why, (call, why)
+    # Responder passes or corrects.
+    call, _ = bid('7S 3S QH 10H 8H 7H 2H 9D 6D 5D 9C 5C 3C', '1NT', 'X', 'XX', 'Pass', '2C', 'Pass')
+    assert call == '2H', call
+    call, _ = bid('QS 10S 8S 7S 3S 9D 6D 5D 2D 9C 5C 3C 2H', '1NT', 'X', '2D', 'Pass', '2H', 'Pass')
+    assert call == '2S', call
+    call, _ = bid('QS 10S 8S 7S 3S 9D 6D 5D 2D 9C 5C 3C 2H',
+                  '1NT', 'X', '2D', 'Pass', '2H', 'Pass', '2S', 'Pass')
+    assert call == 'Pass', call
+
+
+def test_the_notrump_bidder_never_uses_stayman_or_transfers():
+    """The user, 2026-10-28: the 1NT bidder never has Stayman or transfers;
+    they belong to responder. Robots alone and with a random human seat."""
+    random.seed(2028)
+    alerts = ('Stayman', 'Transfer', 'Texas', 'Gerber', 'Minor Stayman')
+    for index in range(400):
+        hands = deal()
+        auction = AuctionState(dealer=PLAYERS[index % 4], vulnerability='None')
+        rnd = random.Random(index)
+        nt_by = None
+        while not auction.is_complete and len(auction.calls) < 60:
+            who = auction.current_player()
+            if who == 'East' and index % 2 and rnd.random() < 0.5:
+                call = rnd.choice(['Pass', 'X'] if 'X' in auction.legal_calls()
+                                  else ['Pass'])
+                why = ''
+            else:
+                call, why = ai.ai_bid_explained(who, hands[who], auction)
+            bids = [c for _, c in auction.calls if c not in ('Pass', 'X', 'XX')]
+            if nt_by is None and bids == [] and call in ('1NT', '2NT'):
+                nt_by = who
+            if who == nt_by and call not in ('1NT', '2NT'):
+                assert not any(a in why for a in alerts), (auction.calls, call, why)
+            auction.apply_call(who, call)
+
+
+def test_new_minor_forcing_answers_low_and_finds_the_six_two_fit():
+    """The user's calls, 2026-10-28 (Bidding training): opener answers new
+    minor forcing at the two level whatever the strength, and responder with
+    six of the major plays the 6-2 fit rather than pass opener's 2♥."""
+    opener = 'JS 5S 4S 8H 7H 3H AD KD 10D 8D KC QC 9C'               # 13 HCP, 3 ♥
+    call, why = bid(opener, '1D', 'Pass', '1H', 'Pass', '1NT', 'Pass', '2C', 'Pass')
+    assert call == '2H' and why == '3 ♥.', (call, why)
+    north = 'KS 10S 8S 6S 5S 4S 9H 8H QD QC 9C 8C 4C'
+    call, why = bid(north, 'Pass', '1D', 'Pass', '1S', 'Pass', '1NT', 'Pass', '2C', 'Pass',
+                    '2H', 'Pass', dealer='East')
+    assert call == '2S' and '6+' in why, (call, why)
+
+
+def test_checkback_over_openers_2nt_rebid():
+    """The user's call, 2026-10-28: over 1♦ 1♥ 2NT, 3♣ asks for three-card
+    support or the other major before choosing game."""
+    south = '5S 4S 3S 2S 10H 9H 8H 7H 4H 9D KC QC 6C'
+    call, why = bid(south, '1D', 'Pass', '1H', 'Pass', '2NT', 'Pass')
+    assert call == '3C' and 'Checkback' in why, (call, why)
+    north = 'AS KS AH JH 3H AD QD 8D 2D 7C 5C 3C 2C'
+    call, _ = bid(north, '1D', 'Pass', '1H', 'Pass', '2NT', 'Pass', '3C', 'Pass')
+    assert call == '3H', call
+    call, _ = bid(south, '1D', 'Pass', '1H', 'Pass', '2NT', 'Pass', '3C', 'Pass', '3H', 'Pass')
+    assert call == '4H', call
+
+
+def test_light_response_with_a_singleton_in_openers_minor():
+    """The user's call, 2026-10-28: 5 HCP and a singleton diamond respond
+    rather than leave partner in 1♦; with three diamonds it still passes."""
+    call, why = bid('5S 4S 3S 2S 10H 9H 8H 7H 4H 9D KC QC 6C', '1D', 'Pass')
+    assert call == '1H' and 'short' in why, (call, why)
+    call, _ = bid('5S 4S 3S 2S 10H 9H 8H 7H 9D 8D 4D KC QC', '1D', 'Pass')
+    assert call == 'Pass', call
+
+
+def test_a_preemptor_does_not_bid_again_unless_partner_asks():
+    """The user's rule, 2026-10-28 (training deal 270): after a weak two the
+    pre-emptor passes unless partner's call is the last one and asks for an
+    answer. Before, North bid 3NT over West's 3♦ cuebid. The penalty double
+    is kept, by the user's choice."""
+    north = hand('8S JH 6H 4H 3H KD QD 10D 6D 4D 3D JC 10C')
+    cue = {4: 'Cuebid: 3+ ♥, 10+ HCP. Artificial.'}
+
+    def north_bids(*calls):
+        return ai.ai_bid_explained('North', north, after(*calls, dealer='West'), cue)
+
+    assert north_bids('Pass', '2D', '2H', '2S', '3D') == ('Pass', ai.PREEMPTED)
+    # Had West passed, North must answer partner's new suit.
+    assert north_bids('Pass', '2D', '2H', '2S', 'Pass')[0] == '3D'
+    # Partner's raise is to play.
+    assert north_bids('Pass', '2D', '2H', '3D', '3H') == ('Pass', ai.PREEMPTED)
+    # Four trumps behind declarer: the penalty double stands.
+    call, why = north_bids('Pass', '2D', '2H', '2S', '3D', 'Pass', '4H', 'Pass', 'Pass')
+    assert call == 'X' and why.startswith('Penalty'), (call, why)
+
+
+def test_double_then_a_new_suit_shows_18():
+    """The user's call, 2026-10-28 (Bidding training): 1♥ P P X 2♥ P P 2♠
+    is too strong to overcall, 18+ HCP and 5+ spades, not an overcall; a
+    doubler without 18 passes, and advancer raises on three."""
+    south = 'AS KS JS 7S 2S AH 8H QD JD AC KC 10C 8C'
+    call, why = bid(south, '1H', 'Pass', 'Pass', 'X', '2H', 'Pass', 'Pass', dealer='West')
+    assert call == '2S' and '18+ HCP' in why, (call, why)
+    weaker = 'AS QS JS 7S 2S 8H KD JD 3D KC 10C 8C 2C'
+    call, _ = bid(weaker, '1H', 'Pass', 'Pass', 'X', '2H', 'Pass', 'Pass', dealer='West')
+    assert call == 'Pass', call
+    north = 'QS 6S 5S 10H 9H KD 9D 8D 7D QC 9C 6C 5C'
+    call, why = bid(north, '1H', 'Pass', 'Pass', 'X', '2H', 'Pass', 'Pass', '2S', 'Pass',
+                    dealer='West')
+    assert call in ('3S', '4S') and '3+' in why, (call, why)
+
+
+def test_a_takeout_doubler_answers_partners_cuebid():
+    # The cuebid forces an answer; passing it left us in their suit (review
+    # of the combined bidding PR, 2026-10-29). Main bid 2S here.
+    doubler = 'AS QS 7S 2S KH 9H 7H 2H 4D AC 9C 7C 3C'
+    for opening in ('1C', '1D'):
+        call, _ = bid(doubler, opening, 'X', 'Pass', f"2{opening[1]}", 'Pass')
+        assert call in ('2H', '2S'), (opening, call)
+    # Without the cuebid, a new suit still needs 18+.
+    call, _ = bid('AS QS 7S 3H 2H KD QD 4D 2D AC 9C 7C 3C', '1H', 'X', '2H', 'Pass', 'Pass')
+    assert call == 'Pass', call
+
+
+def test_runouts_end_when_they_run_first():
+    # 1NT (X) P (2H) P P: responder's pass of the double was "willing to
+    # play", not a runout, so the usual competition decides. Main bid 2S.
+    call, _ = bid('AS KS 9S 8S 7S 6S 4H 2H QD 4D 2D 7C 3C',
+                  '1NT', 'X', 'Pass', '2H', 'Pass', 'Pass')
+    assert call == '2S', call
+
+
+def test_light_response_bids_up_the_line():
+    # Four of each major, short in opener's diamonds: 1H, as with 7+.
+    call, why = bid('KS 7S 5S 4S QH 9H 8H 4H 3D 9C 7C 6C 2C', '1D', 'Pass')
+    assert call == '1H' and 'short' in why, (call, why)
+
+
+def test_checkback_continuation_needs_a_one_level_major():
+    # 1D 2C 2NT 3C 4C: 3C showed clubs, not checkback, so responder's
+    # checkback continuation (3NT, illegal over 4C) must not answer.
+    gib.ILLEGAL.clear()
+    auction = after('1D', 'Pass', '2C', 'Pass', '2NT', 'Pass', '3C', 'Pass', '4C', 'Pass')
+    gib.gib_bid(auction.current_player(), hand('KS 9S 4S 3S 2H KD 4D AC KC QC 9C 7C 3C'), auction)
+    assert not gib.ILLEGAL, gib.ILLEGAL

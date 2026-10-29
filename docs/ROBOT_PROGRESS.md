@@ -182,7 +182,31 @@ from the variant's side; t as above.
 | 10-28 | ...a game-forcing cuebid instead, limit hands raising to three | +0.12 | +2.81 | 159 | off (a tie with the above, -0.05, t = -1.3) |
 | 10-28 | ...2NT a 10-12 limit raise, the cuebid game forcing | +0.02 | +0.38 | 172 | off |
 | 10-28 | ...the game-forcing cuebid for responder too | +0.11 | +1.62 | 402 | off |
+| 10-28 | A takeout doubler's new suit shows 18+ HCP and 5+ cards, bid through the two level; under 18 it passes; advancer raises it (training deal: 1♥ P P X 2♥ P P 2♠ read as an overcall). 20,000 fresh deals | +0.04 | +2.36 | 123 | on (your call) |
+| 10-28 | ...bid through the three level | -0.01 | -0.18 | 388 | off |
+| 10-28 | ...the 18+ meaning and the pass under 18 only, no new bids | +0.01 | +1.89 | 23 | off |
 | 10-28 | ...2NT a 10-12 limit raise for responder too | -0.19 | -2.16 | 490 | off |
+| 10-28 | Runouts after our 1NT is penalty-doubled (the user's DONT-like system), responder running with 4 HCP or less; the 1NT bidder never uses Stayman or transfers (training board 25). 20,000 fresh deals | **+0.09** | +2.17 | 374 | on (your call) |
+| 10-28 | ...running with 7 HCP or less | +0.07 | +1.55 | 439 | off |
+| 10-28 | ...with 7, opener never pulling a pass | +0.05 | +1.25 | 424 | off |
+| 10-28 | ...running with 10 HCP or less | +0.03 | +0.58 | 460 | off |
+| 10-28 | A double of their artificial bid is lead-directing: 5+ cards, 4+ judgement points in the suit, partner leads it (user's board: P P P 2♣ P 2♦ X with ♦KJT97, read as takeout); scored after the robot's real lead | +0.13 | +2.96 | 363 | on (your call) |
+| 10-28 | ...5+ judgement points | +0.03 | +1.41 | 193 | off |
+| 10-28 | ...6+ judgement points | -0.01 | -1.13 | 86 | off |
+| 10-28 | ...any five cards | +0.13 | +2.19 | 712 | off |
+| 10-28 | Respond 1-level on 5+ HCP with a singleton or void in opener's minor (fresh deals, as below) | **+0.19** | +3.41 | 241 | on (your call) |
+| 10-28 | 3♣ checkback over opener's 2NT rebid (1♦ 1♥ 2NT 3♣) | **+0.08** | +3.28 | 126 | on (your call) |
+| 10-28 | New minor forcing: opener answers at the two level, responder's next call judged on the fit (6-card major 2♠ over 2♥) | +0.03 | +1.63 | 88 | on (your call) |
+| 10-28 | ...responder's next call alone, opener still jumping to 3M on 13-14 | +0.00 | +0.14 | 17 | off |
+| 10-28 | A pre-emptor does not bid again unless partner's last call asks (training deal 270: P 2♦ (2♥) 2♠ (3♦) 3NT); the penalty double kept. 10,000 fresh deals | -0.08 | -1.45 | 131 | on (your call: the rule, a tie) |
+| 10-28 | ...no penalty double from the pre-emptor either | -0.20 | -3.08 | 143 | off |
+| 10-28 | ...only the branch that bid 3NT stops reading a pre-empt as forced | +0.01 | +1.34 | 4 | off |
+| 10-28 | Over a minor opening, a five-card major is bid, not doubled (`NEG_BIDS_FIVE`; deal: 1♦ (1♥) X on six spades) | **+0.71** | +6.5 | 1,044 | on |
+| 10-28 | Opener answers a negative double only once (`NEG_ANSWER_ONCE`; same deal, opener came back with 3♣) | -0.09 | -3.7 | 69 | off |
+| 10-28 | Weak two suit by judgement points: none at favourable or equal, 2 unfavourable, +1 in second seat (training deal: ♥QT9865 passed) | **+1.31** | +7.46 | 2,081 | on (your call) |
+| 10-28 | ...no suit test at all; 2+ points flat; one of A K Q; 3+, 4+, 5+ points | +1.41; +1.15; +0.93; +0.84, +0.49, +0.04 | +7.83; +6.69; +5.98; +5.85, +3.88, +0.39 | 2,186; 1,932; 1,618 | off (no test beat the chosen bar by +0.10, t = +2.45) |
+| 10-28 | ...other spreads (fav/equal/unfav, +1 second seat): 0/1/3, 0/2/4, 0/3/5 | +1.18; +1.11; +0.94 | +6.87; +6.82; +6.48 | | off |
+| 10-29 | The seven 10-28 fixes together (runouts, lead-directing double and the doubler never bidding again, NMF/checkback/light response, pre-emptor passes, double-then-suit 18+, five-card major over a negative double, weak two by judgement points) against main before PR #44; 1,000 fresh deals, scored after the robot's real opening lead (`/mnt/project-files/combined-bidding/combo.py`) | **+2.47** | +3.10 | 402 | on (PR #48); with the best lead instead +0.92, t = +1.24 |
 
 ### The previous system (`ai_bid`)
 
