@@ -82,6 +82,8 @@ function playBoard(game: Game): void {
             const rows = [...hand.matchAll(/class="side-sym"[^>]*>([♠♥♦♣])</g)].slice(0, 4).map((r) => r[1]);
             expect(rows[onRight ? 0 : 3], `${['phone', 'desktop'][i]}: ${c.declarer} declares ${c.trump}; dummy's trumps on declarer's left`)
               .toBe(SUIT_SYMBOLS[c.trump as Suit]);
+            const red = rows.map((r) => r === '♥' || r === '♦');
+            expect(red.every((r, k) => k === 0 || r !== red[k - 1]), `${['phone', 'desktop'][i]}: dummy's colours alternate, ${rows.join('')}`).toBe(true);
           }
         }
         sideDummies++;

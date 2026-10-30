@@ -3,12 +3,20 @@ import { SUITS, type Card, type Suit } from '../engine/card';
 // Spades, hearts, diamonds, clubs: the order printed hand records use.
 const DISPLAY_ORDER: Suit[] = ['S', 'H', 'D', 'C'];
 
+// Trump first, then the colours alternate, majors before minors.
+const TRUMP_FIRST: Record<Suit, Suit[]> = {
+  S: ['S', 'H', 'C', 'D'],
+  H: ['H', 'S', 'D', 'C'],
+  D: ['D', 'S', 'H', 'C'],
+  C: ['C', 'H', 'S', 'D'],
+};
+
 /** Display order, with trump pulled to the front (or, `trumpLast`, to the
- *  end). The other suits keep their order, so the colours still alternate. */
+ *  end), the colours alternating. */
 export function suitOrder(trump: string | null, trumpLast = false): Suit[] {
   if (trump && (SUITS as readonly string[]).includes(trump)) {
-    const rest = DISPLAY_ORDER.filter((s) => s !== trump);
-    return trumpLast ? [...rest, trump as Suit] : [trump as Suit, ...rest];
+    const order = [...TRUMP_FIRST[trump as Suit]];
+    return trumpLast ? order.reverse() : order;
   }
   return [...DISPLAY_ORDER];
 }
