@@ -273,6 +273,7 @@
     <div class="hv-seat"><SeatBox seat="South" role={role(c, 'South')} hand={view.remaining.South} {...boxProps('South')} /></div>
 
     <div class="hv-controls">
+      <button class="icon-btn" aria-label="Back one trick" disabled={step === 0} onclick={() => (step = Math.max(0, (Math.ceil(step / 4) - 1) * 4))}>⏮</button>
       <button class="icon-btn" aria-label="Back one card" disabled={step === 0} onclick={() => (step = Math.max(0, step - 1))}>◀</button>
       <div class="hv-step">
         <div class="hv-step-main">{step === 0 ? 'Opening lead' : step >= total ? 'Played out' : `Trick ${view.trickNum}`}</div>
