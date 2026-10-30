@@ -6,9 +6,15 @@
   import { suitOrder } from './hand';
   import Fan from './Fan.svelte';
 
-  let { cards, trump = null, title }: { cards: Card[]; trump?: string | null; title: string } = $props();
+  let { cards, trump = null, trumpLast = false, title }: {
+    cards: Card[];
+    trump?: string | null;
+    /** Trump as the bottom row instead of the top. */
+    trumpLast?: boolean;
+    title: string;
+  } = $props();
 
-  const rows = $derived(suitOrder(trump).map((suit) => ({ suit, cs: cards.filter((c) => c.suit === suit) })));
+  const rows = $derived(suitOrder(trump, trumpLast).map((suit) => ({ suit, cs: cards.filter((c) => c.suit === suit) })));
 </script>
 
 <section class="side-hand dummy-zone" aria-label={title}>

@@ -6,7 +6,7 @@ import { render } from 'svelte/server';
 import { Game } from './game.svelte';
 import { prng } from './meanings';
 import { legalPlays } from './engine/auction';
-import type { Seat } from './engine/card';
+import { SUIT_SYMBOLS, type Seat, type Suit } from './engine/card';
 import { seatAt } from './seats';
 import TableView from './views/TableView.svelte';
 import DesktopTableView from './views/DesktopTableView.svelte';
@@ -74,6 +74,16 @@ function playBoard(game: Game): void {
         expect(htmls[0].includes('class="play-row dummy-east"'),
           `phone: ${me} sees ${c.dummy}'s dummy on the ${onRight ? 'left' : 'right'}; its cards land on the ${onRight ? 'right' : 'left'}`)
           .toBe(onRight);
+        // Dummy's trumps on declarer's left: the top row when declarer
+        // sits on your left, the bottom row when declarer sits on your right.
+        if (c.trump !== 'NT') {
+          for (const [i, html] of htmls.entries()) {
+            const hand = html.slice(html.indexOf('side-hand'));
+            const rows = [...hand.matchAll(/class="side-sym"[^>]*>([♠♥♦♣])</g)].slice(0, 4).map((r) => r[1]);
+            expect(rows[onRight ? 0 : 3], `${['phone', 'desktop'][i]}: ${c.declarer} declares ${c.trump}; dummy's trumps on declarer's left`)
+              .toBe(SUIT_SYMBOLS[c.trump as Suit]);
+          }
+        }
         sideDummies++;
       }
       game.humanPlays(who!, legalPlays(game.hands[who!], led)[0]);

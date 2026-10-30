@@ -37,7 +37,6 @@
   const displayNum = $derived(m.displayNum);
   const who = $derived(m.who);
   const led = $derived(m.led);
-  const displayTrump = $derived(m.displayTrump);
   const usVul = $derived(m.usVul);
   const topSeat = $derived(m.topSeat);
   const labels = $derived(m.labels);
@@ -169,7 +168,7 @@
       {#if topSeat}
         <section class="dummy-zone">
           <div class="eyebrow" class:accent={who === topSeat}>{labels[topSeat]}{who === topSeat ? ' · your turn' : ''}</div>
-          <Fan cards={game.hands[topSeat]} trump={displayTrump} size={who === topSeat ? 'md' : 'sm'}
+          <Fan cards={game.hands[topSeat]} trump={m.dummyTrump} size={who === topSeat ? 'md' : 'sm'}
             playable={who === topSeat} legal={m.legalFor(topSeat)}
             label="{topSeat}'s hand" onplay={(card) => game.humanPlays(topSeat, card)} />
         </section>
@@ -188,7 +187,7 @@
              cards land on the felt; the felt moves over. (`dummy-east` is
              the right-hand side: East when you sit South.) -->
         <div class="play-row" class:dummy-east={m.sideDummy === m.right}>
-          <SideHand cards={game.hands[m.sideDummy]} trump={displayTrump} title={labels[m.sideDummy]} />
+          <SideHand cards={game.hands[m.sideDummy]} trump={m.dummyTrump} trumpLast={m.sideDummy === m.left} title={labels[m.sideDummy]} />
           <div class="play-felt">{@render felt()}</div>
         </div>
       {:else}
@@ -230,7 +229,7 @@
             </span>
           </div>
         {/if}
-        <Fan cards={game.hands[me]} trump={displayTrump} size="lg"
+        <Fan cards={game.hands[me]} trump={m.myTrump} trumpLast={m.meDummy} size="lg"
           playable={who === me} legal={m.legalFor(me)}
           label="Your hand" onplay={(card) => game.humanPlays(me, card)} />
       </section>
