@@ -1489,6 +1489,16 @@ def _cover_for_partner(player: str, hand: list[Card], legal: list[Card],
     scores = {c: score(c) for c in legal}
     best = max(scores.values())
     tied = [c for c in legal if scores[c] == best]
+    if (COVER_SUIT_PLAN and COVER_KEEP_MASTER and len(tied) > 1
+            and all(c.suit == led for c in tied)):
+        # The suit's top unplayed card isn't spent on a tie: of 26 second-hand
+        # cards the plan chose that way, 1 was better double dummy, 6 worse
+        # (its value outside the suit, which the plan can't see).
+        gone = set(played) | {c for _, c in trick}
+        top = max((c for c in _FULL_DECK if c.suit == led and c not in gone),
+                  key=lambda c: c.value())
+        if top in tied and top != choice:
+            tied.remove(top)
     if COVER_SUIT_PLAN and len(tied) > 1:
         planned = _cover_suit_plan(player, hand, tied, trick, trump, played, visible,
                                    history, shown)
@@ -1524,6 +1534,9 @@ COVER_PLAN_LOW = True
 #: Fourth hand on the side that sees partner (declarer and dummy) breaks a tie
 #: between cards that keep the trick by the same plan (measurement switch).
 LAST_SUIT_PLAN = True
+#: Second hand doesn't spend the suit's top unplayed card to break a tie
+#: (measurement switch).
+COVER_KEEP_MASTER = True
 
 
 def _cover_suit_plan(player: str, hand: list[Card], tied: list[Card],

@@ -1014,6 +1014,12 @@ function coverForPartner(player: Seat, hand: Card[], legal: Card[], trick: AnyPl
   const scores = new Map(legal.map((c) => [cardKey(c), score(c)]));
   const best = Math.max(...scores.values());
   let tied = legal.filter((c) => scores.get(cardKey(c)) === best);
+  if (COVER_SUIT_PLAN && COVER_KEEP_MASTER && tied.length > 1 && tied.every((c) => c.suit === ledSuit)) {
+    // The suit's top unplayed card isn't spent on a tie (see ai.py).
+    const gone = new Set([...played, ...trick.map(([, c]) => c)].map(cardKey));
+    const top = maxBy(FULL_DECK.filter((c) => c.suit === ledSuit && !gone.has(cardKey(c))), (c) => [value(c)]);
+    if (cardKey(top) !== cardKey(choice)) tied = tied.filter((c) => cardKey(c) !== cardKey(top));
+  }
   if (COVER_SUIT_PLAN && tied.length > 1) {
     const planned = coverSuitPlan(player, hand, tied, trick, trump, played, visible, history, shown);
     if (planned) {
@@ -1031,6 +1037,7 @@ function coverForPartner(player: Seat, hand: Card[], legal: Card[], trick: AnyPl
 export const COVER_SUIT_PLAN = true;
 export const COVER_PLAN_LOW = true;
 export const LAST_SUIT_PLAN = true;
+export const COVER_KEEP_MASTER = true;
 
 /** Our tricks in the led suit after each card of `tied`, summed over the layouts
  *  of its unseen cards between the opponents, or null (see ai.py `_cover_suit_plan`). */
