@@ -215,6 +215,7 @@ class Ctx:
         first = next(((w, c) for w, c in self.calls if c != 'Pass'), None)
         self.we_opened = first is not None and first[0] in (self.me, self.pd)
         self.opener = self.ours[0][0] if self.ours else None
+        self._natural: bool | None = None
         # Our 1NT overcall of a one-level opening, and they have only passed
         # since: systems on, the 1NT opening's whole structure, every round.
         self.nt_overcall = False
@@ -223,6 +224,14 @@ class Ctx:
                       if w in (self.me, self.pd) and c == '1NT')
             self.nt_overcall = all(c == 'Pass' for w, c in self.calls[at + 1:]
                                    if w not in (self.me, self.pd))
+
+    @property
+    def natural(self) -> bool:
+        """Is our first call a natural 2♣ overcall, not a strong 2♣?"""
+        if self._natural is None:
+            self._natural = bool(NATURAL_2C and OVERCALL_READ and self.seq and self.seq[0] == '2C'
+                                 and _our_two_level_overcall(self))
+        return self._natural
 
     def ok(self, call: str | None) -> bool:
         return call is not None and call in self.legal
@@ -1498,7 +1507,7 @@ def _nt_opener_third(ctx: Ctx, base: int, seq: list[str], lo: int, hi: int) -> t
 
 # ── Slam conventions ──────────────────────────────────────────────────────────
 
-def shown_suit(seq: list[str], i: int) -> str | None:
+def shown_suit(seq: list[str], i: int, natural: bool = False) -> str | None:
     """The suit call i of our side SHOWS, or None for an artificial call or
     notrump. Support-showing conventions show partner's suit."""
     call = seq[i]
@@ -1509,7 +1518,8 @@ def shown_suit(seq: list[str], i: int) -> str | None:
             return strain_of(seq[0])                         # Jacoby
         return None
     first = seq[0]
-    if first in ('1NT', '2NT') or (first == '2C' and len(seq) > 2 and seq[2] == '2NT'):
+    strong = first == '2C' and not natural
+    if first in ('1NT', '2NT') or (strong and len(seq) > 2 and seq[2] == '2NT'):
         start = 0 if first in ('1NT', '2NT') else 2
         base = level_of(seq[start])
         code = _nt_codes(base)
@@ -1528,9 +1538,9 @@ def shown_suit(seq: list[str], i: int) -> str | None:
             return None if call in ('2D', '3D') and seq[start + 1] == code['stayman'] else s
         if i < start:
             return None
-    if first == '2C' and i == 0:
+    if strong and i == 0:
         return None
-    if first == '2C' and i == 1 and call == '2D':
+    if strong and i == 1 and call == '2D':
         return None
     if i == 1 and level_of(first) == 1 and strain_of(first) in MAJORS:
         x = strain_of(first)
@@ -1543,12 +1553,12 @@ def shown_suit(seq: list[str], i: int) -> str | None:
     return s
 
 
-def agreed_trump(seq: list[str]) -> str | None:
+def agreed_trump(seq: list[str], natural: bool = False) -> str | None:
     """The suit both partners have shown, latest first."""
     shown = {0: set(), 1: set()}
     agreed = None
     for i in range(len(seq)):
-        s = shown_suit(seq, i)
+        s = shown_suit(seq, i, natural)
         if s is None:
             continue
         side = i % 2
@@ -1567,7 +1577,7 @@ def answer_ask(ctx: Ctx) -> tuple | None:
     h = ctx.h
     last = seq[-1]
     prior = seq[:-1]
-    trump = agreed_trump(prior)
+    trump = agreed_trump(prior, ctx.natural)
     if last == '4NT' and trump and not _quantitative(prior):
         interfered = ctx.calls and ctx.calls[-1][0] not in (ctx.me, ctx.pd) \
             and ctx.calls[-1][1] != 'Pass'
@@ -1596,8 +1606,8 @@ def answer_ask(ctx: Ctx) -> tuple | None:
         if h.has(trump, 'Q'):
             return '5S', "2 or 5 keycards, with the trump queen. Artificial."
         return '5H', "2 or 5 keycards, no trump queen. Artificial."
-    if len(prior) >= 2 and prior[-1] in ('5C', '5D') and _asked_rkcb(prior[:-1]):
-        trump = agreed_trump(prior[:-2])
+    if len(prior) >= 2 and prior[-1] in ('5C', '5D') and _asked_rkcb(prior[:-1], ctx.natural):
+        trump = agreed_trump(prior[:-2], ctx.natural)
         if trump and last == _queen_ask(prior[-1], trump):
             if h.has(trump, 'Q'):
                 return '5NT', "Trump queen. Artificial."
@@ -1605,9 +1615,9 @@ def answer_ask(ctx: Ctx) -> tuple | None:
             if call:
                 return call, "No trump queen."
             return 'Pass', "No trump queen."
-    if (len(prior) >= 2 and last == '5NT' and _asked_rkcb(prior[:-1])
+    if (len(prior) >= 2 and last == '5NT' and _asked_rkcb(prior[:-1], ctx.natural)
             and prior[-1] in ('5C', '5D', '5H', '5S')):
-        trump = agreed_trump(prior[:-2])
+        trump = agreed_trump(prior[:-2], ctx.natural)
         if trump:
             for s in SUITS:
                 call = f"6{s}"
@@ -1626,8 +1636,8 @@ def _quantitative(prior: list[str]) -> bool:
         not any(strain_of(c) in SUITS for c in prior[-1:])
 
 
-def _asked_rkcb(prior: list[str]) -> bool:
-    return bool(prior) and prior[-1] == '4NT' and agreed_trump(prior[:-1]) is not None \
+def _asked_rkcb(prior: list[str], natural: bool = False) -> bool:
+    return bool(prior) and prior[-1] == '4NT' and agreed_trump(prior[:-1], natural) is not None \
         and not _quantitative(prior[:-1])
 
 
@@ -1659,8 +1669,8 @@ def after_my_ask(ctx: Ctx) -> tuple | None:
     h = ctx.h
     last, prior = seq[-1], seq[:-1]
     my_ask = prior[-1] if prior else None
-    if my_ask == '4NT' and _asked_rkcb(prior):
-        trump = agreed_trump(prior[:-1])
+    if my_ask == '4NT' and _asked_rkcb(prior, ctx.natural):
+        trump = agreed_trump(prior[:-1], ctx.natural)
         mine = h.keycards(trump)
         sets = {'5C': (0, 3), '5D': (1, 4), '5H': (2, 5), '5S': (2, 5),
                 '5NT': (2, 4)}
@@ -1687,16 +1697,16 @@ def after_my_ask(ctx: Ctx) -> tuple | None:
         if ctx.ok('5NT') and h.judge >= 20:
             return '5NT', "All keycards present; asks for kings. Artificial."
         return f"6{trump}", TO_PLAY
-    if len(prior) >= 3 and prior[-2] in ('5C', '5D') and _asked_rkcb(prior[:-2]):
-        trump = agreed_trump(prior[:-3])
+    if len(prior) >= 3 and prior[-2] in ('5C', '5D') and _asked_rkcb(prior[:-2], ctx.natural):
+        trump = agreed_trump(prior[:-3], ctx.natural)
         if trump and prior[-1] == _queen_ask(prior[-2], trump):
             if last == '5NT':
                 return (f"7{trump}" if h.judge >= 22 else f"6{trump}"), TO_PLAY
             if level_of(last) == 5:
                 return f"6{trump}", TO_PLAY
             return 'Pass', TO_PLAY
-    if len(prior) >= 3 and prior[-1] == '5NT' and _asked_rkcb(prior[:-2]):
-        trump = agreed_trump(prior[:-3])
+    if len(prior) >= 3 and prior[-1] == '5NT' and _asked_rkcb(prior[:-2], ctx.natural):
+        trump = agreed_trump(prior[:-3], ctx.natural)
         if trump and level_of(last) == 6:
             if strain_of(last) != trump and h.judge >= 20 and ctx.ok(f"7{trump}"):
                 return f"7{trump}", TO_PLAY
@@ -1749,15 +1759,15 @@ def _partner_min(seq: list[str], partner_index_parity: int) -> int:
     return best
 
 
-def _shown_lengths(seq: list[str], parity: int) -> dict:
+def _shown_lengths(seq: list[str], parity: int, natural: bool = False) -> dict:
     lengths = {s: 0 for s in SUITS}
     for i in range(len(seq)):
         if i % 2 != parity:
             continue
-        s = shown_suit(seq, i)
+        s = shown_suit(seq, i, natural)
         if s is None:
             continue
-        times = sum(1 for j in range(i + 1) if j % 2 == parity and shown_suit(seq, j) == s)
+        times = sum(1 for j in range(i + 1) if j % 2 == parity and shown_suit(seq, j, natural) == s)
         base = 5 if (i == 0 and s in MAJORS) else 4
         if i == 0 and s in MINORS:
             base = 3
@@ -1772,7 +1782,7 @@ def _shown_lengths(seq: list[str], parity: int) -> dict:
 def _game_forced(seq: list[str], ctx: Ctx) -> bool:
     if not seq:
         return False
-    if OVERCALL_READ and not ctx.we_opened and _their_opening_suit(ctx):
+    if OVERCALL_READ and not ctx.we_opened and (_their_opening_suit(ctx) or OVER_1NT_2C):
         return False                 # an opening's forcing rules, not an overcall's
     first = seq[0]
     x = strain_of(first)
@@ -1810,10 +1820,8 @@ TWO_SUITER_READ = True
 def _our_two_suiter(ctx: Ctx) -> tuple | None:
     """The suits our first call showed, when it was a two-suited overcall
     straight over their one-level opening."""
-    if ctx.we_opened or not ctx.seq:
-        return None
-    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
-    if i is None or len(ctx.calls) <= i + 1 or ctx.calls[i + 1][1] != ctx.seq[0]:
+    i = _overcall_over(ctx)
+    if i is None:
         return None
     return _two_suits_shown(ctx, ctx.seq[0], ctx.calls[i][1])
 
@@ -1824,6 +1832,46 @@ def _our_two_suiter(ctx: Ctx) -> tuple | None:
 #: 2♦/2♥/2♠ as a weak two. The opening's forcing rules apply only when we
 #: opened.
 OVERCALL_READ = True
+
+
+#: ...and so is our overcall in the pass-out seat, (1x) P (P) 2y. Read as
+#: an opening, the balancing 2♣ was a strong 2♣ (22+), so North, a passed
+#: hand with 10 HCP, bid 3NT after 1♦ P P 2♣ X 3♣ P P 3♦ (the user's deal,
+#: 2026-10-30). Its floor is the overcall's less BALANCE_DISCOUNT.
+BALANCE_READ = True
+#: ...and every other reading of our auction (`shown_suit`: `_forcing`,
+#: `agreed_trump`, the keycard asks, the LoTT) takes a natural 2♣ overcall,
+#: direct or balancing, as clubs, not as a strong 2♣ with its 2♦ waiting
+#: reply and 2NT rebid: before, partner's 2♣ read as artificial and forcing.
+#: `_owns` still reads it as GIB's, so `continuation` keeps the auction;
+#: handing it to `ai_bid` too measured -0.20, +0.06, +0.47 a board.
+NATURAL_2C = True
+#: Our 2♣ over their 1NT, direct or after P P, is Cappelletti's one-suiter
+#: (10+), not a strong 2♣: after 2♦ P 2♥ a 2 HCP advancer bid 4♥ (review
+#: of PR #54). Neither game forcing nor 22+.
+OVER_1NT_2C = True
+
+
+def _overcall_over(ctx: Ctx) -> int | None:
+    """The index of their opening when our first call came straight over it
+    or, with BALANCE_READ, in the pass-out seat after it; else None."""
+    if ctx.we_opened or not ctx.seq:
+        return None
+    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None:
+        return None
+    j = next((k for k in range(i + 1, len(ctx.calls)) if ctx.calls[k][1] != 'Pass'), None)
+    if j is None or ctx.calls[j][1] != ctx.seq[0] or ctx.calls[j][0] not in (ctx.me, ctx.pd):
+        return None
+    if j == i + 1 or (BALANCE_READ and j == i + 3):
+        return i
+    return None
+
+
+def _balanced_in(ctx: Ctx) -> bool:
+    """Did our first call come in the pass-out seat over their opening?"""
+    i = _overcall_over(ctx)
+    return i is not None and i + 1 < len(ctx.calls) and ctx.calls[i + 1][1] == 'Pass'
 
 
 def _their_opening_suit(ctx: Ctx) -> str | None:
@@ -1838,15 +1886,36 @@ def _their_opening_suit(ctx: Ctx) -> str | None:
 def _our_two_level_overcall(ctx: Ctx) -> tuple | None:
     """(y, None) when our first call was a natural, non-jump two-level suit
     overcall straight over their one-level opening."""
-    if ctx.we_opened or not ctx.seq:
-        return None
-    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
-    if i is None or len(ctx.calls) <= i + 1 or ctx.calls[i + 1][1] != ctx.seq[0]:
-        return None
+    i = _overcall_over(ctx)
+    if i is None:
+        return _overcall_after_response(ctx)
     opening, call = ctx.calls[i][1], ctx.seq[0]
     y = strain_of(call)
     if not _their_opening_suit(ctx) or level_of(call) != 2 or y not in SUITS \
             or y == strain_of(opening) or rank_of(f"1{y}") > rank_of(opening):
+        return None
+    return (y, None)
+
+
+#: ...and so is a natural two-level overcall after they respond, (1♦) P (1♥)
+#: 2♣, the usual fourth-seat overcall: a 9 HCP advancer read it as a strong
+#: 2♣ and bid 4NT over 2♠ P 3♠ (review of PR #54, 2026-10-30).
+OVERCALL_AFTER_RESPONSE = True
+
+
+def _overcall_after_response(ctx: Ctx) -> tuple | None:
+    """(y, None) when our first call was a natural, non-jump two-level bid
+    of a suit they haven't bid, after their one-level opening and response."""
+    if not OVERCALL_AFTER_RESPONSE or ctx.we_opened or not ctx.seq \
+            or not _their_opening_suit(ctx):
+        return None
+    j = next(k for k, (w, c) in enumerate(ctx.calls) if w in (ctx.me, ctx.pd) and c != 'Pass')
+    before = [c for _, c in ctx.calls[:j] if c != 'Pass']
+    call = ctx.seq[0]
+    y = strain_of(call)
+    if len(before) < 2 or any(level_of(c) == 0 for c in before) or level_of(call) != 2 \
+            or y not in SUITS or y in {strain_of(c) for c in before} \
+            or rank_of(f"1{y}") > rank_of(before[-1]):
         return None
     return (y, None)
 
@@ -1976,7 +2045,7 @@ def _cue_raise(ctx: Ctx, i: int) -> str | None:
         return None
     for j in range(i - 1, -1, -1):
         if ctx.ours[j][0] != who:
-            s = shown_suit(ctx.seq, j)
+            s = shown_suit(ctx.seq, j, ctx.natural)
             return s if s in SUITS and s not in _their_suits(ctx) else None
     return None
 
@@ -1992,7 +2061,7 @@ def _partner_length(ctx: Ctx, s: str) -> int:
         if who != ctx.me and _cue_raise(ctx, i) == s:
             n = max(n, 3)
             continue
-        if shown_suit(ctx.seq, i) != s:
+        if shown_suit(ctx.seq, i, ctx.natural) != s:
             continue
         if who == ctx.me:
             mine_first = i if mine_first is None else mine_first
@@ -2036,7 +2105,7 @@ def _total_tricks(ctx: Ctx, decision: tuple | None) -> tuple | None:
         n = ctx.h.len[s] + p
         if not p or n < 8:
             continue
-        mine = any(w == ctx.me and s in (shown_suit(ctx.seq, i), _cue_raise(ctx, i))
+        mine = any(w == ctx.me and s in (shown_suit(ctx.seq, i, ctx.natural), _cue_raise(ctx, i))
                    for i, (w, _) in enumerate(ctx.ours))
         weak = LOTT_SHORT and ctx.h.hcp < LOTT_RAISE[0] and ctx.h.len[s] >= 3 \
             and ctx.h.short(s)
@@ -2051,7 +2120,7 @@ def _total_tricks(ctx: Ctx, decision: tuple | None) -> tuple | None:
     if best is None:
         return None
     s = strain_of(best[1])
-    mine = any(w == ctx.me and s in (shown_suit(ctx.seq, i), _cue_raise(ctx, i))
+    mine = any(w == ctx.me and s in (shown_suit(ctx.seq, i, ctx.natural), _cue_raise(ctx, i))
                for i, (w, _) in enumerate(ctx.ours))
     if not mine and ctx.h.len[s] >= 3:
         return best[1], _raise_alert(s, LOTT_TOTAL_ALERT if best[2] else LOTT_ALERT)
@@ -2170,14 +2239,14 @@ def _major_over_notrump(ctx: Ctx, decision: tuple | None) -> tuple | None:
 
 def _agreed(ctx: Ctx, s: str) -> bool:
     """Have both of us bid `s` naturally?"""
-    return all(any(w == who and strain_of(c) == s and shown_suit(ctx.seq, i) == s
+    return all(any(w == who and strain_of(c) == s and shown_suit(ctx.seq, i, ctx.natural) == s
                    for i, (w, c) in enumerate(ctx.ours)) for who in (ctx.me, ctx.pd))
 
 
 def _transferred(ctx: Ctx, s: str) -> bool:
     """Did I show `s` with a transfer? Then partner's bid of it completed the
     transfer and shows no length of its own."""
-    return any(w == ctx.me and shown_suit(ctx.seq, i) == s and strain_of(c) != s
+    return any(w == ctx.me and shown_suit(ctx.seq, i, ctx.natural) == s and strain_of(c) != s
                for i, (w, c) in enumerate(ctx.ours))
 
 
@@ -2202,20 +2271,22 @@ def continuation(ctx: Ctx) -> tuple:
         me_parity = 0 if ctx.ours and ctx.ours[0][0] == ctx.me else 1
     p_parity = 1 - me_parity
     pmin = _partner_min(seq, p_parity)
-    plen = _shown_lengths(seq, p_parity)
-    mylen = _shown_lengths(seq, me_parity)
-    trump = agreed_trump(seq)
+    plen = _shown_lengths(seq, p_parity, ctx.natural)
+    mylen = _shown_lengths(seq, me_parity, ctx.natural)
+    trump = agreed_trump(seq, ctx.natural)
     two = _our_two_suiter(ctx) if TWO_SUITER_READ else None
     shows = TWO_SUITED_MIN
     if not two and OVERCALL_READ:
         two = _our_two_level_overcall(ctx)
-        shows = OVERCALL_2[0]
+        shows = OVERCALL_2[0] - (BALANCE_DISCOUNT if BALANCE and _balanced_in(ctx) else 0)
     if two:
         pmin = shows if p_parity == 0 else 0
         plen = _two_suiter_lengths(seq, p_parity, two)
         mylen = _two_suiter_lengths(seq, me_parity, two)
         trump = next((s for s in SUITS if plen[s] and mylen[s]
                       and plen[s] + mylen[s] >= 8), None)
+    elif OVER_1NT_2C and not ctx.we_opened and seq[0] == '2C':
+        pmin = OVERCALL_2[0] if p_parity == 0 else 0     # (1NT) 2♣: Cappelletti
     comb = h.judge + pmin
     gf = _game_forced(seq, ctx) and not two
     current = ctx.current()
@@ -2306,7 +2377,7 @@ def _forcing(ctx: Ctx, call: str) -> bool:
     suit read as forcing."""
     seq = ctx.seq
     i = max(k for k, (w, _) in enumerate(ctx.ours) if w == ctx.pd)
-    if shown_suit(seq, i) is None and strain_of(call) in SUITS:
+    if shown_suit(seq, i, ctx.natural) is None and strain_of(call) in SUITS:
         return True
     return False
 

@@ -646,6 +646,98 @@ def test_our_two_club_overcall_is_not_a_strong_two_club_opening():
     assert gib._our_two_level_overcall(ctx) is None
 
 
+def test_balancing_two_club_overcall_is_not_a_strong_two_club_opening():
+    """The user's deal (2026-10-30): P P P (1♦) P P 2♣ (X) 3♣ P P (3♦).
+    North, a passed hand with 10 HCP, read South's balancing 2♣ as a strong
+    2♣ and bid 3NT. Balancing shows 6-17 HCP: North passes."""
+    north = 'QS 9S 6S 4S KH QH JH 4H JD 2D 7C 6C 2C'
+    calls = ('Pass', 'Pass', 'Pass', '1D', 'Pass', 'Pass', '2C', 'X', '3C', 'Pass', 'Pass', '3D')
+    call, why = bid(north, *calls)
+    assert call == 'Pass', (call, why)
+    ctx = gib.Ctx('North', hand(north), after(*calls))
+    assert gib._our_two_level_overcall(ctx) == ('C', None)
+    assert gib._balanced_in(ctx)
+    # Straight over it, or after their response, is not balancing.
+    ctx = gib.Ctx('North', hand(north), after('1D', '2C', 'Pass', dealer='East'))
+    assert not gib._balanced_in(ctx)
+    ctx = gib.Ctx('North', hand(north), after('1D', 'Pass', '1S', '2C', 'Pass', dealer='East'))
+    assert gib._our_two_level_overcall(ctx) == ('C', None) and not gib._balanced_in(ctx)
+
+
+def test_no_balancing_or_direct_two_club_overcall_reads_as_strong():
+    """The user's check (2026-10-30): after any one-level opening, P P 2♣
+    (or 2♣ straight over it) is never a strong 2♣. Over 1♦/1♥/1♠ it is
+    natural clubs, so partner's 2♣ is not forcing and shows its suit; over
+    1♣ it is the Michaels cuebid, both majors, and stays artificial."""
+    north = 'QS 9S 6S 4S KH QH JH 4H JD 2D 7C 6C 2C'
+    def advancer(*calls, dealer='North'):
+        auction = after(*calls, dealer=dealer)
+        return gib.Ctx(auction.current_player(), hand(north), auction)
+    for opening in ('1D', '1H', '1S'):
+        for calls, dealer in ((('Pass', 'Pass', 'Pass', opening, 'Pass', 'Pass', '2C', 'Pass'), 'North'),
+                              (('Pass', opening, 'Pass', 'Pass', '2C', 'Pass'), 'North'),
+                              ((opening, '2C', 'Pass'), 'East')):
+            ctx = advancer(*calls, dealer=dealer)
+            assert ctx.seq == ['2C'] and ctx.partners() == ['2C'] and not ctx.we_opened, calls
+            assert ctx.natural, calls
+            assert gib._our_two_level_overcall(ctx) == ('C', None), calls
+            assert gib.shown_suit(ctx.seq, 0, ctx.natural) == 'C', calls
+            assert not gib._forcing(ctx, '2C'), calls
+            assert not gib._game_forced(ctx.seq, ctx), calls
+    for calls, dealer in ((('Pass', 'Pass', 'Pass', '1C', 'Pass', 'Pass', '2C', 'Pass'), 'North'),
+                          (('1C', '2C', 'Pass'), 'East')):
+        ctx = advancer(*calls, dealer=dealer)
+        assert not ctx.natural, calls
+        assert gib._our_two_suiter(ctx) == ('H', 'S'), calls
+    # 2♣ over 2♦ (natural, advancer bid diamonds) then 2NT is not 2♣-2♦-2NT,
+    # 22-24 balanced with Stayman and transfers after it.
+    ctx = gib.Ctx('North', hand(north), after('Pass', 'Pass', 'Pass', '1H', 'Pass', 'Pass',
+                                              '2C', 'Pass', '2D', 'Pass', '2NT', 'Pass'))
+    assert ctx.natural and gib.shown_suit(ctx.seq, 1, ctx.natural) == 'D'
+    # Our own 2♣ opening is still strong.
+    ctx = advancer('2C', 'Pass')
+    assert ctx.we_opened and not ctx.natural and gib.shown_suit(ctx.seq, 0, ctx.natural) is None
+
+
+def test_two_club_overcall_answers_keycard_in_clubs():
+    """Partner's 4NT after (1♦) P P 2♣ P 3♣ asks for keycards in clubs.
+    Read as a strong 2♣, the clubs never counted and the overcaller passed
+    4NT."""
+    call, why = bid('AS 3S 9H 8H 6H 8D 7D AC KC JC 9C 8C 5C',
+                    'Pass', 'Pass', 'Pass', '1D', 'Pass', 'Pass', '2C', 'Pass', '3C', 'Pass',
+                    '4NT', 'Pass')
+    assert call == '5C' and 'keycards' in why, (call, why)
+
+
+def test_two_clubs_over_1nt_or_after_their_response_is_not_strong():
+    """Review of PR #54: (1NT) 2♣ is Cappelletti, a one-suiter, and (1♦) P
+    (1♥) 2♣ a natural overcall. Both were still read as a strong 2♣: a 2 HCP
+    advancer bid 4♥ after 2♣ P 2♦ P 2♥, a 9 HCP one bid 4NT or 3NT."""
+    weak = '9S 7S 5S 3S 8H 7H 5H 3H QD 2D 7C 6C 2C'
+    for calls in (('1NT', 'Pass', 'Pass', '2C', 'Pass', '2D', 'Pass', '2H', 'Pass'),
+                  ('1NT', '2C', 'Pass', '2D', 'Pass', '2H', 'Pass')):
+        call, why = bid(weak, *calls, dealer='East')
+        assert call == 'Pass', (calls, call, why)
+    mid = 'QS 7S 5S 3S KH QH JH 4H JD 2D 7C 6C 2C'
+    for calls in (('1D', 'Pass', '1H', '2C', 'Pass', '2S', 'Pass', '3S', 'Pass'),
+                  ('1D', 'Pass', '1S', '2C', 'Pass', '2H', 'Pass', '3C', 'Pass'),
+                  ('1H', 'Pass', '1S', '2C', 'Pass', '2D', 'Pass', '2NT', 'Pass')):
+        call, why = bid(mid, *calls, dealer='East')
+        assert call in ('Pass', '3C'), (calls, call, why)
+    for opening, response in (('1D', '1H'), ('1D', '1S'), ('1H', '1S'),
+                              ('1S', '1NT'), ('1D', '1NT')):
+        auction = after(opening, 'Pass', response, '2C', 'Pass', dealer='East')
+        ctx = gib.Ctx(auction.current_player(), hand(mid), auction)
+        assert ctx.natural and not gib._balanced_in(ctx), (opening, response)
+        assert not gib._forcing(ctx, '2C') and not gib._game_forced(ctx.seq, ctx)
+    # Their suit, a jump, or after their double is no natural overcall.
+    for calls in (('1D', 'Pass', '1H', '2D', 'Pass'), ('1H', 'Pass', '1S', '3C', 'Pass'),
+                  ('1C', 'Pass', '1H', '2C', 'Pass')):
+        auction = after(*calls, dealer='East')
+        ctx = gib.Ctx(auction.current_player(), hand(mid), auction)
+        assert gib._our_two_level_overcall(ctx) is None, calls
+
+
 def test_opener_splinters_after_a_single_raise():
     """Roadmap 3.8, the user's call: 1♥-2♥-3♠ is a splinter, a singleton or
     void in spades and a hand good enough to force game."""

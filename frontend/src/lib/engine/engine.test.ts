@@ -164,6 +164,30 @@ describe('double, then a new suit', () => {
   });
 });
 
+describe('our 2♣ overcall is never a strong 2♣', () => {
+  // The user's deal and the PR #54 review, 2026-10-30; mirrors test_gib.py.
+  const bidAfter = (dealer: Seat, cards: string, calls: string[]) => {
+    const auction = new AuctionState(dealer, 'None');
+    for (const c of calls) auction.applyCall(auction.currentPlayer(), c);
+    return aiBidExplained(auction.currentPlayer(), parseHand(cards), auction);
+  };
+  it('passes 3♦ after a balancing 2♣ on a passed 10 HCP', () => {
+    const north = 'QS 9S 6S 4S KH QH JH 4H JD 2D 7C 6C 2C';
+    const calls = ['Pass', 'Pass', 'Pass', '1D', 'Pass', 'Pass', '2C', 'X', '3C', 'Pass', 'Pass', '3D'];
+    expect(bidAfter('North', north, calls)[0]).toBe('Pass');
+  });
+  it('answers keycard in clubs', () => {
+    const calls = ['Pass', 'Pass', 'Pass', '1D', 'Pass', 'Pass', '2C', 'Pass', '3C', 'Pass', '4NT', 'Pass'];
+    expect(bidAfter('North', 'AS 3S 9H 8H 6H 8D 7D AC KC JC 9C 8C 5C', calls)[0]).toBe('5C');
+  });
+  it('is not game forcing over 1NT or after their response', () => {
+    const weak = '9S 7S 5S 3S 8H 7H 5H 3H QD 2D 7C 6C 2C';
+    expect(bidAfter('East', weak, ['1NT', '2C', 'Pass', '2D', 'Pass', '2H', 'Pass'])[0]).toBe('Pass');
+    const mid = 'QS 7S 5S 3S KH QH JH 4H JD 2D 7C 6C 2C';
+    expect(bidAfter('East', mid, ['1D', 'Pass', '1H', '2C', 'Pass', '2S', 'Pass', '3S', 'Pass'])[0]).toBe('Pass');
+  });
+});
+
 describe("partner's game stands, a three-level lone rebid shows six", () => {
   // The user's training deal (2026-10-28), as tests/test_bidding.py has it.
   const north = parseHand('AS JS 8S 4S 3S 2S QH 8H 6H 2H AC KC QC');

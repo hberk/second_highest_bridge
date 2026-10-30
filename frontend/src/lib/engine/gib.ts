@@ -243,6 +243,17 @@ export class Ctx {
     return this.opener === this.me;
   }
 
+  private naturalMemo: boolean | null = null;
+
+  /** Is our first call a natural 2♣ overcall, not a strong 2♣? */
+  get natural(): boolean {
+    if (this.naturalMemo === null) {
+      this.naturalMemo = NATURAL_2C && OVERCALL_READ && this.seq.length > 0 && this.seq[0] === '2C'
+        && ourTwoLevelOvercall(this) !== null;
+    }
+    return this.naturalMemo;
+  }
+
   current(): string | null {
     const hb = this.auction.highestBid;
     return hb ? `${hb[0]}${hb[1]}` : null;
@@ -1402,7 +1413,7 @@ function ntOpenerThird(ctx: Ctx, base: number, seq: string[], lo: number, hi: nu
 
 // ── Slam conventions ──────────────────────────────────────────────────────────
 
-export function shownSuit(seq: string[], i: number): string | null {
+export function shownSuit(seq: string[], i: number, natural = false): string | null {
   const call = seq[i];
   const s = strainOf(call);
   if (s === null || s === 'NT') {
@@ -1412,7 +1423,8 @@ export function shownSuit(seq: string[], i: number): string | null {
     return null;
   }
   const first = seq[0];
-  if (first === '1NT' || first === '2NT' || (first === '2C' && seq.length > 2 && seq[2] === '2NT')) {
+  const strong = first === '2C' && !natural;
+  if (first === '1NT' || first === '2NT' || (strong && seq.length > 2 && seq[2] === '2NT')) {
     const start = first === '1NT' || first === '2NT' ? 0 : 2;
     const base = levelOf(seq[start]);
     const code = ntCodes(base);
@@ -1428,8 +1440,8 @@ export function shownSuit(seq: string[], i: number): string | null {
     }
     if (i < start) return null;
   }
-  if (first === '2C' && i === 0) return null;
-  if (first === '2C' && i === 1 && call === '2D') return null;
+  if (strong && i === 0) return null;
+  if (strong && i === 1 && call === '2D') return null;
   if (i === 1 && levelOf(first) === 1 && isMajor(strainOf(first))) {
     const x = strainOf(first) as Suit;
     if (isSplinter(x, call)) return x;
@@ -1442,11 +1454,11 @@ export function shownSuit(seq: string[], i: number): string | null {
   return s;
 }
 
-export function agreedTrump(seq: string[]): string | null {
+export function agreedTrump(seq: string[], natural = false): string | null {
   const shown: [Set<string>, Set<string>] = [new Set(), new Set()];
   let agreed: string | null = null;
   for (let i = 0; i < seq.length; i++) {
-    const s = shownSuit(seq, i);
+    const s = shownSuit(seq, i, natural);
     if (s === null) continue;
     const side = i % 2;
     if (shown[1 - side].has(s)) agreed = s;
@@ -1461,7 +1473,7 @@ function answerAsk(ctx: Ctx): Decision | null {
   const h = ctx.h;
   const last = seq[seq.length - 1];
   const prior = seq.slice(0, -1);
-  let trump = agreedTrump(prior);
+  let trump = agreedTrump(prior, ctx.natural);
   if (last === '4NT' && trump && !quantitative(prior)) {
     const t = trump as Suit;
     const lastCall = ctx.calls[ctx.calls.length - 1];
@@ -1490,8 +1502,8 @@ function answerAsk(ctx: Ctx): Decision | null {
     return ['5H', '2 or 5 keycards, no trump queen. Artificial.'];
   }
   if (prior.length >= 2 && (prior[prior.length - 1] === '5C' || prior[prior.length - 1] === '5D')
-    && askedRkcb(prior.slice(0, -1))) {
-    trump = agreedTrump(prior.slice(0, -2));
+    && askedRkcb(prior.slice(0, -1), ctx.natural)) {
+    trump = agreedTrump(prior.slice(0, -2), ctx.natural);
     if (trump && last === queenAsk(prior[prior.length - 1], trump)) {
       if (h.has(trump as Suit, 'Q')) return ['5NT', 'Trump queen. Artificial.'];
       const call = ctx.cheapest(trump, 5);
@@ -1499,9 +1511,9 @@ function answerAsk(ctx: Ctx): Decision | null {
       return ['Pass', 'No trump queen.'];
     }
   }
-  if (prior.length >= 2 && last === '5NT' && askedRkcb(prior.slice(0, -1))
+  if (prior.length >= 2 && last === '5NT' && askedRkcb(prior.slice(0, -1), ctx.natural)
     && ['5C', '5D', '5H', '5S'].includes(prior[prior.length - 1])) {
-    trump = agreedTrump(prior.slice(0, -2));
+    trump = agreedTrump(prior.slice(0, -2), ctx.natural);
     if (trump) {
       for (const s of SUITS) {
         const call = `6${s}`;
@@ -1521,9 +1533,9 @@ function quantitative(prior: string[]): boolean {
     && !prior.slice(-1).some((c) => isSuit(strainOf(c)));
 }
 
-function askedRkcb(prior: string[]): boolean {
+function askedRkcb(prior: string[], natural = false): boolean {
   return prior.length > 0 && prior[prior.length - 1] === '4NT'
-    && agreedTrump(prior.slice(0, -1)) !== null && !quantitative(prior.slice(0, -1));
+    && agreedTrump(prior.slice(0, -1), natural) !== null && !quantitative(prior.slice(0, -1));
 }
 
 function queenAsk(response: string, trump: string): string {
@@ -1553,8 +1565,8 @@ function afterMyAsk(ctx: Ctx): Decision | null {
   const last = seq[seq.length - 1];
   const prior = seq.slice(0, -1);
   const myAsk = prior.length ? prior[prior.length - 1] : null;
-  if (myAsk === '4NT' && askedRkcb(prior)) {
-    const trump = agreedTrump(prior.slice(0, -1)) as Suit;
+  if (myAsk === '4NT' && askedRkcb(prior, ctx.natural)) {
+    const trump = agreedTrump(prior.slice(0, -1), ctx.natural) as Suit;
     const mine = h.keycards(trump);
     const sets: Record<string, [number, number]> = {
       '5C': [0, 3], '5D': [1, 4], '5H': [2, 5], '5S': [2, 5], '5NT': [2, 4],
@@ -1582,16 +1594,16 @@ function afterMyAsk(ctx: Ctx): Decision | null {
     return [`6${trump}`, TO_PLAY];
   }
   if (prior.length >= 3 && (prior[prior.length - 2] === '5C' || prior[prior.length - 2] === '5D')
-    && askedRkcb(prior.slice(0, -2))) {
-    const trump = agreedTrump(prior.slice(0, -3));
+    && askedRkcb(prior.slice(0, -2), ctx.natural)) {
+    const trump = agreedTrump(prior.slice(0, -3), ctx.natural);
     if (trump && prior[prior.length - 1] === queenAsk(prior[prior.length - 2], trump)) {
       if (last === '5NT') return [h.judge >= 22 ? `7${trump}` : `6${trump}`, TO_PLAY];
       if (levelOf(last) === 5) return [`6${trump}`, TO_PLAY];
       return ['Pass', TO_PLAY];
     }
   }
-  if (prior.length >= 3 && prior[prior.length - 1] === '5NT' && askedRkcb(prior.slice(0, -2))) {
-    const trump = agreedTrump(prior.slice(0, -3));
+  if (prior.length >= 3 && prior[prior.length - 1] === '5NT' && askedRkcb(prior.slice(0, -2), ctx.natural)) {
+    const trump = agreedTrump(prior.slice(0, -3), ctx.natural);
     if (trump && levelOf(last) === 6) {
       if (strainOf(last) !== trump && h.judge >= 20 && ctx.ok(`7${trump}`)) return [`7${trump}`, TO_PLAY];
       if (strainOf(last) === trump) return ['Pass', TO_PLAY];
@@ -1639,14 +1651,14 @@ function partnerMin(seq: string[], parity: number): number {
   return best;
 }
 
-function shownLengths(seq: string[], parity: number): Record<Suit, number> {
+function shownLengths(seq: string[], parity: number, natural = false): Record<Suit, number> {
   const lengths: Record<Suit, number> = { C: 0, D: 0, H: 0, S: 0 };
   for (let i = 0; i < seq.length; i++) {
     if (i % 2 !== parity) continue;
-    const s = shownSuit(seq, i);
+    const s = shownSuit(seq, i, natural);
     if (s === null || !isSuit(s)) continue;
     let times = 0;
-    for (let j = 0; j <= i; j++) if (j % 2 === parity && shownSuit(seq, j) === s) times++;
+    for (let j = 0; j <= i; j++) if (j % 2 === parity && shownSuit(seq, j, natural) === s) times++;
     let base = i === 0 && isMajor(s) ? 5 : 4;
     if (i === 0 && isMinor(s)) base = 3;
     if (['2D', '2H', '2S'].includes(seq[i]) && i === 0) base = 6;
@@ -1658,7 +1670,7 @@ function shownLengths(seq: string[], parity: number): Record<Suit, number> {
 
 function gameForced(seq: string[], ctx: Ctx): boolean {
   if (!seq.length) return false;
-  if (OVERCALL_READ && !ctx.weOpened && theirOpeningSuit(ctx)) return false;
+  if (OVERCALL_READ && !ctx.weOpened && (theirOpeningSuit(ctx) || OVER_1NT_2C)) return false;
   const first = seq[0];
   const x = strainOf(first);
   if (first === '2C') return !(seq.length > 2 && seq[1] === '2D' && seq[2] === '2NT');
@@ -1695,9 +1707,8 @@ export const TWO_SUITER_READ = true;
 /** The suits our first call showed, when it was a two-suited overcall
  *  straight over their one-level opening. */
 function ourTwoSuiter(ctx: Ctx): [Suit, Suit | null] | null {
-  if (ctx.weOpened || !ctx.seq.length) return null;
-  const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
-  if (i < 0 || ctx.calls.length <= i + 1 || ctx.calls[i + 1][1] !== ctx.seq[0]) return null;
+  const i = overcallOver(ctx);
+  if (i === null) return null;
   return twoSuitsShown(ctx.seq[0], ctx.calls[i][1]);
 }
 
@@ -1710,6 +1721,43 @@ function ourTwoSuiter(ctx: Ctx): [Suit, Suit | null] | null {
  *  opened. */
 export const OVERCALL_READ = true;
 
+/** ...and so is our overcall in the pass-out seat, (1x) P (P) 2y. Read as
+ *  an opening, the balancing 2♣ was a strong 2♣ (22+), so North, a passed
+ *  hand with 10 HCP, bid 3NT after 1♦ P P 2♣ X 3♣ P P 3♦ (the user's deal,
+ *  2026-10-30). Its floor is the overcall's less BALANCE_DISCOUNT. */
+export const BALANCE_READ = true;
+/** ...and every other reading of our auction (`shownSuit`: `forcing`,
+ *  `agreedTrump`, the keycard asks, the LoTT) takes a natural 2♣ overcall,
+ *  direct or balancing, as clubs, not as a strong 2♣ with its 2♦ waiting
+ *  reply and 2NT rebid. `owns` still reads it as GIB's. See gib.py. */
+export const NATURAL_2C = true;
+/** Our 2♣ over their 1NT, direct or after P P, is Cappelletti's one-suiter
+ *  (10+), not a strong 2♣: neither game forcing nor 22+. See gib.py. */
+export const OVER_1NT_2C = true;
+
+/** The index of their opening when our first call came straight over it
+ *  or, with BALANCE_READ, in the pass-out seat after it; else null. */
+function overcallOver(ctx: Ctx): number | null {
+  if (ctx.weOpened || !ctx.seq.length) return null;
+  const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
+  if (i < 0) return null;
+  let j = -1;
+  for (let k = i + 1; k < ctx.calls.length; k++) {
+    if (ctx.calls[k][1] !== 'Pass') { j = k; break; }
+  }
+  if (j < 0 || ctx.calls[j][1] !== ctx.seq[0] || (ctx.calls[j][0] !== ctx.me && ctx.calls[j][0] !== ctx.pd)) {
+    return null;
+  }
+  if (j === i + 1 || (BALANCE_READ && j === i + 3)) return i;
+  return null;
+}
+
+/** Did our first call come in the pass-out seat over their opening? */
+function balancedIn(ctx: Ctx): boolean {
+  const i = overcallOver(ctx);
+  return i !== null && i + 1 < ctx.calls.length && ctx.calls[i + 1][1] === 'Pass';
+}
+
 /** Their opening's suit, when they opened at the one level in a suit. */
 function theirOpeningSuit(ctx: Ctx): Suit | null {
   const first = ctx.calls.find(([, c]) => c !== 'Pass');
@@ -1721,13 +1769,32 @@ function theirOpeningSuit(ctx: Ctx): Suit | null {
 /** [y, null] when our first call was a natural, non-jump two-level suit
  *  overcall straight over their one-level opening. */
 function ourTwoLevelOvercall(ctx: Ctx): [Suit, Suit | null] | null {
-  if (ctx.weOpened || !ctx.seq.length) return null;
-  const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
-  if (i < 0 || ctx.calls.length <= i + 1 || ctx.calls[i + 1][1] !== ctx.seq[0]) return null;
+  const i = overcallOver(ctx);
+  if (i === null) return overcallAfterResponse(ctx);
   const opening = ctx.calls[i][1], call = ctx.seq[0];
   const y = strainOf(call);
   if (!theirOpeningSuit(ctx) || levelOf(call) !== 2 || !isSuit(y)
     || y === strainOf(opening) || rankOf(`1${y}`) > rankOf(opening)) {
+    return null;
+  }
+  return [y, null];
+}
+
+/** ...and so is a natural two-level overcall after they respond, (1♦) P (1♥)
+ *  2♣, the usual fourth-seat overcall. See gib.py. */
+export const OVERCALL_AFTER_RESPONSE = true;
+
+/** [y, null] when our first call was a natural, non-jump two-level bid of a
+ *  suit they haven't bid, after their one-level opening and response. */
+function overcallAfterResponse(ctx: Ctx): [Suit, Suit | null] | null {
+  if (!OVERCALL_AFTER_RESPONSE || ctx.weOpened || !ctx.seq.length || !theirOpeningSuit(ctx)) return null;
+  const j = ctx.calls.findIndex(([w, c]) => (w === ctx.me || w === ctx.pd) && c !== 'Pass');
+  const before = ctx.calls.slice(0, j).map(([, c]) => c).filter((c) => c !== 'Pass');
+  const call = ctx.seq[0];
+  const y = strainOf(call);
+  if (before.length < 2 || before.some((c) => levelOf(c) === 0) || levelOf(call) !== 2
+    || !isSuit(y) || before.some((c) => strainOf(c) === y)
+    || rankOf(`1${y}`) > rankOf(before[before.length - 1])) {
     return null;
   }
   return [y, null];
@@ -1845,7 +1912,7 @@ function cueRaise(ctx: Ctx, i: number): Suit | null {
   if (!theirSuits(ctx).includes(strainOf(call) as Suit)) return null;
   for (let j = i - 1; j >= 0; j--) {
     if (ctx.ours[j][0] !== who) {
-      const s = shownSuit(ctx.seq, j);
+      const s = shownSuit(ctx.seq, j, ctx.natural);
       return s !== null && (SUITS as readonly string[]).includes(s) && !theirSuits(ctx).includes(s as Suit)
         ? s as Suit : null;
     }
@@ -1864,7 +1931,7 @@ function partnerLength(ctx: Ctx, s: Suit): number {
       n = Math.max(n, 3);
       continue;
     }
-    if (shownSuit(ctx.seq, i) !== s) continue;
+    if (shownSuit(ctx.seq, i, ctx.natural) !== s) continue;
     if (who === ctx.me) {
       if (mineFirst === null) mineFirst = i;
       continue;
@@ -1902,7 +1969,7 @@ function totalTricks(ctx: Ctx, decision: Decision | null): Decision | null {
     const n = ctx.h.len[s] + p;
     if (!p || n < 8) continue;
     const mine = ctx.ours.some(([w], i) => w === ctx.me
-      && (shownSuit(ctx.seq, i) === s || cueRaise(ctx, i) === s));
+      && (shownSuit(ctx.seq, i, ctx.natural) === s || cueRaise(ctx, i) === s));
     const weak = LOTT_SHORT && ctx.h.hcp < LOTT_RAISE[0] && ctx.h.len[s] >= 3
       && ctx.h.short(s).length > 0;
     if (!mine && !weak && !(LOTT_RAISE[0] <= ctx.h.hcp && ctx.h.hcp <= LOTT_RAISE[1])) continue;
@@ -1914,7 +1981,7 @@ function totalTricks(ctx: Ctx, decision: Decision | null): Decision | null {
   if (best === null) return null;
   const s = strainOf(best[1]) as Suit;
   const mine = ctx.ours.some(([w], i) => w === ctx.me
-    && (shownSuit(ctx.seq, i) === s || cueRaise(ctx, i) === s));
+    && (shownSuit(ctx.seq, i, ctx.natural) === s || cueRaise(ctx, i) === s));
   const alert = best[2] ? LOTT_TOTAL_ALERT : LOTT_ALERT;
   if (!mine && ctx.h.len[s] >= 3) return [best[1], raiseAlert(s, alert)];
   return [best[1], alert];
@@ -2012,13 +2079,13 @@ function majorOverNotrump(ctx: Ctx, decision: Decision | null): Decision | null 
 /** Have both of us bid `s` naturally? */
 function agreed(ctx: Ctx, s: Suit): boolean {
   return [ctx.me, ctx.pd].every((who) => ctx.ours.some(([w, c], i) =>
-    w === who && strainOf(c) === s && shownSuit(ctx.seq, i) === s));
+    w === who && strainOf(c) === s && shownSuit(ctx.seq, i, ctx.natural) === s));
 }
 
 /** Did I show `s` with a transfer? Then partner's bid of it completed the
  *  transfer and shows no length of its own. */
 function transferred(ctx: Ctx, s: Suit): boolean {
-  return ctx.ours.some(([w, c], i) => w === ctx.me && shownSuit(ctx.seq, i) === s && strainOf(c) !== s);
+  return ctx.ours.some(([w, c], i) => w === ctx.me && shownSuit(ctx.seq, i, ctx.natural) === s && strainOf(c) !== s);
 }
 
 /** Partner's natural notrump bid shows a balanced hand: 2+ in every suit. */
@@ -2038,14 +2105,14 @@ function continuation(ctx: Ctx): Decision {
   if (!ctx.weOpened) meParity = ctx.ours.length && ctx.ours[0][0] === ctx.me ? 0 : 1;
   const pParity = 1 - meParity;
   let pmin = partnerMin(seq, pParity);
-  let plen = shownLengths(seq, pParity);
-  let mylen = shownLengths(seq, meParity);
-  let trump = agreedTrump(seq);
+  let plen = shownLengths(seq, pParity, ctx.natural);
+  let mylen = shownLengths(seq, meParity, ctx.natural);
+  let trump = agreedTrump(seq, ctx.natural);
   let two = TWO_SUITER_READ ? ourTwoSuiter(ctx) : null;
   let shows = TWO_SUITED_MIN;
   if (!two && OVERCALL_READ) {
     two = ourTwoLevelOvercall(ctx);
-    shows = OVERCALL_2[0];
+    shows = OVERCALL_2[0] - (BALANCE && balancedIn(ctx) ? BALANCE_DISCOUNT : 0);
   }
   if (two) {
     pmin = pParity === 0 ? shows : 0;
@@ -2053,6 +2120,8 @@ function continuation(ctx: Ctx): Decision {
     mylen = twoSuiterLengths(seq, meParity, two);
     const p2 = plen, m2 = mylen;
     trump = SUITS.find((s) => p2[s] && m2[s] && p2[s] + m2[s] >= 8) ?? null;
+  } else if (OVER_1NT_2C && !ctx.weOpened && seq[0] === '2C') {
+    pmin = pParity === 0 ? OVERCALL_2[0] : 0;     // (1NT) 2♣: Cappelletti
   }
   let comb = h.judge + pmin;
   const gf = gameForced(seq, ctx) && !two;
@@ -2138,7 +2207,7 @@ function forcing(ctx: Ctx, call: string): boolean {
   const seq = ctx.seq;
   let i = -1;
   ctx.ours.forEach(([w], k) => { if (w === ctx.pd) i = k; });
-  return shownSuit(seq, i) === null && isSuit(strainOf(call));
+  return shownSuit(seq, i, ctx.natural) === null && isSuit(strainOf(call));
 }
 
 // ── Contested auctions ────────────────────────────────────────────────────────

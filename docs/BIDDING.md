@@ -157,6 +157,40 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   advancer's suit bids as support (3) or a suit of their own (5) -- the
   two-suiter's reading with one suit. Over 1NT nothing changes (2♣ there is
   artificial).
+  - **...in the pass-out seat too** (`BALANCE_READ`, `_overcall_over`,
+    2026-10-30). The reader only knew an overcall straight over the opening,
+    so after `BALANCE` arrived, 1♦ P P 2♣ read as a strong 2♣ again: on the
+    user's deal North, a passed hand with 10 HCP, bid 3NT after 1♦ P P 2♣ X
+    3♣ P P 3♦. A balancing overcall (and two-suiter) now reads like a direct
+    one, its floor 4 HCP lower (`OVERCALL_2` less `BALANCE_DISCOUNT`, the 6
+    the alert shows). Three sets of 3,000 fresh deals: +0.01, +0.22, +0.05 a
+    board (t = +0.45, +2.89, +1.53), 27 auctions changed, 21 better.
+    Requiring 8+ for the balancing two-level overcall lost -0.12, -0.27,
+    -0.21 (t = -1.9 to -2.8); partner reading it as 8+ changed nothing.
+  - **A natural 2♣ overcall is clubs everywhere** (`NATURAL_2C`, `Ctx.natural`,
+    2026-10-30). `shown_suit` still read our first 2♣ as a strong 2♣ (no
+    suit, 2♦ a waiting reply, 2♣-2♦-2NT a 22-24 notrump with Stayman after
+    it), so partner's 2♣ overcall was forcing (`_forcing`) and its clubs
+    never counted for `agreed_trump`, keycard asks or the LoTT. Over 1♦/1♥/1♠,
+    direct or balancing, it is natural now; over 1♣ it stays Michaels, and
+    our 2♣ opening is untouched. `_owns` still reads the overcall as GIB's,
+    so `continuation` keeps those auctions. Three sets of 3,000 fresh deals:
+    +0.11, +0.26, +0.14 a board (t = +1.50, +2.03, +2.05), 176 auctions
+    changed, 80 better and 46 worse. Handing the auction to `ai_bid` as well
+    (`_owns` natural too) measured -0.20, +0.06, +0.47, 484 changed: it
+    competes far higher (up to 7♣).
+  - **...over 1NT and after their response too** (`OVER_1NT_2C`,
+    `OVERCALL_AFTER_RESPONSE`; review of PR #54). Our 2♣ over their 1NT,
+    direct or after P P, is Cappelletti's one-suiter: `_game_forced` read
+    2♣-2♦ as a strong 2♣ and `continuation` gave partner 22, so a 2 HCP
+    advancer bid 4♥ after 2♣ P 2♦ P 2♥. It is now 10+ and not forcing to
+    game. And (1♦) P (1♥) 2♣, a natural non-jump two-level bid of an unbid
+    suit as our first call after their response, reads as an overcall like
+    the direct one (a 9 HCP advancer had bid 4NT). Three sets of 3,000 fresh
+    deals: over 1NT +0.18, +0.16, +0.14 (t = +1.27 to +1.63); after their
+    response +0.03, -0.06, +0.01 (28 auctions, flat, kept as a bug fix);
+    both +0.18, +0.19, +0.14 (t = +1.37, +1.82, +1.27), 269 auctions, 162
+    better and 102 worse.
   - The old misreading had been feeding `THEIR_CONTRACT_DOUBLE`: the
     overcalling side "saw" game values and doubled. `VALUES_AT_FOUR` counts
     our side bidding to the four level as values instead (deal 118: we
