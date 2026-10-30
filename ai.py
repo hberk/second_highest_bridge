@@ -1369,8 +1369,6 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                    if DRAW_TRUMPS else None)
                   or (_ruff_lead(player, hand, trump, played, visible)
                       if RUFF_LEAD else None)
-                  or (_declarer_ruff(player, hand, trump, played, visible)
-                      if DECLARER_RUFF and DECLARER_RUFF_LEAD else None)
                   or (_run_long_suit(player, hand, trump, played, visible, history, shown)
                       if RUN_LONG_SUIT else None)
                   or (_run_long_suit(player, hand, trump, played, visible, history, shown,
@@ -1380,8 +1378,6 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                       if RUFF_RETURN and PARTNERS[player] not in (visible or {}) else None)
                   or ((sure := _sure_lead(player, hand, trump, played, visible, history))
                       if SURE_LEAD else None)
-                  or (_trump_cuts_ruffs(player, hand, trump, played, visible)
-                      if TRUMP_CUTS_RUFFS else None)
                   or (_fit_lead(player, hand, trump, shown, history, visible)
                       if shown and PARTNERS[player] not in (visible or {}) else None)
                   or (_nt_defence_suit(player, hand, trump, history, visible)
@@ -1394,10 +1390,11 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
             choice = _defender_suit_plan(player, hand, trump, played, visible, history,
                                          shown, choice) or choice
         if choice is None:
-            choice = _lead(_no_dummy_ruff(player, hand, trump, visible)
-                           if AVOID_DUMMY_RUFF else
-                           _no_idle_trump(player, hand, trump, played, visible)
-                           if DECLARER_RUFF else hand, trump, played)
+            choice = _lead(hand, trump, played)
+            if IDLE_TRUMP_FOR_RUFF and choice.suit == trump:
+                ruff = _ruff_for_idle_trump(player, hand, trump, played, visible)
+                if ruff is not None:
+                    choice = _lead([c for c in hand if c.suit == ruff], trump, played)
             if DEFENDER_SUIT_PLAN:
                 choice = _defender_suit_plan(player, hand, trump, played, visible, history,
                                              shown, choice) or choice
@@ -2689,11 +2686,6 @@ def _after_lead(led: int, rest: tuple, partner: tuple, left: tuple, right: tuple
 
 #: `_ruff_first`'s answer when ruffs come first but this hand can't start one.
 _NO_DRAW = object()
-#: Extra rounds of trumps `_ruff_first` allows for before it judges the short
-#: hand's ruffs safe (measurement setting). Experts ruff before drawing more
-#: often than the robots: with 7-8 trumps and three ruffs available they lead
-#: a trump first 26-40% of the time, against 51-66% with none.
-RUFF_FIRST_SPARE = 0
 
 
 def _ruff_first(hand: list[Card], partner_hand: list[Card], trump: str,
@@ -2730,7 +2722,7 @@ def _ruff_first(hand: list[Card], partner_hand: list[Card], trump: str,
             rank = (short_count, -len(long_cards), SUITS.index(suit))
             if target is None or rank < target[0]:
                 target = (rank, min(long_cards, key=lambda c: c.value()))
-    rounds = (outstanding + 1) // 2 + RUFF_FIRST_SPARE
+    rounds = (outstanding + 1) // 2
     if not ruffs or short_trumps - rounds >= ruffs:
         return None
     return target[1] if long_hand is hand else _NO_DRAW
@@ -2937,116 +2929,17 @@ def _defender_suit_plan(player: str, hand: list[Card], trump: str | None,
     return max((c for c in mine if totals[c] == best), key=lambda c: c.value())
 
 
-# ── Championship defence (measurement switches) ─────────────────────────────
+# ── Notrump defence goes back to the opening-lead suit ──────────────────────
 #
-# From championship play records (regular bridge, 1996-2002), the habits where
-# the robots' defence differs most from experts' on the same deals.
+# From championship play records (regular bridge, 1996-2002, 36,756 boards):
+# in notrump a defender on lead leads a suit partner led before 60% of the
+# time; the robots, leading their own longest suit every time
+# (`_nt_long_lead`), 28%. Setting up one suit together is structural, not a
+# matter of card ranks, so it carries over to this game.
 
-#: Defenders in a suit contract lead a trump when dummy can ruff: dummy holds
-#: trumps and a side suit of at most one card that declarer probably holds
-#: more of. Experts lead trumps 21-25% of the time there, against 6-10%
-#: without, and the robots 10-14% either way.
-TRUMP_CUTS_RUFFS = False
-#: Unseen cards in dummy's short suit that make declarer likely to have length.
-CUT_RUFFS_UNSEEN = 4
-#: Dummy holds at most this many trumps (the short-trump hand).
-CUT_RUFFS_DUMMY_TRUMPS = 3
-#: In notrump, a defender on lead returns the suit of the opening lead while it
-#: holds one and the opening leader hasn't shown out. Experts lead a suit
-#: partner led 62% of the time in notrump, the robots 28%.
-NT_DEFENCE_SUIT = False
-#: ...only when partner made the opening lead (not my own suit).
-NT_DEFENCE_PARTNER_ONLY = True
-#: A defender's fallback lead (`_lead`) passes over a suit dummy is void in
-#: while dummy holds trumps. Experts continue into dummy's void 29% of the
-#: time, against 57-65% with dummy holding cards; the robots 56%.
-AVOID_DUMMY_RUFF = False
-
-
-# ── Declarer ruffs once trumps are drawn ────────────────────────────────────
-#
-# The user's board (4S by North, 2026-10-29): North AKQ76 - AJ1053 A62, South
-# J984 J52 K742 107. Two rounds drew the defence's trumps; at trick 6 South
-# led the 9S, North had to follow with the K, and two trumps took one trick
-# where a heart ruffed in North takes one with one. `_lead` picks a suit by
-# `_gap`, which liked J9 of trumps. With the defence out of trumps every trump
-# wins played alone, so a trump lead that partner must follow wastes one.
-
-#: Declaring side, the defence out of trumps: lead a side suit partner is void
-#: in while partner holds a trump (a sure ruff), and the fallback lead passes
-#: over trumps while partner still holds one (measurement switch).
-DECLARER_RUFF = False
-#: ...including the ruff lead (off: only the idle-trump filter).
-DECLARER_RUFF_LEAD = True
-#: ...and the filter keeps trumps unless a ruff lead is there instead.
-IDLE_TRUMP_FOR_RUFF = False
-
-
-def _trumps_drawn(player: str, hand: list[Card], trump: str | None, played: list[Card],
-                  visible: dict[str, list[Card]] | None) -> bool:
-    partner = PARTNERS[player]
-    if trump not in SUITS or not visible or partner not in visible:
-        return False
-    seen = set(played) | set(hand) | set(visible[partner])
-    return not any(c.suit == trump and c not in seen for c in _FULL_DECK)
-
-
-def _declarer_ruff(player: str, hand: list[Card], trump: str | None, played: list[Card],
-                   visible: dict[str, list[Card]] | None) -> Card | None:
-    """The declaring side's lead for a ruff in partner's hand, or None."""
-    if not _trumps_drawn(player, hand, trump, played, visible):
-        return None
-    other = visible[PARTNERS[player]]
-    if not any(c.suit == trump for c in other):
-        return None
-    cards = [c for c in hand if c.suit != trump and not any(d.suit == c.suit for d in other)]
-    return min(cards, key=lambda c: (c.value(), SUITS.index(c.suit))) if cards else None
-
-
-def _no_idle_trump(player: str, hand: list[Card], trump: str | None, played: list[Card],
-                   visible: dict[str, list[Card]] | None) -> list[Card]:
-    """My hand less its trumps, when the defence has none and partner would
-    have to follow with one, if anything is left."""
-    if (not _trumps_drawn(player, hand, trump, played, visible)
-            or not any(c.suit == trump for c in visible[PARTNERS[player]])):
-        return hand
-    if IDLE_TRUMP_FOR_RUFF:
-        # A trump lead can be the entry that keeps the lead in this hand
-        # (transportation); pass it over only for a ruff in partner's hand.
-        ruff = _declarer_ruff(player, hand, trump, played, visible)
-        if ruff is None or _lead(hand, trump, played).suit != trump:
-            return hand
-        return [c for c in hand if c.suit == ruff.suit]
-    return [c for c in hand if c.suit != trump] or hand
-
-
-def _dummy_of(player: str, visible: dict[str, list[Card]] | None) -> tuple:
-    """(dummy's seat, dummy's cards) for a defender who can see dummy."""
-    partner = PARTNERS[player]
-    if not visible or partner in visible:
-        return None, None
-    return next(iter(visible.items()), (None, None))
-
-
-def _trump_cuts_ruffs(player: str, hand: list[Card], trump: str | None,
-                      played: list[Card], visible: dict[str, list[Card]] | None) -> Card | None:
-    """A defender's trump lead to cut down dummy's ruffs, or None."""
-    seat, dummy = _dummy_of(player, visible)
-    if trump not in SUITS or dummy is None:
-        return None
-    mine = [c for c in hand if c.suit == trump]
-    dummy_trumps = sum(1 for c in dummy if c.suit == trump)
-    if not mine or not dummy_trumps or dummy_trumps > CUT_RUFFS_DUMMY_TRUMPS:
-        return None
-    gone = set(played)
-    for s in SUITS:
-        if s == trump:
-            continue
-        held = sum(1 for c in dummy if c.suit == s)
-        unseen = 13 - held - sum(1 for c in hand if c.suit == s) - sum(1 for c in gone if c.suit == s)
-        if held <= 1 and unseen >= CUT_RUFFS_UNSEEN:
-            return min(mine, key=lambda c: c.value())
-    return None
+#: In notrump, a defender on lead leads the suit of the opening lead (whoever
+#: led it) while it holds one and the opening leader hasn't shown out.
+NT_DEFENCE_SUIT = True
 
 
 def _nt_defence_suit(player: str, hand: list[Card], trump: str | None,
@@ -3055,26 +2948,47 @@ def _nt_defence_suit(player: str, hand: list[Card], trump: str | None,
     if trump in SUITS or not history or (visible and PARTNERS[player] in visible):
         return None
     leader, card = history[0][0]
-    if leader == player and NT_DEFENCE_PARTNER_ONLY:
-        return None
     if leader not in (player, PARTNERS[player]):
         return None
-    suit = card.suit
-    if suit in _shown_out(history, [])[leader]:
+    if card.suit in _shown_out(history, [])[leader]:
         return None
-    cards = sorted((c for c in hand if c.suit == suit), key=lambda c: c.value(), reverse=True)
+    cards = sorted((c for c in hand if c.suit == card.suit), key=lambda c: c.value(), reverse=True)
     return cards[min(1, len(cards) - 1)] if cards else None
 
 
-def _no_dummy_ruff(player: str, hand: list[Card], trump: str | None,
-                   visible: dict[str, list[Card]] | None) -> list[Card]:
-    """My hand less the side suits dummy can ruff, if anything is left."""
-    seat, dummy = _dummy_of(player, visible)
-    if trump not in SUITS or dummy is None or not any(c.suit == trump for c in dummy):
-        return hand
-    void = {s for s in SUITS if s != trump and not any(c.suit == s for c in dummy)}
-    rest = [c for c in hand if c.suit not in void]
-    return rest or hand
+# ── An idle trump becomes a ruff ─────────────────────────────────────────────
+#
+# The user's board (4S by North, 2026-10-29): North AKQ76 - AJ1053 A62, South
+# J984 J52 K742 107. Two rounds drew the defence's trumps; at trick 6 South
+# led the 9S, North had to follow with the K, and two trumps took one trick
+# where a heart ruffed in North takes it with one. No lead rule fired, and
+# `_lead`, which picks a suit by `_gap`, liked J9 of trumps. With the defence
+# out of trumps every trump wins played alone. The user's point: the declaring
+# side needn't ruff at once, and a trump lead can be the entry that keeps the
+# lead where it belongs -- banning it outright gained on the library and lost
+# it on fresh deals -- but drawing extra trumps that partner must follow with
+# wastes one. So only a trump lead that a ruff can replace is replaced.
+
+#: Declaring side, the defence out of trumps, `_lead` choosing a trump that
+#: partner would have to follow: lead a suit partner is void in instead, for
+#: the ruff, while partner holds a trump.
+IDLE_TRUMP_FOR_RUFF = True
+
+
+def _ruff_for_idle_trump(player: str, hand: list[Card], trump: str | None,
+                         played: list[Card], visible: dict[str, list[Card]] | None) -> str | None:
+    """The side suit to lead for a ruff in partner's hand instead of a trump, or None."""
+    partner = PARTNERS[player]
+    if trump not in SUITS or not visible or partner not in visible:
+        return None
+    seen = set(played) | set(hand) | set(visible[partner])
+    if any(c.suit == trump and c not in seen for c in _FULL_DECK):
+        return None                       # the defence still holds trumps
+    other = visible[partner]
+    if not any(c.suit == trump for c in other):
+        return None
+    cards = [c for c in hand if c.suit != trump and not any(d.suit == c.suit for d in other)]
+    return min(cards, key=lambda c: (c.value(), SUITS.index(c.suit))).suit if cards else None
 
 
 def _lead(hand: list[Card], trump: str | None, played: list[Card]) -> Card:

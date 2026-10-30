@@ -466,6 +466,51 @@ Second hand doing the same was even (both together +0.007 tricks, t = +1.10;
 its 20 changed cards -3 tricks double dummy), so it is third hand only.
 `tests/test_card_play_rules.py` holds deal 276.
 
+**Two rules from championship play records** (2026-10-30; the user's call).
+The [ContractBridge/pbn-files](https://github.com/ContractBridge/pbn-files)
+PBN records (1996-2002 championships, regular bridge) carry the card play of
+36,756 boards up to the claim. The robots replayed 3,063 of those deals in the
+experts' contracts, and every lead was compared by its structure: trumps left,
+ruffs available, which suit the defence led before, dummy's holding. Card ranks
+were ignored, since they mean something else here. Data, scripts and the full
+comparison: `/mnt/project-files/championship-play/` (`REPORT.md`). Each rule was
+measured seated (`card_play_seated.py`) on the library and on 400 fresh seeded
+deals.
+
+- **Notrump defence goes back to the opening-lead suit** (`ai.NT_DEFENCE_SUIT`,
+  `_nt_defence_suit`). In notrump a defender on lead leads a suit partner led
+  before 60% of the time; the robots, leading their own longest suit
+  (`_nt_long_lead`) on every lead, 28%. Now a defender on lead leads the
+  opening-lead suit (whoever led it) while it holds one and the opening leader
+  hasn't shown out. Library **+0.052 tricks (t = +2.70), +3.5 points**, 774
+  boards changed; fresh deals **+0.046 (t = +2.64), +5.7 points**. Partner's
+  lead only, not my own: +0.042 (t = +2.71) on the library.
+- **An idle trump becomes a ruff** (`ai.IDLE_TRUMP_FOR_RUFF`,
+  `_ruff_for_idle_trump`; the user's board, 4S by North, 2026-10-29). Two
+  rounds drew the defence's trumps. At trick 6 South led the 9S from J9, North
+  had to follow with the K, and two trumps took one trick where a heart, ruffed
+  in North, takes it with one. No lead rule fired, and `_lead` liked J9 of
+  trumps. So when the defence is out of trumps and `_lead` picks a trump that
+  partner must follow, the declaring side leads a suit partner is void in
+  instead, while partner holds a trump. The user's point: declarer needn't
+  ruff at once, and a trump lead can be the entry that keeps the lead in the
+  right hand. Banning idle trump leads outright measured +0.021 (t = +2.04) on
+  the library and -0.001 on fresh deals; ruffing at once as well, +0.011 and
+  -0.004. The narrow rule: library **+0.009 (t = +2.14), +0.7 points**; fresh
+  **+0.012 (t = +2.57), +1.0 points**; 108 boards changed on each. The board
+  makes 12 tricks instead of 11. `tests/test_card_play_rules.py` holds it.
+- Both together: library **+0.061 tricks, +4.23 points a board (t = +3.09)**,
+  882 boards changed; fresh deals **+0.058, +6.69 points (t = +3.24)**, 746.
+- Measured and left out, with no code kept: a defence trump switch when dummy
+  holds a short side suit and trumps (experts 22%, robots 9%): -0.008
+  (t = -0.86), and +0.002 narrowed to dummy with two trumps or fewer.
+  Not leading into dummy's void while dummy holds trumps (experts 6%, robots
+  12%): -0.025 (t = -1.96). `_ruff_first` allowing one or two more rounds of
+  trumps before it calls the short hand's ruffs safe: +0.004, -0.004. With
+  ruffs to take, the robots already delay drawing trumps as often as experts
+  (40-45% against 41-47% lead one first). With none, experts lead something
+  else first 36% of the time and the robots 13%. No rule for that yet.
+
 **A cuebid raise that forces the three level needs four trumps or 12+
 judgement points** (`gib.CUE_LIMIT_AT_3`), a small tightening of GIB's "limit
 raise or better"; weaker hands with three trumps raise to the two level. The
