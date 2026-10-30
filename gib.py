@@ -1810,10 +1810,8 @@ TWO_SUITER_READ = True
 def _our_two_suiter(ctx: Ctx) -> tuple | None:
     """The suits our first call showed, when it was a two-suited overcall
     straight over their one-level opening."""
-    if ctx.we_opened or not ctx.seq:
-        return None
-    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
-    if i is None or len(ctx.calls) <= i + 1 or ctx.calls[i + 1][1] != ctx.seq[0]:
+    i = _overcall_over(ctx)
+    if i is None:
         return None
     return _two_suits_shown(ctx, ctx.seq[0], ctx.calls[i][1])
 
@@ -1824,6 +1822,35 @@ def _our_two_suiter(ctx: Ctx) -> tuple | None:
 #: 2♦/2♥/2♠ as a weak two. The opening's forcing rules apply only when we
 #: opened.
 OVERCALL_READ = True
+
+
+#: ...and so is our overcall in the pass-out seat, (1x) P (P) 2y. Read as
+#: an opening, the balancing 2♣ was a strong 2♣ (22+), so North, a passed
+#: hand with 10 HCP, bid 3NT after 1♦ P P 2♣ X 3♣ P P 3♦ (the user's deal,
+#: 2026-10-30). Its floor is the overcall's less BALANCE_DISCOUNT.
+BALANCE_READ = True
+
+
+def _overcall_over(ctx: Ctx) -> int | None:
+    """The index of their opening when our first call came straight over it
+    or, with BALANCE_READ, in the pass-out seat after it; else None."""
+    if ctx.we_opened or not ctx.seq:
+        return None
+    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None:
+        return None
+    j = next((k for k in range(i + 1, len(ctx.calls)) if ctx.calls[k][1] != 'Pass'), None)
+    if j is None or ctx.calls[j][1] != ctx.seq[0] or ctx.calls[j][0] not in (ctx.me, ctx.pd):
+        return None
+    if j == i + 1 or (BALANCE_READ and j == i + 3):
+        return i
+    return None
+
+
+def _balanced_in(ctx: Ctx) -> bool:
+    """Did our first call come in the pass-out seat over their opening?"""
+    i = _overcall_over(ctx)
+    return i is not None and i + 1 < len(ctx.calls) and ctx.calls[i + 1][1] == 'Pass'
 
 
 def _their_opening_suit(ctx: Ctx) -> str | None:
@@ -1838,10 +1865,8 @@ def _their_opening_suit(ctx: Ctx) -> str | None:
 def _our_two_level_overcall(ctx: Ctx) -> tuple | None:
     """(y, None) when our first call was a natural, non-jump two-level suit
     overcall straight over their one-level opening."""
-    if ctx.we_opened or not ctx.seq:
-        return None
-    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
-    if i is None or len(ctx.calls) <= i + 1 or ctx.calls[i + 1][1] != ctx.seq[0]:
+    i = _overcall_over(ctx)
+    if i is None:
         return None
     opening, call = ctx.calls[i][1], ctx.seq[0]
     y = strain_of(call)
@@ -2209,7 +2234,7 @@ def continuation(ctx: Ctx) -> tuple:
     shows = TWO_SUITED_MIN
     if not two and OVERCALL_READ:
         two = _our_two_level_overcall(ctx)
-        shows = OVERCALL_2[0]
+        shows = OVERCALL_2[0] - (BALANCE_DISCOUNT if BALANCE and _balanced_in(ctx) else 0)
     if two:
         pmin = shows if p_parity == 0 else 0
         plen = _two_suiter_lengths(seq, p_parity, two)

@@ -646,6 +646,24 @@ def test_our_two_club_overcall_is_not_a_strong_two_club_opening():
     assert gib._our_two_level_overcall(ctx) is None
 
 
+def test_balancing_two_club_overcall_is_not_a_strong_two_club_opening():
+    """The user's deal (2026-10-30): P P P (1♦) P P 2♣ (X) 3♣ P P (3♦).
+    North, a passed hand with 10 HCP, read South's balancing 2♣ as a strong
+    2♣ and bid 3NT. Balancing shows 6-17 HCP: North passes."""
+    north = 'QS 9S 6S 4S KH QH JH 4H JD 2D 7C 6C 2C'
+    calls = ('Pass', 'Pass', 'Pass', '1D', 'Pass', 'Pass', '2C', 'X', '3C', 'Pass', 'Pass', '3D')
+    call, why = bid(north, *calls)
+    assert call == 'Pass', (call, why)
+    ctx = gib.Ctx('North', hand(north), after(*calls))
+    assert gib._our_two_level_overcall(ctx) == ('C', None)
+    assert gib._balanced_in(ctx)
+    # Straight over it, not balancing; after their response, no overcall.
+    ctx = gib.Ctx('North', hand(north), after('1D', '2C', 'Pass', dealer='East'))
+    assert not gib._balanced_in(ctx)
+    ctx = gib.Ctx('North', hand(north), after('1D', 'Pass', '1S', '2C', 'Pass', dealer='East'))
+    assert gib._our_two_level_overcall(ctx) is None
+
+
 def test_opener_splinters_after_a_single_raise():
     """Roadmap 3.8, the user's call: 1♥-2♥-3♠ is a splinter, a singleton or
     void in spades and a hand good enough to force game."""

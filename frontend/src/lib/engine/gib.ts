@@ -1695,9 +1695,8 @@ export const TWO_SUITER_READ = true;
 /** The suits our first call showed, when it was a two-suited overcall
  *  straight over their one-level opening. */
 function ourTwoSuiter(ctx: Ctx): [Suit, Suit | null] | null {
-  if (ctx.weOpened || !ctx.seq.length) return null;
-  const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
-  if (i < 0 || ctx.calls.length <= i + 1 || ctx.calls[i + 1][1] !== ctx.seq[0]) return null;
+  const i = overcallOver(ctx);
+  if (i === null) return null;
   return twoSuitsShown(ctx.seq[0], ctx.calls[i][1]);
 }
 
@@ -1710,6 +1709,35 @@ function ourTwoSuiter(ctx: Ctx): [Suit, Suit | null] | null {
  *  opened. */
 export const OVERCALL_READ = true;
 
+/** ...and so is our overcall in the pass-out seat, (1x) P (P) 2y. Read as
+ *  an opening, the balancing 2♣ was a strong 2♣ (22+), so North, a passed
+ *  hand with 10 HCP, bid 3NT after 1♦ P P 2♣ X 3♣ P P 3♦ (the user's deal,
+ *  2026-10-30). Its floor is the overcall's less BALANCE_DISCOUNT. */
+export const BALANCE_READ = true;
+
+/** The index of their opening when our first call came straight over it
+ *  or, with BALANCE_READ, in the pass-out seat after it; else null. */
+function overcallOver(ctx: Ctx): number | null {
+  if (ctx.weOpened || !ctx.seq.length) return null;
+  const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
+  if (i < 0) return null;
+  let j = -1;
+  for (let k = i + 1; k < ctx.calls.length; k++) {
+    if (ctx.calls[k][1] !== 'Pass') { j = k; break; }
+  }
+  if (j < 0 || ctx.calls[j][1] !== ctx.seq[0] || (ctx.calls[j][0] !== ctx.me && ctx.calls[j][0] !== ctx.pd)) {
+    return null;
+  }
+  if (j === i + 1 || (BALANCE_READ && j === i + 3)) return i;
+  return null;
+}
+
+/** Did our first call come in the pass-out seat over their opening? */
+function balancedIn(ctx: Ctx): boolean {
+  const i = overcallOver(ctx);
+  return i !== null && i + 1 < ctx.calls.length && ctx.calls[i + 1][1] === 'Pass';
+}
+
 /** Their opening's suit, when they opened at the one level in a suit. */
 function theirOpeningSuit(ctx: Ctx): Suit | null {
   const first = ctx.calls.find(([, c]) => c !== 'Pass');
@@ -1721,9 +1749,8 @@ function theirOpeningSuit(ctx: Ctx): Suit | null {
 /** [y, null] when our first call was a natural, non-jump two-level suit
  *  overcall straight over their one-level opening. */
 function ourTwoLevelOvercall(ctx: Ctx): [Suit, Suit | null] | null {
-  if (ctx.weOpened || !ctx.seq.length) return null;
-  const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
-  if (i < 0 || ctx.calls.length <= i + 1 || ctx.calls[i + 1][1] !== ctx.seq[0]) return null;
+  const i = overcallOver(ctx);
+  if (i === null) return null;
   const opening = ctx.calls[i][1], call = ctx.seq[0];
   const y = strainOf(call);
   if (!theirOpeningSuit(ctx) || levelOf(call) !== 2 || !isSuit(y)
@@ -2045,7 +2072,7 @@ function continuation(ctx: Ctx): Decision {
   let shows = TWO_SUITED_MIN;
   if (!two && OVERCALL_READ) {
     two = ourTwoLevelOvercall(ctx);
-    shows = OVERCALL_2[0];
+    shows = OVERCALL_2[0] - (BALANCE && balancedIn(ctx) ? BALANCE_DISCOUNT : 0);
   }
   if (two) {
     pmin = pParity === 0 ? shows : 0;

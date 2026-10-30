@@ -157,6 +157,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   advancer's suit bids as support (3) or a suit of their own (5) -- the
   two-suiter's reading with one suit. Over 1NT nothing changes (2♣ there is
   artificial).
+  - **...in the pass-out seat too** (`BALANCE_READ`, `_overcall_over`,
+    2026-10-30). The reader only knew an overcall straight over the opening,
+    so after `BALANCE` arrived, 1♦ P P 2♣ read as a strong 2♣ again: on the
+    user's deal North, a passed hand with 10 HCP, bid 3NT after 1♦ P P 2♣ X
+    3♣ P P 3♦. A balancing overcall (and two-suiter) now reads like a direct
+    one, its floor 4 HCP lower (`OVERCALL_2` less `BALANCE_DISCOUNT`, the 6
+    the alert shows). Three sets of 3,000 fresh deals: +0.01, +0.22, +0.05 a
+    board (t = +0.45, +2.89, +1.53), 27 auctions changed, 21 better.
   - The old misreading had been feeding `THEIR_CONTRACT_DOUBLE`: the
     overcalling side "saw" game values and doubled. `VALUES_AT_FOUR` counts
     our side bidding to the four level as values instead (deal 118: we

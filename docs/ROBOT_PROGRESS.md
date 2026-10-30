@@ -230,6 +230,7 @@ from the variant's side; t as above.
 | 10-29 | A forced continuation reads partner's own call, not my notrump after it (1S-1NT no longer treats a natural 1S as forcing), and never bids a three-card suit (`FORCED_SUIT_MIN = 4`, the user's rule); seed 8M, 3,000 deals | +0.10 / +0.21 | +0.64 / +1.87 | 49 / 8 | on (bug fix) |
 | 10-29 | Review fix: balancing lowers only the overcall floor, so 14-17 HCP with five cards still overcalls (`BALANCE`); seed 8M, 3,000 deals | +0.27 | +2.90 | 76 | on (bug fix) |
 | 10-29 | `LOTT_TOTAL` only with 6+ HCP / only not vulnerable / both, each with the fix above, against the same base | +0.18 / +0.18 / +0.15 | +1.65 / +1.68 / +1.31 | 86 / 89 / 93 | 6+ HCP on (the user's call: no 4♥ on 3 HCP) |
+| 10-30 | Partner's balancing overcall, 1x P P 2y, reads as an overcall (6+ HCP), not an opening (a balancing 2♣ was a strong 2♣: 3NT on a passed 10 HCP; `BALANCE_READ`); three sets of 3,000 fresh deals | +0.01, +0.22, +0.05 | +0.45, +2.89, +1.53 | 10, 12, 5 | on (bug fix) |
 
 ### The previous system (`ai_bid`)
 
