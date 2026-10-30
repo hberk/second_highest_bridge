@@ -664,6 +664,41 @@ def test_balancing_two_club_overcall_is_not_a_strong_two_club_opening():
     assert gib._our_two_level_overcall(ctx) is None
 
 
+def test_no_balancing_or_direct_two_club_overcall_reads_as_strong():
+    """The user's check (2026-10-30): after any one-level opening, P P 2♣
+    (or 2♣ straight over it) is never a strong 2♣. Over 1♦/1♥/1♠ it is
+    natural clubs, so partner's 2♣ is not forcing and shows its suit; over
+    1♣ it is the Michaels cuebid, both majors, and stays artificial."""
+    north = 'QS 9S 6S 4S KH QH JH 4H JD 2D 7C 6C 2C'
+    def advancer(*calls, dealer='North'):
+        auction = after(*calls, dealer=dealer)
+        return gib.Ctx(auction.current_player(), hand(north), auction)
+    for opening in ('1D', '1H', '1S'):
+        for calls, dealer in ((('Pass', 'Pass', 'Pass', opening, 'Pass', 'Pass', '2C', 'Pass'), 'North'),
+                              (('Pass', opening, 'Pass', 'Pass', '2C', 'Pass'), 'North'),
+                              ((opening, '2C', 'Pass'), 'East')):
+            ctx = advancer(*calls, dealer=dealer)
+            assert ctx.seq == ['2C'] and ctx.partners() == ['2C'] and not ctx.we_opened, calls
+            assert ctx.natural, calls
+            assert gib._our_two_level_overcall(ctx) == ('C', None), calls
+            assert gib.shown_suit(ctx.seq, 0, ctx.natural) == 'C', calls
+            assert not gib._forcing(ctx, '2C'), calls
+            assert not gib._game_forced(ctx.seq, ctx), calls
+    for calls, dealer in ((('Pass', 'Pass', 'Pass', '1C', 'Pass', 'Pass', '2C', 'Pass'), 'North'),
+                          (('1C', '2C', 'Pass'), 'East')):
+        ctx = advancer(*calls, dealer=dealer)
+        assert not ctx.natural, calls
+        assert gib._our_two_suiter(ctx) == ('H', 'S'), calls
+    # 2♣ over 2♦ (natural, advancer bid diamonds) then 2NT is not 2♣-2♦-2NT,
+    # 22-24 balanced with Stayman and transfers after it.
+    ctx = gib.Ctx('North', hand(north), after('Pass', 'Pass', 'Pass', '1H', 'Pass', 'Pass',
+                                              '2C', 'Pass', '2D', 'Pass', '2NT', 'Pass'))
+    assert ctx.natural and gib.shown_suit(ctx.seq, 1, ctx.natural) == 'D'
+    # Our own 2♣ opening is still strong.
+    ctx = advancer('2C', 'Pass')
+    assert ctx.we_opened and not ctx.natural and gib.shown_suit(ctx.seq, 0, ctx.natural) is None
+
+
 def test_opener_splinters_after_a_single_raise():
     """Roadmap 3.8, the user's call: 1♥-2♥-3♠ is a splinter, a singleton or
     void in spades and a hand good enough to force game."""
