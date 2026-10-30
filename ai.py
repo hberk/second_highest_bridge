@@ -1380,6 +1380,8 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                       if SURE_LEAD else None)
                   or (_fit_lead(player, hand, trump, shown, history, visible)
                       if shown and PARTNERS[player] not in (visible or {}) else None)
+                  or (_nt_defence_suit(player, hand, trump, history, visible)
+                      if NT_DEFENCE_SUIT else None)
                   or (_nt_long_lead(player, hand, trump, played, visible)
                       if NT_LONG_LEAD else None))
         if DEFENDER_SUIT_PLAN and choice is not None and choice != sure:
@@ -1389,6 +1391,10 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                                          shown, choice) or choice
         if choice is None:
             choice = _lead(hand, trump, played)
+            if IDLE_TRUMP_FOR_RUFF and choice.suit == trump:
+                ruff = _ruff_for_idle_trump(player, hand, trump, played, visible)
+                if ruff is not None:
+                    choice = _lead([c for c in hand if c.suit == ruff], trump, played)
             if DEFENDER_SUIT_PLAN:
                 choice = _defender_suit_plan(player, hand, trump, played, visible, history,
                                              shown, choice) or choice
@@ -2921,6 +2927,68 @@ def _defender_suit_plan(player: str, hand: list[Card], trump: str | None,
     if totals[choice] == best:
         return choice
     return max((c for c in mine if totals[c] == best), key=lambda c: c.value())
+
+
+# ── Notrump defence goes back to the opening-lead suit ──────────────────────
+#
+# From championship play records (regular bridge, 1996-2002, 36,756 boards):
+# in notrump a defender on lead leads a suit partner led before 60% of the
+# time; the robots, leading their own longest suit every time
+# (`_nt_long_lead`), 28%. Setting up one suit together is structural, not a
+# matter of card ranks, so it carries over to this game.
+
+#: In notrump, a defender on lead leads the suit of the opening lead (whoever
+#: led it) while it holds one and the opening leader hasn't shown out.
+NT_DEFENCE_SUIT = True
+
+
+def _nt_defence_suit(player: str, hand: list[Card], trump: str | None,
+                     history: list | None, visible: dict[str, list[Card]] | None) -> Card | None:
+    """In notrump, the defence's opening-lead suit led again, or None."""
+    if trump in SUITS or not history or (visible and PARTNERS[player] in visible):
+        return None
+    leader, card = history[0][0]
+    if leader not in (player, PARTNERS[player]):
+        return None
+    if card.suit in _shown_out(history, [])[leader]:
+        return None
+    cards = sorted((c for c in hand if c.suit == card.suit), key=lambda c: c.value(), reverse=True)
+    return cards[min(1, len(cards) - 1)] if cards else None
+
+
+# ── An idle trump becomes a ruff ─────────────────────────────────────────────
+#
+# The user's board (4S by North, 2026-10-29): North AKQ76 - AJ1053 A62, South
+# J984 J52 K742 107. Two rounds drew the defence's trumps; at trick 6 South
+# led the 9S, North had to follow with the K, and two trumps took one trick
+# where a heart ruffed in North takes it with one. No lead rule fired, and
+# `_lead`, which picks a suit by `_gap`, liked J9 of trumps. With the defence
+# out of trumps every trump wins played alone. The user's point: the declaring
+# side needn't ruff at once, and a trump lead can be the entry that keeps the
+# lead where it belongs -- banning it outright gained on the library and lost
+# it on fresh deals -- but drawing extra trumps that partner must follow with
+# wastes one. So only a trump lead that a ruff can replace is replaced.
+
+#: Declaring side, the defence out of trumps, `_lead` choosing a trump that
+#: partner would have to follow: lead a suit partner is void in instead, for
+#: the ruff, while partner holds a trump.
+IDLE_TRUMP_FOR_RUFF = True
+
+
+def _ruff_for_idle_trump(player: str, hand: list[Card], trump: str | None,
+                         played: list[Card], visible: dict[str, list[Card]] | None) -> str | None:
+    """The side suit to lead for a ruff in partner's hand instead of a trump, or None."""
+    partner = PARTNERS[player]
+    if trump not in SUITS or not visible or partner not in visible:
+        return None
+    seen = set(played) | set(hand) | set(visible[partner])
+    if any(c.suit == trump and c not in seen for c in _FULL_DECK):
+        return None                       # the defence still holds trumps
+    other = visible[partner]
+    if not any(c.suit == trump for c in other):
+        return None
+    cards = [c for c in hand if c.suit != trump and not any(d.suit == c.suit for d in other)]
+    return min(cards, key=lambda c: (c.value(), SUITS.index(c.suit))).suit if cards else None
 
 
 def _lead(hand: list[Card], trump: str | None, played: list[Card]) -> Card:

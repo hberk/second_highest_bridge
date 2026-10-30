@@ -18,7 +18,8 @@ from card import Card
 
 RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'LIVE_LEAD', 'NT_SET_UP_SUIT', 'DEFENDER_SUIT_PLAN', 'RUFF_RETURN',
-         'SHORT_LEAD_RETURN', 'DEAD_WINNER_FIRST', 'RUFF_IF_FOLLOWS')
+         'SHORT_LEAD_RETURN', 'DEAD_WINNER_FIRST', 'RUFF_IF_FOLLOWS',
+         'NT_DEFENCE_SUIT', 'IDLE_TRUMP_FOR_RUFF')
 
 
 @contextmanager
@@ -334,6 +335,64 @@ def test_void_chance_counts_the_unseen_cards():
     chance = ai._void_chance('West', hands['West'], trick, played, visible, history,
                              ai._shown_out(history, trick))
     assert chance == 9 / 75582
+
+
+# The user's board, 2026-10-29: 4S by North, dummy South. Two rounds drew the
+# defence's trumps; at trick 6 South led the 9S, North had to follow with
+# the K, and two trumps took one trick that a heart, ruffed in North, takes
+# with one.
+BOARD_4S = {'North': 'AS KS QS 7S 6S AD JD 10D 5D 3D AC 6C 2C',
+            'South': 'JS 9S 8S 4S JH 5H 2H KD 7D 4D 2D 10C 7C',
+            'West': '3S 2S 9H 8H 7H 6H 4H QD 8D 6D KC 8C 5C',
+            'East': '10S 5S AH KH QH 10H 3H 9D QC JC 9C 4C 3C'}
+BOARD_4S_TRICKS = ['E:KH S:2H W:4H N:QS', 'N:6S E:5S S:8S W:2S', 'N:7S E:10S S:4S W:3S',
+                   'N:AD E:9D S:KD W:QD', 'S:7D W:6D N:10D E:3C']
+
+
+def _south_4s() -> Card:
+    hands = {seat: [C(t) for t in text.split()] for seat, text in BOARD_4S.items()}
+    played, history = [], []
+    for line in BOARD_4S_TRICKS:
+        trick = []
+        for token in line.split():
+            seat, card = token.split(':')
+            seat = {'N': 'North', 'E': 'East', 'S': 'South', 'W': 'West'}[seat]
+            hands[seat].remove(C(card))
+            played.append(C(card))
+            trick.append((seat, C(card)))
+        history.append(trick)
+    contract = {'declarer': 'North', 'dummy': 'South'}
+    return ai.ai_play('South', hands['South'], [], 'S', played,
+                      visible=ai.visible_hands('South', contract, hands), history=history)
+
+
+def test_4s_board_led_an_idle_trump():
+    with rules():
+        assert _south_4s().suit == 'S'
+
+
+def test_4s_board_idle_trump_for_ruff_leads_a_heart():
+    with rules(IDLE_TRUMP_FOR_RUFF=True):
+        assert _south_4s().suit == 'H'
+
+
+def test_idle_trump_for_ruff_waits_while_the_defence_has_trumps():
+    """Before trick 2 the defence holds four trumps: no swap."""
+    hands = {seat: [C(t) for t in text.split()] for seat, text in BOARD_4S.items()}
+    visible = ai.visible_hands('South', {'declarer': 'North', 'dummy': 'South'}, hands)
+    assert ai._ruff_for_idle_trump('South', hands['South'], 'S', [], visible) is None
+
+
+def test_nt_defence_suit_returns_partners_opening_lead():
+    """3NT by South: West led a heart; East, on lead later, returns one."""
+    hand = [C(t) for t in 'AS QS 9S 4S 2S 8H 3H KD 5D'.split()]
+    history = [[('West', C('JH')), ('North', C('2H')), ('East', C('QH')), ('South', C('AH'))],
+               [('South', C('3C')), ('West', C('4C')), ('North', C('KC')), ('East', C('AC'))]]
+    with rules(NT_DEFENCE_SUIT=True):
+        assert ai._nt_defence_suit('East', hand, 'NT', history, {'North': []}) == C('3H')
+    out = history + [[('North', C('5H')), ('East', C('7H')), ('South', C('6H')), ('West', C('2C'))]]
+    assert ai._nt_defence_suit('East', hand, 'NT', out, {'North': []}) is None   # West is out
+    assert ai._nt_defence_suit('East', hand, 'S', history, {'North': []}) is None
 
 
 if __name__ == '__main__':

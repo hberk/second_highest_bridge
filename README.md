@@ -72,8 +72,10 @@ what it was worth is in [`docs/ROBOT_PROGRESS.md`](docs/ROBOT_PROGRESS.md).
 
 ## Credits
 
-The championship auctions behind the robots' competitive bidding study come
-from [ContractBridge/pbn-files](https://github.com/ContractBridge/pbn-files),
+The championship auctions behind the robots' competitive bidding study, and
+the card play behind their notrump defence and trump play (see
+[`docs/CHALLENGE.md`](docs/CHALLENGE.md)), come from
+[ContractBridge/pbn-files](https://github.com/ContractBridge/pbn-files),
 a collection of PBN hand records from world and national championships.
 
 ## Security

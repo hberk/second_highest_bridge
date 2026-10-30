@@ -100,6 +100,12 @@ four seats, which nets out a change both declarer and defenders use.
 | 10-28 | ...for ruffs only | -0.001 | +0.65 | +0.87 | 1,528 of 12,640 | off |
 | 10-28 | Third hand counts an overruff only as often as the next opponent can be out of the led suit, so it ruffs instead of discarding (deal 276, `RUFF_IF_FOLLOWS`). 800 fresh deals | +0.011 | +1.61 | +1.31 | 704 of 12,640 | on (your call; on the library: +0.018, t +2.57, +1.78 points) |
 | 10-28 | ...in second hand as well | +0.007 | +1.10 | +0.51 | 744 of 12,640 | off |
+| 10-30 | In notrump a defender on lead goes back to the opening-lead suit (championship records: experts 60%, robots 28%; `NT_DEFENCE_SUIT`). 400 fresh deals | **+0.046** | +2.64 | **+5.69** | 638 of 6,379 | on (your call; on the library: +0.052, t +2.70, +3.52 points) |
+| 10-30 | ...partner's opening lead only (library) | +0.042 | +2.71 | +2.85 | 532 of 6,367 | off |
+| 10-30 | With the defence out of trumps, a trump lead that partner must follow becomes a ruff in partner's hand (your 4♠ board, `IDLE_TRUMP_FOR_RUFF`). 400 fresh deals | +0.012 | +2.57 | +1.00 | 108 of 6,379 | on (your call; on the library: +0.009, t +2.14, +0.71 points) |
+| 10-30 | ...never lead an idle trump at all | -0.001 | -0.22 | +0.58 | 419 of 6,379 | off (library +0.021, t +2.04: a trump lead is sometimes the entry) |
+| 10-30 | ...and ruff at once | -0.004 | -0.38 | +1.01 | 582 of 6,379 | off (library +0.011, t +0.84) |
+| 10-30 | Both shipped rules together. 400 fresh deals | **+0.058** | +3.24 | **+6.69** | 746 of 6,379 | on (library: +0.061, t +3.09, +4.23 points) |
 
 The three information rules together: +0.55 points a board, t = +0.48, 556
 boards changed. None is distinguishable from zero; they are kept because a
@@ -120,6 +126,9 @@ Tried and left off:
 | 10-21 | Trying the remembered best card first | | slower (0.87 s against 0.77 s a board at five cards), no gain |
 | 10-24 | Lead the highest live card instead of a dead second-highest (deal 356) | defence -0.002, declarer -0.019 (seated) | no effect: a dead card still promotes partner's |
 | 10-24 | The same, only in a trump contract against dummy's last card in the suit | +0.001 (12 boards) | almost never fires |
+| 10-30 | Defence switches to a trump when dummy can ruff (championship records: experts 22%, robots 9%) | -0.008 (t = -0.86); narrowed +0.002 | a defender's trump lead gives away trump tricks here |
+| 10-30 | Defence avoids leading into dummy's void (experts 6%, robots 12%) | -0.025 (t = -1.96) | worse |
+| 10-30 | Declarer ruffs in the short hand before drawing, more often (one or two more rounds allowed) | +0.004; -0.004 | the robots already match experts when ruffs are there |
 
 ## Bidding
 

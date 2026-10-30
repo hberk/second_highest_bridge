@@ -918,6 +918,7 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
       ?? (RUFF_RETURN && !(PARTNERS[player] in visible) ? ruffReturn(player, hand, trump, history, visible, shown) : null)
       ?? (SURE_LEAD ? (sure = sureLead(player, hand, trump, played, visible, history)) : null)
       ?? (shown && !(PARTNERS[player] in visible) ? fitLead(player, hand, trump, shown, history, visible) : null)
+      ?? (NT_DEFENCE_SUIT ? ntDefenceSuit(player, hand, trump, history, visible) : null)
       ?? (NT_LONG_LEAD ? ntLongLead(player, hand, trump, played, visible) : null);
     if (chosen !== null) {
       choice = chosen;
@@ -927,6 +928,10 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
       }
     } else {
       choice = lead(hand, trump, played);
+      if (IDLE_TRUMP_FOR_RUFF && choice.suit === trump) {
+        const ruff = ruffForIdleTrump(player, hand, trump, played, visible);
+        if (ruff !== null) choice = lead(hand.filter((c) => c.suit === ruff), trump, played);
+      }
       if (DEFENDER_SUIT_PLAN) {
         choice = defenderSuitPlan(player, hand, trump, played, visible, history, shown, choice) ?? choice;
       }
@@ -1853,6 +1858,39 @@ function ntLongLead(player: Seat, hand: Card[], trump: string | null, played: Ca
   const best = maxBy(tied, (s) => [-gap(s, hand, played), suitIndex(s)]);
   const cards = [...groups.get(best)!].sort((a, b) => value(b) - value(a));
   return cards[1];
+}
+
+// ── Notrump defence goes back to the opening-lead suit (see ai.py) ──────────
+
+export const NT_DEFENCE_SUIT = true;
+
+/** In notrump, the defence's opening-lead suit led again, or null (see ai.py). */
+function ntDefenceSuit(player: Seat, hand: Card[], trump: string | null, history: AnyPlay[][] | null,
+  visible: Partial<Record<Seat, Card[]>>): Card | null {
+  if (isSuit(trump) || !history || !history.length
+    || (Object.keys(visible).length && PARTNERS[player] in visible)) return null;
+  const [leader, led] = history[0][0];
+  if (leader !== player && leader !== PARTNERS[player]) return null;
+  if (shownOut(history, [])[leader].has(led.suit)) return null;
+  const cards = hand.filter((c) => c.suit === led.suit).sort((a, b) => value(b) - value(a));
+  return cards.length ? cards[Math.min(1, cards.length - 1)] : null;
+}
+
+// ── An idle trump becomes a ruff (see ai.py) ─────────────────────────────────
+
+export const IDLE_TRUMP_FOR_RUFF = true;
+
+/** The side suit to lead for a ruff in partner's hand instead of a trump, or null (see ai.py). */
+function ruffForIdleTrump(player: Seat, hand: Card[], trump: string | null, played: Card[],
+  visible: Partial<Record<Seat, Card[]>>): Suit | null {
+  const partner = PARTNERS[player];
+  const other = visible[partner];
+  if (!isSuit(trump) || !other) return null;
+  const seen = new Set([...played, ...hand, ...other].map(cardKey));
+  if (FULL_DECK.some((c) => c.suit === trump && !seen.has(cardKey(c)))) return null;
+  if (!other.some((c) => c.suit === trump)) return null;
+  const cards = hand.filter((c) => c.suit !== trump && !other.some((d) => d.suit === c.suit));
+  return cards.length ? minBy(cards, (c) => [value(c), suitIndex(c.suit)]).suit : null;
 }
 
 function choose(n: number, k: number): number {
