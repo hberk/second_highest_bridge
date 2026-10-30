@@ -248,7 +248,7 @@ export class Ctx {
   /** Is our first call a natural 2♣ overcall, not a strong 2♣? */
   get natural(): boolean {
     if (this.naturalMemo === null) {
-      this.naturalMemo = NATURAL_2C && this.seq.length > 0 && this.seq[0] === '2C'
+      this.naturalMemo = NATURAL_2C && OVERCALL_READ && this.seq.length > 0 && this.seq[0] === '2C'
         && ourTwoLevelOvercall(this) !== null;
     }
     return this.naturalMemo;
@@ -1670,7 +1670,7 @@ function shownLengths(seq: string[], parity: number, natural = false): Record<Su
 
 function gameForced(seq: string[], ctx: Ctx): boolean {
   if (!seq.length) return false;
-  if (OVERCALL_READ && !ctx.weOpened && theirOpeningSuit(ctx)) return false;
+  if (OVERCALL_READ && !ctx.weOpened && (theirOpeningSuit(ctx) || OVER_1NT_2C)) return false;
   const first = seq[0];
   const x = strainOf(first);
   if (first === '2C') return !(seq.length > 2 && seq[1] === '2D' && seq[2] === '2NT');
@@ -1731,6 +1731,9 @@ export const BALANCE_READ = true;
  *  direct or balancing, as clubs, not as a strong 2♣ with its 2♦ waiting
  *  reply and 2NT rebid. `owns` still reads it as GIB's. See gib.py. */
 export const NATURAL_2C = true;
+/** Our 2♣ over their 1NT, direct or after P P, is Cappelletti's one-suiter
+ *  (10+), not a strong 2♣: neither game forcing nor 22+. See gib.py. */
+export const OVER_1NT_2C = true;
 
 /** The index of their opening when our first call came straight over it
  *  or, with BALANCE_READ, in the pass-out seat after it; else null. */
@@ -1767,11 +1770,31 @@ function theirOpeningSuit(ctx: Ctx): Suit | null {
  *  overcall straight over their one-level opening. */
 function ourTwoLevelOvercall(ctx: Ctx): [Suit, Suit | null] | null {
   const i = overcallOver(ctx);
-  if (i === null) return null;
+  if (i === null) return overcallAfterResponse(ctx);
   const opening = ctx.calls[i][1], call = ctx.seq[0];
   const y = strainOf(call);
   if (!theirOpeningSuit(ctx) || levelOf(call) !== 2 || !isSuit(y)
     || y === strainOf(opening) || rankOf(`1${y}`) > rankOf(opening)) {
+    return null;
+  }
+  return [y, null];
+}
+
+/** ...and so is a natural two-level overcall after they respond, (1♦) P (1♥)
+ *  2♣, the usual fourth-seat overcall. See gib.py. */
+export const OVERCALL_AFTER_RESPONSE = true;
+
+/** [y, null] when our first call was a natural, non-jump two-level bid of a
+ *  suit they haven't bid, after their one-level opening and response. */
+function overcallAfterResponse(ctx: Ctx): [Suit, Suit | null] | null {
+  if (!OVERCALL_AFTER_RESPONSE || ctx.weOpened || !ctx.seq.length || !theirOpeningSuit(ctx)) return null;
+  const j = ctx.calls.findIndex(([w, c]) => (w === ctx.me || w === ctx.pd) && c !== 'Pass');
+  const before = ctx.calls.slice(0, j).map(([, c]) => c).filter((c) => c !== 'Pass');
+  const call = ctx.seq[0];
+  const y = strainOf(call);
+  if (before.length < 2 || before.some((c) => levelOf(c) === 0) || levelOf(call) !== 2
+    || !isSuit(y) || before.some((c) => strainOf(c) === y)
+    || rankOf(`1${y}`) > rankOf(before[before.length - 1])) {
     return null;
   }
   return [y, null];
@@ -2097,6 +2120,8 @@ function continuation(ctx: Ctx): Decision {
     mylen = twoSuiterLengths(seq, meParity, two);
     const p2 = plen, m2 = mylen;
     trump = SUITS.find((s) => p2[s] && m2[s] && p2[s] + m2[s] >= 8) ?? null;
+  } else if (OVER_1NT_2C && !ctx.weOpened && seq[0] === '2C') {
+    pmin = pParity === 0 ? OVERCALL_2[0] : 0;     // (1NT) 2♣: Cappelletti
   }
   let comb = h.judge + pmin;
   const gf = gameForced(seq, ctx) && !two;

@@ -179,6 +179,18 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     changed, 80 better and 46 worse. Handing the auction to `ai_bid` as well
     (`_owns` natural too) measured -0.20, +0.06, +0.47, 484 changed: it
     competes far higher (up to 7♣).
+  - **...over 1NT and after their response too** (`OVER_1NT_2C`,
+    `OVERCALL_AFTER_RESPONSE`; review of PR #54). Our 2♣ over their 1NT,
+    direct or after P P, is Cappelletti's one-suiter: `_game_forced` read
+    2♣-2♦ as a strong 2♣ and `continuation` gave partner 22, so a 2 HCP
+    advancer bid 4♥ after 2♣ P 2♦ P 2♥. It is now 10+ and not forcing to
+    game. And (1♦) P (1♥) 2♣, a natural non-jump two-level bid of an unbid
+    suit as our first call after their response, reads as an overcall like
+    the direct one (a 9 HCP advancer had bid 4NT). Three sets of 3,000 fresh
+    deals: over 1NT +0.18, +0.16, +0.14 (t = +1.27 to +1.63); after their
+    response +0.03, -0.06, +0.01 (28 auctions, flat, kept as a bug fix);
+    both +0.18, +0.19, +0.14 (t = +1.37, +1.82, +1.27), 269 auctions, 162
+    better and 102 worse.
   - The old misreading had been feeding `THEIR_CONTRACT_DOUBLE`: the
     overcalling side "saw" game values and doubled. `VALUES_AT_FOUR` counts
     our side bidding to the four level as values instead (deal 118: we

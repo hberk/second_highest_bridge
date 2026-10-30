@@ -229,7 +229,7 @@ class Ctx:
     def natural(self) -> bool:
         """Is our first call a natural 2♣ overcall, not a strong 2♣?"""
         if self._natural is None:
-            self._natural = bool(NATURAL_2C and self.seq and self.seq[0] == '2C'
+            self._natural = bool(NATURAL_2C and OVERCALL_READ and self.seq and self.seq[0] == '2C'
                                  and _our_two_level_overcall(self))
         return self._natural
 
@@ -1782,7 +1782,7 @@ def _shown_lengths(seq: list[str], parity: int, natural: bool = False) -> dict:
 def _game_forced(seq: list[str], ctx: Ctx) -> bool:
     if not seq:
         return False
-    if OVERCALL_READ and not ctx.we_opened and _their_opening_suit(ctx):
+    if OVERCALL_READ and not ctx.we_opened and (_their_opening_suit(ctx) or OVER_1NT_2C):
         return False                 # an opening's forcing rules, not an overcall's
     first = seq[0]
     x = strain_of(first)
@@ -1846,6 +1846,10 @@ BALANCE_READ = True
 #: `_owns` still reads it as GIB's, so `continuation` keeps the auction;
 #: handing it to `ai_bid` too measured -0.20, +0.06, +0.47 a board.
 NATURAL_2C = True
+#: Our 2♣ over their 1NT, direct or after P P, is Cappelletti's one-suiter
+#: (10+), not a strong 2♣: after 2♦ P 2♥ a 2 HCP advancer bid 4♥ (review
+#: of PR #54). Neither game forcing nor 22+.
+OVER_1NT_2C = True
 
 
 def _overcall_over(ctx: Ctx) -> int | None:
@@ -1884,11 +1888,34 @@ def _our_two_level_overcall(ctx: Ctx) -> tuple | None:
     overcall straight over their one-level opening."""
     i = _overcall_over(ctx)
     if i is None:
-        return None
+        return _overcall_after_response(ctx)
     opening, call = ctx.calls[i][1], ctx.seq[0]
     y = strain_of(call)
     if not _their_opening_suit(ctx) or level_of(call) != 2 or y not in SUITS \
             or y == strain_of(opening) or rank_of(f"1{y}") > rank_of(opening):
+        return None
+    return (y, None)
+
+
+#: ...and so is a natural two-level overcall after they respond, (1♦) P (1♥)
+#: 2♣, the usual fourth-seat overcall: a 9 HCP advancer read it as a strong
+#: 2♣ and bid 4NT over 2♠ P 3♠ (review of PR #54, 2026-10-30).
+OVERCALL_AFTER_RESPONSE = True
+
+
+def _overcall_after_response(ctx: Ctx) -> tuple | None:
+    """(y, None) when our first call was a natural, non-jump two-level bid
+    of a suit they haven't bid, after their one-level opening and response."""
+    if not OVERCALL_AFTER_RESPONSE or ctx.we_opened or not ctx.seq \
+            or not _their_opening_suit(ctx):
+        return None
+    j = next(k for k, (w, c) in enumerate(ctx.calls) if w in (ctx.me, ctx.pd) and c != 'Pass')
+    before = [c for _, c in ctx.calls[:j] if c != 'Pass']
+    call = ctx.seq[0]
+    y = strain_of(call)
+    if len(before) < 2 or any(level_of(c) == 0 for c in before) or level_of(call) != 2 \
+            or y not in SUITS or y in {strain_of(c) for c in before} \
+            or rank_of(f"1{y}") > rank_of(before[-1]):
         return None
     return (y, None)
 
@@ -2258,6 +2285,8 @@ def continuation(ctx: Ctx) -> tuple:
         mylen = _two_suiter_lengths(seq, me_parity, two)
         trump = next((s for s in SUITS if plen[s] and mylen[s]
                       and plen[s] + mylen[s] >= 8), None)
+    elif OVER_1NT_2C and not ctx.we_opened and seq[0] == '2C':
+        pmin = OVERCALL_2[0] if p_parity == 0 else 0     # (1NT) 2♣: Cappelletti
     comb = h.judge + pmin
     gf = _game_forced(seq, ctx) and not two
     current = ctx.current()
