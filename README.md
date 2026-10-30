@@ -70,6 +70,12 @@ Design notes and measurements live in [`docs/`](docs/), with
 [`CLAUDE.md`](CLAUDE.md) as the overview. Every improvement to the robots and
 what it was worth is in [`docs/ROBOT_PROGRESS.md`](docs/ROBOT_PROGRESS.md).
 
+## Credits
+
+The championship auctions behind the robots' competitive bidding study come
+from [ContractBridge/pbn-files](https://github.com/ContractBridge/pbn-files),
+a collection of PBN hand records from world and national championships.
+
 ## Security
 
 See [SECURITY.md](SECURITY.md) to report a problem privately.

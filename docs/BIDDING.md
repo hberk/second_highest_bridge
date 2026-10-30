@@ -551,6 +551,52 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   points, and alerts "6+ ♠"; below it, five cards and 12+ points still
   rebid ("5+"). **+0.27 a board, t = +3.8, 237 auctions**. Partner raising it
   on two cards as well: +0.28, so left out.
+- **Lessons from championship auctions** (2026-10-29; the user's study). The
+  robots bid the 14,016 deals of 39,586 championship auctions from
+  [ContractBridge/pbn-files](https://github.com/ContractBridge/pbn-files)
+  (Bermuda Bowl, Venice Cup, Olympiads, Cap Gemini, Cavendish, Spingold,
+  Vanderbilt, 1996-2002), and their calls were compared with the experts' in
+  the same spots by shape, fit, level, seat and vulnerability only. The Law of
+  Total Tricks holds here, a little more strongly than in bridge: on the 400
+  library deals the two sides' tricks in their best fits sum to the trumps
+  plus 0.3-0.6. Two rules came out of it, both on:
+  - **Reopening after 1x P P** (`BALANCE`, `BALANCE_DISCOUNT = 4`). The
+    robots passed 85% of hands without a five-card suit there, experts 30%.
+    Every overcall and takeout floor in `_defend` drops 4 HCP in the pass-out
+    seat ("Balancing." / "Balancing takeout: 8+ HCP."), the ceilings stay, and
+    there is no weak jump. 3,000 fresh deals at three seeds: +0.85, +0.19,
+    +0.10 a board (t = +4.2, +0.9, +0.4). A 3 HCP discount was weaker. Those
+    runs dropped the overcall ceiling too, so 14-17 HCP passed (found in
+    review); keeping it added +0.27 a board (t = +2.9, seed 8M).
+  - **One level past the LoTT over their three level** (`LOTT_TOTAL = 18`).
+    When they bid and raised their suit to three, and our known fit plus 8 plus
+    one for my singleton (two for a void) in it reaches 18, `_total_tricks`
+    allows one level more ("Competing: both sides have a fit."). Rare (12-27
+    auctions in each set of 3,000 deals) but 35 better and 3 worse: +0.06,
+    +0.17, +0.18, t = +2.4 to +2.7 at each seed. Not below `LOTT_TOTAL_HCP = 6`
+    (the user's call after review: 3 HCP bid 4♥ over 1♠ 2♥ 3♠), which gives
+    back 0.09 a board; staying out when vulnerable cost the same.
+  - **The takeout doubler answers partner's cuebid** (`CUE_ANSWER`): 1♥ X P
+    2♥ P is forcing, and a 19 HCP doubler used to pass it. An unbid four-card
+    major, then notrump with their suit stopped (3NT with 15+), else a minor.
+    The robots never cuebid there, so it is for a human partner.
+  Measured and left off: balancing over their raise (1x P 2x P P; the robots
+  pass 98%, experts act 25-48%) lost 0.14-0.26 a board because the robots'
+  penalty doubles punish a light balance; weak jump overcalls by vulnerability
+  (experts jump 7% unfavourable, the robots 47%) lost 0.29-0.69, so aggressive
+  jumps pay here. Two expert habits failed the double dummy check outright:
+  doubling their five-level save instead of bidding on (the robots' 5-over-5
+  beat it on all 36 library boards) and fewer trump-stack penalty doubles
+  (they break even). Six more expert habits, all more conservative than the
+  robots, lost head to head on 3,000 fresh deals: sounder two-level overcalls
+  on five cards (-1.15 to -1.43 a board), a takeout double instead of
+  overcalling a five-card suit (-0.32), suit quality for three-level pre-empts
+  (-0.23 to -0.27), weak jumps only to the two level (-0.53), and sounder
+  three-level overcalls of a weak two or five-card minor jump raises (-0.04
+  each). Where the robots compete more than experts, the stronger Law of
+  Total Tricks here rewards it; what transferred were the spots where the
+  robots competed less. The study, scripts and data are in
+  `/mnt/project-files/championship-study/`.
 
 ## The previous system (`ai.USE_GIB = False`)
 
