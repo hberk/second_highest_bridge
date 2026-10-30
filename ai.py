@@ -1422,6 +1422,11 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         choice = _cover_for_partner(player, hand, legal, trick, trump, played,
                                     visible, choice, history, shown)
 
+    elif (SECOND_HAND_COVER and len(trick) == 1 and visible and len(legal) > 1
+            and PLAYERS[(PLAYERS.index(player) + 1) % 4] in visible):
+        choice = _cover_unseen_partner(player, hand, legal, trick, trump, played,
+                                       visible, history, choice)
+
     if (history is not None and visible and len(legal) > 1
             and len(hand) <= (DEEP_ENDGAME_CARDS if DEEP_ENDGAME else ENDGAME_CARDS)):
         totals = _endgame_totals(player, hand, trick, trump, played, visible,
@@ -1629,6 +1634,65 @@ def _last_suit_plan(player: str, hand: list[Card], legal: list[Card],
     if planned[choice] == top:
         return choice
     return min((c for c in winning if planned[c] == top), key=lambda c: c.value())
+
+
+# ── Second hand, dummy third and partner last, unseen ────────────────────────
+#
+# With partner's hand hidden, `_middle_play` scores a card by what dummy can do
+# to it and stops there. On a user's board West led the TS, North held AJ83 and
+# dummy 96: the 8 holds unless dummy plays the 9, which it does, and partner can
+# never get the trick back. The jack or ace makes the ten second-highest for
+# now, and since dummy holds nothing above the nine, partner's king or queen
+# then pushes North's card into second place. So each card is scored by the
+# chance partner holds a card that wins the trick for us, after dummy's best
+# reply; every unseen card of the suit is partner's at even odds.
+
+#: Second hand counts partner's possible cards when dummy plays third
+#: (measurement switch).
+SECOND_HAND_COVER = False
+#: Of the cards that score best, spend the suit's top unplayed card first; else
+#: the lowest (measurement switch).
+SECOND_HAND_COVER_TOP = False
+
+
+def _cover_unseen_partner(player: str, hand: list[Card], legal: list[Card],
+                          trick: list[tuple[str, Card]], trump: str | None,
+                          played: list[Card], visible: dict[str, list[Card]],
+                          history: list | None, choice: Card) -> Card:
+    led = trick[0][1].suit
+    if not any(c.suit == led for c in legal):
+        return choice
+    partner = PARTNERS[player]
+    third = PLAYERS[(PLAYERS.index(player) + 1) % 4]
+    seen = set(played) | {c for _, c in trick} | set(hand)
+    for cards in visible.values():
+        seen |= set(cards)
+    unseen = [c for c in _FULL_DECK if c.suit == led and c not in seen]
+    if history is not None and led in _shown_out(history, trick)[partner]:
+        unseen = []
+    ours = (player, partner)
+    replies = legal_plays(visible[third], led)
+
+    def chance(card: Card) -> float:
+        worst = 1.0
+        for opp in replies:
+            plays = trick + [(player, card), (third, opp)]
+            wins = sum(1 for r in unseen if resolve_trick(plays + [(partner, r)], trump) in ours)
+            void = 0.5 ** len(unseen) if resolve_trick(plays, trump) in ours else 0.0
+            worst = min(worst, 1.0 - 0.5 ** wins + void)
+        return worst
+
+    scores = {c: chance(c) for c in legal}
+    best = max(scores.values())
+    if scores[choice] >= best - 1e-9:
+        return choice
+    tied = [c for c in legal if scores[c] >= best - 1e-9]
+    if SECOND_HAND_COVER_TOP:
+        top = max(_unplayed_values(led, played + [c for _, c in trick]), default=None)
+        dead = [c for c in tied if c.suit == led and c.value() == top]
+        if dead:
+            return dead[0]
+    return min(tied, key=lambda c: c.value())
 
 
 # ── Endgame: single dummy search ─────────────────────────────────────────────
