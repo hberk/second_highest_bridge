@@ -7,9 +7,11 @@
   import { SUIT_NAMES, SUIT_SYMBOLS, sameCard, type Card } from '../engine/card';
   import { grouped } from './hand';
 
-  let { cards, trump = null, size = 'lg', playable = false, legal = [], label, onplay, jp = false }: {
+  let { cards, trump = null, trumpLast = false, size = 'lg', playable = false, legal = [], label, onplay, jp = false }: {
     cards: Card[];
     trump?: string | null;
+    /** Trump at the right-hand end instead of the left. */
+    trumpLast?: boolean;
     size?: 'lg' | 'md' | 'sm';
     playable?: boolean;
     legal?: Card[];
@@ -21,7 +23,7 @@
 
   const JP: Record<string, number> = { K: 3, Q: 3, A: 1, J: 1, '10': 1, '9': 1 };
 
-  const groups = $derived(grouped(cards, trump));
+  const groups = $derived(grouped(cards, trump, trumpLast));
   const isLegal = (c: Card) => legal.some((l) => sameCard(l, c));
 </script>
 

@@ -74,7 +74,7 @@
 {#snippet seatPanel(p: Seat)}
   {#if m.sideDummy === p}
     <!-- An East or West dummy shows its cards on its own side of the table. -->
-    <div class="seat-card dk-side-dummy"><SideHand cards={game.hands[p]} trump={m.displayTrump} title={m.labels[p]} /></div>
+    <div class="seat-card dk-side-dummy"><SideHand cards={game.hands[p]} trump={m.dummyTrump} trumpLast={p === m.left} title={m.labels[p]} /></div>
   {:else}
     <SeatCard seat={p} name={m.name(p)} role={role(p)} count={m.counts[p]} />
   {/if}
@@ -180,7 +180,7 @@
             <div class="eyebrow" class:accent={m.who === m.topSeat}>
               {m.labels[m.topSeat]}{c.declarer === me ? ' · you play this hand' : ''}{m.who === m.topSeat ? ' · your turn' : ''}
             </div>
-            <Fan cards={game.hands[m.topSeat]} trump={m.displayTrump} size="lg"
+            <Fan cards={game.hands[m.topSeat]} trump={m.dummyTrump} size="lg"
               playable={m.who === m.topSeat} legal={m.legalFor(m.topSeat)}
               label="{m.topSeat}'s hand" onplay={(card) => game.humanPlays(m.topSeat!, card)} />
           </section>
@@ -219,7 +219,7 @@
               </button>
             {/if}
           </div>
-          <Fan cards={game.hands[me]} trump={m.displayTrump} size="lg"
+          <Fan cards={game.hands[me]} trump={m.myTrump} trumpLast={m.meDummy} size="lg"
             playable={m.who === me} legal={m.legalFor(me)}
             label="Your hand" onplay={(card) => game.humanPlays(me, card)} />
         </section>

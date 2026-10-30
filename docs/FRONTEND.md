@@ -62,7 +62,11 @@ remains the reference.
   Bidding training), the trick on the felt (`TrickFelt`) with a line under it
   saying who is winning and why (`trickText.ts`), your hand as an overlapping
   fan at the bottom (`Fan`; legal cards rise, the rest grey out), the dummy
-  above the felt once it's down. There is no X-ray view of the robots' hands
+  above the felt once it's down. Dummy's trumps sit on declarer's left, as at
+  a real table, whatever the trump-first setting (2026-10-30): the top row of
+  a dummy on your right, the bottom row of one on your left, the left end of
+  partner's dummy, the right end of your hand when you are dummy. The other
+  suits alternate colours (`hand.ts`). There is no X-ray view of the robots' hands
   (removed 2026-10-21, the user's call): the hand record in History shows them.
   The full auction is a sheet. **History and Challenge (2026-10-23)** share `HistoryView` in the same
   look: a result card, a ‹ › board picker (a Your board / Robots' board switch

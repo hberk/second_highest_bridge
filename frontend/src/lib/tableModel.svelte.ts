@@ -120,6 +120,17 @@ export class TableModel {
    *  declare, the dummy is partner. */
   sideDummy = $derived(this.faceDummy === this.left || this.faceDummy === this.right ? this.faceDummy : null);
 
+  /** Dummy's trumps go on declarer's left, as at a real table, whatever the
+   *  trump-first setting (notrump keeps the fixed order). Declarer's left is
+   *  the top row of a dummy on your right, the bottom row of one on your
+   *  left, the left end of partner's dummy across, and the right end of
+   *  yours when you are dummy. */
+  dummyTrump = $derived(this.game.trump);
+  /** You are dummy: your own hand is the one laid out for declarer. */
+  meDummy = $derived(this.dummyDown && this.contract?.dummy === this.me);
+  /** The trump to sort your own hand by, and whether it goes at the end. */
+  myTrump = $derived(this.meDummy ? this.dummyTrump : this.displayTrump);
+
   labels = $derived(Object.fromEntries(SEATS.map((p) => [p, this.seatLabel(p)])) as Record<Seat, string>);
 
   /** Legal cards for a seat the player is about to play from; none otherwise. */
