@@ -134,7 +134,11 @@ async function playOut(c: Client) {
 
 describe('a table, end to end', () => {
   it('creates, joins, sits and plays a whole board with three robots', async () => {
-    const s = await serve();
+    // Robots at 1 ms let a board run in a quarter of a second: hello, join,
+    // sit, deal, a few passes and 13 cards came to 21 messages inside one
+    // second, and the rate limit (RATE_PER_SECOND) closed the socket. At 50 ms
+    // three robot actions come between any two of ours, 150 ms apart at least.
+    const s = await serve({ robotDelayMs: 50 });
     const { status, body } = await createTable(s.url);
     expect(status).toBe(201);
     expect(body.id).toMatch(/^[A-Za-z0-9_-]{22}$/);
