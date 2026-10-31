@@ -278,6 +278,18 @@ def test_support_double_then_they_raise():
     assert bid('AS 10S JH 3H KD 9D 7D 2D QC 9C 5C 4C 2C', *calls, dealer='East')[0] == '3D'
 
 
+def test_keycard_answer_then_they_bid():
+    # 1H 2NT 4H 4NT 5C (5D): with four keycards opposite 0/3 none is missing,
+    # so the slam is bid over their bid; with two, two are missing: double.
+    calls = ('1H', 'Pass', '2NT', 'Pass', '4H', 'Pass', '4NT', 'Pass', '5C', '5D')
+    assert bid('AS KS 4S AH QH 9H 8H AD QD 3D AC 7C 2C', *calls)[0] == '6H'
+    assert bid('KS QS 4S AH QH 9H 8H AD QD 3D KC 7C 2C', *calls)[0] == 'X'
+    # Over 6D, above five of the trump suit: two keycards missing still doubles.
+    calls = ('1S', 'Pass', '2NT', 'Pass', '4S', 'Pass', '4NT', 'Pass', '5H', '6D')
+    assert bid('QS JS 9S 8S AH KH 4H KD QD 3D KC 7C 2C', *calls)[0] == 'X'
+    assert bid('AS QS 9S 8S AH KH 4H KD QD 3D KC 7C 2C', *calls)[0] == '6S'
+
+
 def test_free_after_their_bid():
     # Partner's Michaels, then they raise: two spades and an unknown minor
     # are no reason to bid at three.

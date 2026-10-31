@@ -1673,14 +1673,19 @@ def _gerber_answer(ctx: Ctx) -> tuple:
 
 
 def after_my_ask(ctx: Ctx) -> tuple | None:
-    """I asked with 4NT or 4C; place the contract from the answer. Not when
-    RHO bid over the answer: the general branches decide over their bid."""
+    """I asked with 4NT or 4C; place the contract from the answer. When RHO
+    bid over a keycard answer, the small slam if at most one keycard is
+    missing and it is still biddable, else double; over any other answer the
+    general branches decide over their bid."""
     seq = ctx.seq
-    if len(seq) < 2 or ctx.ours[-1][0] != ctx.pd or level_of(ctx.calls[-1][1]):
+    if len(seq) < 2 or ctx.ours[-1][0] != ctx.pd:
         return None
+    contested = bool(level_of(ctx.calls[-1][1]))
     h = ctx.h
     last, prior = seq[-1], seq[:-1]
     my_ask = prior[-1] if prior else None
+    if contested and not (my_ask == '4NT' and _asked_rkcb(prior, ctx.natural)):
+        return None
     if my_ask == '4NT' and _asked_rkcb(prior, ctx.natural):
         trump = agreed_trump(prior[:-1], ctx.natural)
         mine = h.keycards(trump)
@@ -1694,6 +1699,10 @@ def after_my_ask(ctx: Ctx) -> tuple | None:
         theirs = options[1] if mine + options[1] <= 5 and mine <= 1 else options[0]
         missing = 5 - mine - theirs
         queen = h.has(trump, 'Q') or last == '5S'
+        if contested:
+            if missing <= 1 and ctx.ok(f"6{trump}"):
+                return f"6{trump}", TO_PLAY
+            return ('X', "Penalty.") if ctx.ok('X') else ('Pass', TO_PLAY)
         if missing >= 2:
             call = ctx.cheapest(trump, 5)
             return (call, TO_PLAY) if call else ('Pass', TO_PLAY)

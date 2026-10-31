@@ -103,8 +103,12 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     and was dropped).
   - `after_my_ask`: the keycard asker placed the contract from partner's
     answer even after RHO bid over it (a human's 7♦ over 5♦, then 6♠, caught
-    by the illegal-call guard). Now an opponent's bid over the answer goes
-    to the general branches.
+    by the illegal-call guard). Now, when RHO bids over a keycard answer,
+    the asker bids the small slam if at most one keycard is missing and six
+    of the suit is still biddable, else doubles (the user's call, 2026-10-31:
+    passing every such board to the general branches doubled 5♦ on
+    1♥ 2NT 4♥ 4NT 5♣ (5♦) with all keycards held). Any other answer with
+    their bid over it goes to the general branches.
 - **Opener after they overcall the response** (`_rebid_over_their_overcall`):
   `1x (P) 1y (2z) ?`. The fallback raised every four-card fit to the two
   level, 12 HCP or 18, and passed 18-19 balanced. Now: four-card support

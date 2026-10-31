@@ -1561,15 +1561,18 @@ function gerberAnswer(ctx: Ctx): Decision {
     3: ['4NT', '3 aces.'] } as Record<number, Decision>)[aces];
 }
 
-/** Not when RHO bid over the answer: the general branches decide over their bid. */
+/** When RHO bid over a keycard answer: the small slam if at most one keycard
+ *  is missing and it is still biddable, else double; over any other answer the
+ *  general branches decide over their bid. */
 function afterMyAsk(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
-  if (seq.length < 2 || ctx.ours[ctx.ours.length - 1][0] !== ctx.pd
-    || levelOf(ctx.calls[ctx.calls.length - 1][1])) return null;
+  if (seq.length < 2 || ctx.ours[ctx.ours.length - 1][0] !== ctx.pd) return null;
+  const contested = levelOf(ctx.calls[ctx.calls.length - 1][1]) > 0;
   const h = ctx.h;
   const last = seq[seq.length - 1];
   const prior = seq.slice(0, -1);
   const myAsk = prior.length ? prior[prior.length - 1] : null;
+  if (contested && !(myAsk === '4NT' && askedRkcb(prior, ctx.natural))) return null;
   if (myAsk === '4NT' && askedRkcb(prior, ctx.natural)) {
     const trump = agreedTrump(prior.slice(0, -1), ctx.natural) as Suit;
     const mine = h.keycards(trump);
@@ -1582,6 +1585,10 @@ function afterMyAsk(ctx: Ctx): Decision | null {
     const theirs = mine + options[1] <= 5 && mine <= 1 ? options[1] : options[0];
     const missing = 5 - mine - theirs;
     const queen = h.has(trump, 'Q') || last === '5S';
+    if (contested) {
+      if (missing <= 1 && ctx.ok(`6${trump}`)) return [`6${trump}`, TO_PLAY];
+      return ctx.ok('X') ? ['X', 'Penalty.'] : ['Pass', TO_PLAY];
+    }
     if (missing >= 2) {
       const call = ctx.cheapest(trump, 5);
       return call ? [call, TO_PLAY] : ['Pass', TO_PLAY];
