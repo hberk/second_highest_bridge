@@ -106,6 +106,9 @@ four seats, which nets out a change both declarer and defenders use.
 | 10-30 | ...never lead an idle trump at all | -0.001 | -0.22 | +0.58 | 419 of 6,379 | off (library +0.021, t +2.04: a trump lead is sometimes the entry) |
 | 10-30 | ...and ruff at once | -0.004 | -0.38 | +1.01 | 582 of 6,379 | off (library +0.011, t +0.84) |
 | 10-30 | Both shipped rules together. 400 fresh deals | **+0.058** | +3.24 | **+6.69** | 746 of 6,379 | on (library: +0.061, t +3.09, +4.23 points) |
+| 10-30 | The opening lead in partner's suit is my top honour when partner showed 4+ judgement points there (board 26, `PARTNER_HONOUR_LEAD`). Library | +0.002 | +1.34 | +0.41 | 24 of 6,367 | on (your rule; 6 leads, net +1 double dummy; never fired on 400 fresh deals) |
+| 10-30 | Second and fourth hand on the declaring side break a tie by playing the suit out with the count; second hand plays the lowest of equals and never spends the suit's top card (board 26, `COVER_SUIT_PLAN`, `COVER_PLAN_LOW`, `COVER_KEEP_MASTER`, `LAST_SUIT_PLAN`). 400 fresh deals, before `COVER_KEEP_MASTER` | +0.017 | +0.82 | +2.12 | 1,313 of 6,352 | on (library -0.001, t -0.07. Each changed card double dummy, with `COVER_KEEP_MASTER`: library 61 better / 21 worse, net +45; fresh 59 / 19, net +49) |
+| 10-30 | ...second hand only; second hand keeping its old pick among equals; fourth hand only (library) | -0.007; -0.007; +0.007 | -0.45; -0.48; +0.69 | +0.71; +0.04; +0.80 | 1,052; 996; 480 | the package on |
 
 The three information rules together: +0.55 points a board, t = +0.48, 556
 boards changed. None is distinguishable from zero; they are kept because a

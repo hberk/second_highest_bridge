@@ -1,7 +1,8 @@
-"""The card-play rules from the user's review of deals 10, 43, 92, 156, 174, 276 and 356.
+"""The card-play rules from the user's review of deals 10, 43, 92, 114, 156, 174, 276 and 356.
 
 Each is a switch in ai.py (SURE_LEAD_DECLARER, RUFF_LEAD, FORCE_DUMMY,
-DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT, DEFENDER_SUIT_PLAN, DEAD_WINNER_FIRST, RUFF_IF_FOLLOWS). Every test sets the switches it needs and puts them back, so
+DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT, DEFENDER_SUIT_PLAN, DEAD_WINNER_FIRST, RUFF_IF_FOLLOWS,
+PARTNER_HONOUR_LEAD, COVER_SUIT_PLAN, COVER_PLAN_LOW, LAST_SUIT_PLAN). Every test sets the switches it needs and puts them back, so
 the result doesn't depend on which rules are adopted.
 """
 from __future__ import annotations
@@ -19,7 +20,8 @@ from card import Card
 RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'LIVE_LEAD', 'NT_SET_UP_SUIT', 'DEFENDER_SUIT_PLAN', 'RUFF_RETURN',
          'SHORT_LEAD_RETURN', 'DEAD_WINNER_FIRST', 'RUFF_IF_FOLLOWS',
-         'NT_DEFENCE_SUIT', 'IDLE_TRUMP_FOR_RUFF')
+         'NT_DEFENCE_SUIT', 'IDLE_TRUMP_FOR_RUFF', 'PARTNER_HONOUR_LEAD',
+         'COVER_SUIT_PLAN', 'COVER_PLAN_LOW', 'LAST_SUIT_PLAN', 'COVER_KEEP_MASTER')
 
 
 @contextmanager
@@ -393,6 +395,94 @@ def test_nt_defence_suit_returns_partners_opening_lead():
     out = history + [[('North', C('5H')), ('East', C('7H')), ('South', C('6H')), ('West', C('2C'))]]
     assert ai._nt_defence_suit('East', hand, 'NT', out, {'North': []}) is None   # West is out
     assert ai._nt_defence_suit('East', hand, 'S', history, {'North': []}) is None
+
+
+# Board 26 (challenge deal 114), 2S by East after 1NT P 2H(transfer) X P...:
+# North's double is lead-directing, "5+ ♥, 4+ judgement points there", with
+# ♥A K J 8 3. South holds ♥Q 2.
+AUCTION_114 = [('East', '1NT'), ('South', 'Pass'), ('West', '2H'), ('North', 'X'),
+               ('East', '2S'), ('South', 'Pass'), ('West', 'Pass'), ('North', 'Pass')]
+ALERTS_114 = {2: "Transfer: 5+ \u2660. Artificial.",
+              3: "Lead-directing: 5+ \u2665, 4+ judgement points there."}
+
+
+def test_shown_lengths_reads_judgement_points():
+    shown = ai.shown_lengths(AUCTION_114, ALERTS_114)
+    assert shown['North']['H'] == 5 and shown['West']['S'] == 5
+    assert shown['judge']['North'] == {'H': 4} and shown['judge']['West'] == {}
+
+
+def test_deal_114_leads_the_queen_of_partners_suit():
+    """South led the 2 from Q-2; the queen, under North's jack, makes a trick."""
+    hands = challenge.hands_for(114)
+    shown = ai.shown_lengths(AUCTION_114, ALERTS_114)
+    with rules():
+        assert ai.ai_play('South', hands['South'], [], 'S', [], shown=shown) == C('2H')
+    with rules(PARTNER_HONOUR_LEAD=True):
+        assert ai.ai_play('South', hands['South'], [], 'S', [], shown=shown) == C('QH')
+        # Without the judgement points (an ordinary 5-card overcall), the old lead.
+        bare = {**shown, 'judge': {p: {} for p in ai.PLAYERS}}
+        assert ai.ai_play('South', hands['South'], [], 'S', [], shown=bare) == C('2H')
+        # No honour to lead: the second-highest card as before.
+        low = [c for c in hands['South'] if c != C('QH')] + [C('3H')]
+        low.remove(C('7D'))
+        assert ai.ai_play('South', low, [], 'S', [], shown=shown) == C('2H')
+
+
+def _east_114() -> tuple:
+    """Trick 2: North leads the KH (A 8 3 left); East holds T 6, dummy 9 7.
+    North's double showed five, so South has one heart at most."""
+    hands, played, history = replay(114, ['S:QH W:5H N:JH E:4H'])
+    trick = [('North', C('KH'))]
+    hands['North'].remove(C('KH'))
+    visible = ai.visible_hands('East', {'declarer': 'East', 'dummy': 'West'}, hands)
+    shown = ai.shown_lengths(AUCTION_114, ALERTS_114)
+    return hands, trick, played, visible, history, shown
+
+
+def test_deal_114_east_played_the_ten():
+    hands, trick, played, visible, history, shown = _east_114()
+    with rules():
+        assert ai.ai_play('East', hands['East'], trick, 'S', played, visible,
+                          history, shown) == C('10H')
+
+
+def test_deal_114_east_plays_the_six_and_keeps_the_ten():
+    """The 6 and dummy's 7 win the trick, and the T and 9 win another heart."""
+    hands, trick, played, visible, history, shown = _east_114()
+    with rules(COVER_SUIT_PLAN=True, COVER_PLAN_LOW=True):
+        assert ai.ai_play('East', hands['East'], trick, 'S', played, visible,
+                          history, shown) == C('6H')
+        planned = ai._cover_suit_plan('East', hands['East'], [C('10H'), C('6H')], trick, 'S',
+                                      played, visible, history, shown)
+        assert planned[C('10H')] == planned[C('6H')]      # both win twice, played right
+
+
+def test_deal_114_dummy_keeps_the_seven_after_the_ten():
+    """After K T 2, dummy's 9 and 7 both keep the trick; only the 9 leaves
+    dummy's 7 beside East's 6 to win a later heart."""
+    hands, trick, played, visible, history, shown = _east_114()
+    trick = trick + [('East', C('10H')), ('South', C('2H'))]
+    for seat, card in trick[1:]:
+        hands[seat].remove(card)
+    visible = ai.visible_hands('West', {'declarer': 'East', 'dummy': 'West'}, hands)
+    with rules():
+        assert ai.ai_play('West', hands['West'], trick, 'S', played, visible,
+                          history, shown) == C('7H')
+    with rules(LAST_SUIT_PLAN=True):
+        assert ai.ai_play('West', hands['West'], trick, 'S', played, visible,
+                          history, shown) == C('9H')
+
+
+def test_deal_114_robot_table_wins_two_hearts_for_east_west():
+    """The whole board as shipped: E/W win trick 2 and a later heart."""
+    table = challenge.robot_table(114, 'East', 'Both')
+    log = table['tricks_log']
+    assert log[0]['plays'][0] == ('South', C('QH'))
+    assert dict(log[1]['plays'])['East'] == C('6H')
+    hearts_ew = [t for t in log if t['plays'][0][1].suit == 'H'
+                 and t['winner'] in ('East', 'West')]
+    assert len(hearts_ew) == 2
 
 
 if __name__ == '__main__':
