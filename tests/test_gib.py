@@ -975,6 +975,23 @@ def test_checkback_over_openers_2nt_rebid():
     assert call == '4H', call
 
 
+def test_cuebid_raise_of_a_minor_needs_length():
+    """The user's rule, 2026-10-30 (Challenge board, Pass 1♦ (1♥) 2♥ on
+    ♦832): a cuebid raise of 1♦ needs 4+ diamonds and of 1♣ 5+ clubs, since
+    a minor opening can be short. Without, responder bids as if there were no
+    fit, and raises only with nothing else to bid."""
+    call, _ = bid('KS QS JH 9H 8H 4H 8D 3D 2D KC QC 6C 4C', 'Pass', '1D', '1H', dealer='West')
+    assert call == '2NT', call
+    call, _ = bid('KS QS 9S JH 8H 4H 8D 3D 2D KC QC 6C 4C', 'Pass', '1D', '1H', dealer='West')
+    assert call == '2D', call
+    call, why = bid('KS QS 9S 8H 4H 8D 3D 2D KD QC 6C 4C 2C', 'Pass', '1D', '1H', dealer='West')
+    assert call == '2H' and why.startswith('Cuebid: 4+'), (call, why)
+    call, _ = bid('KS QS 9S 8H 4H 8D 3D KD AC QC 6C 4C 7H', 'Pass', '1C', '1H', dealer='West')
+    assert call != '2H', call
+    call, why = bid('KS QS 9S 8H 4H 8D 3D KD AC QC 6C 4C 2C', 'Pass', '1C', '1H', dealer='West')
+    assert call == '2H' and why.startswith('Cuebid: 5+'), (call, why)
+
+
 def test_light_response_with_a_singleton_in_openers_minor():
     """The user's call, 2026-10-28: 5 HCP and a singleton diamond respond
     rather than leave partner in 1♦; with three diamonds it still passes."""

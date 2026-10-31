@@ -53,6 +53,8 @@ export const GAME_MAJOR = 26;
 const NT_GAME = 28;
 /** Judge level on the variant's card values (true) or on HCP (false). See gib.py. */
 export const settingsGib = { judgeByVariant: true, cueLimitAt3: true };
+/** Responder's cuebid raise of a minor opening needs 4+ diamonds or 5+ clubs (gib.py). */
+export const CUE_MINOR_SUPPORT = true;
 /** Advancer's cuebid raise past three of partner's suit: 2NT is the limit
  *  raise or better and the cuebid asks for a stopper for 3NT. See gib.py. */
 export const CUE_2NT = true;
@@ -2665,7 +2667,7 @@ function respondOverInterference(ctx: Ctx, x: Suit): Decision {
     const rest = SUITS.filter((s) => s !== x && !shown.includes(s));
     const low = ctx.cheapest(shown[0], 3);
     const high = ctx.cheapest(shown[1], 3);
-    if (sup >= 3 && hcp >= 10 && low && levelOf(low) === 3) {
+    if (sup >= cueSupport(x) && hcp >= 10 && low && levelOf(low) === 3) {
       return [low, `Limit raise or better in ${SYM[x]}. Artificial.`];
     }
     if (rest.length && h.len[rest[0]] >= 5 && hcp >= 12 && high && levelOf(high) === 3) {
@@ -2686,12 +2688,13 @@ function respondOverInterference(ctx: Ctx, x: Suit): Decision {
     if (neg) return neg;
   }
   let cueTooHigh = false;
-  if (sup >= 3 && hcp >= 10 && their !== x && isSuit(their)) {
+  const need = cueSupport(x);
+  if (sup >= need && hcp >= 10 && their !== x && isSuit(their)) {
     const call = ctx.cheapest(their, 2);
     // A three-level cuebid needs four trumps or 12+ judgement points (gib.py).
     cueTooHigh = settingsGib.cueLimitAt3 && call !== null && levelOf(call) === 3
       && sup < 4 && h.judge < 12;
-    if (call && levelOf(call) <= 3 && !cueTooHigh) return [call, `Cuebid: 3+ ${SYM[x]}, 10+ HCP. Artificial.`];
+    if (call && levelOf(call) <= 3 && !cueTooHigh) return [call, `Cuebid: ${need}+ ${SYM[x]}, 10+ HCP. Artificial.`];
   }
   if (sup >= 4 && hcp <= 9 && ctx.ok(`3${x}`) && lvl <= 2
     && rankOf(`3${x}`) > rankOf(ctx.cheapest(x, 1) ?? '1C')) {
@@ -2719,7 +2722,17 @@ function respondOverInterference(ctx: Ctx, x: Suit): Decision {
     if (hcp >= 11 && hcp <= 12 && ctx.ok('2NT')) return ['2NT', `11-12 HCP, ${SYM[their]} stopper.`];
     if (hcp >= 13 && ctx.ok('3NT')) return ['3NT', `13+ HCP, ${SYM[their]} stopper.`];
   }
+  if (sup >= 3 && sup < need && hcp >= 10) {
+    const call = ctx.cheapest(x, 2);
+    if (call && levelOf(call) <= 3) return [call, raiseAlert(x, `3+ ${SYM[x]}, 6+ HCP.`)];
+  }
   return ['Pass', 'Nothing to show.'];
+}
+
+/** Cards responder's cuebid raise of partner's 1x opening needs (gib.py). */
+function cueSupport(x: Suit): number {
+  if (CUE_MINOR_SUPPORT && isMinor(x)) return x === 'D' ? 4 : 5;
+  return 3;
 }
 
 function fiveCardMajor(ctx: Ctx, x: Suit): Decision | null {

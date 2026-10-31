@@ -467,6 +467,18 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   half of its gap came from the opponents' extra turn after 2NT, and the
   rest from declined invitations); the same for responder (1♦ (2♥) 2NT)
   -0.19 and the game-forcing cuebid for responder about 0.
+- **Responder's cuebid raise of a minor needs length** (`CUE_MINOR_SUPPORT`,
+  `_cue_support`; the user's rule, 2026-10-30, a Challenge board: Pass 1♦ (1♥)
+  2♥ on ♦832). A 1♦ opener often has four and a 1♣ opener three, where a
+  major promises five, so the cuebid (and the limit raise over their
+  unusual 2NT) needs 4+ diamonds or 5+ clubs. Short of that, responder bids
+  as with no fit (negative double, new suit, notrump) and raises only with
+  nothing else to bid; that board now goes 2NT. Advancer's cuebid after
+  partner's minor overcall stays at 3+, since an overcall shows five.
+  10,000 fresh deals: **+0.18, t = +1.9, 474 auctions changed** (211 better,
+  175 worse). The same length for the pre-emptive jump raise over their
+  bid (5+ ♦ / 6+ ♣, not 4+) measured -0.02, t = -0.1, and with 1♣-3♣ on 6+
+  -0.03; left off (the user's call: weak raises stay where they were).
 - **Runouts after our 1NT is penalty-doubled** (`NT_RUNOUTS`, `_nt_runout`,
   `_runout_choice`; the user's system, 2026-10-28, from training board 25,
   where 1NT (X) P (P) had the opener bid Stayman: systems on read the

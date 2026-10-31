@@ -92,6 +92,12 @@ NT_GAME = 28
 JUDGE_BY_VARIANT = True
 #: A three-level cuebid raise needs 4 trumps or 12+ judgement points.
 CUE_LIMIT_AT_3 = True
+#: Responder's cuebid raise of partner's minor opening needs 4+ diamonds or
+#: 5+ clubs: a 1♦ opener often has four and a 1♣ opener three, where a major
+#: promises five (the user's rule, 2026-10-30: 1♦ (1♥) 2♥ on ♦832). Without
+#: the length, responder bids as if there were no fit, and with nothing else
+#: to bid raises.
+CUE_MINOR_SUPPORT = True
 #: Advancer's cuebid raise can pass three of partner's suit (1♦ (2♣) 2♦ 3♦),
 #: forcing 3NT or four. So when their suit ranks above ours, 2NT is the
 #: limit raise or better (artificial), leaving three as partner's sign-off,
@@ -2886,7 +2892,7 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
         shown = [s for s in SUITS if s != x][:2]             # their two suits
         rest = [s for s in SUITS if s != x and s not in shown]
         low, high = ctx.cheapest(shown[0], 3), ctx.cheapest(shown[1], 3)
-        if sup >= 3 and hcp >= 10 and low and level_of(low) == 3:
+        if sup >= _cue_support(x) and hcp >= 10 and low and level_of(low) == 3:
             return low, f"Limit raise or better in {SYM[x]}. Artificial."
         if rest and h.len[rest[0]] >= 5 and hcp >= 12 and high and level_of(high) == 3:
             return high, f"5+ {SYM[rest[0]]}, game forcing. Artificial."
@@ -2909,7 +2915,8 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
     # A cuebid raise: limit raise or better. Only of THEIR suit -- after a
     # Michaels cuebid of ours, a bid of our suit is just a raise.
     cue_too_high = False
-    if sup >= 3 and hcp >= 10 and their != x and their in SUITS:
+    need = _cue_support(x)
+    if sup >= need and hcp >= 10 and their != x and their in SUITS:
         call = ctx.cheapest(their, 2)
         # A cuebid that forces the THREE level needs more than a bare limit
         # raise here: on a user's board 1H-(2C)-3C on three trumps and 10 HCP
@@ -2917,7 +2924,7 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
         cue_too_high = (CUE_LIMIT_AT_3 and call is not None and level_of(call) == 3
                         and sup < 4 and h.judge < 12)
         if call and level_of(call) <= 3 and not cue_too_high:
-            return call, f"Cuebid: 3+ {SYM[x]}, 10+ HCP. Artificial."
+            return call, f"Cuebid: {need}+ {SYM[x]}, 10+ HCP. Artificial."
     if sup >= 4 and hcp <= 9 and ctx.ok(f"3{x}") and lvl <= 2 and \
             rank_of(f"3{x}") > rank_of(ctx.cheapest(x, 1) or '1C'):
         if ctx.cheapest(x, 2) != f"3{x}":
@@ -2949,7 +2956,18 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
             return '2NT', f"11-12 HCP, {SYM[their]} stopper."
         if hcp >= 13 and ctx.ok('3NT'):
             return '3NT', f"13+ HCP, {SYM[their]} stopper."
+    if 3 <= sup < need and hcp >= 10:
+        call = ctx.cheapest(x, 2)
+        if call and level_of(call) <= 3:
+            return call, _raise_alert(x, f"3+ {SYM[x]}, 6+ HCP.")
     return 'Pass', "Nothing to show."
+
+
+def _cue_support(x: str) -> int:
+    """Cards responder's cuebid raise of partner's 1x opening needs."""
+    if CUE_MINOR_SUPPORT and x in MINORS:
+        return 4 if x == 'D' else 5
+    return 3
 
 
 def _five_card_major(ctx: Ctx, x: str) -> tuple | None:
