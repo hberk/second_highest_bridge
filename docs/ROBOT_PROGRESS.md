@@ -238,6 +238,7 @@ from the variant's side; t as above.
 | 10-30 | A natural 2♣ overcall (direct or balancing, not over 1♣) is clubs in every reading: not forcing, counts for the fit, keycard asks and the LoTT (`NATURAL_2C`) | **+0.11, +0.26, +0.14** | +1.50, +2.03, +2.05 | 38, 73, 65 | on (bug fix) |
 | 10-30 | ...and handed to `ai_bid` instead of GIB's `continuation` | -0.20, +0.06, +0.47 | -1.34, +0.25, +3.33 | 118, 194, 172 | off (competes much higher) |
 | 10-30 | Review of PR #54: our 2♣ over their 1NT is Cappelletti (10+, not game forcing) / a natural 2♣ after their response, (1♦) P (1♥) 2♣, is an overcall / both (`OVER_1NT_2C`, `OVERCALL_AFTER_RESPONSE`) | +0.18, +0.16, +0.14 / +0.03, -0.06, +0.01 / **+0.18, +0.19, +0.14** | +1.39, +1.63, +1.27 / +0.48, -1.05, +0.95 / +1.37, +1.82, +1.27 | 85, 75, 97 / 12, 13, 3 / 90, 80, 99 | on (bug fixes) |
+| 10-30 | Responder's cuebid raise of a minor needs 4+ ♦ / 5+ ♣ (`CUE_MINOR_SUPPORT`) / pre-emptive jump raise of a minor 5+ ♦ / 6+ ♣ over interference / and 1♣-3♣ on 6+ (10,000 fresh deals) | **+0.18** / -0.02 / -0.03 | +1.91 / -0.14 / -0.26 | 474 / 899 / 935 | on / off / off (your call: weak raises stay) |
 
 ### The previous system (`ai_bid`)
 
