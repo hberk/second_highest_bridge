@@ -1560,9 +1560,11 @@ function gerberAnswer(ctx: Ctx): Decision {
     3: ['4NT', '3 aces.'] } as Record<number, Decision>)[aces];
 }
 
+/** Not when RHO bid over the answer: the general branches decide over their bid. */
 function afterMyAsk(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
-  if (seq.length < 2 || ctx.ours[ctx.ours.length - 1][0] !== ctx.pd) return null;
+  if (seq.length < 2 || ctx.ours[ctx.ours.length - 1][0] !== ctx.pd
+    || levelOf(ctx.calls[ctx.calls.length - 1][1])) return null;
   const h = ctx.h;
   const last = seq[seq.length - 1];
   const prior = seq.slice(0, -1);
@@ -2491,6 +2493,10 @@ function openerOverForcingResponse(ctx: Ctx): Decision | null {
   return null;
 }
 
+/** After partner's support double the opponents bid again: my suit is a
+ *  free bid and needs SUPPORT_X_FREE cards. null keeps the old free bid. */
+export const SUPPORT_X_FREE: number | null = 5;
+
 function afterSupportDouble(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
   if (ctx.iAmOpener() || seq.length !== 3 || seq[2] !== 'X'
@@ -2503,6 +2509,9 @@ function afterSupportDouble(ctx: Ctx): Decision | null {
   if (h.judge >= 13) {
     if (isMajor(y) && ctx.ok(`4${y}`)) return [`4${y}`, TO_PLAY];
     if (ctx.ok('3NT')) return ['3NT', TO_PLAY];
+  }
+  if (SUPPORT_X_FREE && levelOf(ctx.calls[ctx.calls.length - 1][1]) && h.len[y] < SUPPORT_X_FREE) {
+    return ['Pass', 'No fit to compete.'];
   }
   const call = ctx.cheapest(y, 2);
   if (call && levelOf(call) <= 3) {
@@ -3403,6 +3412,10 @@ function defend(ctx: Ctx): Decision | null {
   return ['Pass', 'No action.'];
 }
 
+/** Partner showed two suits and RHO bid: compete only to the level of a
+ *  fit (five opposite), else pass. */
+export const TWO_SUITER_FREE = true;
+
 function advance(ctx: Ctx): Decision | null {
   const h = ctx.h;
   const hcp = h.hcp;
@@ -3448,6 +3461,10 @@ function advance(ctx: Ctx): Decision | null {
       return [game, `3+ ${SYM[choice]}, game values. To play.`];
     }
     const call = ctx.cheapest(choice, 2);
+    if (TWO_SUITER_FREE && call && levelOf(ctx.calls[ctx.calls.length - 1][1])
+      && ((choice !== a && choice !== b) || levelOf(call) > h.len[choice] + 5 - 6)) {
+      return ['Pass', 'No fit to compete.'];
+    }
     if (call && levelOf(call) <= 5) return [call, "Choosing between partner's two suits."];
     return ['Pass', 'No room.'];
   }

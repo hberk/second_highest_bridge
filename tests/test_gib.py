@@ -267,6 +267,24 @@ def test_support_double():
     assert call == 'X' and 'Support double' in why
 
 
+def test_support_double_then_they_raise():
+    # The 2026-10-31 board: four diamonds opposite three is no fit to
+    # compete to 3♦ once they raise; five is.
+    calls = ('Pass', '1C', 'Pass', '1D', '1H', 'X', '2H')
+    assert bid('AS 10S JH 3H KD 9D 7D 2D QC 9C 5C 4C 2C', *calls, dealer='East')[0] == 'Pass'
+    assert bid('AS 10S JH KD 9D 7D 3D 2D QC 9C 5C 4C 2C', *calls, dealer='East')[0] == '3D'
+    # Unopposed, the four-card suit is still bid (here an invitation).
+    calls = ('Pass', '1C', 'Pass', '1D', '1H', 'X', 'Pass')
+    assert bid('AS 10S JH 3H KD 9D 7D 2D QC 9C 5C 4C 2C', *calls, dealer='East')[0] == '3D'
+
+
+def test_free_after_their_bid():
+    # Partner's Michaels, then they raise: two spades and an unknown minor
+    # are no reason to bid at three.
+    assert bid('JS 7S 2H KD JD 10D 9D 8D KC JC 9C 7C 2C',
+               'Pass', 'Pass', '1H', '2H', '3H', dealer='East')[0] == 'Pass'
+
+
 def test_michaels_and_unusual():
     call, why = bid('KS QS 9S 7S 3S AH JH 8H 6H 2H 4D 2D 3C', '1C')
     assert call == '2C' and 'Michaels' in why
