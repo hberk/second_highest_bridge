@@ -238,6 +238,9 @@ from the variant's side; t as above.
 | 10-30 | A natural 2♣ overcall (direct or balancing, not over 1♣) is clubs in every reading: not forcing, counts for the fit, keycard asks and the LoTT (`NATURAL_2C`) | **+0.11, +0.26, +0.14** | +1.50, +2.03, +2.05 | 38, 73, 65 | on (bug fix) |
 | 10-30 | ...and handed to `ai_bid` instead of GIB's `continuation` | -0.20, +0.06, +0.47 | -1.34, +0.25, +3.33 | 118, 194, 172 | off (competes much higher) |
 | 10-30 | Review of PR #54: our 2♣ over their 1NT is Cappelletti (10+, not game forcing) / a natural 2♣ after their response, (1♦) P (1♥) 2♣, is an overcall / both (`OVER_1NT_2C`, `OVERCALL_AFTER_RESPONSE`) | +0.18, +0.16, +0.14 / +0.03, -0.06, +0.01 / **+0.18, +0.19, +0.14** | +1.39, +1.63, +1.27 / +0.48, -1.05, +0.95 / +1.37, +1.82, +1.27 | 85, 75, 97 / 12, 13, 3 / 90, 80, 99 | on (bug fixes) |
+| 10-31 | After the support double and RHO's bid, responder rebids the suit only with five (`SUPPORT_X_FREE`; the user's board) / with six; seed 12M, 10,000 deals | +0.05 / -0.02 | +1.93 / -0.56 | 82 / 186 | five on |
+| 10-31 | After partner's two-suiter and RHO's bid, advancer competes only to the level of a fit (`TWO_SUITER_FREE`); seed 13M, 10,000 deals | +0.09 | +1.10 | 280 | on |
+| 10-31 | After partner's cuebid raise and RHO's bid, a minimum passes unless the fit reaches the level | -0.04 | -0.36 | 414 | off (removed) |
 
 ### The previous system (`ai_bid`)
 

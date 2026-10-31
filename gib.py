@@ -1662,9 +1662,10 @@ def _gerber_answer(ctx: Ctx) -> tuple:
 
 
 def after_my_ask(ctx: Ctx) -> tuple | None:
-    """I asked with 4NT or 4C; place the contract from the answer."""
+    """I asked with 4NT or 4C; place the contract from the answer. Not when
+    RHO bid over the answer: the general branches decide over their bid."""
     seq = ctx.seq
-    if len(seq) < 2 or ctx.ours[-1][0] != ctx.pd:
+    if len(seq) < 2 or ctx.ours[-1][0] != ctx.pd or level_of(ctx.calls[-1][1]):
         return None
     h = ctx.h
     last, prior = seq[-1], seq[:-1]
@@ -2681,6 +2682,15 @@ def _opener_over_forcing_response(ctx: Ctx) -> tuple | None:
     return None
 
 
+#: After partner's support double (exactly three of my suit) the opponents
+#: bid again: my suit is now a free bid and needs SUPPORT_X_FREE cards, an
+#: eight-card fit. The 2026-10-31 board 1♣ 1♦ (1♥) X (2♥) 3♦ on ♦K972 went
+#: down in a seven-card fit; in the championship records responders with
+#: four never bid their suit again here (20 passed), robots always did.
+#: None keeps the old free bid.
+SUPPORT_X_FREE = 5
+
+
 def _after_support_double(ctx: Ctx) -> tuple | None:
     """Partner (opener) showed exactly three of my suit with a double."""
     seq = ctx.seq
@@ -2696,6 +2706,8 @@ def _after_support_double(ctx: Ctx) -> tuple | None:
             return f"4{y}", TO_PLAY
         if ctx.ok('3NT'):
             return '3NT', TO_PLAY
+    if SUPPORT_X_FREE and level_of(ctx.calls[-1][1]) and h.len[y] < SUPPORT_X_FREE:
+        return 'Pass', "No fit to compete."
     call = ctx.cheapest(y, 2)
     if call and level_of(call) <= 3:
         if h.judge >= 10 and level_of(call) == 2 and ctx.ok(f"3{y}"):
@@ -3671,6 +3683,11 @@ def _defend(ctx: Ctx) -> tuple | None:
     return 'Pass', "No action."
 
 
+#: Partner showed two suits and RHO bid: I am no longer forced to choose, so
+#: I compete only to the level of a fit (five opposite), else pass.
+TWO_SUITER_FREE = True
+
+
 def _advance(ctx: Ctx) -> tuple | None:
     """Partner acted over their opening; this is my first call."""
     h = ctx.h
@@ -3716,6 +3733,9 @@ def _advance(ctx: Ctx) -> tuple | None:
                 and ctx.ok(game)):
             return game, f"3+ {SYM[choice]}, game values. To play."
         call = ctx.cheapest(choice, 2)
+        if (TWO_SUITER_FREE and call and level_of(ctx.calls[-1][1])
+                and (choice not in (a, b) or level_of(call) > h.len[choice] + 5 - 6)):
+            return 'Pass', "No fit to compete."
         if call and level_of(call) <= 5:
             return call, "Choosing between partner's two suits."
         return 'Pass', "No room."

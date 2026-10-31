@@ -82,6 +82,29 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   auction is rare. The first version doubled at any level and measured
   +0.09: on deal 334 opener doubled 3S, responder had no answer below the
   four level, and 3S doubled made.
+- **Free bids after they bid again** (2026-10-31, the user's board
+  P 1♣ P 1♦ (1♥) X (2♥) 3♦ on ♦K972, down in a seven-card fit). Two branches
+  matched only our side's calls and bid as if RHO had passed:
+  - `_after_support_double`: once RHO bids over the support double, responder
+    rebids the suit only with `SUPPORT_X_FREE = 5` cards, an eight-card fit,
+    else passes. In the championship records responders with exactly four
+    never rebid it there (20 passed); the robots did 19 of 19. Fresh deals
+    (seed 12M, 10,000): **+0.05 per board, t = +1.93**, 82 auctions changed;
+    six cards measured -0.02.
+  - `_advance` after partner's two-suiter (Michaels, unusual 2NT): once RHO
+    bids, advancer is not forced to choose; it bids a shown suit only to the
+    level of the fit (five opposite), else passes (`TWO_SUITER_FREE`). Seed
+    13M, 10,000: **+0.09 per board, t = +1.10**, 280 auctions changed.
+  - Found by `/mnt/project-files/opp-blind/audit.py`: every robot call where
+    RHO just bid is replayed with that bid turned into a pass, and a call
+    whose alert and strain stay the same, only higher, is flagged. The other
+    families held up: LoTT raises, six-card rebids and opener's sign-off
+    after a cuebid raise (passing a minimum there measured -0.04, t = -0.36,
+    and was dropped).
+  - `after_my_ask`: the keycard asker placed the contract from partner's
+    answer even after RHO bid over it (a human's 7♦ over 5♦, then 6♠, caught
+    by the illegal-call guard). Now an opponent's bid over the answer goes
+    to the general branches.
 - **Opener after they overcall the response** (`_rebid_over_their_overcall`):
   `1x (P) 1y (2z) ?`. The fallback raised every four-card fit to the two
   level, 12 HCP or 18, and passed 18-19 balanced. Now: four-card support
