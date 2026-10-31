@@ -511,6 +511,46 @@ deals.
   (40-45% against 41-47% lead one first). With none, experts lead something
   else first 36% of the time and the robots 13%. No rule for that yet.
 
+
+**Board 26: partner's honour, and the suit played out with the count**
+(2026-10-30, the user's board: challenge deal 114, 2S by East after 1NT P
+2H(transfer) X P..., North's lead-directing double showing ♥A K J 8 3).
+
+- **The opening lead in partner's suit is my top honour when partner's
+  bidding showed judgement points there** (`ai.PARTNER_HONOUR_LEAD`,
+  `PARTNER_HONOUR_JUDGE = 4`). South led the 2 from Q-2; the queen under
+  North's jack makes a trick and leaves partner well placed. `shown_lengths`
+  now also reads "N+ judgement points" off an alert, under `shown['judge']`.
+  Rare (lead-directing doubles only): 6 leads changed on the library, net +1
+  trick double dummy; none on 400 fresh deals.
+- **Second hand, with partner last and in view, breaks a tie by playing the
+  suit out** (`ai.COVER_SUIT_PLAN`, `_cover_suit_plan`). At trick 2 North led
+  the K♥ with A-8-3 left, East held T-6 and dummy 9-7; South was out by the
+  count (the double showed five). The T and the 6 both win the trick, so
+  `_cover_for_partner` kept the T; but the 6 and dummy's 7 win it, and then
+  the T and 9 win another heart. When cards tie on the trick, the suit is now
+  played out over every layout of its unseen cards that fits who has shown out
+  and the auction's floors (the defence plan's model with the sides swapped
+  and no ruffs), and the card that takes the most tricks in the suit is played,
+  the lowest of equals (`COVER_PLAN_LOW`). The suit's top unplayed card is
+  never spent on a tie (`COVER_KEEP_MASTER`): of 26 such cards, 1 was better
+  double dummy and 6 worse.
+- **Fourth hand on the declaring side breaks a tie the same way**
+  (`ai.LAST_SUIT_PLAN`): of the cards that keep the trick, the one the plan
+  rates best. After K-T-2, dummy's 9 and 7 both win; the 9 leaves the 7 beside
+  East's 6 to win a later heart.
+- Seated head to head the package is within noise (library -0.001 tricks,
+  fresh deals +0.017, t = +0.82, +2.1 points; about 1,300 boards changed on
+  each): the gain is about a tenth of a trick a deal. So every changed card was
+  scored double dummy against the old one from the same position
+  (`/mnt/project-files/board26-play/`, `REPORT.md`). Library: 355 positions,
+  **61 better, 21 worse, net +45 tricks**. Out of sample, 400 fresh deals
+  (seed 1030): 321 positions, **59 better, 19 worse, net +49**, ahead in every
+  part (dummy second +25, declarer second +7, declarer fourth +8, dummy fourth
+  +9; suit contracts +40, notrump +9). Letting the defenders choose the next
+  lead after they win a trick changed no card and was dropped.
+  `tests/test_card_play_rules.py` holds the board.
+
 **A cuebid raise that forces the three level needs four trumps or 12+
 judgement points** (`gib.CUE_LIMIT_AT_3`), a small tightening of GIB's "limit
 raise or better"; weaker hands with three trumps raise to the two level. The
