@@ -551,6 +551,36 @@ deals.
   lead after they win a trick changed no card and was dropped.
   `tests/test_card_play_rules.py` holds the board.
 
+**Second hand covers when dummy plays third** (2026-10-30, the user's board:
+West declaring led the T♠ at trick 7, North held ♠A J 8 3, dummy ♠9 6).
+
+- North played the 8: `_middle_play` scores a card by what dummy can do to it
+  and stops there, and the 8 holds unless dummy plays the 9, which it does.
+  Partner, fourth and unseen, can't get the trick back. The user's point: dummy
+  holds nothing above the nine, so an honour makes the ten second-highest for
+  now and partner's king or queen then pushes North's card into second place.
+- `ai.SECOND_HAND_COVER` (`_cover_unseen_partner`): second hand, dummy third
+  and partner's hand unseen, plays the suit out over every layout of its unseen
+  cards between partner and declarer (`_unseen_partner_plan`: who has shown
+  out, the auction's floors, no ruffs, as `_cover_suit_plan` with partner the
+  hidden hand) and plays the card that takes the most tricks in the suit; the
+  old card when it ties, else the lowest of the best. Where the plan doesn't
+  apply (a discard, history unknown) a card is scored by the chance, after
+  dummy's best reply, that partner holds a card winning the trick for us
+  (`_partner_chances`, even odds a card). On the board the plan plays the
+  ace, the only card that saves two tricks double dummy; the trick's chance
+  alone plays the jack, which wins the trick but strands the ace.
+- Seated head to head: library **+0.081 tricks, t = +3.46, +8.7 points**;
+  400 fresh deals (seed 1031) **+0.059, t = +2.79, +5.3 points**; about 1,900
+  boards changed of 6,350. Each changed card double dummy against the old one:
+  library 440 positions, 147 better, 27 worse, net +170; fresh 418, 140 / 33,
+  net +147. Judging this trick alone gained about half (seated +0.061 and
+  +0.041; double dummy +84 and +79). Measured and dropped: the trick's chance
+  with the plan breaking ties or vetoing a worse card (veto +0.054 / +0.036
+  seated), odds from hand sizes and the auction, skipping dummy-void tricks,
+  and a margin before changing the card (`/mnt/project-files/second-hand-cover/`,
+  `REPORT.md`). `tests/test_card_play_rules.py` holds the board.
+
 **A cuebid raise that forces the three level needs four trumps or 12+
 judgement points** (`gib.CUE_LIMIT_AT_3`), a small tightening of GIB's "limit
 raise or better"; weaker hands with three trumps raise to the two level. The

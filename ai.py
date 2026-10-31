@@ -1643,22 +1643,18 @@ def _last_suit_plan(player: str, hand: list[Card], legal: list[Card],
 # dummy 96: the 8 holds unless dummy plays the 9, which it does, and partner can
 # never get the trick back. The jack or ace makes the ten second-highest for
 # now, and since dummy holds nothing above the nine, partner's king or queen
-# then pushes North's card into second place. So each card is scored by the
-# chance partner holds a card that wins the trick for us, after dummy's best
-# reply; every unseen card of the suit is partner's at even odds.
+# then pushes North's card into second place. So the suit is played out over
+# every layout of its unseen cards between partner and declarer, as
+# `_cover_suit_plan` does with partner in view, and the card that takes the
+# most tricks in it is played: here the ace, the one card that saves two tricks
+# double dummy (the jack wins this trick but strands the ace). Judging only
+# this trick's chance picked the jack and gained half as much.
 
-#: Second hand counts partner's possible cards when dummy plays third
-#: (measurement switch).
-SECOND_HAND_COVER = False
-#: Of the cards that score best, spend the suit's top unplayed card first; else
-#: the lowest (measurement switch).
-SECOND_HAND_COVER_TOP = False
-#: The suit played out to the end picks the card instead of this trick's
-#: chance (measurement switch).
-SECOND_HAND_COVER_ONLY = False
-#: The suit played out to the end vetoes a new card that does worse in it
-#: (measurement switch).
-SECOND_HAND_COVER_VETO = False
+#: Second hand, dummy third and partner unseen, picks its card by partner's
+#: chances (measurement switch). The first version judged one trick: +0.061 and
+#: +0.041 tricks a board seated (library, fresh deals); playing the suit out
+#: picks the ace on the user's board and measured +0.081 and +0.059.
+SECOND_HAND_COVER = True
 
 
 def _unseen_partner_plan(player: str, hand: list[Card], cards: list[Card],
@@ -1735,6 +1731,25 @@ def _cover_unseen_partner(player: str, hand: list[Card], legal: list[Card],
     led = trick[0][1].suit
     if not any(c.suit == led for c in legal):
         return choice
+    scores = None
+    if all(c.suit == led for c in legal):
+        scores = _unseen_partner_plan(player, hand, legal, trick, trump, played, visible,
+                                      history, shown)
+    if scores is None:
+        scores = _partner_chances(player, hand, legal, trick, trump, played, visible, history)
+    best = max(scores.values())
+    if scores[choice] >= best - 1e-9:
+        return choice
+    return min((c for c in legal if scores[c] >= best - 1e-9), key=lambda c: c.value())
+
+
+def _partner_chances(player: str, hand: list[Card], legal: list[Card],
+                     trick: list[tuple[str, Card]], trump: str | None, played: list[Card],
+                     visible: dict[str, list[Card]], history: list | None) -> dict:
+    """The chance, after dummy's best reply to each card, that partner holds a
+    card that wins the trick for us; every unseen card of the suit is partner's
+    at even odds. Used when the suit plan doesn't apply."""
+    led = trick[0][1].suit
     partner = PARTNERS[player]
     third = PLAYERS[(PLAYERS.index(player) + 1) % 4]
     seen = set(played) | {c for _, c in trick} | set(hand)
@@ -1755,27 +1770,7 @@ def _cover_unseen_partner(player: str, hand: list[Card], legal: list[Card],
             worst = min(worst, 1.0 - 0.5 ** wins + void)
         return worst
 
-    scores = {c: chance(c) for c in legal}
-    plan = None
-    if (SECOND_HAND_COVER_ONLY or SECOND_HAND_COVER_VETO) and all(c.suit == led for c in legal):
-        plan = _unseen_partner_plan(player, hand, legal, trick, trump, played, visible,
-                                    history, shown)
-    if plan is not None and SECOND_HAND_COVER_ONLY:
-        scores = plan
-    best = max(scores.values())
-    if scores[choice] >= best - 1e-9:
-        return choice
-    tied = [c for c in legal if scores[c] >= best - 1e-9]
-    if plan is not None and SECOND_HAND_COVER_VETO:
-        tied = [c for c in tied if plan[c] >= plan[choice]]
-        if not tied:
-            return choice
-    if SECOND_HAND_COVER_TOP:
-        top = max(_unplayed_values(led, played + [c for _, c in trick]), default=None)
-        dead = [c for c in tied if c.suit == led and c.value() == top]
-        if dead:
-            return dead[0]
-    return min(tied, key=lambda c: c.value())
+    return {c: chance(c) for c in legal}
 
 
 # ── Endgame: single dummy search ─────────────────────────────────────────────
