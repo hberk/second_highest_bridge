@@ -1425,7 +1425,7 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
     elif (SECOND_HAND_COVER and len(trick) == 1 and visible and len(legal) > 1
             and PLAYERS[(PLAYERS.index(player) + 1) % 4] in visible):
         choice = _cover_unseen_partner(player, hand, legal, trick, trump, played,
-                                       visible, history, choice)
+                                       visible, history, choice, shown)
 
     if (history is not None and visible and len(legal) > 1
             and len(hand) <= (DEEP_ENDGAME_CARDS if DEEP_ENDGAME else ENDGAME_CARDS)):
@@ -1653,12 +1653,85 @@ SECOND_HAND_COVER = False
 #: Of the cards that score best, spend the suit's top unplayed card first; else
 #: the lowest (measurement switch).
 SECOND_HAND_COVER_TOP = False
+#: The suit played out to the end picks the card instead of this trick's
+#: chance (measurement switch).
+SECOND_HAND_COVER_ONLY = False
+#: The suit played out to the end vetoes a new card that does worse in it
+#: (measurement switch).
+SECOND_HAND_COVER_VETO = False
+
+
+def _unseen_partner_plan(player: str, hand: list[Card], cards: list[Card],
+                         trick: list[tuple[str, Card]], trump: str | None, played: list[Card],
+                         visible: dict[str, list[Card]], history: list | None,
+                         shown: dict | None) -> dict | None:
+    """Our tricks in the led suit after each of `cards`, summed over the layouts
+    of the suit's unseen cards between partner and declarer (`_cover_suit_plan`
+    with partner's hand the hidden one and dummy's in view); None when the plan
+    doesn't apply."""
+    led = trick[0][1].suit
+    partner = PARTNERS[player]
+    if history is None or any(c.suit != led for c in cards):
+        return None
+    i = PLAYERS.index(player)
+    seat = {PLAYERS[(i + k) % 4]: k for k in range(4)}
+    left, right = PLAYERS[(i + 1) % 4], PLAYERS[(i + 3) % 4]
+    if left not in visible or right in visible or partner in visible:
+        return None
+    seen = set(played) | {c for _, c in trick} | set(hand)
+    for cs in visible.values():
+        seen |= set(cs)
+    unseen_suit = sorted(c.value() for c in _FULL_DECK if c.suit == led and c not in seen)
+    if len(unseen_suit) > SUIT_PLAN_MAX_UNSEEN:
+        return None
+    out = _shown_out(history, trick)
+    ruffs = (False, False, False, False)
+    down = dict(trick)
+    size = {p: 13 - len(history) - (p in down) for p in (partner, right)}
+    others = sum(1 for c in _FULL_DECK if c not in seen) - len(unseen_suit)
+    floor = {p: (shown or {}).get(p, {}).get(led, 0) - _played_in(p, led, history, trick)
+             for p in (partner, right)}
+
+    def held(p: str, vals) -> tuple:
+        extra = (down[p].value(),) if p in down and down[p].suit == led else ()
+        return tuple(sorted(tuple(vals) + extra))
+
+    own = held(player, (c.value() for c in hand if c.suit == led))
+    dummy = held(left, (c.value() for c in visible[left] if c.suit == led))
+    plays = [(seat[p], c.value() if c.suit == led else None) for p, c in trick]
+    order = [seat[p] for p, _ in trick] + [0] + [k for k in range(1, 4)
+                                                 if k not in {seat[p] for p, _ in trick}]
+    memo = _SUIT_PLAN_MEMO
+    if len(memo) > _TRUMP_MEMO_MAX:
+        memo.clear()
+    totals = {c: 0 for c in cards}
+    weights = 0
+    for n in range(len(unseen_suit) + 1):
+        for picked in combinations(unseen_suit, n):
+            to_partner = tuple(picked)
+            to_right = tuple(v for v in unseen_suit if v not in picked)
+            if (to_partner and led in out[partner]) or (to_right and led in out[right]):
+                continue
+            if len(to_partner) > size[partner] or len(to_right) > size[right]:
+                continue
+            if len(to_partner) < floor[partner] or len(to_right) < floor[right]:
+                continue
+            weight = _choose(others, size[partner] - len(to_partner))
+            if not weight:
+                continue
+            hands = (own, dummy, held(partner, to_partner), held(right, to_right))
+            weights += weight
+            for c in cards:
+                totals[c] += weight * _plan_trick(hands, ruffs, plays + [(0, c.value())],
+                                                  order, memo)
+    return totals if weights else None
 
 
 def _cover_unseen_partner(player: str, hand: list[Card], legal: list[Card],
                           trick: list[tuple[str, Card]], trump: str | None,
                           played: list[Card], visible: dict[str, list[Card]],
-                          history: list | None, choice: Card) -> Card:
+                          history: list | None, choice: Card,
+                          shown: dict | None = None) -> Card:
     led = trick[0][1].suit
     if not any(c.suit == led for c in legal):
         return choice
@@ -1683,10 +1756,20 @@ def _cover_unseen_partner(player: str, hand: list[Card], legal: list[Card],
         return worst
 
     scores = {c: chance(c) for c in legal}
+    plan = None
+    if (SECOND_HAND_COVER_ONLY or SECOND_HAND_COVER_VETO) and all(c.suit == led for c in legal):
+        plan = _unseen_partner_plan(player, hand, legal, trick, trump, played, visible,
+                                    history, shown)
+    if plan is not None and SECOND_HAND_COVER_ONLY:
+        scores = plan
     best = max(scores.values())
     if scores[choice] >= best - 1e-9:
         return choice
     tied = [c for c in legal if scores[c] >= best - 1e-9]
+    if plan is not None and SECOND_HAND_COVER_VETO:
+        tied = [c for c in tied if plan[c] >= plan[choice]]
+        if not tied:
+            return choice
     if SECOND_HAND_COVER_TOP:
         top = max(_unplayed_values(led, played + [c for _, c in trick]), default=None)
         dead = [c for c in tied if c.suit == led and c.value() == top]
