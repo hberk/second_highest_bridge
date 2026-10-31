@@ -67,7 +67,8 @@ const DOUBLER_SUIT_HCP = 18;
 const DOUBLER_SUIT_JUDGE = 14;
 const DOUBLER_RAISE_HCP = 6;
 const DOUBLER_SUIT_LEVEL = 2;
-export const SLAM = 33;
+/** Slam on points needs 37 judgement points, not 33 (the user's call, 2026-10-31). See gib.py. */
+export const SLAM = 37;
 const GRAND = 37;
 
 const isSuit = (s: string | null | undefined): s is Suit =>
@@ -1560,13 +1561,18 @@ function gerberAnswer(ctx: Ctx): Decision {
     3: ['4NT', '3 aces.'] } as Record<number, Decision>)[aces];
 }
 
+/** When RHO bid over a keycard answer: the small slam if at most one keycard
+ *  is missing and it is still biddable, else double; over any other answer the
+ *  general branches decide over their bid. */
 function afterMyAsk(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
   if (seq.length < 2 || ctx.ours[ctx.ours.length - 1][0] !== ctx.pd) return null;
+  const contested = levelOf(ctx.calls[ctx.calls.length - 1][1]) > 0;
   const h = ctx.h;
   const last = seq[seq.length - 1];
   const prior = seq.slice(0, -1);
   const myAsk = prior.length ? prior[prior.length - 1] : null;
+  if (contested && !(myAsk === '4NT' && askedRkcb(prior, ctx.natural))) return null;
   if (myAsk === '4NT' && askedRkcb(prior, ctx.natural)) {
     const trump = agreedTrump(prior.slice(0, -1), ctx.natural) as Suit;
     const mine = h.keycards(trump);
@@ -1579,6 +1585,10 @@ function afterMyAsk(ctx: Ctx): Decision | null {
     const theirs = mine + options[1] <= 5 && mine <= 1 ? options[1] : options[0];
     const missing = 5 - mine - theirs;
     const queen = h.has(trump, 'Q') || last === '5S';
+    if (contested) {
+      if (missing <= 1 && ctx.ok(`6${trump}`)) return [`6${trump}`, TO_PLAY];
+      return ctx.ok('X') ? ['X', 'Penalty.'] : ['Pass', TO_PLAY];
+    }
     if (missing >= 2) {
       const call = ctx.cheapest(trump, 5);
       return call ? [call, TO_PLAY] : ['Pass', TO_PLAY];
@@ -2491,6 +2501,10 @@ function openerOverForcingResponse(ctx: Ctx): Decision | null {
   return null;
 }
 
+/** After partner's support double the opponents bid again: my suit is a
+ *  free bid and needs SUPPORT_X_FREE cards. null keeps the old free bid. */
+export const SUPPORT_X_FREE: number | null = 5;
+
 function afterSupportDouble(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
   if (ctx.iAmOpener() || seq.length !== 3 || seq[2] !== 'X'
@@ -2503,6 +2517,9 @@ function afterSupportDouble(ctx: Ctx): Decision | null {
   if (h.judge >= 13) {
     if (isMajor(y) && ctx.ok(`4${y}`)) return [`4${y}`, TO_PLAY];
     if (ctx.ok('3NT')) return ['3NT', TO_PLAY];
+  }
+  if (SUPPORT_X_FREE && levelOf(ctx.calls[ctx.calls.length - 1][1]) && h.len[y] < SUPPORT_X_FREE) {
+    return ['Pass', 'No fit to compete.'];
   }
   const call = ctx.cheapest(y, 2);
   if (call && levelOf(call) <= 3) {
@@ -3403,6 +3420,10 @@ function defend(ctx: Ctx): Decision | null {
   return ['Pass', 'No action.'];
 }
 
+/** Partner showed two suits and RHO bid: compete only to the level of a
+ *  fit (five opposite), else pass. */
+export const TWO_SUITER_FREE = true;
+
 function advance(ctx: Ctx): Decision | null {
   const h = ctx.h;
   const hcp = h.hcp;
@@ -3448,6 +3469,10 @@ function advance(ctx: Ctx): Decision | null {
       return [game, `3+ ${SYM[choice]}, game values. To play.`];
     }
     const call = ctx.cheapest(choice, 2);
+    if (TWO_SUITER_FREE && call && levelOf(ctx.calls[ctx.calls.length - 1][1])
+      && ((choice !== a && choice !== b) || levelOf(call) > h.len[choice] + 5 - 6)) {
+      return ['Pass', 'No fit to compete.'];
+    }
     if (call && levelOf(call) <= 5) return [call, "Choosing between partner's two suits."];
     return ['Pass', 'No room.'];
   }

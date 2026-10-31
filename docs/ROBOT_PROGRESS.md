@@ -109,6 +109,9 @@ four seats, which nets out a change both declarer and defenders use.
 | 10-30 | The opening lead in partner's suit is my top honour when partner showed 4+ judgement points there (board 26, `PARTNER_HONOUR_LEAD`). Library | +0.002 | +1.34 | +0.41 | 24 of 6,367 | on (your rule; 6 leads, net +1 double dummy; never fired on 400 fresh deals) |
 | 10-30 | Second and fourth hand on the declaring side break a tie by playing the suit out with the count; second hand plays the lowest of equals and never spends the suit's top card (board 26, `COVER_SUIT_PLAN`, `COVER_PLAN_LOW`, `COVER_KEEP_MASTER`, `LAST_SUIT_PLAN`). 400 fresh deals, before `COVER_KEEP_MASTER` | +0.017 | +0.82 | +2.12 | 1,313 of 6,352 | on (library -0.001, t -0.07. Each changed card double dummy, with `COVER_KEEP_MASTER`: library 61 better / 21 worse, net +45; fresh 59 / 19, net +49) |
 | 10-30 | ...second hand only; second hand keeping its old pick among equals; fourth hand only (library) | -0.007; -0.007; +0.007 | -0.45; -0.48; +0.69 | +0.71; +0.04; +0.80 | 1,052; 996; 480 | the package on |
+| 10-30 | Second hand, dummy third and partner unseen, plays the suit out over partner's and declarer's layouts and plays the card that takes most: the A♠ over T♠ led with dummy 9-6 (your board, `SECOND_HAND_COVER`). Library | **+0.081** | +3.46 | **+8.72** | 1,967 of 6,367 | on (400 fresh deals: +0.059, t +2.79, +5.27 points. Each changed card double dummy: library 147 better / 27 worse, net +170; fresh 140 / 33, net +147) |
+| 10-30 | ...judged on this trick alone: the chance partner holds a winning card after dummy's best reply (library; fresh) | +0.061; +0.041 | +3.30; +2.07 | +4.93; -0.88 | 1,220; 1,097 | off (the plan above gains more; it stays as the fallback when the plan can't run) |
+| 10-31 | ...this trick's chance with the plan vetoing a worse card (library; fresh) | +0.054; +0.036 | +3.03; +2.11 | +3.72; +2.22 | 1,084; 1,007 | off |
 
 The three information rules together: +0.55 points a board, t = +0.48, 556
 boards changed. None is distinguishable from zero; they are kept because a
@@ -239,6 +242,12 @@ from the variant's side; t as above.
 | 10-30 | ...and handed to `ai_bid` instead of GIB's `continuation` | -0.20, +0.06, +0.47 | -1.34, +0.25, +3.33 | 118, 194, 172 | off (competes much higher) |
 | 10-30 | Review of PR #54: our 2♣ over their 1NT is Cappelletti (10+, not game forcing) / a natural 2♣ after their response, (1♦) P (1♥) 2♣, is an overcall / both (`OVER_1NT_2C`, `OVERCALL_AFTER_RESPONSE`) | +0.18, +0.16, +0.14 / +0.03, -0.06, +0.01 / **+0.18, +0.19, +0.14** | +1.39, +1.63, +1.27 / +0.48, -1.05, +0.95 / +1.37, +1.82, +1.27 | 85, 75, 97 / 12, 13, 3 / 90, 80, 99 | on (bug fixes) |
 | 10-30 | Responder's cuebid raise of a minor needs 4+ ♦ / 5+ ♣ (`CUE_MINOR_SUPPORT`) / pre-emptive jump raise of a minor 5+ ♦ / 6+ ♣ over interference / and 1♣-3♣ on 6+ (10,000 fresh deals) | **+0.18** / -0.02 / -0.03 | +1.91 / -0.14 / -0.26 | 474 / 899 / 935 | on / off / off (your call: weak raises stay) |
+| 10-31 | After the support double and RHO's bid, responder rebids the suit only with five (`SUPPORT_X_FREE`; the user's board) / with six; seed 12M, 10,000 deals | +0.05 / -0.02 | +1.93 / -0.56 | 82 / 186 | five on |
+| 10-31 | After partner's two-suiter and RHO's bid, advancer competes only to the level of a fit (`TWO_SUITER_FREE`); seed 13M, 10,000 deals | +0.09 | +1.10 | 280 | on |
+| 10-31 | After partner's cuebid raise and RHO's bid, a minimum passes unless the fit reaches the level | -0.04 | -0.36 | 414 | off (removed) |
+| 10-31 | Slam on points needs 37 judgement points, not 33 (`SLAM = 37`: 6NT, quantitative 4NT, keycard; the championship study of uncontested auctions); three sets of fresh deals (4,000, 6,000, 6,000) | **+0.93, +1.07, +0.91** | +6.95, +8.99, +8.61 | 109, 165, 144 | on |
+| 10-31 | ...the notrump slams alone (6NT, quantitative 4NT) / keycard alone | +0.78, +0.94, +0.53 / +0.05, +0.03, +0.15 | +6.40, +8.61, +6.98 / +2.27, +0.93, +3.63 | 102, 141, 126 / 7, 24, 18 | both on, as above |
+| 10-31 | Opener passes when responder declines the game try (1M 2M try 3M), instead of bidding game anyway; two sets | -0.01, -0.08 | -0.11, -2.09 | 61, 49 | off |
 
 ### The previous system (`ai_bid`)
 

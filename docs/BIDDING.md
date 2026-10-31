@@ -82,6 +82,33 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   auction is rare. The first version doubled at any level and measured
   +0.09: on deal 334 opener doubled 3S, responder had no answer below the
   four level, and 3S doubled made.
+- **Free bids after they bid again** (2026-10-31, the user's board
+  P 1♣ P 1♦ (1♥) X (2♥) 3♦ on ♦K972, down in a seven-card fit). Two branches
+  matched only our side's calls and bid as if RHO had passed:
+  - `_after_support_double`: once RHO bids over the support double, responder
+    rebids the suit only with `SUPPORT_X_FREE = 5` cards, an eight-card fit,
+    else passes. In the championship records responders with exactly four
+    never rebid it there (20 passed); the robots did 19 of 19. Fresh deals
+    (seed 12M, 10,000): **+0.05 per board, t = +1.93**, 82 auctions changed;
+    six cards measured -0.02.
+  - `_advance` after partner's two-suiter (Michaels, unusual 2NT): once RHO
+    bids, advancer is not forced to choose; it bids a shown suit only to the
+    level of the fit (five opposite), else passes (`TWO_SUITER_FREE`). Seed
+    13M, 10,000: **+0.09 per board, t = +1.10**, 280 auctions changed.
+  - Found by `/mnt/project-files/opp-blind/audit.py`: every robot call where
+    RHO just bid is replayed with that bid turned into a pass, and a call
+    whose alert and strain stay the same, only higher, is flagged. The other
+    families held up: LoTT raises, six-card rebids and opener's sign-off
+    after a cuebid raise (passing a minimum there measured -0.04, t = -0.36,
+    and was dropped).
+  - `after_my_ask`: the keycard asker placed the contract from partner's
+    answer even after RHO bid over it (a human's 7♦ over 5♦, then 6♠, caught
+    by the illegal-call guard). Now, when RHO bids over a keycard answer,
+    the asker bids the small slam if at most one keycard is missing and six
+    of the suit is still biddable, else doubles (the user's call, 2026-10-31:
+    passing every such board to the general branches doubled 5♦ on
+    1♥ 2NT 4♥ 4NT 5♣ (5♦) with all keycards held). Any other answer with
+    their bid over it goes to the general branches.
 - **Opener after they overcall the response** (`_rebid_over_their_overcall`):
   `1x (P) 1y (2z) ?`. The fallback raised every four-card fit to the two
   level, 12 HCP or 18, and passed 18-19 balanced. Now: four-card support
@@ -272,7 +299,7 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   found). The robots bid slam on 0 of their 404 auctions: the opponents buy
   the hand 40% of the time, the slam side stops in a partscore 27% and in game
   33%. Every slam convention GIB has (keycard, Gerber, splinters, quantitative
-  4NT) waits for `SLAM` (33) HCP, and these hands hold 23 on a typical deal.
+  4NT) waited for `SLAM` (33 then, 37 since 2026-10-31) HCP, and these hands hold 23 on a typical deal.
   But no slam rule can pay: on the 1,481 screened sides with a 9+ card fit,
   even the evaluator given BOTH hands finds no group that makes slam above
   24-38%, and a ridge model on the exact trump and side honours, the trump
@@ -334,7 +361,7 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     gain is in notrump and the "values" line, not the majors: a major-game
     line of its own at 26 changed 46 auctions, +0.10. So `GAME` (3NT, a
     minor, `continuation`'s values) is 32 and `GAME_MAJOR` 26.
-  - Opposite our 1NT/2NT, 32 sits one point under `SLAM` (33), and since
+  - Opposite our 1NT/2NT, 32 sat one point under `SLAM` (33 then), and since
     judgement points skip 15 the responder would never invite or use
     Stayman: pass on 14, quantitative 4NT on 16. `NT_GAME` keeps that
     structure at 28 and scores the same (+6.78 against +6.81).
@@ -643,6 +670,28 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   Total Tricks here rewards it; what transferred were the spots where the
   robots competed less. The study, scripts and data are in
   `/mnt/project-files/championship-study/`.
+- **Uncontested auctions against the championships** (2026-10-31; the user's
+  study). The same 14,016 deals, re-bid by the robots of the day: 45% of both
+  the robots' and the experts' auctions are uncontested, and on 12,195 pairs
+  where both were, by the same side, the contracts differ 68% of the time.
+  The robots stop lower: the experts bid game where the robots stay in a
+  partscore on 4,588 pairs, the other way round on 153. On about 1,000 of the
+  differing deals, solved double dummy under these rules, **the robots beat
+  the experts by about 1.3 IMPs a pair**, almost all of it the experts' extra
+  games and slams. The one place the experts clearly won was slam: the robots
+  jumped to 6NT on points alone (2NT-6NT, 2♣-2♦-3NT-6NT) and went down.
+  - **Slam on points at 37** (`SLAM = 37`, was GIB's 33): 6NT, the quantitative
+    4NT and the keycard ask all wait for 37 judgement points. Fresh deals,
+    head to head, at three seeds (4,000, 6,000 and 6,000 deals): **+0.93,
+    +1.07, +0.91 a board, t = +7.0, +9.0, +8.6**, 12 of 418 changed auctions
+    worse. The notrump part is most of it (+0.53 to +0.94); 37 and anything
+    higher score the same, since the robots' judgement points rarely add up
+    that far. This fits "Slam bidding doesn't pay here" above.
+  - Measured and left off: opener passing when responder declines a game try
+    (1M 2M try 3M) instead of bidding game anyway, -0.01 and -0.08 a board;
+    responder passing opener's decline after 1NT, a transfer and 2NT lost
+    1,620 points over 42 auctions. Bidding the game after a decline is right
+    here more often than it looks.
 
 ## The previous system (`ai.USE_GIB = False`)
 

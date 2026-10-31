@@ -2,7 +2,7 @@
 
 Each is a switch in ai.py (SURE_LEAD_DECLARER, RUFF_LEAD, FORCE_DUMMY,
 DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT, DEFENDER_SUIT_PLAN, DEAD_WINNER_FIRST, RUFF_IF_FOLLOWS,
-PARTNER_HONOUR_LEAD, COVER_SUIT_PLAN, COVER_PLAN_LOW, LAST_SUIT_PLAN). Every test sets the switches it needs and puts them back, so
+PARTNER_HONOUR_LEAD, COVER_SUIT_PLAN, COVER_PLAN_LOW, LAST_SUIT_PLAN, SECOND_HAND_COVER). Every test sets the switches it needs and puts them back, so
 the result doesn't depend on which rules are adopted.
 """
 from __future__ import annotations
@@ -21,7 +21,8 @@ RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'LIVE_LEAD', 'NT_SET_UP_SUIT', 'DEFENDER_SUIT_PLAN', 'RUFF_RETURN',
          'SHORT_LEAD_RETURN', 'DEAD_WINNER_FIRST', 'RUFF_IF_FOLLOWS',
          'NT_DEFENCE_SUIT', 'IDLE_TRUMP_FOR_RUFF', 'PARTNER_HONOUR_LEAD',
-         'COVER_SUIT_PLAN', 'COVER_PLAN_LOW', 'LAST_SUIT_PLAN', 'COVER_KEEP_MASTER')
+         'COVER_SUIT_PLAN', 'COVER_PLAN_LOW', 'LAST_SUIT_PLAN', 'COVER_KEEP_MASTER',
+         'SECOND_HAND_COVER')
 
 
 @contextmanager
@@ -483,6 +484,44 @@ def test_deal_114_robot_table_wins_two_hearts_for_east_west():
     hearts_ew = [t for t in log if t['plays'][0][1].suit == 'H'
                  and t['winner'] in ('East', 'West')]
     assert len(hearts_ew) == 2
+
+
+# The user's board (Oct 30): trick 7, West declaring leads the TS; North holds
+# A-J-8-3, dummy East 9-6 with nothing above the nine. The tricks before are
+# made up to fit the hands left (East and South out of clubs, North too).
+def _ten_led():
+    hands = {seat: [C(t) for t in text.split()] for seat, text in {
+        'North': 'AS JS 8S 3S JH 3H 7D', 'East': '9S 6S AH 5H QD JD 3D',
+        'South': 'KS 7S 5S 4S KH 8H 4D', 'West': 'QS 10S QH 6H 2H 6D AC'}.items()}
+    tricks = ['W:2C N:3C E:4C S:5C', 'W:6C N:7C E:8C S:9C', 'W:10C N:JC E:2S S:QC',
+              'W:4H N:7H E:9H S:10H', 'W:2D N:5D E:8D S:9D', 'W:KC N:10D E:KD S:AD']
+    history = [[({'N': 'North', 'E': 'East', 'S': 'South', 'W': 'West'}[t[0]], C(t[2:]))
+                for t in line.split()] for line in tricks]
+    played = [c for trick in history for _, c in trick]
+    return hands, played, history
+
+
+def test_ten_led_second_hand_covers_with_the_ace():
+    hands, played, history = _ten_led()
+    trick = [('West', C('10S'))]
+    with rules():
+        low = ai.ai_play('North', hands['North'], trick, None, played,
+                         visible={'East': hands['East']}, history=history)
+    with rules(SECOND_HAND_COVER=True):
+        cover = ai.ai_play('North', hands['North'], trick, None, played,
+                           visible={'East': hands['East']}, history=history)
+    assert low == C('8S'), low
+    assert cover == C('AS'), cover
+
+
+def test_ten_led_one_trick_chance_covers_with_the_jack():
+    # Without the suit plan (history unknown), this trick's chance alone: the
+    # jack and the ace both let partner's king or queen win; the lower is played.
+    hands, played, _ = _ten_led()
+    with rules(SECOND_HAND_COVER=True):
+        card = ai.ai_play('North', hands['North'], [('West', C('10S'))], None, played,
+                          visible={'East': hands['East']})
+    assert card == C('JS'), card
 
 
 if __name__ == '__main__':

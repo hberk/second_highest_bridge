@@ -119,7 +119,12 @@ DOUBLER_SUIT_HCP = 18
 DOUBLER_SUIT_JUDGE = 14
 DOUBLER_RAISE_HCP = 6
 DOUBLER_SUIT_LEVEL = 2
-SLAM = 33
+#: Slam on points (6NT, quantitative 4NT, keycard) needs 37 judgement points,
+#: not GIB's 33 (the user's call, 2026-10-31, from the championship study of
+#: uncontested auctions: the robots' 2NT-6NT and 2C-2D-3NT-6NT on 33 went
+#: down). Fresh deals, head to head, three sets of 4,000-6,000: +0.93, +1.07
+#: and +0.91 a board, t = 7.0 / 9.0 / 8.6. See BIDDING.md.
+SLAM = 37
 GRAND = 37
 
 
@@ -1668,13 +1673,19 @@ def _gerber_answer(ctx: Ctx) -> tuple:
 
 
 def after_my_ask(ctx: Ctx) -> tuple | None:
-    """I asked with 4NT or 4C; place the contract from the answer."""
+    """I asked with 4NT or 4C; place the contract from the answer. When RHO
+    bid over a keycard answer, the small slam if at most one keycard is
+    missing and it is still biddable, else double; over any other answer the
+    general branches decide over their bid."""
     seq = ctx.seq
     if len(seq) < 2 or ctx.ours[-1][0] != ctx.pd:
         return None
+    contested = bool(level_of(ctx.calls[-1][1]))
     h = ctx.h
     last, prior = seq[-1], seq[:-1]
     my_ask = prior[-1] if prior else None
+    if contested and not (my_ask == '4NT' and _asked_rkcb(prior, ctx.natural)):
+        return None
     if my_ask == '4NT' and _asked_rkcb(prior, ctx.natural):
         trump = agreed_trump(prior[:-1], ctx.natural)
         mine = h.keycards(trump)
@@ -1688,6 +1699,10 @@ def after_my_ask(ctx: Ctx) -> tuple | None:
         theirs = options[1] if mine + options[1] <= 5 and mine <= 1 else options[0]
         missing = 5 - mine - theirs
         queen = h.has(trump, 'Q') or last == '5S'
+        if contested:
+            if missing <= 1 and ctx.ok(f"6{trump}"):
+                return f"6{trump}", TO_PLAY
+            return ('X', "Penalty.") if ctx.ok('X') else ('Pass', TO_PLAY)
         if missing >= 2:
             call = ctx.cheapest(trump, 5)
             return (call, TO_PLAY) if call else ('Pass', TO_PLAY)
@@ -2687,6 +2702,15 @@ def _opener_over_forcing_response(ctx: Ctx) -> tuple | None:
     return None
 
 
+#: After partner's support double (exactly three of my suit) the opponents
+#: bid again: my suit is now a free bid and needs SUPPORT_X_FREE cards, an
+#: eight-card fit. The 2026-10-31 board 1♣ 1♦ (1♥) X (2♥) 3♦ on ♦K972 went
+#: down in a seven-card fit; in the championship records responders with
+#: four never bid their suit again here (20 passed), robots always did.
+#: None keeps the old free bid.
+SUPPORT_X_FREE = 5
+
+
 def _after_support_double(ctx: Ctx) -> tuple | None:
     """Partner (opener) showed exactly three of my suit with a double."""
     seq = ctx.seq
@@ -2702,6 +2726,8 @@ def _after_support_double(ctx: Ctx) -> tuple | None:
             return f"4{y}", TO_PLAY
         if ctx.ok('3NT'):
             return '3NT', TO_PLAY
+    if SUPPORT_X_FREE and level_of(ctx.calls[-1][1]) and h.len[y] < SUPPORT_X_FREE:
+        return 'Pass', "No fit to compete."
     call = ctx.cheapest(y, 2)
     if call and level_of(call) <= 3:
         if h.judge >= 10 and level_of(call) == 2 and ctx.ok(f"3{y}"):
@@ -3689,6 +3715,11 @@ def _defend(ctx: Ctx) -> tuple | None:
     return 'Pass', "No action."
 
 
+#: Partner showed two suits and RHO bid: I am no longer forced to choose, so
+#: I compete only to the level of a fit (five opposite), else pass.
+TWO_SUITER_FREE = True
+
+
 def _advance(ctx: Ctx) -> tuple | None:
     """Partner acted over their opening; this is my first call."""
     h = ctx.h
@@ -3734,6 +3765,9 @@ def _advance(ctx: Ctx) -> tuple | None:
                 and ctx.ok(game)):
             return game, f"3+ {SYM[choice]}, game values. To play."
         call = ctx.cheapest(choice, 2)
+        if (TWO_SUITER_FREE and call and level_of(ctx.calls[-1][1])
+                and (choice not in (a, b) or level_of(call) > h.len[choice] + 5 - 6)):
+            return 'Pass', "No fit to compete."
         if call and level_of(call) <= 5:
             return call, "Choosing between partner's two suits."
         return 'Pass', "No room."
