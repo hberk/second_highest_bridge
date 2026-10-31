@@ -119,7 +119,12 @@ DOUBLER_SUIT_HCP = 18
 DOUBLER_SUIT_JUDGE = 14
 DOUBLER_RAISE_HCP = 6
 DOUBLER_SUIT_LEVEL = 2
-SLAM = 33
+#: Slam on points (6NT, quantitative 4NT, keycard) needs 37 judgement points,
+#: not GIB's 33 (the user's call, 2026-10-31, from the championship study of
+#: uncontested auctions: the robots' 2NT-6NT and 2C-2D-3NT-6NT on 33 went
+#: down). Fresh deals, head to head, three sets of 4,000-6,000: +0.93, +1.07
+#: and +0.91 a board, t = 7.0 / 9.0 / 8.6. See BIDDING.md.
+SLAM = 37
 GRAND = 37
 
 

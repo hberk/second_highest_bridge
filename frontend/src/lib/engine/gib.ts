@@ -67,7 +67,8 @@ const DOUBLER_SUIT_HCP = 18;
 const DOUBLER_SUIT_JUDGE = 14;
 const DOUBLER_RAISE_HCP = 6;
 const DOUBLER_SUIT_LEVEL = 2;
-export const SLAM = 33;
+/** Slam on points needs 37 judgement points, not 33 (the user's call, 2026-10-31). See gib.py. */
+export const SLAM = 37;
 const GRAND = 37;
 
 const isSuit = (s: string | null | undefined): s is Suit =>

@@ -245,6 +245,9 @@ from the variant's side; t as above.
 | 10-31 | After the support double and RHO's bid, responder rebids the suit only with five (`SUPPORT_X_FREE`; the user's board) / with six; seed 12M, 10,000 deals | +0.05 / -0.02 | +1.93 / -0.56 | 82 / 186 | five on |
 | 10-31 | After partner's two-suiter and RHO's bid, advancer competes only to the level of a fit (`TWO_SUITER_FREE`); seed 13M, 10,000 deals | +0.09 | +1.10 | 280 | on |
 | 10-31 | After partner's cuebid raise and RHO's bid, a minimum passes unless the fit reaches the level | -0.04 | -0.36 | 414 | off (removed) |
+| 10-31 | Slam on points needs 37 judgement points, not 33 (`SLAM = 37`: 6NT, quantitative 4NT, keycard; the championship study of uncontested auctions); three sets of fresh deals (4,000, 6,000, 6,000) | **+0.93, +1.07, +0.91** | +6.95, +8.99, +8.61 | 109, 165, 144 | on |
+| 10-31 | ...the notrump slams alone (6NT, quantitative 4NT) / keycard alone | +0.78, +0.94, +0.53 / +0.05, +0.03, +0.15 | +6.40, +8.61, +6.98 / +2.27, +0.93, +3.63 | 102, 141, 126 / 7, 24, 18 | both on, as above |
+| 10-31 | Opener passes when responder declines the game try (1M 2M try 3M), instead of bidding game anyway; two sets | -0.01, -0.08 | -0.11, -2.09 | 61, 49 | off |
 
 ### The previous system (`ai_bid`)
 
