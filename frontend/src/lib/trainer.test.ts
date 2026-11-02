@@ -7,6 +7,7 @@ import { Trainer, TRAINING_KEY, contractScore, misfits, nsTricks, trainingDealId
 import { prng } from './meanings';
 import { parseHand } from './engine/card';
 import { AuctionState } from './engine/auction';
+import { aiBidExplained } from './engine/ai';
 import * as challenge from './engine/challenge';
 import TrainerView from './views/TrainerView.svelte';
 
@@ -189,5 +190,44 @@ describe('Bidding training', () => {
     expect(misfits('5+ ♠, 11-15 HCP.', hand)).toEqual(['16 HCP']);
     expect(misfits('6+ ♠, 16-18 HCP.', hand)).toEqual([]);
     expect(misfits('5+ ♥, 12+ HCP.', hand)).toEqual(['4 ♥']);
+  });
+});
+
+describe('A robot reads your call as the robots would mean it', () => {
+  // Items 10 and 18 (2026-11-01): the same auction, a call apart. At the
+  // robots' table North doubled 4♥ (deal 315) and 2♠ (deal 149) because the
+  // robot South's alert showed its points; at yours South's calls were read
+  // as showing nothing, and North passed. Bid South's calls exactly as the
+  // robot would, and the whole auction must come out the same.
+  it("bids the robots' auction when you bid the robot's calls", () => {
+    const ids = [315, 149, ...trainingDealIds().slice(0, 30)];
+    ids.forEach((id, k) => {
+      const t = new Trainer(null, prng(1));
+      t.boardNum = k;
+      t.newBoard(id);
+      const hands = t.hands;
+      const robots = new AuctionState(t.dealer, t.vulnerability);
+      const alerts: Record<number, string> = {};
+      while (!robots.isComplete) {
+        const who = robots.currentPlayer();
+        const [call, why] = aiBidExplained(who, hands[who], robots, alerts);
+        alerts[robots.calls.length] = why;
+        robots.applyCall(who, call);
+      }
+      for (let guard = 0; guard < 60 && !t.recap; guard++) t.humanBids(robots.calls[t.calls.length][1]);
+      expect(t.calls, `training deal ${id}`).toEqual(robots.calls);
+    });
+  });
+
+  it('doubles 2♠ on deal 149 at your table too', () => {
+    for (const [id, board, calls, at] of [
+      [149, 4, ['1D', 'X'], 9],
+    ] as const) {
+      const t = new Trainer(null, prng(1));
+      t.boardNum = board - 1;
+      t.newBoard(id);
+      for (const c of calls) t.humanBids(c);
+      expect(t.calls[at], `training deal ${id}`).toEqual(['North', 'X']);
+    }
   });
 });

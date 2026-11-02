@@ -16,7 +16,7 @@ import {
   SAVE_KEY, askPersistence, boardKey, browserStorage, clearGames, loadGames, mergeGames, saveGames,
   type ChallengeLogEntry, type HistoryRecord,
 } from './saves';
-import { liveAlerts as liveAlertsFor, robotAlerts, robotShown, type Readings } from './alerts';
+import { liveAlerts as liveAlertsFor, robotReadings, robotShown, type Readings } from './alerts';
 import { partnerOf } from './seats';
 
 export type Phase = 'bidding' | 'auction_done' | 'playing' | 'trick_done' | 'done';
@@ -263,10 +263,11 @@ export class Game {
 
   private isHumanCall = (i: number): boolean => this.calls[i]?.[0] === this.mySeat;
 
-  /** The robots' own alerts, by call: what a robot bidder may read (the
-   *  human's self-alerts are free text the robots don't read). */
+  /** What a robot bidder reads, by call: the robots' own alerts, and the
+   *  human's calls as the robots would mean them, never the self-alerts. */
   private robotAlerts(): Record<number, string> {
-    return robotAlerts(this.calls, this.alerts, this.isHumanCall);
+    return robotReadings(this.dealer, this.vulnerability, this.calls, this.alerts, this.isHumanCall,
+      this.gibReadings);
   }
 
   /** GIB's reading of each human call, by auction (`meanings.gib_alert` in Python). */

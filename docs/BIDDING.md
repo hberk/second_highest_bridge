@@ -114,6 +114,16 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   auction is rare. The first version doubled at any level and measured
   +0.09: on deal 334 opener doubled 3S, responder had no answer below the
   four level, and 3S doubled made.
+- **A free bid over partner's pre-empt** (`PROMISE_PREEMPT`; the user's
+  training deal 315, 2026-11-01: 3♣ (3♠) 4♥ with ♠KT ♥AK7653 ♦K853 ♣T, down
+  two doubled opposite a void). The free bid placed the contract with
+  partner's promise as an opening (`PROMISE_OPENED`), so 6.98 tricks of
+  hearts plus 3.16 reached game. A pre-empt is 6-10 points, mostly in its own
+  suit: it is now valued as a raise (2.06), so game on my own takes a good seventh
+  heart or more. The hand's 12 judgement points were not inflated; the
+  promise was. 10,000 fresh deals (`research/gib_fresh_h2h.py`, seed 7M):
+  **+0.26 a board, t = +3.46, 247 auctions changed** (115 better, 84 worse);
+  1.0 measured +0.26 (t = +3.12), 0.0 +0.23 (t = +2.61).
 - **Free bids after they bid again** (2026-10-31, the user's board
   P 1♣ P 1♦ (1♥) X (2♥) 3♦ on ♦K972, down in a seven-card fit). Two branches
   matched only our side's calls and bid as if RHO had passed:
@@ -460,7 +470,15 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   - The bidder reads partner's alerts, so `ai_bid_explained` takes the
     robots' alerts by call index (`alerts`); left out, it uses what it said
     on the same auction object (`_robot_alerts`). A person's self-alert is
-    not read.
+    not read; a person's call is read as the robots would mean it
+    (`robotReadings` in `frontend/src/lib/alerts.ts`, the play's reading too),
+    so the same auction bids the same at the user's table as at the robots'.
+    Until 2026-11-02 the apps passed the robots' alerts only, so the user's
+    calls showed no range and partner fell back to a third of the unseen
+    points: on training deals 315 (3♣ 3♠ 4♥) and 149 (1♦ 1♠ P P X P P 2♠)
+    robot North passed at the user's table and doubled at the robots'
+    (items 10 and 18, 2026-11-01; `trainer.test.ts` bids the robots' calls
+    for South and requires the robots' auction).
   - A side doubled for penalty never bids its own strain higher: the
     branches that raise a fit ran 4♦X up to 7♦X (`_penalty_or_base`).
   - **Only where X is free** (`_double_is_free`). Where X is takeout,
