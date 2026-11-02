@@ -96,6 +96,37 @@ def test_stayman():
     assert bid(game, '1NT', 'Pass', '2C', 'Pass', '2H', 'Pass')[0] == '4H'
 
 
+def test_smolen_over_1nt_and_2nt():
+    """5-4 in the majors with game values: Stayman, and when partner denies a
+    major, Smolen -- jump in the four-card major to show five of the other,
+    so the notrump hand declares it (the user, 2026-11-01)."""
+    resp = 'KS QS 8S 7S 3S KH QH 7H 2H 9D 6D 5C 3C'         # 5 spades, 4 hearts
+    assert bid(resp, '1NT', 'Pass')[0] == '2C'
+    call, why = bid(resp, '1NT', 'Pass', '2C', 'Pass', '2D', 'Pass')
+    assert call == '3H' and why.startswith('Smolen: 5 ♠, 4 ♥'), why
+    assert bid(resp, '1NT', 'Pass', '2C', 'Pass', '2H', 'Pass')[0] == '4H'
+    # Opener: four of the five-card major with three of it, else 3NT.
+    three = 'AS 9S 4S KH QH 3H KD QD 4D 2D AC 7C 3C'
+    two = 'AS 9S KH QH 3H KD QD 4D 2D AC 7C 3C 2C'
+    assert bid(three, '1NT', 'Pass', '2C', 'Pass', '2D', 'Pass', '3H', 'Pass')[0] == '4S'
+    assert bid(two, '1NT', 'Pass', '2C', 'Pass', '2D', 'Pass', '3H', 'Pass')[0] == '3NT'
+    assert bid(two, '1NT', 'Pass', '2C', 'Pass', '2D', 'Pass', '3S', 'Pass')[0] == '4H'
+    for last in ('4S', '3NT'):
+        assert bid(resp, '1NT', 'Pass', '2C', 'Pass', '2D', 'Pass', '3H', 'Pass',
+                   last, 'Pass')[0] == 'Pass'
+    # Over 2NT the same, a level up: 3♣ Stayman, 3♦ denies, 3♠ shows 5♥.
+    resp2 = 'KS 8S 7S 3S QH JH 7H 6H 2H 9D 6D 5C 3C'
+    assert bid(resp2, '2NT', 'Pass')[0] == '3C'
+    call, why = bid(resp2, '2NT', 'Pass', '3C', 'Pass', '3D', 'Pass')
+    assert call == '3S' and 'Smolen' in why
+    assert bid(three, '2NT', 'Pass', '3C', 'Pass', '3D', 'Pass', '3S', 'Pass')[0] == '4H'
+    # The jump agrees the five-card suit for slam conventions.
+    assert gib.agreed_trump(['1NT', '2C', '2D', '3H', '4S']) == 'S'
+    assert gib.agreed_trump(['2C', '2D', '2NT', '3C', '3D', '3S', '4H']) == 'H'
+    # A raise of opener's major is still the invitation it was.
+    assert gib.agreed_trump(['1NT', '2C', '2H', '3H']) == 'H'
+
+
 def test_jacoby_and_texas_transfers():
     call, why = bid('7S 3S QH 10H 8H 7H 2H 9D 6D 5D 9C 5C 3C', '1NT', 'Pass')
     assert call == '2D' and 'Transfer' in why

@@ -1246,6 +1246,10 @@ function ntResponse(ctx: Ctx, base: number, lo: number, hi: number): Decision {
   }
   if (hcp + hi >= SLAM && !m5.length && ctx.ok('4NT')) return ['4NT', 'Quantitative: invites 6NT.'];
   if (hcp + lo >= NT_GAME) {
+    if (smolenShape(h)) {
+      // 5-4 in the majors: Stayman, then Smolen if partner denies one.
+      return [code.stayman, 'Stayman: asks for a 4-card major. Artificial.'];
+    }
     if (m5.length) {
       const s = h.longest(MAJORS);
       if (h.len[s] >= 6) {
@@ -1287,6 +1291,34 @@ function ntResponse(ctx: Ctx, base: number, lo: number, hi: number): Decision {
   if (base === 1 && h.len.C >= 6) return [code.to_c as string, `Transfer: 6+ ${SYM.C}. Artificial.`];
   if (base === 1 && h.len.D >= 6) return [code.to_d as string, `Transfer: 6+ ${SYM.D}. Artificial.`];
   return ['Pass', 'No game.'];
+}
+
+/** Smolen over 1NT and 2NT (the user, 2026-11-01): with 5-4 in the majors and
+ *  game values, Stayman, then over the denial a jump in the four-card major
+ *  shows five of the other. False: such hands transfer, as before. */
+export const SMOLEN = true;
+
+/** [five, four] for exactly 5-4 in the majors, else null. Smolen's hand:
+ *  5-5 transfers to spades, and a six-card major transfers or uses Texas. */
+function smolenShape(h: Hand): [Suit, Suit] | null {
+  if (!SMOLEN) return null;
+  if (h.len.S === 5 && h.len.H === 4) return ['S', 'H'];
+  if (h.len.H === 5 && h.len.S === 4) return ['H', 'S'];
+  return null;
+}
+
+/** The five-card major responder's Smolen jump shows: after 1NT-2♣-2♦ or
+ *  2NT-3♣-3♦ (2♣-2♦-2NT too), 3♥ shows 4♥ and 5♠, 3♠ 4♠ and 5♥. Null
+ *  when call start + 3 isn't Smolen. */
+function smolen(seq: string[], start: number): Suit | null {
+  if (!SMOLEN || seq.length < start + 4) return null;
+  const base = levelOf(seq[start]);
+  const code = ntCodes(base);
+  const lvl = base === 1 ? 2 : 3;
+  if (seq[start + 1] !== code.stayman || seq[start + 2] !== `${lvl}D`) return null;
+  if (seq[start + 3] === '3H') return 'S';
+  if (seq[start + 3] === '3S') return 'H';
+  return null;
 }
 
 function ntOpenerAnswer(ctx: Ctx, base: number, r: string, lo: number, hi: number): Decision {
@@ -1351,8 +1383,13 @@ function ntResponderSecond(ctx: Ctx, base: number, seq: string[], lo: number, hi
       return placed(ctx, [`3${s}`, 'Invitational.']);
     }
     if (hcp + lo >= NT_GAME) {
+      const sm = smolenShape(h);
+      if (sm && strainOf(o) === 'D') {
+        const [five, four] = sm;
+        return [`3${four}`, `Smolen: 5 ${SYM[five]}, 4 ${SYM[four]}, game forcing. Artificial.`];
+      }
       const m5 = MAJORS.filter((m) => h.len[m] >= 5);
-      if (m5.length && o !== '2S' && ctx.ok(`3${m5[0]}`)) return [`3${m5[0]}`, `5+ ${SYM[m5[0]]}, game forcing.`];
+      if (m5.length && isMajor(strainOf(o)) && o !== '2S' && ctx.ok(`3${m5[0]}`)) return [`3${m5[0]}`, `5+ ${SYM[m5[0]]}, game forcing.`];
       return placed(ctx, ['3NT', TO_PLAY]);
     }
     if (ctx.ok('2NT')) return ['2NT', 'Invitational.'];
@@ -1387,7 +1424,15 @@ function ntOpenerThird(ctx: Ctx, base: number, seq: string[], lo: number, hi: nu
   const code = ntCodes(base);
   const r = seq[1];
   const last = seq[3];
-  if (last === '2NT' || ((last === '3H' || last === '3S') && r === code.stayman)) {
+  const five = smolen(seq, 0);
+  if (five) {
+    // Responder has five of the other major: game there with three of
+    // it, so the notrump hand declares, else 3NT.
+    if (h.len[five] >= 3) return [`4${five}`, `3 ${SYM[five]}, to play.`];
+    return ['3NT', `Fewer than 3 ${SYM[five]}, to play.`];
+  }
+  if (last === '2NT' || ((last === '3H' || last === '3S') && r === code.stayman
+    && strainOf(seq[2]) === strainOf(last))) {
     if (h.judge >= hi - 1) {
       if (last === '3H' || last === '3S') return [`4${strainOf(last)}`, TO_PLAY];
       const target = strainOf(seq[2]) as Suit;
@@ -1438,6 +1483,7 @@ export function shownSuit(seq: string[], i: number, natural = false): string | n
       if (call === code.to_c || call === code.to_d) return call === code.to_c ? 'C' : 'D';
       if (base === 1 && ['3D', '3H', '3S'].includes(call)) return null;
     }
+    if (i === start + 3 && smolen(seq, start)) return smolen(seq, start); // the five-card major
     if (i === start + 2 && (seq[start + 1] === code.stayman || seq[start + 1] === code.mss)) {
       return (call === '2D' || call === '3D') && seq[start + 1] === code.stayman ? null : s;
     }

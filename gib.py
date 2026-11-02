@@ -1304,9 +1304,9 @@ def _nt_range(seq: list[str], start: int) -> tuple[int, int]:
 
 
 def notrump(ctx: Ctx, start: int) -> tuple:
-    """1NT, 2NT and 2C-2D-2NT: Stayman, Jacoby and Texas transfers, minor
-    suit Stayman, minor transfers (over 1NT), shortness bids, Gerber,
-    quantitative 4NT."""
+    """1NT, 2NT and 2C-2D-2NT: Stayman with Smolen, Jacoby and Texas
+    transfers, minor suit Stayman, minor transfers (over 1NT), shortness
+    bids, Gerber, quantitative 4NT."""
     seq = ctx.seq[start:]
     n = len(seq)
     base = level_of(seq[0])
@@ -1352,6 +1352,9 @@ def _nt_response(ctx: Ctx, base: int, lo: int, hi: int) -> tuple:
     if hcp + hi >= SLAM and not m5 and ctx.ok('4NT'):
         return '4NT', "Quantitative: invites 6NT."
     if hcp + lo >= NT_GAME:
+        if _smolen_shape(h):
+            # 5-4 in the majors: Stayman, then Smolen if partner denies one.
+            return code['stayman'], "Stayman: asks for a 4-card major. Artificial."
         if m5:
             s = h.longest(MAJORS)
             if h.len[s] >= 6:
@@ -1388,6 +1391,38 @@ def _nt_response(ctx: Ctx, base: int, lo: int, hi: int) -> tuple:
     if base == 1 and h.len['D'] >= 6:
         return code['to_d'], f"Transfer: 6+ {SYM['D']}. Artificial."
     return 'Pass', "No game."
+
+
+#: Smolen over 1NT and 2NT (the user, 2026-11-01): with 5-4 in the majors and
+#: game values, Stayman, then over the denial a jump in the four-card major
+#: shows five of the other. False: such hands transfer, as before.
+SMOLEN = True
+
+
+def _smolen_shape(h: Hand) -> tuple[str, str] | None:
+    """(five, four) for exactly 5-4 in the majors, else None. Smolen's hand:
+    5-5 transfers to spades, and a six-card major transfers or uses Texas."""
+    if not SMOLEN:
+        return None
+    if h.len['S'] == 5 and h.len['H'] == 4:
+        return 'S', 'H'
+    if h.len['H'] == 5 and h.len['S'] == 4:
+        return 'H', 'S'
+    return None
+
+
+def _smolen(seq: list[str], start: int) -> str | None:
+    """The five-card major responder's Smolen jump shows: after 1NT-2♣-2♦ or
+    2NT-3♣-3♦ (2♣-2♦-2NT too), 3♥ shows 4♥ and 5♠, 3♠ 4♠ and 5♥. None
+    when call start + 3 isn't Smolen."""
+    if not SMOLEN or len(seq) < start + 4:
+        return None
+    base = level_of(seq[start])
+    code = _nt_codes(base)
+    lvl = 2 if base == 1 else 3
+    if seq[start + 1] != code['stayman'] or seq[start + 2] != f"{lvl}D":
+        return None
+    return {'3H': 'S', '3S': 'H'}.get(seq[start + 3])
 
 
 def _nt_opener_answer(ctx: Ctx, base: int, r: str, lo: int, hi: int) -> tuple:
@@ -1451,8 +1486,13 @@ def _nt_responder_second(ctx: Ctx, base: int, seq: list[str], lo: int, hi: int) 
                 return placed(ctx, (f"4{s}", TO_PLAY))
             return placed(ctx, (f"3{s}", "Invitational."))
         if hcp + lo >= NT_GAME:
+            smolen = _smolen_shape(h)
+            if smolen and strain_of(o) == 'D':
+                five, four = smolen
+                return f"3{four}", (f"Smolen: 5 {SYM[five]}, 4 {SYM[four]}, "
+                                    "game forcing. Artificial.")
             m5 = [m for m in MAJORS if h.len[m] >= 5]
-            if m5 and o != '2S' and ctx.ok(f"3{m5[0]}"):
+            if m5 and strain_of(o) in MAJORS and o != '2S' and ctx.ok(f"3{m5[0]}"):
                 return f"3{m5[0]}", f"5+ {SYM[m5[0]]}, game forcing."
             return placed(ctx, ('3NT', TO_PLAY))
         if ctx.ok('2NT'):
@@ -1488,7 +1528,15 @@ def _nt_opener_third(ctx: Ctx, base: int, seq: list[str], lo: int, hi: int) -> t
     h = ctx.h
     code = _nt_codes(base)
     r, last = seq[1], seq[3]
-    if last == '2NT' or (last in ('3H', '3S') and r == code['stayman']):
+    five = _smolen(seq, 0)
+    if five:
+        # Responder has five of the other major: game there with three of
+        # it, so the notrump hand declares, else 3NT.
+        if h.len[five] >= 3:
+            return f"4{five}", f"3 {SYM[five]}, to play."
+        return '3NT', f"Fewer than 3 {SYM[five]}, to play."
+    if last == '2NT' or (last in ('3H', '3S') and r == code['stayman']
+                         and strain_of(seq[2]) == strain_of(last)):
         if h.judge >= hi - 1:
             if last in ('3H', '3S'):
                 return f"4{strain_of(last)}", TO_PLAY
@@ -1545,6 +1593,8 @@ def shown_suit(seq: list[str], i: int, natural: bool = False) -> str | None:
                 return 'C' if call == code['to_c'] else 'D'
             if base == 1 and call in ('3D', '3H', '3S'):
                 return None
+        if i == start + 3 and _smolen(seq, start):
+            return _smolen(seq, start)                       # the five-card major
         if i == start + 2 and seq[start + 1] in (code['stayman'], code['mss']):
             return None if call in ('2D', '3D') and seq[start + 1] == code['stayman'] else s
         if i < start:
