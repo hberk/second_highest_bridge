@@ -248,6 +248,7 @@ from the variant's side; t as above.
 | 10-31 | Slam on points needs 37 judgement points, not 33 (`SLAM = 37`: 6NT, quantitative 4NT, keycard; the championship study of uncontested auctions); three sets of fresh deals (4,000, 6,000, 6,000) | **+0.93, +1.07, +0.91** | +6.95, +8.99, +8.61 | 109, 165, 144 | on |
 | 10-31 | ...the notrump slams alone (6NT, quantitative 4NT) / keycard alone | +0.78, +0.94, +0.53 / +0.05, +0.03, +0.15 | +6.40, +8.61, +6.98 / +2.27, +0.93, +3.63 | 102, 141, 126 / 7, 24, 18 | both on, as above |
 | 10-31 | Opener passes when responder declines the game try (1M 2M try 3M), instead of bidding game anyway; two sets | -0.01, -0.08 | -0.11, -2.09 | 61, 49 | off |
+| 11-02 | A free bid over partner's pre-empt counts partner as a raise, not an opening (`PROMISE_PREEMPT`; your training deal 315, 3♣ (3♠) 4♥ on six hearts); seed 7M, 10,000 deals; promise 2.06 / 1.0 / 0.0 | **+0.26** / +0.26 / +0.23 | +3.46 / +3.12 / +2.61 | 247 / 290 / 308 | 2.06 on |
 
 ### The previous system (`ai_bid`)
 

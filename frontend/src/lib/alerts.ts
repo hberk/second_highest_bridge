@@ -41,11 +41,13 @@ export function robotAlerts(calls: CallRecord[], alerts: Record<number, string>,
  *  it depends only on the auction (`meanings.gib_alert` in Python). */
 export type Readings = Map<string, string | null>;
 
-/** The lengths the bidding showed, for the robots' play: a robot's call by
- *  its own alert, a person's by what GIB would mean by it (`callMeanings`) --
- *  the self-alert is free text the robots don't read (docs/CHALLENGE.md). */
-export function robotShown(dealer: Seat, vulnerability: Vulnerability, calls: CallRecord[],
-  alerts: Record<number, string>, isHuman: IsHuman, readings: Readings): Shown {
+/** What a robot reads off the auction, by call: a robot's call by its own
+ *  alert, a person's by what the robots would mean by it (`callMeanings`) --
+ *  the self-alert is free text the robots don't read (docs/CHALLENGE.md). So
+ *  a robot partner takes your 3♠ as the robots' 3♠, and an auction bids the
+ *  same at your table as at the robots' (items 10 and 18, 2026-11-01). */
+export function robotReadings(dealer: Seat, vulnerability: Vulnerability, calls: CallRecord[],
+  alerts: Record<number, string>, isHuman: IsHuman, readings: Readings): Record<number, string> {
   const read = robotAlerts(calls, alerts, isHuman);
   calls.forEach(([, call], i) => {
     if (!isHuman(i)) return;
@@ -58,5 +60,12 @@ export function robotShown(dealer: Seat, vulnerability: Vulnerability, calls: Ca
     const why = readings.get(key);
     if (why) read[i] = why;
   });
+  return read;
+}
+
+/** The lengths the bidding showed, for the robots' play (`robotReadings`). */
+export function robotShown(dealer: Seat, vulnerability: Vulnerability, calls: CallRecord[],
+  alerts: Record<number, string>, isHuman: IsHuman, readings: Readings): Shown {
+  const read = robotReadings(dealer, vulnerability, calls, alerts, isHuman, readings);
   return shownLengths(calls.map(([p, c]) => [p, c] as [Seat, string]), read);
 }

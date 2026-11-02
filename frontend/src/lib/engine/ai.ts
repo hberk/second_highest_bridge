@@ -107,6 +107,9 @@ export const TWO_OVER_ONE_TRICKS = 5.6;
 export const TWO_OVER_ONE_POINTS = 12;
 export const FREE_BID_LENGTH = 6;
 export const FREE_BID_POINTS = 8;
+/** What partner's pre-empt promises towards a free bid of mine: 6-10 points,
+ *  most of them in its own suit. See ai.py. */
+export const PROMISE_PREEMPT = 3.56 - PROMISE_SHIFT;
 export const JUMP_RAISE_TRICKS = 6.2;
 
 export const OPEN_POINTS = 12;
@@ -455,7 +458,8 @@ function response(player: Seat, partner: Seat, auction: AuctionState, ev: HandEv
       }
     }
     if (contested && bestLen >= FREE_BID_LENGTH && pts >= FREE_BID_POINTS) {
-      const [call] = place(bestSuit, ev.suit_pts[bestSuit] + PROMISE_OPENED, legal);
+      const promise = preemptIndex(partner, auction) !== null ? PROMISE_PREEMPT : PROMISE_OPENED;
+      const [call] = place(bestSuit, ev.suit_pts[bestSuit] + promise, legal);
       if (call !== 'Pass') {
         return [call, ambiguous ? either
           : `${FREE_BID_LENGTH}+ ${SUIT_SYM[bestSuit]}, ${FREE_BID_POINTS}+ points. Free bid.`];
@@ -618,10 +622,8 @@ function partnerPenaltyStands(player: Seat, auction: AuctionState,
 export const PREEMPTOR_PASSES = true;
 const PREEMPTED = 'Pre-empted already.';
 
-/** Is this the pre-emptor, and has partner asked for an answer? null when
- *  the player did not pre-empt. */
-function preemptorForced(player: Seat, auction: AuctionState,
-  alerts: Record<number, string>): boolean | null {
+/** Where `player` opened the auction with a pre-empt, or null. */
+function preemptIndex(player: Seat, auction: AuctionState): number | null {
   const calls = auction.calls;
   const first = calls.findIndex(([, c]) => c !== 'Pass');
   if (first < 0 || calls[first][0] !== player) return null;
@@ -630,6 +632,17 @@ function preemptorForced(player: Seat, auction: AuctionState,
     || calls[first][1] === '2C' || (opening[0] === 2 && first === 3)) {
     return null;              // not a pre-empt; a fourth-seat two-bid is sound
   }
+  return first;
+}
+
+/** Is this the pre-emptor, and has partner asked for an answer? null when
+ *  the player did not pre-empt. */
+function preemptorForced(player: Seat, auction: AuctionState,
+  alerts: Record<number, string>): boolean | null {
+  const calls = auction.calls;
+  const first = preemptIndex(player, auction);
+  if (first === null) return null;
+  const opening = parseBid(calls[first][1])!;
   const partner = PARTNERS[player];
   let last = -1;
   for (let i = calls.length - 1; i > first; i--) {

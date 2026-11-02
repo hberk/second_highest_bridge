@@ -215,6 +215,14 @@ TWO_OVER_ONE_POINTS = 12
 #: Swept: 5+/6+ gave +3.5 (t = +1.94), 6+/6+ +3.4 (t = +2.23), 7+/6+ only +0.3.
 FREE_BID_LENGTH = 6
 FREE_BID_POINTS = 8
+#: What partner's PRE-EMPT promises towards a free bid of mine: a weak two or
+#: a three-level opening is 6-10 points, most of them in its own suit, so it
+#: promises far less in mine than an opening does. Read as an opening, 3C (3S)
+#: 4H went to game on six hearts and a singleton club (training deal 315, the
+#: user's item 11, 2026-11-01). Valued as a raise (PROMISE_RAISED). 10,000
+#: fresh deals: +0.26 a board, t = +3.46, 247 auctions changed (115 better,
+#: 84 worse); 1.0 gave +0.26 (t = +3.12), 0.0 +0.23 (t = +2.61).
+PROMISE_PREEMPT = 3.56 - PROMISE_SHIFT
 
 #: Own threshold to jump-raise instead of raising simply.
 JUMP_RAISE_TRICKS = 6.2
@@ -810,7 +818,9 @@ def _response(player: str, partner: str, auction: AuctionState, ev: dict,
         # wrong test -- this is not a game force, it is "I have a suit". Without
         # this branch the hand simply passed on six, eight, even nine cards.
         if contested and best_len >= FREE_BID_LENGTH and pts >= FREE_BID_POINTS:
-            call, _ = _place(best_suit, ev['suit_pts'][best_suit] + PROMISE_OPENED,
+            promise = (PROMISE_PREEMPT if _preempt_index(partner, auction) is not None
+                       else PROMISE_OPENED)
+            call, _ = _place(best_suit, ev['suit_pts'][best_suit] + promise,
                              legal, best_len)
             if call != 'Pass':
                 return call, either if ambiguous else (
@@ -995,9 +1005,8 @@ PREEMPTOR_PASSES = True
 PREEMPTED = "Pre-empted already."
 
 
-def _preemptor_forced(player: str, auction: AuctionState, alerts: dict) -> bool | None:
-    """Is this the pre-emptor, and has partner asked for an answer? None
-    when the player did not pre-empt."""
+def _preempt_index(player: str, auction: AuctionState) -> int | None:
+    """Where `player` opened the auction with a pre-empt, or None."""
     calls = auction.calls
     first = next((i for i, (_, c) in enumerate(calls) if c != 'Pass'), None)
     if first is None or calls[first][0] != player:
@@ -1006,6 +1015,17 @@ def _preemptor_forced(player: str, auction: AuctionState, alerts: dict) -> bool 
     if (not opening or opening[0] < 2 or opening[1] == 'NT'
             or calls[first][1] == '2C' or (opening[0] == 2 and first == 3)):
         return None             # not a pre-empt; a fourth-seat two-bid is sound
+    return first
+
+
+def _preemptor_forced(player: str, auction: AuctionState, alerts: dict) -> bool | None:
+    """Is this the pre-emptor, and has partner asked for an answer? None
+    when the player did not pre-empt."""
+    calls = auction.calls
+    first = _preempt_index(player, auction)
+    if first is None:
+        return None
+    opening = parse_bid(calls[first][1])
     partner = PARTNERS[player]
     last = next((i for i in range(len(calls) - 1, first, -1) if calls[i][1] != 'Pass'), None)
     if last is None or calls[last][0] != partner:

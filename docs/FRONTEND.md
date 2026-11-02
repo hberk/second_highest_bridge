@@ -153,7 +153,8 @@ remains the reference.
   with the next call (`Game.humanBids(call, alert)`), is cleaned by
   `cleanAlert` (one line, at most 70 characters; `clean_alert` in
   `bridge/auction.py` is its Python twin), and is shown live even on a pass,
-  while robot pass reasons stay hidden. The robots don't read it. Because the
+  while robot pass reasons stay hidden. The robots don't read it: they read a person's
+  call by `callMeanings`, bidding and play alike (`robotReadings`, `alerts.ts`). Because the
   app takes free text, `lin.test.ts` fails if `{@html}` appears in any
   component.
 - **LIN** (`frontend/src/lib/lin.ts`, and `bridge/lin.py` in Python): BBO's

@@ -17,7 +17,7 @@ import { aiBidExplained, aiPlay, visibleHands } from '../engine/ai';
 import { scoreContract, type ScoreResult } from '../engine/scoring';
 import type { TrickLog } from '../engine/challenge';
 import type { HistoryRecord } from '../saves';
-import { robotAlerts, robotShown, type Readings } from '../alerts';
+import { robotReadings, robotShown, type Readings } from '../alerts';
 import { cleanName, type BoardView, type ClientMessage, type ErrorCode, type SeatView, type TableView } from './protocol';
 
 /** A robot acts this long after the last action, so the table plays at the
@@ -356,7 +356,8 @@ export function robotAction(s: TableState, readings: Readings): Action | null {
   const isHuman = (i: number) => d.humanCall[i];
   if (d.phase === 'bidding') {
     const who = d.toAct;
-    const [call, why] = aiBidExplained(who, d.hands[who], d.auction, robotAlerts(d.calls, d.alerts, isHuman));
+    const [call, why] = aiBidExplained(who, d.hands[who], d.auction,
+      robotReadings(b.dealer, b.vulnerability, d.calls, d.alerts, isHuman, readings));
     return { seat: who, human: false, call, alert: why };
   }
   const seat = d.toAct;

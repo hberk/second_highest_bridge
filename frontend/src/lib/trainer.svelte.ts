@@ -15,6 +15,7 @@ import { aiBidExplained } from './engine/ai';
 import { Hand } from './engine/gib';
 import { scoreFor, type Par } from './engine/challenge';
 import { callMeanings } from './meanings';
+import { robotReadings, type Readings } from './alerts';
 import { browserStorage } from './saves';
 
 interface TrainingDeal {
@@ -355,15 +356,15 @@ export class Trainer {
     if (!this.recap) this.save();
   }
 
-  /** The robots' alerts by call, the human's left out (as Game.robotAlerts). */
+  /** What a robot bidder reads, by call, before call `upTo`: the robots'
+   *  alerts, and your calls as the robots would mean them (as Game.robotAlerts). */
   private robotAlerts(upTo = this.calls.length): Record<number, string> {
-    const out: Record<number, string> = {};
-    for (const [i, why] of Object.entries(this.alerts)) {
-      const call = this.calls[Number(i)];
-      if (Number(i) < upTo && call && call[0] !== HUMAN) out[Number(i)] = why;
-    }
-    return out;
+    return robotReadings(this.dealer, this.vulnerability, this.calls.slice(0, upTo), this.alerts,
+      (i) => this.calls[i]?.[0] === HUMAN, this.readings);
   }
+
+  /** The robots' reading of each of your calls, by auction (`alerts.ts`). */
+  private readings: Readings = new Map();
 
   private advance(): void {
     const auction = new AuctionState(this.dealer, this.vulnerability);
