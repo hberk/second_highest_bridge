@@ -248,6 +248,8 @@ from the variant's side; t as above.
 | 10-31 | Slam on points needs 37 judgement points, not 33 (`SLAM = 37`: 6NT, quantitative 4NT, keycard; the championship study of uncontested auctions); three sets of fresh deals (4,000, 6,000, 6,000) | **+0.93, +1.07, +0.91** | +6.95, +8.99, +8.61 | 109, 165, 144 | on |
 | 10-31 | ...the notrump slams alone (6NT, quantitative 4NT) / keycard alone | +0.78, +0.94, +0.53 / +0.05, +0.03, +0.15 | +6.40, +8.61, +6.98 / +2.27, +0.93, +3.63 | 102, 141, 126 / 7, 24, 18 | both on, as above |
 | 10-31 | Opener passes when responder declines the game try (1M 2M try 3M), instead of bidding game anyway; two sets | -0.01, -0.08 | -0.11, -2.09 | 61, 49 | off |
+| 11-02 | Partner's raise of my own suit is agreed, not partner's suit: only game once they pass (`OWN_SUIT_RAISED`); a weak jump overcaller passes after partner's raise (`JUMP_OVERCALL_PASSES`); their double of partner's asking call leaves it asking (`PREEMPT_ASK_DOUBLED`); a 10-card fit jams game over partner's weak jump overcall when we are not vulnerable (`JAM_WJO_VUL = 'white'`); three sets of 3,000 fresh deals | -0.00, +0.49, -0.04 | -0.01, +3.39, -0.26 | 267, 252, 239 | on (your choice) |
+| 11-02 | ...the jump overcaller's pass alone / jam only white vs red / without the jump overcaller's pass | -0.26, -0.00, -0.26 / -0.09, +0.40, -0.16 / +0.25, +0.52, +0.14 | -2.95, -0.07, -2.85 / -0.56, +3.07, -0.94 / +1.60, +3.76, +0.94 | 34, 27, 34 / 242, 218, 217 / 241, 230, 212 | pass on (your rule), fav off |
 
 ### The previous system (`ai_bid`)
 

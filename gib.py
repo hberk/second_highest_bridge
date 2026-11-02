@@ -2193,8 +2193,10 @@ def weak_jump_overcall(player: str, calls: list) -> int | None:
 #: the auction ... more likely white vs red, otherwise just 3♠"). With a
 #: ten-card fit my first call is game, at the vulnerabilities JAM_WJO_VUL
 #: names: 'fav' (we are not vulnerable, they are), 'white' (we are not
-#: vulnerable), 'any', or None for off.
-JAM_WJO_VUL = 'fav'
+#: vulnerable), 'any', or None for off. The user picked 'white' (2026-11-02):
+#: 3 x 3,000 fresh deals, with OWN_SUIT_RAISED and the jump overcaller's
+#: pass, +0.15 a board against +0.05 for 'fav' (BIDDING.md).
+JAM_WJO_VUL = 'white'
 
 
 def _jam_wjo_ok(ctx: Ctx) -> bool:

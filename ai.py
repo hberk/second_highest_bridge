@@ -1031,6 +1031,11 @@ PREEMPTED = "Pre-empted already."
 #: 91% of the time over their bid and 98% when they pass (371 auctions,
 #: 1996-2002 championships), where the robots raised again 71% of the time.
 JUMP_OVERCALL_PASSES = True
+#: The jump overcaller passes only once partner has raised the suit, the
+#: user's rule and the experts' habit; elsewhere it bids as before.
+JUMP_OVERCALL_RAISED_ONLY = True
+#: Their double of partner's asking call does not cancel the question.
+PREEMPT_ASK_DOUBLED = True
 
 
 def _preemptor_forced(player: str, auction: AuctionState, alerts: dict) -> bool | None:
@@ -1044,12 +1049,23 @@ def _preemptor_forced(player: str, auction: AuctionState, alerts: dict) -> bool 
         first = gib.weak_jump_overcall(player, calls) if JUMP_OVERCALL_PASSES else None
         if first is None:
             return None
+        suit = parse_bid(calls[first][1])[1]
+        if JUMP_OVERCALL_RAISED_ONLY and not any(
+                w == PARTNERS[player] and parse_bid(c) and parse_bid(c)[1] == suit
+                for w, c in calls[first:]):
+            return None         # only once partner has raised it: the user's rule
     opening = parse_bid(calls[first][1])
     if (not opening or opening[0] < 2 or opening[1] == 'NT'
             or calls[first][1] == '2C' or (opening[0] == 2 and first == 3)):
         return None             # not a pre-empt; a fourth-seat two-bid is sound
     partner = PARTNERS[player]
     last = next((i for i in range(len(calls) - 1, first, -1) if calls[i][1] != 'Pass'), None)
+    if (PREEMPT_ASK_DOUBLED and last is not None and calls[last][1] == 'X'
+            and calls[last][0] != partner):
+        # Their double of partner's call leaves partner's question standing
+        # (1♠ (3♥) P (3♠) X: the cuebid still asks, and passing left 3♠
+        # doubled to play).
+        last = next((i for i in range(last - 1, first, -1) if calls[i][1] != 'Pass'), None)
     if last is None or calls[last][0] != partner:
         return False
     call = calls[last][1]

@@ -2034,7 +2034,7 @@ export function weakJumpOvercall(player: Seat, calls: [Seat, string][]): number 
 /** Jam over partner's weak jump overcall (the user's board, 2026-11-01):
  *  with a ten-card fit my first call is game, at the vulnerabilities
  *  JAM_WJO_VUL names: 'fav', 'white', 'any', or null for off. See gib.py. */
-export const JAM_WJO_VUL: 'fav' | 'white' | 'any' | null = 'fav';
+export const JAM_WJO_VUL: 'fav' | 'white' | 'any' | null = 'white';
 
 function jamWjoOk(ctx: Ctx): boolean {
   if (JAM_WJO_VUL === null || weakJumpOvercall(ctx.pd, ctx.calls) === null) return false;

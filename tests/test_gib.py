@@ -1165,12 +1165,17 @@ def test_a_weak_jump_overcaller_does_not_bid_again():
     1♣ (2♦) X P 2♥ P P (3♦) P P: West does not go on to 4♦ (training deal
     118); 1♦ (2♠) X (3♠) P: North does not go on to 4♠ (deal 121)."""
     west = 'AS 8S 6S 9H 8H 7H 5H AD JD 8D 7D 4D 2D'
-    call, why = bid(west, '1C', '2D', 'X', 'Pass', '2H', 'Pass', 'Pass', '3D', 'Pass', 'Pass',
+    call, why = bid(west, '1C', '2D', 'X', 'Pass', '2H', 'Pass', 'Pass', '3D', 'Pass',
                     dealer='South')
     assert (call, why) == ('Pass', ai.PREEMPTED), (call, why)
     north = 'AS 10S 7S 6S 5S 4S KH 10H 6H 2H 10D 9D QC'
     call, why = bid(north, '1D', '2S', 'X', '3S', 'Pass', dealer='West')
     assert (call, why) == ('Pass', ai.PREEMPTED), (call, why)
+    # Before partner's raise the jump overcaller bids as before.
+    assert gib.weak_jump_overcall('North', after('1D', '2S', 'Pass', '3D', dealer='West').calls) == 1
+    # Their double of partner's cuebid leaves the question standing.
+    call, _ = bid(north, '1D', '2S', 'Pass', '3D', 'X', dealer='West')
+    assert call != 'Pass', call
     assert gib.weak_jump_overcall('North', after('1D', '2S', dealer='West').calls) == 1
     # A simple overcall, and a jump in the pass-out seat, are not pre-empts.
     assert gib.weak_jump_overcall('North', after('1D', '1S', dealer='West').calls) is None
@@ -1178,11 +1183,13 @@ def test_a_weak_jump_overcaller_does_not_bid_again():
                                                  dealer='West').calls) is None
 
 
-def test_jam_over_partners_weak_jump_overcall_white_against_red():
+def test_jam_over_partners_weak_jump_overcall_when_not_vulnerable():
     """The user's board, 2026-11-01: 1♦ (2♠) X with four spades: 4♠ to jam
-    the auction on the ten-card fit at favourable vulnerability, else 3♠."""
+    the auction on the ten-card fit when we are not vulnerable (the user's
+    pick, 2026-11-02), else 3♠."""
     south = 'KS 9S 3S 2S 8H 5H 6D 3D KC 10C 8C 6C 5C'
     call, why = _vul_bid(south, 'E/W', '1D', '2S', 'X', dealer='West')
     assert call == '4S' and why.startswith('Game in'), (call, why)
-    call, _ = _vul_bid(south, 'None', '1D', '2S', 'X', dealer='West')
+    assert _vul_bid(south, 'None', '1D', '2S', 'X', dealer='West')[0] == '4S'
+    call, _ = _vul_bid(south, 'N/S', '1D', '2S', 'X', dealer='West')
     assert call == '3S', call

@@ -642,6 +642,10 @@ const PREEMPTED = 'Pre-empted already.';
 /** A weak jump overcall is a pre-empt too (the user's boards, 2026-11-01;
  *  expert archives pass after partner's raise 91-98% of the time). See ai.py. */
 export const JUMP_OVERCALL_PASSES = true;
+/** The jump overcaller passes only once partner has raised the suit. */
+export const JUMP_OVERCALL_RAISED_ONLY = true;
+/** Their double of partner's asking call does not cancel the question. */
+export const PREEMPT_ASK_DOUBLED = true;
 
 /** Is this the pre-emptor, and has partner asked for an answer? null when
  *  the player did not pre-empt. */
@@ -654,6 +658,11 @@ function preemptorForced(player: Seat, auction: AuctionState,
     const wjo = JUMP_OVERCALL_PASSES ? weakJumpOvercall(player, calls) : null;
     if (wjo === null) return null;
     first = wjo;
+    const suit = parseBid(calls[first][1])![1];
+    if (JUMP_OVERCALL_RAISED_ONLY && !calls.slice(first).some(([w, c]) =>
+      w === PARTNERS[player] && parseBid(c)?.[1] === suit)) {
+      return null;            // only once partner has raised it: the user's rule
+    }
   }
   const opening = parseBid(calls[first][1]);
   if (!opening || opening[0] < 2 || opening[1] === 'NT'
@@ -664,6 +673,14 @@ function preemptorForced(player: Seat, auction: AuctionState,
   let last = -1;
   for (let i = calls.length - 1; i > first; i--) {
     if (calls[i][1] !== 'Pass') { last = i; break; }
+  }
+  if (PREEMPT_ASK_DOUBLED && last >= 0 && calls[last][1] === 'X' && calls[last][0] !== partner) {
+    // Their double of partner's call leaves partner's question standing.
+    const at = last;
+    last = -1;
+    for (let i = at - 1; i > first; i--) {
+      if (calls[i][1] !== 'Pass') { last = i; break; }
+    }
   }
   if (last < 0 || calls[last][0] !== partner) return false;
   const call = calls[last][1];
