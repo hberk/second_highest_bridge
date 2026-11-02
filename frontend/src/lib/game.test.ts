@@ -242,15 +242,22 @@ describe('table flow', () => {
           const mine = (w === game.mySeat && c.declarer !== seatAt(game.mySeat, 'top'))
             || (w === seatAt(game.mySeat, 'top') && c.declarer === game.mySeat);
           if (mine) {
-            expect(htmls[0]).toContain('Your lead');
-            expect(htmls[0]).not.toContain('>Next trick');
+            for (const html of htmls) {
+              expect(html).toContain('Your lead');
+              expect(html).not.toContain('>Next trick');
+              expect(html).not.toContain('Tap for the next trick');
+            }
             const card = game.hands[w][0];
             // What the view does when a card is tapped: clear the trick, lead it.
             game.nextTrick();
             game.humanPlays(w, card);
             expect(game.trick[0]).toEqual([w, card]);
             leads++;
-          } else game.nextTrick();
+          } else {
+            expectBoth(htmls, '>Next trick');
+            expect(htmls[0]).toContain('Tap for the next trick');
+            game.nextTrick();
+          }
         } else {
           const who = game.whoseTurn()!;
           game.humanPlays(who, legalPlays(game.hands[who], game.trick[0]?.[1].suit ?? null)[0]);

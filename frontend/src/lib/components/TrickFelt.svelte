@@ -8,7 +8,7 @@
   import type { Snippet } from 'svelte';
   import { POSITION_CLASS, seatAt, type Position } from '../seats';
 
-  let { trick, winner = null, labels, awaiting = null, info, me = 'South', onadvance }: {
+  let { trick, winner = null, labels, awaiting = null, info, me = 'South', onadvance, hint = true }: {
     trick: Play[];
     winner?: Seat | null;
     labels: Record<Seat, string>;
@@ -19,6 +19,8 @@
     me?: Seat;
     /** A finished trick: a tap anywhere on the felt moves on to the next. */
     onadvance?: () => void;
+    /** Say "Tap for the next trick"; off when you won it and simply lead. */
+    hint?: boolean;
   } = $props();
 
   const played = $derived(new Map<Seat, Card>(trick));
@@ -47,5 +49,5 @@
       {/if}
     </div>
   {/each}
-  {#if onadvance}<span class="tf-hint" aria-hidden="true">Tap for the next trick</span>{/if}
+  {#if onadvance && hint}<span class="tf-hint" aria-hidden="true">Tap for the next trick</span>{/if}
 </div>

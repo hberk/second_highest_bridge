@@ -181,7 +181,8 @@
           <TrickFelt trick={lastTrick.plays} winner={lastTrick.winner} {labels} {me} />
         {:else}
           <TrickFelt trick={game.trick} winner={game.phase === 'trick_done' ? game.trickWinner : null}
-            {labels} awaiting={who} {me} onadvance={game.phase === 'trick_done' ? () => game.nextTrick() : undefined} />
+            {labels} awaiting={who} {me} hint={!m.leadNext}
+            onadvance={game.phase === 'trick_done' ? () => game.nextTrick() : undefined} />
         {/if}
       {/snippet}
       {#if m.sideDummy}

@@ -194,7 +194,7 @@
           {/snippet}
           <div class="dk-felt">
             <TrickFelt trick={game.trick} winner={game.phase === 'trick_done' ? game.trickWinner : null}
-              labels={m.labels} awaiting={m.who} {info} {me}
+              labels={m.labels} awaiting={m.who} {info} {me} hint={!m.leadNext}
               onadvance={game.phase === 'trick_done' ? () => game.nextTrick() : undefined} />
           </div>
         {/snippet}
@@ -217,7 +217,7 @@
               {:else if m.who}Your turn · play from {m.name(m.who)}'s hand
               {:else}{m.labels[me]} · {me}{/if}
             </span>
-            {#if game.phase === 'trick_done'}
+            {#if game.phase === 'trick_done' && !m.leadNext}
               <button class="btn primary dk-next" onclick={() => game.nextTrick()}>
                 {game.gameOver ? 'See the result' : 'Next trick'}{settings.fastPlay ? ' (automatic)' : ''}
               </button>
