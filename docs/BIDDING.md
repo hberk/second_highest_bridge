@@ -12,7 +12,7 @@ in full at the user's request because it is the system players know. 5-card
 majors, 15-17 1NT, 20-21 2NT, strong 2♣, weak twos, 2/1 game forcing, 1NT
 forcing, Jacoby 2NT, splinters, inverted minors, Soloway jump shifts, two-way
 game tries, Reverse Drury, new minor and fourth suit forcing; Stayman, Jacoby and
-Texas transfers, minor-suit Stayman, minor transfers, shortness bids, Gerber and
+Texas transfers, Smolen, minor-suit Stayman, minor transfers, shortness bids, Gerber and
 quantitative 4NT over notrump; RKCB 0314 with queen and king asks, DOPI;
 negative (through 3♠), support (through 2♥), responsive and takeout (through
 4♥) doubles, weak jump overcalls, 1NT overcall, Michaels, Unusual 2NT,
@@ -52,6 +52,38 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   overcall's 15-18, while the opponents pass. Before, only advancer's first
   call was systems on: the overcaller then read a transfer as natural and
   passed it, in (1D)-1NT-(P)-2D in their own suit.
+- **Smolen over 1NT and 2NT** (`_smolen_shape`, `_smolen`; the user,
+  2026-11-01). With exactly 5-4 in the majors and game values, responder bids
+  Stayman instead of transferring. Over 2♦ (3♦ over 2NT or 2♣-2♦-2NT), it jumps
+  in the *four*-card major: 3♥ shows 5♠ and 4♥, 3♠ 5♥ and 4♠, game forcing.
+  Opener bids four of the five-card major with three of it, so the notrump
+  hand declares, else 3NT. `shown_suit` reads the jump as the five-card suit,
+  so a later 4NT is keycard in it. Invitational 5-4 hands still transfer, 5-5
+  transfers to spades, and a six-card major transfers or uses Texas. The same
+  change fixed opener reading any 3♥/3♠ after Stayman as an invitation: only
+  a raise of opener's major is one.
+  Measured (`research/gib_h2h.py SMOLEN`, `gib_fresh_h2h.py` seed 14M): the
+  library +0.02 a board, t = +0.82, 6 auctions changed; 10,000 fresh deals
+  -0.01, t = -1.55, 22 of 80,000 auctions. The two big losses are Stayman
+  auctions they overcall, 1NT-2♣-(2♦): opener passes with four hearts and
+  responder passes out their 3♦ on a game force, where the old transfer drew
+  a double instead. That gap is older than Smolen; the next entry fixes it.
+- **Stayman when they overcall it** (`STAYMAN_CONTESTED`,
+  `_stayman_contested`; the user, 2026-11-02). After 1NT-2♣ or 2NT-3♣ and
+  their bid (over Stayman or over the answer), opener still shows a
+  four-card major it can bid at Stayman's answer level, hearts first, else
+  passes. Responder raises a shown major as uncontested (game on
+  `GAME_MAJOR`, else an invitation), and with game values bids Smolen over a
+  2♦ answer or a five-card major at the three level, game forcing; opener
+  raises it with three, else 3NT. Otherwise responder passes: no 3NT and no
+  2NT invitation over their bid. Before, `_nt_interference` passed every one
+  of these hands. The championship archive (ContractBridge/pbn-files, 76
+  such auctions) mostly agrees on opener: with a four-card major over 2♦ it
+  bid it 7 times in 14, and with four spades over 2♥ it bid 2♠ 9 in 11. Fresh deals, seeds 14M and 15M, 10,000
+  each: with responder's 3NT and 2NT too +0.00 (t = +0.10) and +0.04
+  (t = +1.52); without 3NT +0.02 and +0.05; **without either, as kept,
+  +0.02 (t = +1.58, 21 auctions) and +0.07 (t = +3.24, 31 auctions)**. The
+  library's 1,600 auctions don't reach it.
 - **Reopening double** (`_reopening`, `_answer_reopening`): after
   1x (y) P (P), with y a natural one- or two-level overcall, opener doubles on
   0-1 cards in their suit, or 2 with 15+ HCP (`REOPEN_DOUBLETON_HCP`); a
