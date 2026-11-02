@@ -3542,9 +3542,15 @@ STAYMAN_CONTESTED = True
 STAYMAN_OPENER_3NT = True
 STAYMAN_PENALTY_X = True
 STAYMAN_RESPONDER_3NT = True
-STAYMAN_NO_STOP = '3NT'
+STAYMAN_NO_STOP = None
 STAYMAN_X_ALERT = "Penalty: 4+ {}."
 STAYMAN_VALUES_X = "Penalty: values, no major fit."
+
+
+def _ran_from_double(ctx: Ctx) -> bool:
+    """Did they bid again after our last double?"""
+    at = max(i for i, (w, c) in enumerate(ctx.calls) if c == 'X' and w in (ctx.me, ctx.pd))
+    return any(w not in (ctx.me, ctx.pd) and parse_bid(c) for w, c in ctx.calls[at + 1:])
 
 
 def _stayman_no_fit(ctx: Ctx, their: str | None, denied: bool) -> tuple | None:
@@ -3598,7 +3604,7 @@ def _stayman_contested(ctx: Ctx) -> tuple | None:
         return 'Pass', "No major to show."
     if not ctx.i_am_opener() and len(seq) == told:
         hcp = h.judge
-        if answer in ('X', '3NT'):
+        if answer == '3NT' or (answer == 'X' and not _ran_from_double(ctx)):
             return 'Pass', "Partner placed the contract."
         if shown and h.len[shown] >= 4:
             if hcp + lo >= GAME_MAJOR and ctx.ok(f"4{shown}"):

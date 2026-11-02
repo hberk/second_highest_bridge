@@ -14,13 +14,15 @@ test('game after they overcall Stayman matches the Python engine', () => {
   expect(bid('AS KS 3S AH QH 2H KD QD 5D KC JC 4C 3C', ['2NT', 'Pass', '3C', '3D'])).toEqual(['3NT', '♦ stopper, no major to show.']);
   expect(bid('AS KS 3S AH QH 2H 5D 4D 3D AC KC QC 4C', ['2NT', 'Pass', '3C', '3D'])[0]).toBe('Pass');
   const after2 = ['2NT', 'Pass', '3C', '3D', 'Pass', 'Pass'];
-  expect(bid('QS JS 5S 4S KH JH 4H 3H 7D 6D QC 5C 2C', after2)[0]).toBe('X');
+  expect(bid('QS JS 5S 4S KH JH 4H 3H 7D 6D QC 5C 2C', after2)[0]).toBe('Pass');
   expect(bid('QS JS 5S 4S KH JH 4H 3H KD 6D QC 5C 2C', after2)).toEqual(['3NT', 'To play.']);
   const after1 = ['1NT', 'Pass', '2C', '2D', 'Pass', 'Pass'];
-  expect(bid('KS QS 5S 4S KH QH 4H 3H 7D 6D KC QC 2C', after1)).toEqual(['3NT', 'To play.']);
+  expect(bid('KS QS 5S 4S KH QH 4H 3H 7D 6D KC QC 2C', after1)[0]).toBe('Pass');
+  expect(bid('KS QS 5S 4S KH QH 4H 3H KD 6D KC QC 2C', after1)).toEqual(['3NT', 'To play.']);
   expect(bid('KS JS 5S 4S AH 3H KD JD 9D 6D QC 5C 2C', after1)).toEqual(['X', 'Penalty: values, no major fit.']);
   expect(bid('AS 9S 4S KH QH 3H KD QD 4D 2D AC 7C 3C', ['1NT', 'Pass', '2C', '2D'])).toEqual(['X', 'Penalty: 4+ ♦.']);
   expect(bid('AS KS 3S QH 3H 2H QD 5D 4D AC JC 4C 3C', ['1NT', 'Pass', '2C', '2D', 'Pass', 'Pass', 'X', 'Pass'])[0]).toBe('Pass');
+  expect(bid('QS 10S 5S 3S AH KH JH 9H 6H QD JD 10C 9C', ['1NT', 'Pass', '2C', '2D', 'X', '2S'], 'East')[0]).toBe('3H');
 });
 
 test('a weak jump overcall over a third-seat opening is a pre-empt', () => {

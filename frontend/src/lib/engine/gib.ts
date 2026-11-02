@@ -3238,8 +3238,16 @@ export const STAYMAN_CONTESTED = true;
 export const STAYMAN_OPENER_3NT = true;
 export const STAYMAN_PENALTY_X = true;
 export const STAYMAN_RESPONDER_3NT = true;
-export const STAYMAN_NO_STOP: '3NT' | 'X' | null = '3NT';
+export const STAYMAN_NO_STOP: '3NT' | 'X' | null = null;
 const STAYMAN_VALUES_X = 'Penalty: values, no major fit.';
+
+/** Did they bid again after our last double? */
+function ranFromDouble(ctx: Ctx): boolean {
+  const us = (w: Seat) => w === ctx.me || w === ctx.pd;
+  let at = -1;
+  ctx.calls.forEach(([w, c], i) => { if (c === 'X' && us(w)) at = i; });
+  return ctx.calls.slice(at + 1).some(([w, c]) => !us(w) && parseBid(c) !== null);
+}
 
 /** Responder's game force with no major fit, over their bid: penalty
  *  double, 3NT, or null to pass. `denied`: opener's pass denied a stopper. */
@@ -3291,7 +3299,7 @@ function staymanContested(ctx: Ctx): Decision | null {
   }
   if (!ctx.iAmOpener() && seq.length === told) {
     const hcp = h.judge;
-    if (answer === 'X' || answer === '3NT') return ['Pass', 'Partner placed the contract.'];
+    if (answer === '3NT' || (answer === 'X' && !ranFromDouble(ctx))) return ['Pass', 'Partner placed the contract.'];
     if (shown && h.len[shown] >= 4) {
       if (hcp + lo >= GAME_MAJOR && ctx.ok(`4${shown}`)) return [`4${shown}`, TO_PLAY];
       if (ctx.ok(`3${shown}`)) return [`3${shown}`, 'Invitational.'];

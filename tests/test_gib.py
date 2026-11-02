@@ -154,21 +154,24 @@ def test_game_after_they_overcall_stayman():
     """We still reach game over their bid (the user, 2026-11-02: 2NT P 3♣ (3♦)
     went P P P with 31 HCP). A 2NT opener with a stopper bids 3NT, so its pass
     denies one; responder's game force bids 3NT with a stopper, doubles with
-    four of their suit, and with neither doubles once opener has denied one
-    (over 1NT, whose pass denies nothing, 3NT)."""
+    four of their suit, and with neither passes (3NT without a stopper, or a
+    double on values, measured worse)."""
     nt2 = 'AS KS 3S AH QH 2H KD QD 5D KC JC 4C 3C'
     assert bid(nt2, '2NT', 'Pass', '3C', '3D') == ('3NT', '\u2666 stopper, no major to show.')
     assert bid('AS KS 3S AH QH 2H 5D 4D 3D AC KC QC 4C', '2NT', 'Pass', '3C', '3D')[0] == 'Pass'
     after = ('2NT', 'Pass', '3C', '3D', 'Pass', 'Pass')
-    assert bid('QS JS 5S 4S KH JH 4H 3H 7D 6D QC 5C 2C', *after)[0] == 'X'
+    assert bid('QS JS 5S 4S KH JH 4H 3H 7D 6D QC 5C 2C', *after)[0] == 'Pass'
     assert bid('QS JS 5S 4S KH JH 4H 3H KD 6D QC 5C 2C', *after) == ('3NT', 'To play.')
     after = ('1NT', 'Pass', '2C', '2D', 'Pass', 'Pass')
-    assert bid('KS QS 5S 4S KH QH 4H 3H 7D 6D KC QC 2C', *after) == ('3NT', 'To play.')
+    assert bid('KS QS 5S 4S KH QH 4H 3H 7D 6D KC QC 2C', *after)[0] == 'Pass'
+    assert bid('KS QS 5S 4S KH QH 4H 3H KD 6D KC QC 2C', *after) == ('3NT', 'To play.')
     assert bid('KS JS 5S 4S AH 3H KD JD 9D 6D QC 5C 2C', *after) \
         == ('X', 'Penalty: values, no major fit.')
-    # A penalty double stands.
+    # A penalty double stands, until they run from it (fresh deal 2270, seed 14M).
     assert bid('AS KS 3S QH 3H 2H QD 5D 4D AC JC 4C 3C',
                '1NT', 'Pass', '2C', '2D', 'Pass', 'Pass', 'X', 'Pass')[0] == 'Pass'
+    west = 'QS 10S 5S 3S AH KH JH 9H 6H QD JD 10C 9C'
+    assert bid(west, '1NT', 'Pass', '2C', '2D', 'X', '2S', dealer='East')[0] == '3H'
 
 
 def test_jacoby_and_texas_transfers():

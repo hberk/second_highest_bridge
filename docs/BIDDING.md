@@ -84,6 +84,21 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   (t = +1.52); without 3NT +0.02 and +0.05; **without either, as kept,
   +0.02 (t = +1.58, 21 auctions) and +0.07 (t = +3.24, 31 auctions)**. The
   library's 1,600 auctions don't reach it.
+  ...and game or a penalty over their bid (the user, 2026-11-02, after review
+  found 2NT P 3♣ (3♦) passed out with 31 HCP; `_stayman_no_fit`). A 2NT
+  opener with no major to show bids 3NT with a stopper in their suit
+  (`STAYMAN_OPENER_3NT`), so its pass denies one. Opener with four of their
+  suit and a stopper doubles for penalty, and so does an invitational
+  responder (`STAYMAN_PENALTY_X`). Responder's game force with no major fit
+  doubles with four of their suit, else bids 3NT with a stopper
+  (`STAYMAN_RESPONDER_3NT`), else passes (`STAYMAN_NO_STOP = None`). A
+  double stands unless they run from it. Fresh deals, seeds 14M and 15M,
+  10,000 each, against all four off: **+0.04 (t = +2.09, 12 auctions) and
+  +0.03 (t = +1.80, 17)**. The doubles carry it: 3NT without the penalty
+  double -0.02, -0.01 (t = -2.40, -1.44); 3NT with no stopper anywhere
+  (`'3NT'`) went down on every deal it changed, and the first version lost
+  a 4♥ game by passing after they ran from opener's double. The 2NT
+  opener's 3NT is too rare to measure (2 auctions in 20,000 deals: -250, 0).
 - **Reopening double** (`_reopening`, `_answer_reopening`): after
   1x (y) P (P), with y a natural one- or two-level overcall, opener doubles on
   0-1 cards in their suit, or 2 with 15+ HCP (`REOPEN_DOUBLETON_HCP`); a
