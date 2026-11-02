@@ -1293,3 +1293,22 @@ def test_jam_over_partners_weak_jump_overcall_when_not_vulnerable():
     assert _vul_bid(south, 'None', '1D', '2S', 'X', dealer='West')[0] == '4S'
     call, _ = _vul_bid(south, 'N/S', '1D', '2S', 'X', dealer='West')
     assert call == '3S', call
+
+
+def test_2nt_over_their_overcall_is_natural_not_jacoby():
+    # P 1♥ (1♠) 2NT P: 2NT showed 11-12 and a spade stopper, so five hearts
+    # have no fit and no game force (user's item 20: 4♥ went one down, 3NT
+    # made). Uncontested, 1♥ P 2NT is still Jacoby.
+    north = '9S AH JH 6H 5H 3H AD QD 8D 6D AC 9C 3C'
+    assert bid(north, 'Pass', '1H', '1S', '2NT', 'Pass', dealer='West')[0] != '4H'
+    assert bid(north, '1H', 'Pass', '2NT', 'Pass')[0] == '3S'
+
+
+def test_advancer_names_a_long_suit_with_a_jump():
+    # (1♣) 1♦ (1♠): ♠KT95 ♥QT975432 ♦7, 5 HCP, passed twice (user's item 6).
+    # Eight hearts bid game; seven jump one level.
+    call, why = bid('KS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 2H 7D', '1C', '1D', '1S', dealer='South')
+    assert call == '4H' and why.startswith('7+')
+    assert bid('KS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 7D 2D', '1C', '1D', '1S', dealer='South')[0] == '3H'
+    # Too weak (3 HCP): pass, as before.
+    assert bid('JS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 7D 2D', '1C', '1D', '1S', dealer='South')[0] == 'Pass'
