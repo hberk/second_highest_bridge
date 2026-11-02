@@ -257,6 +257,7 @@ from the variant's side; t as above.
 | 11-02 | ...from 0 HCP / the same jump by responder over their overcall (seed 7M only for the latter) | +0.09, +0.07 / -0.20 | +2.36, +1.96 / -2.20 | 99, 45 / 30 | off (4 HCP kept, conservative) / off |
 | 11-02 | 1M (their overcall) 2NT is natural 11-12, not Jacoby, in every reading (`NATURAL_2NT`; the user's item 20, P 1♥ (1♠) 2NT P 4♥ on five hearts); opener accepts with 14+ HCP (4M with six, else 3NT), else passes or 3M with six; seeds 8M, 9M | +0.02, -0.02 | +1.08, -0.48 | 16, 16 | on (bug fix, neutral) |
 | 11-02 | ...the reading alone, opener always passing / accepting at 13 / 15 / natural over Michaels too | -0.03, -0.08 / -0.03, -0.03 / -0.02, -0.06 / -0.02, -0.04 | -1.09, -2.40 / -1.40, -0.89 / -0.64, -1.95 / -0.64, -1.18 | 20, 31 / 19, 29 / 21, 31 / 21, 28 | off |
+| 11-02 | Monday's combined bidding fixes, every switch above from 11-02 on against all of them off (which bids 4,000 of 4,000 auctions exactly as main), plus the pass-out-seat fix to `weak_jump_overcall`; seed 7M, 1,000 fresh deals (`/mnt/project-files/monday-combined/`) | +0.55 | +1.19 | 138 | on |
 
 ### The previous system (`ai_bid`)
 
