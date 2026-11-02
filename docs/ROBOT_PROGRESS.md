@@ -249,6 +249,7 @@ from the variant's side; t as above.
 | 10-31 | ...the notrump slams alone (6NT, quantitative 4NT) / keycard alone | +0.78, +0.94, +0.53 / +0.05, +0.03, +0.15 | +6.40, +8.61, +6.98 / +2.27, +0.93, +3.63 | 102, 141, 126 / 7, 24, 18 | both on, as above |
 | 10-31 | Opener passes when responder declines the game try (1M 2M try 3M), instead of bidding game anyway; two sets | -0.01, -0.08 | -0.11, -2.09 | 61, 49 | off |
 | 11-02 | Smolen over 1NT and 2NT (`SMOLEN`; the user's request): library / seed 14M, 10,000 fresh deals | +0.02 / -0.01 | +0.82 / -1.55 | 6 / 22 | on (your request; rare, and the losses are Stayman auctions they overcall) |
+| 11-02 | Stayman when they overcall it: opener shows a four-card major, responder raises it or bids a five-card major (`STAYMAN_CONTESTED`); with responder's 3NT and 2NT / without 3NT / without either; seeds 14M, 15M, 10,000 deals each | +0.00, +0.04 / +0.02, +0.05 / **+0.02, +0.07** | +0.10, +1.52 / +1.24, +2.07 / +1.58, +3.24 | 44, 58 / 34, 46 / 21, 31 | without either on |
 
 ### The previous system (`ai_bid`)
 

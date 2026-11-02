@@ -127,6 +127,26 @@ def test_smolen_over_1nt_and_2nt():
     assert gib.agreed_trump(['1NT', '2C', '2H', '3H']) == 'H'
 
 
+def test_stayman_when_they_overcall():
+    """1NT-2♣-(2♦): opener still shows a four-card major at the two level, and
+    responder's game force carries on. Both used to pass: fresh deal 9642
+    passed out 3♦ with a 4-4 heart fit and game values (2026-11-02)."""
+    opener = 'QS 6S 3S KH JH 10H 4H JD 4D AC KC QC 6C'
+    call, why = bid(opener, '1NT', 'Pass', '2C', '2D')
+    assert call == '2H' and why.startswith('4+'), why
+    assert bid('AS 9S 4S KH QH 3H KD QD 4D 2D AC 7C 3C', '1NT', 'Pass', '2C', '2D')[0] == 'Pass'
+    resp = 'KS 10S 4S 2S AH QH 8H 7H 3H QD 10D 10C 2C'
+    assert bid(resp, '1NT', 'Pass', '2C', '2D', '2H', '2S')[0] == '4H'
+    # Opener passed: five hearts and game values bid 3♥, and opener raises it.
+    west = 'QS 10S 5S 3S AH KH JH 9H 6H QD JD 10C 9C'
+    call, why = bid(west, '1NT', 'Pass', '2C', '2D', 'Pass', '2S')
+    assert call == '3H' and 'game forcing' in why, why
+    assert bid('KS 7S QH 8H 7H AD 10D 8D 4D AC QC 6C 4C',
+               '1NT', 'Pass', '2C', '2D', 'Pass', '2S', '3H', 'Pass')[0] == '4H'
+    # Over 2NT the same, a level up.
+    assert bid(opener.replace('JD', 'AD'), '2NT', 'Pass', '3C', '3D')[0] == '3H'
+
+
 def test_jacoby_and_texas_transfers():
     call, why = bid('7S 3S QH 10H 8H 7H 2H 9D 6D 5D 9C 5C 3C', '1NT', 'Pass')
     assert call == '2D' and 'Transfer' in why

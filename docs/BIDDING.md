@@ -67,7 +67,23 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   -0.01, t = -1.55, 22 of 80,000 auctions. The two big losses are Stayman
   auctions they overcall, 1NT-2♣-(2♦): opener passes with four hearts and
   responder passes out their 3♦ on a game force, where the old transfer drew
-  a double instead. That gap is older than Smolen and not fixed here.
+  a double instead. That gap is older than Smolen; the next entry fixes it.
+- **Stayman when they overcall it** (`STAYMAN_CONTESTED`,
+  `_stayman_contested`; the user, 2026-11-02). After 1NT-2♣ or 2NT-3♣ and
+  their bid (over Stayman or over the answer), opener still shows a
+  four-card major it can bid at Stayman's answer level, hearts first, else
+  passes. Responder raises a shown major as uncontested (game on
+  `GAME_MAJOR`, else an invitation), and with game values bids Smolen over a
+  2♦ answer or a five-card major at the three level, game forcing; opener
+  raises it with three, else 3NT. Otherwise responder passes: no 3NT and no
+  2NT invitation over their bid. Before, `_nt_interference` passed every one
+  of these hands. The championship archive (ContractBridge/pbn-files, 76
+  such auctions) mostly agrees on opener: with a four-card major over 2♦ it
+  bid it 7 times in 14, and with four spades over 2♥ it bid 2♠ 9 in 11. Fresh deals, seeds 14M and 15M, 10,000
+  each: with responder's 3NT and 2NT too +0.00 (t = +0.10) and +0.04
+  (t = +1.52); without 3NT +0.02 and +0.05; **without either, as kept,
+  +0.02 (t = +1.58, 21 auctions) and +0.07 (t = +3.24, 31 auctions)**. The
+  library's 1,600 auctions don't reach it.
 - **Reopening double** (`_reopening`, `_answer_reopening`): after
   1x (y) P (P), with y a natural one- or two-level overcall, opener doubles on
   0-1 cards in their suit, or 2 with 15+ HCP (`REOPEN_DOUBLETON_HCP`); a
