@@ -2176,7 +2176,7 @@ export function weakJumpOvercall(player: Seat, calls: [Seat, string][]): number 
   if (!opening || opening[0] !== 1 || !isSuit(opening[1])) return null;
   let at = -1;
   for (let i = first + 1; i < calls.length; i++) if (calls[i][1] !== 'Pass') { at = i; break; }
-  if (at < 0 || calls[at][0] !== player || at - first === 2) return null;
+  if (at < 0 || calls[at][0] !== player || at - first === 3) return null;
   const bid = parseBid(calls[at][1]);
   if (!bid || !isSuit(bid[1]) || bid[1] === opening[1] || bid[0] > 3) return null;
   const cheapest = SUITS.indexOf(bid[1] as Suit) > SUITS.indexOf(opening[1] as Suit) ? 1 : 2;

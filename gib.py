@@ -2356,7 +2356,7 @@ def weak_jump_overcall(player: str, calls: list) -> int | None:
     if not opening or opening[0] != 1 or opening[1] not in SUITS:
         return None
     at = next((i for i in range(first + 1, len(calls)) if calls[i][1] != 'Pass'), None)
-    if at is None or calls[at][0] != player or at - first == 2:
+    if at is None or calls[at][0] != player or at - first == 3:
         return None                         # not mine; or 1x P P 2y, balancing
     bid = parse_bid(calls[at][1])
     if not bid or bid[1] not in SUITS or bid[1] == opening[1] or bid[0] > 3:
