@@ -248,6 +248,7 @@ from the variant's side; t as above.
 | 10-31 | Slam on points needs 37 judgement points, not 33 (`SLAM = 37`: 6NT, quantitative 4NT, keycard; the championship study of uncontested auctions); three sets of fresh deals (4,000, 6,000, 6,000) | **+0.93, +1.07, +0.91** | +6.95, +8.99, +8.61 | 109, 165, 144 | on |
 | 10-31 | ...the notrump slams alone (6NT, quantitative 4NT) / keycard alone | +0.78, +0.94, +0.53 / +0.05, +0.03, +0.15 | +6.40, +8.61, +6.98 / +2.27, +0.93, +3.63 | 102, 141, 126 / 7, 24, 18 | both on, as above |
 | 10-31 | Opener passes when responder declines the game try (1M 2M try 3M), instead of bidding game anyway; two sets | -0.01, -0.08 | -0.11, -2.09 | 61, 49 | off |
+| 11-02 | Smolen over 1NT and 2NT (`SMOLEN`; the user's request): library / seed 14M, 10,000 fresh deals | +0.02 / -0.01 | +0.82 / -1.55 | 6 / 22 | on (your request; rare, and the losses are Stayman auctions they overcall) |
 
 ### The previous system (`ai_bid`)
 

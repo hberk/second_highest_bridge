@@ -62,6 +62,12 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   transfers to spades, and a six-card major transfers or uses Texas. The same
   change fixed opener reading any 3♥/3♠ after Stayman as an invitation: only
   a raise of opener's major is one.
+  Measured (`research/gib_h2h.py SMOLEN`, `gib_fresh_h2h.py` seed 14M): the
+  library +0.02 a board, t = +0.82, 6 auctions changed; 10,000 fresh deals
+  -0.01, t = -1.55, 22 of 80,000 auctions. The two big losses are Stayman
+  auctions they overcall, 1NT-2♣-(2♦): opener passes with four hearts and
+  responder passes out their 3♦ on a game force, where the old transfer drew
+  a double instead. That gap is older than Smolen and not fixed here.
 - **Reopening double** (`_reopening`, `_answer_reopening`): after
   1x (y) P (P), with y a natural one- or two-level overcall, opener doubles on
   0-1 cards in their suit, or 2 with 15+ HCP (`REOPEN_DOUBLETON_HCP`); a
