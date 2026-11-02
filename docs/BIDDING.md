@@ -12,7 +12,7 @@ in full at the user's request because it is the system players know. 5-card
 majors, 15-17 1NT, 20-21 2NT, strong 2♣, weak twos, 2/1 game forcing, 1NT
 forcing, Jacoby 2NT, splinters, inverted minors, Soloway jump shifts, two-way
 game tries, Reverse Drury, new minor and fourth suit forcing; Stayman, Jacoby and
-Texas transfers, minor-suit Stayman, minor transfers, shortness bids, Gerber and
+Texas transfers, Smolen, minor-suit Stayman, minor transfers, shortness bids, Gerber and
 quantitative 4NT over notrump; RKCB 0314 with queen and king asks, DOPI;
 negative (through 3♠), support (through 2♥), responsive and takeout (through
 4♥) doubles, weak jump overcalls, 1NT overcall, Michaels, Unusual 2NT,
@@ -52,6 +52,53 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   overcall's 15-18, while the opponents pass. Before, only advancer's first
   call was systems on: the overcaller then read a transfer as natural and
   passed it, in (1D)-1NT-(P)-2D in their own suit.
+- **Smolen over 1NT and 2NT** (`_smolen_shape`, `_smolen`; the user,
+  2026-11-01). With exactly 5-4 in the majors and game values, responder bids
+  Stayman instead of transferring. Over 2♦ (3♦ over 2NT or 2♣-2♦-2NT), it jumps
+  in the *four*-card major: 3♥ shows 5♠ and 4♥, 3♠ 5♥ and 4♠, game forcing.
+  Opener bids four of the five-card major with three of it, so the notrump
+  hand declares, else 3NT. `shown_suit` reads the jump as the five-card suit,
+  so a later 4NT is keycard in it. Invitational 5-4 hands still transfer, 5-5
+  transfers to spades, and a six-card major transfers or uses Texas. The same
+  change fixed opener reading any 3♥/3♠ after Stayman as an invitation: only
+  a raise of opener's major is one.
+  Measured (`research/gib_h2h.py SMOLEN`, `gib_fresh_h2h.py` seed 14M): the
+  library +0.02 a board, t = +0.82, 6 auctions changed; 10,000 fresh deals
+  -0.01, t = -1.55, 22 of 80,000 auctions. The two big losses are Stayman
+  auctions they overcall, 1NT-2♣-(2♦): opener passes with four hearts and
+  responder passes out their 3♦ on a game force, where the old transfer drew
+  a double instead. That gap is older than Smolen; the next entry fixes it.
+- **Stayman when they overcall it** (`STAYMAN_CONTESTED`,
+  `_stayman_contested`; the user, 2026-11-02). After 1NT-2♣ or 2NT-3♣ and
+  their bid (over Stayman or over the answer), opener still shows a
+  four-card major it can bid at Stayman's answer level, hearts first, else
+  passes. Responder raises a shown major as uncontested (game on
+  `GAME_MAJOR`, else an invitation), and with game values bids Smolen over a
+  2♦ answer or a five-card major at the three level, game forcing; opener
+  raises it with three, else 3NT. Otherwise responder passes: no 3NT and no
+  2NT invitation over their bid. Before, `_nt_interference` passed every one
+  of these hands. The championship archive (ContractBridge/pbn-files, 76
+  such auctions) mostly agrees on opener: with a four-card major over 2♦ it
+  bid it 7 times in 14, and with four spades over 2♥ it bid 2♠ 9 in 11. Fresh deals, seeds 14M and 15M, 10,000
+  each: with responder's 3NT and 2NT too +0.00 (t = +0.10) and +0.04
+  (t = +1.52); without 3NT +0.02 and +0.05; **without either, as kept,
+  +0.02 (t = +1.58, 21 auctions) and +0.07 (t = +3.24, 31 auctions)**. The
+  library's 1,600 auctions don't reach it.
+  ...and game or a penalty over their bid (the user, 2026-11-02, after review
+  found 2NT P 3♣ (3♦) passed out with 31 HCP; `_stayman_no_fit`). A 2NT
+  opener with no major to show bids 3NT with a stopper in their suit
+  (`STAYMAN_OPENER_3NT`), so its pass denies one. Opener with four of their
+  suit and a stopper doubles for penalty, and so does an invitational
+  responder (`STAYMAN_PENALTY_X`). Responder's game force with no major fit
+  doubles with four of their suit, else bids 3NT with a stopper
+  (`STAYMAN_RESPONDER_3NT`), else passes (`STAYMAN_NO_STOP = None`). A
+  double stands unless they run from it. Fresh deals, seeds 14M and 15M,
+  10,000 each, against all four off: **+0.04 (t = +2.09, 12 auctions) and
+  +0.03 (t = +1.80, 17)**. The doubles carry it: 3NT without the penalty
+  double -0.02, -0.01 (t = -2.40, -1.44); 3NT with no stopper anywhere
+  (`'3NT'`) went down on every deal it changed, and the first version lost
+  a 4♥ game by passing after they ran from opener's double. The 2NT
+  opener's 3NT is too rare to measure (2 auctions in 20,000 deals: -250, 0).
 - **Reopening double** (`_reopening`, `_answer_reopening`): after
   1x (y) P (P), with y a natural one- or two-level overcall, opener doubles on
   0-1 cards in their suit, or 2 with 15+ HCP (`REOPEN_DOUBLETON_HCP`); a
@@ -82,6 +129,16 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   auction is rare. The first version doubled at any level and measured
   +0.09: on deal 334 opener doubled 3S, responder had no answer below the
   four level, and 3S doubled made.
+- **A free bid over partner's pre-empt** (`PROMISE_PREEMPT`; the user's
+  training deal 315, 2026-11-01: 3♣ (3♠) 4♥ with ♠KT ♥AK7653 ♦K853 ♣T, down
+  two doubled opposite a void). The free bid placed the contract with
+  partner's promise as an opening (`PROMISE_OPENED`), so 6.98 tricks of
+  hearts plus 3.16 reached game. A pre-empt is 6-10 points, mostly in its own
+  suit: it is now valued as a raise (2.06), so game on my own takes a good seventh
+  heart or more. The hand's 12 judgement points were not inflated; the
+  promise was. 10,000 fresh deals (`research/gib_fresh_h2h.py`, seed 7M):
+  **+0.26 a board, t = +3.46, 247 auctions changed** (115 better, 84 worse);
+  1.0 measured +0.26 (t = +3.12), 0.0 +0.23 (t = +2.61).
 - **Free bids after they bid again** (2026-10-31, the user's board
   P 1♣ P 1♦ (1♥) X (2♥) 3♦ on ♦K972, down in a seven-card fit). Two branches
   matched only our side's calls and bid as if RHO had passed:
@@ -428,7 +485,15 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   - The bidder reads partner's alerts, so `ai_bid_explained` takes the
     robots' alerts by call index (`alerts`); left out, it uses what it said
     on the same auction object (`_robot_alerts`). A person's self-alert is
-    not read.
+    not read; a person's call is read as the robots would mean it
+    (`robotReadings` in `frontend/src/lib/alerts.ts`, the play's reading too),
+    so the same auction bids the same at the user's table as at the robots'.
+    Until 2026-11-02 the apps passed the robots' alerts only, so the user's
+    calls showed no range and partner fell back to a third of the unseen
+    points: on training deals 315 (3♣ 3♠ 4♥) and 149 (1♦ 1♠ P P X P P 2♠)
+    robot North passed at the user's table and doubled at the robots'
+    (items 10 and 18, 2026-11-01; `trainer.test.ts` bids the robots' calls
+    for South and requires the robots' auction).
   - A side doubled for penalty never bids its own strain higher: the
     branches that raise a fit ran 4♦X up to 7♦X (`_penalty_or_base`).
   - **Only where X is free** (`_double_is_free`). Where X is takeout,
@@ -561,6 +626,33 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   auctions: 12 of the pre-emptor's penalty doubles were worth about 690
   points each, and one deal (three dealers) was a rescue of partner's
   doubled 3♠. Only fixing the one branch that bid 3NT: +0.01, 4 auctions.
+- **Partner's raise of my own suit is agreed, not partner's suit**
+  (`ai.OWN_SUIT_RAISED`, `_own_suit_raised`; the user's boards, 2026-11-01:
+  1♦ (2♠) X (3♠) P 4♠, 1♣ (2♦) X P 2♥ P P (3♦) P P 4♦, and
+  P 1♦ (1♠) 2♣ (2♠) 3♣ P 4♣). `_rebid` tested "support partner's last suit"
+  before "my suit raised", so partner's raise of the suit this hand bid
+  first read as partner's suit, and every hand that bid it (three cards at
+  least) raised again: "3+ support, agreeing the suit". Now, with the
+  opponents silent since the raise, only game is bid; over their bid the
+  hand competes by the count.
+  **A weak jump overcaller is a pre-empter once partner has raised**
+  (`ai.JUMP_OVERCALL_PASSES`, `JUMP_OVERCALL_RAISED_ONLY`,
+  `gib.weak_jump_overcall`): `_preemptor_forced` treats it as it treats a
+  pre-emptive opening. Expert archives (championships 1996-2002, 371
+  auctions): after partner's raise the jump overcaller passes 91% of the
+  time over their bid and 98% when they pass; the robots re-raised 71%.
+  The broad version (never bid again, raised or not) lost -0.52 a board: it
+  stopped rescues of partner's doubled new suit. **Their double of
+  partner's asking call leaves it asking** (`PREEMPT_ASK_DOUBLED`): over
+  1♠ (3♥) P (3♠) X the pre-empter passed and left the cuebid doubled.
+  **Jam over partner's weak jump overcall** (`gib.JAM_WJO_VUL`, in
+  `_jam_spot`): with a ten-card fit my first call is game when we are not
+  vulnerable ('white', the user's pick; 'fav' for white against red only).
+  Three sets of 3,000 fresh deals, all together: **-0.00, +0.49, -0.04 a
+  board** (t -0.01, +3.39, -0.26); white vs red only -0.09, +0.40, -0.16;
+  without the jump overcaller's pass +0.25, +0.52, +0.14. The pass costs
+  about 0.17 a board, games the re-raise found; kept by the user's rule.
+  Scripts and scores: the project's `agreed-suit/` folder.
 - **Double, then a new suit, shows 18+ HCP** (`DOUBLE_THEN_SUIT`,
   `_doubler_new_suit`, `_raise_doubler_suit`, `doubler_guard`; the user's
   Bidding training deal, 2026-10-28: 1♥ P P X 2♥ P P 2♠ with 22 HCP was
@@ -692,6 +784,49 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     responder passing opener's decline after 1NT, a transfer and 2NT lost
     1,620 points over 42 auctions. Bidding the game after a decline is right
     here more often than it looks.
+- **Four meanings from training deals** (2026-11-02, the user's calls; not
+  measured head to head, they are system fixes):
+  - `NT_TAKEOUT_TRANSFER_ONLY`: after their notrump opening, a takeout double
+    is made only over a plain two-level transfer completion (1NT 2♦ 2♥,
+    1NT 2♥ 2♠); never over a super accept (3♥ was doubled, 4♥ made) or
+    anything else they bid.
+  - `MINOR_RAISE`: 1M 1NT 2m 3m is natural and invitational, 10-11 HCP, four
+    diamonds or five clubs (2♣ is often three cards). Before, 3♦ had no
+    meaning and 10-11 balanced bid 2NT; opener answers it like any
+    three-level invitation (3NT on 13+).
+  - `THEIR_NT_OVERCALL`: when they overcall our one-level opening with 1NT and
+    we pass, they play systems on, so their 2♣ is Stayman and their 2♦/2♥
+    transfers are artificial (`_their_artificial`). Opener's double of one
+    is lead-directing (`LEAD_DOUBLE`'s terms) and no longer shows 18+.
+  - `DELAYED_MINOR`: (1m) P (1x) P (1y) 2m, by the hand that passed over 1m,
+    is natural, 6+ cards, a good suit, 10-17 HCP; partner reads it as one
+    suit (`_overcall_after_response`), not Michaels. Michaels is the
+    immediate cue bid only.
+- **Long suits and 2NT in competition** (2026-11-02; the user's items 6 and 20).
+  - *A weak advancer with a long suit.* (1♣) 1♦ (1♠) with ♠KT95 ♥QT975432
+    ♦7 ♣—: East passed twice, because advancing named a new suit only with
+    8+ HCP. In the championship archives, an advancer holding 7+ cards in an
+    unbid suit and at most 9 HCP named it at the first turn 51% of the time
+    (8+ cards: 79%, often in game); the robots of the day 3%, and 0 of 8 with
+    eight. `LONG_ADVANCE`: with 4-9 HCP and 7+ cards, jump one level (to the
+    three level at most); with eight in a major, bid game. Alert "7+ ♥, under
+    10 HCP. Pre-emptive." Fresh deals: **+0.06, +0.08, +0.06 a board** (t =
+    +1.6, +2.3, +1.9). From 0 HCP scored about the same (+0.09, +0.07); 4 is
+    kept as the more conservative. The same jump by responder over their
+    overcall lost (-0.20, t = -2.2): opener pulls to its own suit.
+  - *1M (overcall) 2NT is natural.* Responder's 2NT there shows 11-12 and a
+    stopper, but every reader (`shown_suit`, `_partner_min`, `_game_forced`)
+    saw only our calls, 1♥ 2NT, and took it for Jacoby: four trumps and a
+    game force, so the opener with ♠9 ♥AJ653 ♦AQ86 ♣A93 jumped to 4♥ on a 5-2
+    fit (one down; 3NT made). `NATURAL_2NT` reads it naturally (Jacoby still
+    after their double, where 2NT is Jordan, and after their cuebid of our
+    major). Reading it right and passing every time lost (-0.03, -0.08): the
+    old game force reached makeable games by accident. With an accept rule
+    (`NATURAL_2NT_ACCEPT = 14`: 4M with six, else 3NT; a minimum passes, or
+    3M with six) it is neutral: +0.02, -0.02 a board on about 16 changed
+    auctions in 40,000 boards. Accepting at 13 or 15 measured the same or
+    worse. Kept as a bug fix: the alerts promised 11-12, so the robot now
+    plays the system it explains.
 
 ## The previous system (`ai.USE_GIB = False`)
 

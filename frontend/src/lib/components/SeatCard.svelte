@@ -14,5 +14,5 @@
   {#if count}
     <div class="seat-card-backs" aria-hidden="true">{#each { length: count } as _}<span></span>{/each}</div>
   {/if}
-  <div class="seat-card-count"><strong>{count} card{count === 1 ? '' : 's'}</strong> · concealed</div>
+  <div class="seat-card-count"><strong>{count} card{count === 1 ? '' : 's'}</strong></div>
 </section>

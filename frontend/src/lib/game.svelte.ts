@@ -16,7 +16,7 @@ import {
   SAVE_KEY, askPersistence, boardKey, browserStorage, clearGames, loadGames, mergeGames, saveGames,
   type ChallengeLogEntry, type HistoryRecord,
 } from './saves';
-import { liveAlerts as liveAlertsFor, robotAlerts, robotShown, type Readings } from './alerts';
+import { liveAlerts as liveAlertsFor, robotReadings, robotShown, type Readings } from './alerts';
 import { partnerOf } from './seats';
 
 export type Phase = 'bidding' | 'auction_done' | 'playing' | 'trick_done' | 'done';
@@ -263,10 +263,11 @@ export class Game {
 
   private isHumanCall = (i: number): boolean => this.calls[i]?.[0] === this.mySeat;
 
-  /** The robots' own alerts, by call: what a robot bidder may read (the
-   *  human's self-alerts are free text the robots don't read). */
+  /** What a robot bidder reads, by call: the robots' own alerts, and the
+   *  human's calls as the robots would mean them, never the self-alerts. */
   private robotAlerts(): Record<number, string> {
-    return robotAlerts(this.calls, this.alerts, this.isHumanCall);
+    return robotReadings(this.dealer, this.vulnerability, this.calls, this.alerts, this.isHumanCall,
+      this.gibReadings);
   }
 
   /** GIB's reading of each human call, by auction (`meanings.gib_alert` in Python). */
@@ -286,6 +287,30 @@ export class Game {
     const why = cleanAlert(alert);
     if (why) this.alerts[this.calls.length] = why;
     this.calls.push([this.mySeat, call]);
+    this.advanceAuction();
+  }
+
+  /** You can take back your last call: solo play while the auction is open
+   *  or just won (before "Start play"). Not in Challenge, which is graded
+   *  against the robots, and not once the board has passed out. */
+  get canUndo(): boolean {
+    return this.challengeId === null && !this.auction.passedOut
+      && (this.phase === 'bidding' || this.phase === 'auction_done')
+      && this.calls.some(([p]) => p === this.mySeat);
+  }
+
+  /** Take back your last call and the robots' calls after it; it's your
+   *  call again. The robots are deterministic, so the auction up to that
+   *  call is the one they made. */
+  undoBid(): void {
+    if (!this.canUndo) return;
+    let i = this.calls.length - 1;
+    while (this.calls[i][0] !== this.mySeat) i--;
+    this.calls = this.calls.slice(0, i);
+    for (const k of Object.keys(this.alerts)) if (Number(k) >= i) delete this.alerts[Number(k)];
+    this.contract = null;
+    this.order = [];
+    this.phase = 'bidding';
     this.advanceAuction();
   }
 

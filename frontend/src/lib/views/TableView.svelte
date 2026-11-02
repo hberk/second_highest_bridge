@@ -128,6 +128,7 @@
           <span class="eyebrow">Your hand</span>
           <span class="hand-tools">
             {#if settings.showStrength && strength}<span class="hand-strength">{strength}</span>{/if}
+            {#if game.canUndo}<button class="chip-btn" onclick={() => game.undoBid?.()}>Undo</button>{/if}
             {@render auctionBtn()}
           </span>
         </div>
@@ -166,11 +167,12 @@
     </TopBar>
     <div class="table-body">
       {#if topSeat}
+        {@const mine = m.canPlay(topSeat)}
         <section class="dummy-zone">
-          <div class="eyebrow" class:accent={who === topSeat}>{labels[topSeat]}{who === topSeat ? ' · your turn' : ''}</div>
-          <Fan cards={game.hands[topSeat]} trump={m.dummyTrump} size={who === topSeat ? 'md' : 'sm'}
-            playable={who === topSeat} legal={m.legalFor(topSeat)}
-            label="{topSeat}'s hand" onplay={(card) => game.humanPlays(topSeat, card)} />
+          <div class="eyebrow" class:accent={mine}>{labels[topSeat]}{who === topSeat ? ' · your turn' : m.leadNext === topSeat ? ' · your lead' : ''}</div>
+          <Fan cards={game.hands[topSeat]} trump={m.dummyTrump} size={mine ? 'md' : 'sm'}
+            playable={mine} legal={m.legalFor(topSeat)}
+            label="{topSeat}'s hand" onplay={(card) => m.play(topSeat, card)} />
         </section>
       {/if}
 
@@ -179,7 +181,8 @@
           <TrickFelt trick={lastTrick.plays} winner={lastTrick.winner} {labels} {me} />
         {:else}
           <TrickFelt trick={game.trick} winner={game.phase === 'trick_done' ? game.trickWinner : null}
-            {labels} awaiting={who} {me} />
+            {labels} awaiting={who} {me} hint={!m.leadNext}
+            onadvance={game.phase === 'trick_done' ? () => game.nextTrick() : undefined} />
         {/if}
       {/snippet}
       {#if m.sideDummy}
@@ -207,14 +210,16 @@
       {/if}
 
       <section class="hand-zone">
-        {#if game.phase === 'trick_done'}
+        {#if game.phase === 'trick_done' && !m.leadNext}
           <button class="btn primary full big" onclick={() => game.nextTrick()}>
             {game.gameOver ? 'See the result' : 'Next trick'}{settings.fastPlay ? ' (automatic)' : ''}
           </button>
         {:else}
           <div class="hand-head">
-            <span class="eyebrow" class:accent={who !== null}>
-              {#if who === me}Your turn{led && game.hands[me].some((x) => x.suit === led) ? ` · follow in ${STRAIN_SYMBOLS[led]}` : ''}
+            <span class="eyebrow" class:accent={who !== null || m.leadNext !== null}>
+              {#if m.leadNext === me}Your lead
+              {:else if m.leadNext}Your lead · from {m.name(m.leadNext)}'s hand
+              {:else if who === me}Your turn{led && game.hands[me].some((x) => x.suit === led) ? ` · follow in ${STRAIN_SYMBOLS[led]}` : ''}
               {:else if who}Your turn · play from {m.name(who)}'s hand
               {:else}{labels[me]}{/if}
             </span>
@@ -230,8 +235,8 @@
           </div>
         {/if}
         <Fan cards={game.hands[me]} trump={m.myTrump} trumpLast={m.meDummy} size="lg"
-          playable={who === me} legal={m.legalFor(me)}
-          label="Your hand" onplay={(card) => game.humanPlays(me, card)} />
+          playable={m.canPlay(me)} legal={m.legalFor(me)}
+          label="Your hand" onplay={(card) => m.play(me, card)} />
       </section>
     </div>
   {/if}

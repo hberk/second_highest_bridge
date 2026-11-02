@@ -8,7 +8,7 @@
   import type { Snippet } from 'svelte';
   import { POSITION_CLASS, seatAt, type Position } from '../seats';
 
-  let { trick, winner = null, labels, awaiting = null, info, me = 'South' }: {
+  let { trick, winner = null, labels, awaiting = null, info, me = 'South', onadvance, hint = true }: {
     trick: Play[];
     winner?: Seat | null;
     labels: Record<Seat, string>;
@@ -17,13 +17,19 @@
     info?: Snippet;
     /** The seat at the bottom of the felt. */
     me?: Seat;
+    /** A finished trick: a tap anywhere on the felt moves on to the next. */
+    onadvance?: () => void;
+    /** Say "Tap for the next trick"; off when you won it and simply lead. */
+    hint?: boolean;
   } = $props();
 
   const played = $derived(new Map<Seat, Card>(trick));
   const POSITIONS: Position[] = ['top', 'left', 'right', 'bottom'];
 </script>
 
-<div class="trick-felt" role="group" aria-label="The trick">
+<!-- The "Next trick" button is the keyboard way on; the felt is a bigger target for a thumb. -->
+<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+<div class="trick-felt" class:tf-tap={onadvance} role="group" aria-label="The trick" onclick={onadvance}>
   {#if info}<div class="tf-info">{@render info()}</div>{/if}
   {#each POSITIONS as pos (pos)}
     {@const p = seatAt(me, pos)}
@@ -43,4 +49,5 @@
       {/if}
     </div>
   {/each}
+  {#if onadvance && hint}<span class="tf-hint" aria-hidden="true">Tap for the next trick</span>{/if}
 </div>

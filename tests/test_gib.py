@@ -96,6 +96,84 @@ def test_stayman():
     assert bid(game, '1NT', 'Pass', '2C', 'Pass', '2H', 'Pass')[0] == '4H'
 
 
+def test_smolen_over_1nt_and_2nt():
+    """5-4 in the majors with game values: Stayman, and when partner denies a
+    major, Smolen -- jump in the four-card major to show five of the other,
+    so the notrump hand declares it (the user, 2026-11-01)."""
+    resp = 'KS QS 8S 7S 3S KH QH 7H 2H 9D 6D 5C 3C'         # 5 spades, 4 hearts
+    assert bid(resp, '1NT', 'Pass')[0] == '2C'
+    call, why = bid(resp, '1NT', 'Pass', '2C', 'Pass', '2D', 'Pass')
+    assert call == '3H' and why.startswith('Smolen: 5 ♠, 4 ♥'), why
+    assert bid(resp, '1NT', 'Pass', '2C', 'Pass', '2H', 'Pass')[0] == '4H'
+    # Opener: four of the five-card major with three of it, else 3NT.
+    three = 'AS 9S 4S KH QH 3H KD QD 4D 2D AC 7C 3C'
+    two = 'AS 9S KH QH 3H KD QD 4D 2D AC 7C 3C 2C'
+    assert bid(three, '1NT', 'Pass', '2C', 'Pass', '2D', 'Pass', '3H', 'Pass')[0] == '4S'
+    assert bid(two, '1NT', 'Pass', '2C', 'Pass', '2D', 'Pass', '3H', 'Pass')[0] == '3NT'
+    assert bid(two, '1NT', 'Pass', '2C', 'Pass', '2D', 'Pass', '3S', 'Pass')[0] == '4H'
+    for last in ('4S', '3NT'):
+        assert bid(resp, '1NT', 'Pass', '2C', 'Pass', '2D', 'Pass', '3H', 'Pass',
+                   last, 'Pass')[0] == 'Pass'
+    # Over 2NT the same, a level up: 3♣ Stayman, 3♦ denies, 3♠ shows 5♥.
+    resp2 = 'KS 8S 7S 3S QH JH 7H 6H 2H 9D 6D 5C 3C'
+    assert bid(resp2, '2NT', 'Pass')[0] == '3C'
+    call, why = bid(resp2, '2NT', 'Pass', '3C', 'Pass', '3D', 'Pass')
+    assert call == '3S' and 'Smolen' in why
+    assert bid(three, '2NT', 'Pass', '3C', 'Pass', '3D', 'Pass', '3S', 'Pass')[0] == '4H'
+    # The jump agrees the five-card suit for slam conventions.
+    assert gib.agreed_trump(['1NT', '2C', '2D', '3H', '4S']) == 'S'
+    assert gib.agreed_trump(['2C', '2D', '2NT', '3C', '3D', '3S', '4H']) == 'H'
+    # A raise of opener's major is still the invitation it was.
+    assert gib.agreed_trump(['1NT', '2C', '2H', '3H']) == 'H'
+
+
+def test_stayman_when_they_overcall():
+    """1NT-2♣-(2♦): opener still shows a four-card major at the two level, and
+    responder's game force carries on. Both used to pass: fresh deal 9642
+    passed out 3♦ with a 4-4 heart fit and game values (2026-11-02)."""
+    opener = 'QS 6S 3S KH JH 10H 4H JD 4D AC KC QC 6C'
+    call, why = bid(opener, '1NT', 'Pass', '2C', '2D')
+    assert call == '2H' and why.startswith('4+'), why
+    # No major: four of their suit and a stopper double for penalty, else pass.
+    assert bid('AS 9S 4S KH QH 3H KD QD 4D 2D AC 7C 3C', '1NT', 'Pass', '2C', '2D') \
+        == ('X', 'Penalty: 4+ \u2666.')
+    assert bid('AS 9S 4S KH QH 3H KD 4D 2D AC 7C 3C 2C', '1NT', 'Pass', '2C', '2D')[0] == 'Pass'
+    resp = 'KS 10S 4S 2S AH QH 8H 7H 3H QD 10D 10C 2C'
+    assert bid(resp, '1NT', 'Pass', '2C', '2D', '2H', '2S')[0] == '4H'
+    # Opener passed: five hearts and game values bid 3♥, and opener raises it.
+    west = 'QS 10S 5S 3S AH KH JH 9H 6H QD JD 10C 9C'
+    call, why = bid(west, '1NT', 'Pass', '2C', '2D', 'Pass', '2S')
+    assert call == '3H' and 'game forcing' in why, why
+    assert bid('KS 7S QH 8H 7H AD 10D 8D 4D AC QC 6C 4C',
+               '1NT', 'Pass', '2C', '2D', 'Pass', '2S', '3H', 'Pass')[0] == '4H'
+    # Over 2NT the same, a level up.
+    assert bid(opener.replace('JD', 'AD'), '2NT', 'Pass', '3C', '3D')[0] == '3H'
+
+
+def test_game_after_they_overcall_stayman():
+    """We still reach game over their bid (the user, 2026-11-02: 2NT P 3♣ (3♦)
+    went P P P with 31 HCP). A 2NT opener with a stopper bids 3NT, so its pass
+    denies one; responder's game force bids 3NT with a stopper, doubles with
+    four of their suit, and with neither passes (3NT without a stopper, or a
+    double on values, measured worse)."""
+    nt2 = 'AS KS 3S AH QH 2H KD QD 5D KC JC 4C 3C'
+    assert bid(nt2, '2NT', 'Pass', '3C', '3D') == ('3NT', '\u2666 stopper, no major to show.')
+    assert bid('AS KS 3S AH QH 2H 5D 4D 3D AC KC QC 4C', '2NT', 'Pass', '3C', '3D')[0] == 'Pass'
+    after = ('2NT', 'Pass', '3C', '3D', 'Pass', 'Pass')
+    assert bid('QS JS 5S 4S KH JH 4H 3H 7D 6D QC 5C 2C', *after)[0] == 'Pass'
+    assert bid('QS JS 5S 4S KH JH 4H 3H KD 6D QC 5C 2C', *after) == ('3NT', 'To play.')
+    after = ('1NT', 'Pass', '2C', '2D', 'Pass', 'Pass')
+    assert bid('KS QS 5S 4S KH QH 4H 3H 7D 6D KC QC 2C', *after)[0] == 'Pass'
+    assert bid('KS QS 5S 4S KH QH 4H 3H KD 6D KC QC 2C', *after) == ('3NT', 'To play.')
+    assert bid('KS JS 5S 4S AH 3H KD JD 9D 6D QC 5C 2C', *after) \
+        == ('X', 'Penalty: values, no major fit.')
+    # A penalty double stands, until they run from it (fresh deal 2270, seed 14M).
+    assert bid('AS KS 3S QH 3H 2H QD 5D 4D AC JC 4C 3C',
+               '1NT', 'Pass', '2C', '2D', 'Pass', 'Pass', 'X', 'Pass')[0] == 'Pass'
+    west = 'QS 10S 5S 3S AH KH JH 9H 6H QD JD 10C 9C'
+    assert bid(west, '1NT', 'Pass', '2C', '2D', 'X', '2S', dealer='East')[0] == '3H'
+
+
 def test_jacoby_and_texas_transfers():
     call, why = bid('7S 3S QH 10H 8H 7H 2H 9D 6D 5D 9C 5C 3C', '1NT', 'Pass')
     assert call == '2D' and 'Transfer' in why
@@ -1140,3 +1218,129 @@ def test_takeout_doubler_answers_partners_cuebid():
     call, why = bid('AS QS 3S 5S 4H 2H KD QD 3D 9D QC 3C 2C',
                     '1D', 'X', 'Pass', '2D', 'Pass')
     assert call == '2S' and why.startswith('4+')
+
+
+# ── Bidding meanings, the user's training deals of 2026-11-01 ────────────────
+
+def test_no_takeout_double_after_a_super_accept():
+    # 1NT P 2♦ P 3♥: a super accept is no place for a takeout double (4♥
+    # made, -420); over the plain 2♥ completion it stays.
+    north = 'KS 9S 5S 3S 4H AD QD 5D 2D KC JC 5C 2C'
+    assert bid(north, '1NT', 'Pass', '2D', 'Pass', '3H', dealer='West')[0] == 'Pass'
+    assert bid(north, '1NT', 'Pass', '2D', 'Pass', '2H', dealer='West')[0] == 'X'
+
+
+def test_responder_raises_openers_minor_after_1nt():
+    # 1♠ P 1NT P 2♦ P: 3♦ is natural and invitational, 10-11 HCP, 4+
+    # diamonds (it went 2NT, -100); opener declines on a minimum.
+    call, why = bid('AS JH 10H 9H 4H KD JD 8D 6D 3D JC 10C 9C',
+                    '1S', 'Pass', '1NT', 'Pass', '2D', 'Pass')
+    assert call == '3D' and why.startswith('4+')
+    assert bid('KS QS 9S 4S 3S KH 8H AD 7D 4D 2D 7C 5C',
+               '1S', 'Pass', '1NT', 'Pass', '2D', 'Pass', '3D', 'Pass')[0] == 'Pass'
+    # Clubs need five: 2♣ is often a three-card suit.
+    assert bid('AS JH 10H 9H 4H KD JD 8D 6D JC 10C 9C 3C',
+               '1S', 'Pass', '1NT', 'Pass', '2C', 'Pass')[0] == '2NT'
+
+
+def test_double_of_their_stayman_asks_for_a_lead():
+    # P 1♠ 1NT P 2♣: their Stayman, systems on. 18 HCP rebids the spades
+    # (the double read as 18+, partner doubled 2♥ on ♥T8732, -670).
+    assert bid('KS QS JS 9S 6S 4S 4H AD KD 7D KC QC 10C',
+               'Pass', '1S', '1NT', 'Pass', '2C', dealer='West')[0] == '2S'
+    call, why = bid('KS QS JS 9S 6S 4H AD 7D KC QC JC 10C 9C',
+                    'Pass', '1S', '1NT', 'Pass', '2C', dealer='West')
+    assert call == 'X' and why.startswith('Lead-directing')
+
+
+def test_delayed_two_of_their_minor_is_natural():
+    # 1♣ P 1♦ P 1♥: having passed 1♣, 2♣ is clubs, not Michaels.
+    call, why = bid('6S 2S 9H 8H 5H AD 2D AC QC JC 7C 6C 3C',
+                    '1C', 'Pass', '1D', 'Pass', '1H', dealer='East')
+    assert call == '2C' and 'Natural' in why
+    assert bid('6S 2S 9H 8H 5H 9D 2D AC QC JC 7C 6C 3C',
+               '1C', 'Pass', '1D', 'Pass', '1H', dealer='East')[0] == 'Pass'
+    # Partner doesn't pick a major from a two-suiter that wasn't shown.
+    call, why = bid('QS JS 10S 9S 4H 3H 2H QD 10D 8D 5D 3D 4C',
+                    '1C', 'Pass', '1D', 'Pass', '1H', '2C', '2H', dealer='East')
+    assert call == 'Pass' and 'two suits' not in why
+    # The immediate cue bid is still Michaels.
+    assert bid('QS JS 10S 9S 4H 3H 2H QD 10D 8D 5D 3D 4C',
+               '1C', '2C', 'Pass', dealer='East')[0] == '2S'
+
+
+def _vul_bid(cards: str, vul: str, *calls: str, dealer: str = 'North') -> tuple:
+    auction = AuctionState(dealer=dealer, vulnerability=vul)
+    for call in calls:
+        auction.apply_call(auction.current_player(), call)
+    return ai.ai_bid_explained(auction.current_player(), hand(cards), auction)
+
+
+def test_partners_raise_of_my_suit_is_not_partners_suit():
+    """The user's boards, 2026-11-01. The fallback read partner's raise of
+    the suit I bid first as partner's own suit and raised it again, alerting
+    "3+ support, agreeing the suit": P 1♦ (1♠) 2♣ (2♠) 3♣ P 4♣ (training
+    deal 43). With the opponents silent since the raise, only game is worth
+    bidding."""
+    east = 'KS QS 3S 9H 8H 3H 9D AC JC 8C 5C 4C 3C'
+    call, why = bid(east, 'Pass', '1D', '1S', '2C', '2S', '3C', 'Pass', dealer='South')
+    assert call == 'Pass' and 'agreeing' not in why, (call, why)
+
+
+def test_a_weak_jump_overcaller_does_not_bid_again():
+    """The user's boards, 2026-11-01: a weak jump overcall is a pre-empt.
+    1♣ (2♦) X P 2♥ P P (3♦) P P: West does not go on to 4♦ (training deal
+    118); 1♦ (2♠) X (3♠) P: North does not go on to 4♠ (deal 121)."""
+    west = 'AS 8S 6S 9H 8H 7H 5H AD JD 8D 7D 4D 2D'
+    call, why = bid(west, '1C', '2D', 'X', 'Pass', '2H', 'Pass', 'Pass', '3D', 'Pass',
+                    dealer='South')
+    assert (call, why) == ('Pass', ai.PREEMPTED), (call, why)
+    north = 'AS 10S 7S 6S 5S 4S KH 10H 6H 2H 10D 9D QC'
+    call, why = bid(north, '1D', '2S', 'X', '3S', 'Pass', dealer='West')
+    assert (call, why) == ('Pass', ai.PREEMPTED), (call, why)
+    # Before partner's raise the jump overcaller bids as before.
+    assert gib.weak_jump_overcall('North', after('1D', '2S', 'Pass', '3D', dealer='West').calls) == 1
+    # Their double of partner's cuebid leaves the question standing.
+    call, _ = bid(north, '1D', '2S', 'Pass', '3D', 'X', dealer='West')
+    assert call != 'Pass', call
+    assert gib.weak_jump_overcall('North', after('1D', '2S', dealer='West').calls) == 1
+    # A simple overcall, and a jump in the pass-out seat, are not pre-empts.
+    assert gib.weak_jump_overcall('North', after('1D', '1S', dealer='West').calls) is None
+    assert gib.weak_jump_overcall('South', after('1D', 'Pass', 'Pass', '2S',
+                                                 dealer='West').calls) is None
+    # Straight over a third-seat opening, P P 1♣ (2♥), is a pre-empt too: the
+    # jump is the fourth call, but not a fourth-seat opening (review, 2026-11-02).
+    west = '5S KH QH JH 10H 9H 6H QD 7D 6D 8C 6C 5C'
+    call, why = bid(west, 'Pass', 'Pass', '1C', '2H', 'Pass', '3H', '3S', dealer='North')
+    assert (call, why) == ('Pass', ai.PREEMPTED), (call, why)
+
+
+def test_jam_over_partners_weak_jump_overcall_when_not_vulnerable():
+    """The user's board, 2026-11-01: 1♦ (2♠) X with four spades: 4♠ to jam
+    the auction on the ten-card fit when we are not vulnerable (the user's
+    pick, 2026-11-02), else 3♠."""
+    south = 'KS 9S 3S 2S 8H 5H 6D 3D KC 10C 8C 6C 5C'
+    call, why = _vul_bid(south, 'E/W', '1D', '2S', 'X', dealer='West')
+    assert call == '4S' and why.startswith('Game in'), (call, why)
+    assert _vul_bid(south, 'None', '1D', '2S', 'X', dealer='West')[0] == '4S'
+    call, _ = _vul_bid(south, 'N/S', '1D', '2S', 'X', dealer='West')
+    assert call == '3S', call
+
+
+def test_2nt_over_their_overcall_is_natural_not_jacoby():
+    # P 1♥ (1♠) 2NT P: 2NT showed 11-12 and a spade stopper, so five hearts
+    # have no fit and no game force (user's item 20: 4♥ went one down, 3NT
+    # made). Uncontested, 1♥ P 2NT is still Jacoby.
+    north = '9S AH JH 6H 5H 3H AD QD 8D 6D AC 9C 3C'
+    assert bid(north, 'Pass', '1H', '1S', '2NT', 'Pass', dealer='West')[0] != '4H'
+    assert bid(north, '1H', 'Pass', '2NT', 'Pass')[0] == '3S'
+
+
+def test_advancer_names_a_long_suit_with_a_jump():
+    # (1♣) 1♦ (1♠): ♠KT95 ♥QT975432 ♦7, 5 HCP, passed twice (user's item 6).
+    # Eight hearts bid game; seven jump one level.
+    call, why = bid('KS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 2H 7D', '1C', '1D', '1S', dealer='South')
+    assert call == '4H' and why.startswith('7+')
+    assert bid('KS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 7D 2D', '1C', '1D', '1S', dealer='South')[0] == '3H'
+    # Too weak (3 HCP): pass, as before.
+    assert bid('JS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 7D 2D', '1C', '1D', '1S', dealer='South')[0] == 'Pass'

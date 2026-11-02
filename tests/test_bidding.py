@@ -393,6 +393,18 @@ def test_partners_game_stands_and_a_three_level_lone_rebid_shows_six():
     assert ai.ai_bid('North', north, a) == 'Pass'
 
 
+def test_a_free_bid_over_partners_preempt_needs_more_than_six():
+    """The user's training deal 315 (2026-11-01): 3C (3S) 4H on six hearts and
+    a singleton club, read as if partner had opened. A pre-empt promises a
+    raise's worth (`PROMISE_PREEMPT`), so six hearts pass and seven bid game."""
+    import ai
+    a = AuctionState('East', 'None')
+    for who, call in [('East', '3C'), ('South', '3S')]:
+        a.apply_call(who, call)
+    assert ai.ai_bid('West', _cards('KT AK7653 K853 T'), a) == 'Pass'
+    assert ai.ai_bid('West', _cards('K AKQ7653 K85 T'), a) == '4H'
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
