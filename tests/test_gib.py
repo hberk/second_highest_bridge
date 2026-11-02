@@ -1240,3 +1240,56 @@ def test_delayed_two_of_their_minor_is_natural():
     # The immediate cue bid is still Michaels.
     assert bid('QS JS 10S 9S 4H 3H 2H QD 10D 8D 5D 3D 4C',
                '1C', '2C', 'Pass', dealer='East')[0] == '2S'
+
+
+def _vul_bid(cards: str, vul: str, *calls: str, dealer: str = 'North') -> tuple:
+    auction = AuctionState(dealer=dealer, vulnerability=vul)
+    for call in calls:
+        auction.apply_call(auction.current_player(), call)
+    return ai.ai_bid_explained(auction.current_player(), hand(cards), auction)
+
+
+def test_partners_raise_of_my_suit_is_not_partners_suit():
+    """The user's boards, 2026-11-01. The fallback read partner's raise of
+    the suit I bid first as partner's own suit and raised it again, alerting
+    "3+ support, agreeing the suit": P 1♦ (1♠) 2♣ (2♠) 3♣ P 4♣ (training
+    deal 43). With the opponents silent since the raise, only game is worth
+    bidding."""
+    east = 'KS QS 3S 9H 8H 3H 9D AC JC 8C 5C 4C 3C'
+    call, why = bid(east, 'Pass', '1D', '1S', '2C', '2S', '3C', 'Pass', dealer='South')
+    assert call == 'Pass' and 'agreeing' not in why, (call, why)
+
+
+def test_a_weak_jump_overcaller_does_not_bid_again():
+    """The user's boards, 2026-11-01: a weak jump overcall is a pre-empt.
+    1♣ (2♦) X P 2♥ P P (3♦) P P: West does not go on to 4♦ (training deal
+    118); 1♦ (2♠) X (3♠) P: North does not go on to 4♠ (deal 121)."""
+    west = 'AS 8S 6S 9H 8H 7H 5H AD JD 8D 7D 4D 2D'
+    call, why = bid(west, '1C', '2D', 'X', 'Pass', '2H', 'Pass', 'Pass', '3D', 'Pass',
+                    dealer='South')
+    assert (call, why) == ('Pass', ai.PREEMPTED), (call, why)
+    north = 'AS 10S 7S 6S 5S 4S KH 10H 6H 2H 10D 9D QC'
+    call, why = bid(north, '1D', '2S', 'X', '3S', 'Pass', dealer='West')
+    assert (call, why) == ('Pass', ai.PREEMPTED), (call, why)
+    # Before partner's raise the jump overcaller bids as before.
+    assert gib.weak_jump_overcall('North', after('1D', '2S', 'Pass', '3D', dealer='West').calls) == 1
+    # Their double of partner's cuebid leaves the question standing.
+    call, _ = bid(north, '1D', '2S', 'Pass', '3D', 'X', dealer='West')
+    assert call != 'Pass', call
+    assert gib.weak_jump_overcall('North', after('1D', '2S', dealer='West').calls) == 1
+    # A simple overcall, and a jump in the pass-out seat, are not pre-empts.
+    assert gib.weak_jump_overcall('North', after('1D', '1S', dealer='West').calls) is None
+    assert gib.weak_jump_overcall('South', after('1D', 'Pass', 'Pass', '2S',
+                                                 dealer='West').calls) is None
+
+
+def test_jam_over_partners_weak_jump_overcall_when_not_vulnerable():
+    """The user's board, 2026-11-01: 1♦ (2♠) X with four spades: 4♠ to jam
+    the auction on the ten-card fit when we are not vulnerable (the user's
+    pick, 2026-11-02), else 3♠."""
+    south = 'KS 9S 3S 2S 8H 5H 6D 3D KC 10C 8C 6C 5C'
+    call, why = _vul_bid(south, 'E/W', '1D', '2S', 'X', dealer='West')
+    assert call == '4S' and why.startswith('Game in'), (call, why)
+    assert _vul_bid(south, 'None', '1D', '2S', 'X', dealer='West')[0] == '4S'
+    call, _ = _vul_bid(south, 'N/S', '1D', '2S', 'X', dealer='West')
+    assert call == '3S', call

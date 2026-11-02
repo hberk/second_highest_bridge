@@ -2107,9 +2107,42 @@ export const JAM_MINORS = true;
 export const JAM_NEVER_AGAIN = false;
 const jamText = (x: Suit) => `Game in ${SYM[x]}: to make or to jam the auction.`;
 
+/** The index of `player`'s weak jump overcall, as `defend` makes one: a
+ *  single jump in a new suit to the two or three level, over their one-level
+ *  suit opening, the only bid before it, and not in the pass-out seat. null
+ *  when the player made no such call. See gib.py. */
+export function weakJumpOvercall(player: Seat, calls: [Seat, string][]): number | null {
+  const first = calls.findIndex(([, c]) => c !== 'Pass');
+  if (first < 0 || calls[first][0] === player || calls[first][0] === PARTNERS[player]) return null;
+  const opening = parseBid(calls[first][1]);
+  if (!opening || opening[0] !== 1 || !isSuit(opening[1])) return null;
+  let at = -1;
+  for (let i = first + 1; i < calls.length; i++) if (calls[i][1] !== 'Pass') { at = i; break; }
+  if (at < 0 || calls[at][0] !== player || at - first === 2) return null;
+  const bid = parseBid(calls[at][1]);
+  if (!bid || !isSuit(bid[1]) || bid[1] === opening[1] || bid[0] > 3) return null;
+  const cheapest = SUITS.indexOf(bid[1] as Suit) > SUITS.indexOf(opening[1] as Suit) ? 1 : 2;
+  return bid[0] === cheapest + 1 ? at : null;
+}
+
+/** Jam over partner's weak jump overcall (the user's board, 2026-11-01):
+ *  with a ten-card fit my first call is game, at the vulnerabilities
+ *  JAM_WJO_VUL names: 'fav', 'white', 'any', or null for off. See gib.py. */
+export const JAM_WJO_VUL: 'fav' | 'white' | 'any' | null = 'white';
+
+function jamWjoOk(ctx: Ctx): boolean {
+  if (JAM_WJO_VUL === null || weakJumpOvercall(ctx.pd, ctx.calls) === null) return false;
+  const v = ctx.auction.vulnerability;
+  const ns = ctx.me === 'North' || ctx.me === 'South';
+  const we = v === 'Both' || v === (ns ? 'N/S' : 'E/W');
+  const they = v === 'Both' || v === (ns ? 'E/W' : 'N/S');
+  return { fav: !we && they, white: !we, any: true }[JAM_WJO_VUL];
+}
+
 /** The game call partner's opening asks of my first call, or null. */
 function jamSpot(ctx: Ctx): string | null {
-  if (!JAM_GAME || !ctx.weOpened || ctx.iAmOpener() || ctx.seq.length !== 1) return null;
+  if (!JAM_GAME || ctx.iAmOpener() || ctx.seq.length !== 1) return null;
+  if (!ctx.weOpened && !jamWjoOk(ctx)) return null;
   const at = ctx.calls.findIndex(([w, c]) => w === ctx.ours[0][0] && c === ctx.ours[0][1]);
   if (ctx.calls.slice(at + 1).some(([w]) => w === ctx.me)) return null;   // now or never
   const x = strainOf(ctx.seq[0]);

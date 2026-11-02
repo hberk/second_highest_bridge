@@ -593,6 +593,33 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   auctions: 12 of the pre-emptor's penalty doubles were worth about 690
   points each, and one deal (three dealers) was a rescue of partner's
   doubled 3♠. Only fixing the one branch that bid 3NT: +0.01, 4 auctions.
+- **Partner's raise of my own suit is agreed, not partner's suit**
+  (`ai.OWN_SUIT_RAISED`, `_own_suit_raised`; the user's boards, 2026-11-01:
+  1♦ (2♠) X (3♠) P 4♠, 1♣ (2♦) X P 2♥ P P (3♦) P P 4♦, and
+  P 1♦ (1♠) 2♣ (2♠) 3♣ P 4♣). `_rebid` tested "support partner's last suit"
+  before "my suit raised", so partner's raise of the suit this hand bid
+  first read as partner's suit, and every hand that bid it (three cards at
+  least) raised again: "3+ support, agreeing the suit". Now, with the
+  opponents silent since the raise, only game is bid; over their bid the
+  hand competes by the count.
+  **A weak jump overcaller is a pre-empter once partner has raised**
+  (`ai.JUMP_OVERCALL_PASSES`, `JUMP_OVERCALL_RAISED_ONLY`,
+  `gib.weak_jump_overcall`): `_preemptor_forced` treats it as it treats a
+  pre-emptive opening. Expert archives (championships 1996-2002, 371
+  auctions): after partner's raise the jump overcaller passes 91% of the
+  time over their bid and 98% when they pass; the robots re-raised 71%.
+  The broad version (never bid again, raised or not) lost -0.52 a board: it
+  stopped rescues of partner's doubled new suit. **Their double of
+  partner's asking call leaves it asking** (`PREEMPT_ASK_DOUBLED`): over
+  1♠ (3♥) P (3♠) X the pre-empter passed and left the cuebid doubled.
+  **Jam over partner's weak jump overcall** (`gib.JAM_WJO_VUL`, in
+  `_jam_spot`): with a ten-card fit my first call is game when we are not
+  vulnerable ('white', the user's pick; 'fav' for white against red only).
+  Three sets of 3,000 fresh deals, all together: **-0.00, +0.49, -0.04 a
+  board** (t -0.01, +3.39, -0.26); white vs red only -0.09, +0.40, -0.16;
+  without the jump overcaller's pass +0.25, +0.52, +0.14. The pass costs
+  about 0.17 a board, games the re-raise found; kept by the user's rule.
+  Scripts and scores: the project's `agreed-suit/` folder.
 - **Double, then a new suit, shows 18+ HCP** (`DOUBLE_THEN_SUIT`,
   `_doubler_new_suit`, `_raise_doubler_suit`, `doubler_guard`; the user's
   Bidding training deal, 2026-10-28: 1♥ P P X 2♥ P P 2♠ with 22 HCP was

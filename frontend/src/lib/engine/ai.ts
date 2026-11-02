@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { doublerGuard, gibBid, Hand, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert } from './gib';
+import { doublerGuard, gibBid, Hand, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert, weakJumpOvercall } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -469,6 +469,24 @@ function response(player: Seat, partner: Seat, auction: AuctionState, ev: HandEv
   return ['Pass', `Fewer than ${SUPPORT_LENGTH} ${SUIT_SYM[pStrain]} and no five-card suit.`];
 }
 
+/** Partner has raised the suit I bid first (the user's boards, 2026-11-01):
+ *  the suit is agreed. With the opponents silent since partner's raise our
+ *  side holds the contract, so the only call worth making is game; over
+ *  their bid, compete no higher than the count. See ai.py. */
+export const OWN_SUIT_RAISED = true;
+const RAISE_STANDS = "Partner's raise stands.";
+
+function ownSuitRaised(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
+  groups: Groups, suit: Suit, legal: string[]): Decision {
+  const combined = withShortness(
+    ev.suit_pts[suit] + partnerPromise(player, partner, auction, suit), groups, suit);
+  const [call, why] = place(suit, combined, legal);
+  if (call === 'Pass') return [call, why];
+  const hb = auction.highestBid;
+  if (hb && hb[2] === partner && !isGameBid(call)) return ['Pass', RAISE_STANDS];
+  return [call, contestAlert(player, auction, call, `${SUIT_SYM[suit]} agreed. No extra values shown.`)];
+}
+
 function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
   groups: Groups, bestSuit: Suit, bestLen: number, legal: string[]): Decision {
   const mine = bidsBy(player, auction);
@@ -482,6 +500,10 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
     return call !== 'Pass'
       ? [call, `${SUIT_SYM[myFirst]} again over the cuebid. Partner showed support, not their suit.`]
       : [call, why];
+  }
+
+  if (OWN_SUIT_RAISED && pStrain === myFirst && firstNamer(auction, pStrain) === player) {
+    return ownSuitRaised(player, partner, auction, ev, groups, myFirst, legal);
   }
 
   if (isSuit(pStrain) && groups[pStrain].length >= SUPPORT_LENGTH) {
@@ -617,14 +639,31 @@ function partnerPenaltyStands(player: Seat, auction: AuctionState,
  *  kept, by the user's choice. See ai.py. */
 export const PREEMPTOR_PASSES = true;
 const PREEMPTED = 'Pre-empted already.';
+/** A weak jump overcall is a pre-empt too (the user's boards, 2026-11-01;
+ *  expert archives pass after partner's raise 91-98% of the time). See ai.py. */
+export const JUMP_OVERCALL_PASSES = true;
+/** The jump overcaller passes only once partner has raised the suit. */
+export const JUMP_OVERCALL_RAISED_ONLY = true;
+/** Their double of partner's asking call does not cancel the question. */
+export const PREEMPT_ASK_DOUBLED = true;
 
 /** Is this the pre-emptor, and has partner asked for an answer? null when
  *  the player did not pre-empt. */
 function preemptorForced(player: Seat, auction: AuctionState,
   alerts: Record<number, string>): boolean | null {
   const calls = auction.calls;
-  const first = calls.findIndex(([, c]) => c !== 'Pass');
-  if (first < 0 || calls[first][0] !== player) return null;
+  let first = calls.findIndex(([, c]) => c !== 'Pass');
+  if (first < 0) return null;
+  if (calls[first][0] !== player) {
+    const wjo = JUMP_OVERCALL_PASSES ? weakJumpOvercall(player, calls) : null;
+    if (wjo === null) return null;
+    first = wjo;
+    const suit = parseBid(calls[first][1])![1];
+    if (JUMP_OVERCALL_RAISED_ONLY && !calls.slice(first).some(([w, c]) =>
+      w === PARTNERS[player] && parseBid(c)?.[1] === suit)) {
+      return null;            // only once partner has raised it: the user's rule
+    }
+  }
   const opening = parseBid(calls[first][1]);
   if (!opening || opening[0] < 2 || opening[1] === 'NT'
     || calls[first][1] === '2C' || (opening[0] === 2 && first === 3)) {
@@ -634,6 +673,14 @@ function preemptorForced(player: Seat, auction: AuctionState,
   let last = -1;
   for (let i = calls.length - 1; i > first; i--) {
     if (calls[i][1] !== 'Pass') { last = i; break; }
+  }
+  if (PREEMPT_ASK_DOUBLED && last >= 0 && calls[last][1] === 'X' && calls[last][0] !== partner) {
+    // Their double of partner's call leaves partner's question standing.
+    const at = last;
+    last = -1;
+    for (let i = at - 1; i > first; i--) {
+      if (calls[i][1] !== 'Pass') { last = i; break; }
+    }
   }
   if (last < 0 || calls[last][0] !== partner) return false;
   const call = calls[last][1];

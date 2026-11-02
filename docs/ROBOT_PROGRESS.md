@@ -250,6 +250,8 @@ from the variant's side; t as above.
 | 10-31 | Opener passes when responder declines the game try (1M 2M try 3M), instead of bidding game anyway; two sets | -0.01, -0.08 | -0.11, -2.09 | 61, 49 | off |
 | 11-02 | Smolen over 1NT and 2NT (`SMOLEN`; the user's request): library / seed 14M, 10,000 fresh deals | +0.02 / -0.01 | +0.82 / -1.55 | 6 / 22 | on (your request; rare, and the losses are Stayman auctions they overcall) |
 | 11-02 | Stayman when they overcall it: opener shows a four-card major, responder raises it or bids a five-card major (`STAYMAN_CONTESTED`); with responder's 3NT and 2NT / without 3NT / without either; seeds 14M, 15M, 10,000 deals each | +0.00, +0.04 / +0.02, +0.05 / **+0.02, +0.07** | +0.10, +1.52 / +1.24, +2.07 / +1.58, +3.24 | 44, 58 / 34, 46 / 21, 31 | without either on |
+| 11-02 | Partner's raise of my own suit is agreed, not partner's suit: only game once they pass (`OWN_SUIT_RAISED`); a weak jump overcaller passes after partner's raise (`JUMP_OVERCALL_PASSES`); their double of partner's asking call leaves it asking (`PREEMPT_ASK_DOUBLED`); a 10-card fit jams game over partner's weak jump overcall when we are not vulnerable (`JAM_WJO_VUL = 'white'`); three sets of 3,000 fresh deals | -0.00, +0.49, -0.04 | -0.01, +3.39, -0.26 | 267, 252, 239 | on (your choice) |
+| 11-02 | ...the jump overcaller's pass alone / jam only white vs red / without the jump overcaller's pass | -0.26, -0.00, -0.26 / -0.09, +0.40, -0.16 / +0.25, +0.52, +0.14 | -2.95, -0.07, -2.85 / -0.56, +3.07, -0.94 / +1.60, +3.76, +0.94 | 34, 27, 34 / 242, 218, 217 / 241, 230, 212 | pass on (your rule), fav off |
 
 ### The previous system (`ai_bid`)
 

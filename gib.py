@@ -2281,9 +2281,53 @@ JAM_NEVER_AGAIN = False
 JAM_ALERT = "Game in {}: to make or to jam the auction."
 
 
+def weak_jump_overcall(player: str, calls: list) -> int | None:
+    """The index of `player`'s weak jump overcall, as `_defend` makes one: a
+    single jump in a new suit to the two or three level, over their
+    one-level suit opening, the only bid before it, and not in the pass-out
+    seat. None when the player made no such call."""
+    first = next((i for i, (_, c) in enumerate(calls) if c != 'Pass'), None)
+    if first is None or PARTNERS[player] == calls[first][0] or player == calls[first][0]:
+        return None
+    opening = parse_bid(calls[first][1])
+    if not opening or opening[0] != 1 or opening[1] not in SUITS:
+        return None
+    at = next((i for i in range(first + 1, len(calls)) if calls[i][1] != 'Pass'), None)
+    if at is None or calls[at][0] != player or at - first == 2:
+        return None                         # not mine; or 1x P P 2y, balancing
+    bid = parse_bid(calls[at][1])
+    if not bid or bid[1] not in SUITS or bid[1] == opening[1] or bid[0] > 3:
+        return None
+    cheapest = 1 if SUITS.index(bid[1]) > SUITS.index(opening[1]) else 2
+    return at if bid[0] == cheapest + 1 else None
+
+
+#: Jam over partner's weak jump overcall (the user's board, 2026-11-01:
+#: 1♦ 2♠ (X) 4♠ on four spades, "to compete to the level of our fit and jam
+#: the auction ... more likely white vs red, otherwise just 3♠"). With a
+#: ten-card fit my first call is game, at the vulnerabilities JAM_WJO_VUL
+#: names: 'fav' (we are not vulnerable, they are), 'white' (we are not
+#: vulnerable), 'any', or None for off. The user picked 'white' (2026-11-02):
+#: 3 x 3,000 fresh deals, with OWN_SUIT_RAISED and the jump overcaller's
+#: pass, +0.15 a board against +0.05 for 'fav' (BIDDING.md).
+JAM_WJO_VUL = 'white'
+
+
+def _jam_wjo_ok(ctx: Ctx) -> bool:
+    if JAM_WJO_VUL is None or weak_jump_overcall(ctx.pd, ctx.calls) is None:
+        return False
+    v = ctx.auction.vulnerability
+    ns = ctx.me in ('North', 'South')
+    we = v == 'Both' or v == ('N/S' if ns else 'E/W')
+    they = v == 'Both' or v == ('E/W' if ns else 'N/S')
+    return {'fav': not we and they, 'white': not we, 'any': True}[JAM_WJO_VUL]
+
+
 def _jam_spot(ctx: Ctx) -> str | None:
     """The game call partner's pre-empt asks of my first call, or None."""
-    if not JAM_GAME or not ctx.we_opened or ctx.i_am_opener() or ctx.seq[1:] or not ctx.seq:
+    if not JAM_GAME or ctx.i_am_opener() or ctx.seq[1:] or not ctx.seq:
+        return None
+    if not ctx.we_opened and not _jam_wjo_ok(ctx):
         return None
     if any(w == ctx.me for w, _ in ctx.calls[ctx.calls.index(ctx.ours[0]) + 1:]):
         return None                      # not my first call: the jam is now or never
