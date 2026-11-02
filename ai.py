@@ -847,6 +847,9 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
                    f"Partner showed support, not their suit.")
         return call, why
 
+    if OWN_SUIT_RAISED and p_strain == my_first and _first_namer(auction, p_strain) == player:
+        return _own_suit_raised(player, partner, auction, ev, groups, my_first, legal)
+
     if p_strain in SUITS and len(groups[p_strain]) >= SUPPORT_LENGTH:
         held = len(groups[p_strain])
         promise = _partner_promise(player, partner, auction, p_strain)
@@ -873,6 +876,33 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
             why = f"6+ {SUIT_SYM[best_suit]}, rebidding the suit."
         return call, why
     return 'Pass', "No fit, nothing more to show."
+
+
+#: Partner has raised the suit I bid first (the user's boards, 2026-11-01:
+#: 1♣ (2♦) X P 2♥ P P (3♦) P P 4♦, and P 1♦ (1♠) 2♣ (2♠) 3♣ P 4♣). The
+#: support branch below read partner's raise as partner's own suit and
+#: raised it again, alerting "support, agreeing the suit" -- for every hand
+#: holding three of its own suit, which is every hand that bid one. Now the
+#: suit is agreed: with the opponents silent since partner's raise, our side
+#: already holds the contract, so the only call worth making is game
+#: (`_place` says whether the count reaches it); over their bid, compete
+#: no higher than the count.
+OWN_SUIT_RAISED = True
+RAISE_STANDS = "Partner's raise stands."
+
+
+def _own_suit_raised(player: str, partner: str, auction: AuctionState, ev: dict,
+                     groups: dict, suit: str, legal: list[str]) -> tuple:
+    promise = _partner_promise(player, partner, auction, suit)
+    combined = _with_shortness(ev['suit_pts'][suit] + promise, groups, suit)
+    call, why = _place(suit, combined, legal, len(groups[suit]))
+    if call == 'Pass':
+        return call, why
+    hb = auction.highest_bid
+    if hb and hb[2] == partner and not gib._is_game_bid(call):
+        return 'Pass', RAISE_STANDS
+    return call, _contest_alert(player, auction, call,
+                                f"{SUIT_SYM[suit]} agreed. No extra values shown.")
 
 
 #: GIB 2/1 is the default system (gib.py). False plays the previous system,
@@ -995,13 +1025,25 @@ PREEMPTOR_PASSES = True
 PREEMPTED = "Pre-empted already."
 
 
+#: A weak jump overcall is a pre-empt too (the user's boards, 2026-11-01:
+#: 1♦ 2♠ (X) 3♠ P 4♠ by the 2♠ bidder, and 1♣ (2♦) X P 2♥ P P (3♦) P P 4♦).
+#: Expert archives agree: after partner's raise the jump overcaller passes
+#: 91% of the time over their bid and 98% when they pass (371 auctions,
+#: 1996-2002 championships), where the robots raised again 71% of the time.
+JUMP_OVERCALL_PASSES = True
+
+
 def _preemptor_forced(player: str, auction: AuctionState, alerts: dict) -> bool | None:
     """Is this the pre-emptor, and has partner asked for an answer? None
     when the player did not pre-empt."""
     calls = auction.calls
     first = next((i for i, (_, c) in enumerate(calls) if c != 'Pass'), None)
-    if first is None or calls[first][0] != player:
+    if first is None:
         return None
+    if calls[first][0] != player:
+        first = gib.weak_jump_overcall(player, calls) if JUMP_OVERCALL_PASSES else None
+        if first is None:
+            return None
     opening = parse_bid(calls[first][1])
     if (not opening or opening[0] < 2 or opening[1] == 'NT'
             or calls[first][1] == '2C' or (opening[0] == 2 and first == 3)):
