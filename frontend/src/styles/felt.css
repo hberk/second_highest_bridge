@@ -1152,3 +1152,11 @@ button { touch-action: manipulation; }
 .bt-auction-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; font-size: 13px; font-weight: 700; }
 .bt-robots-title { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
 .bt-part { outline: 2px solid var(--accent); outline-offset: -1px; border-radius: 6px; }
+
+/* Bidding training with a mouse: the bidding box sits right under the hand.
+   A phone docks it at the foot of the screen for the thumb; on a computer
+   that left a big empty gap between the hand and the box. */
+.dk-page .table-screen.bt { min-height: 0; }
+@media (hover: hover) and (pointer: fine) {
+    .table-screen.bt .bidpad { margin: 16px 0 0; padding: 14px 16px 16px; border: 1px solid var(--felt-line); border-radius: 20px; }
+}

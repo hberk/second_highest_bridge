@@ -115,7 +115,7 @@
       {/snippet}
       {@render cell('Dealer', dealer)}
       {@render cell('Vulnerable', vul)}
-      {@render cell(game.phase === 'auction_done' ? 'Contract' : 'High bid', high)}
+      {@render cell(game.phase === 'bidding' ? 'Highest bid' : 'Contract', high)}
     {:else}
       {#snippet contract()}{@render contractText()} <span class="dk-soft">by {m.by(c.declarer)}</span>{/snippet}
       {#snippet trick()}{Math.min(m.displayNum, 13)} <span class="dk-soft">/ 13{#if m.led}{' · '}led <span style:color="var(--suit-{m.led.toLowerCase()}-lt)">{SUIT_SYMBOLS[m.led]}</span>{/if}</span>{/snippet}
