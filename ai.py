@@ -1056,7 +1056,8 @@ def _preempt_index(player: str, auction: AuctionState,
     first = next((i for i, (_, c) in enumerate(calls) if c != 'Pass'), None)
     if first is None:
         return None
-    if calls[first][0] != player:
+    opened = calls[first][0] == player
+    if not opened:
         first = (gib.weak_jump_overcall(player, calls)
                  if overcalls and JUMP_OVERCALL_PASSES else None)
         if first is None:
@@ -1068,8 +1069,11 @@ def _preempt_index(player: str, auction: AuctionState,
             return None         # only once partner has raised it: the user's rule
     opening = parse_bid(calls[first][1])
     if (not opening or opening[0] < 2 or opening[1] == 'NT'
-            or calls[first][1] == '2C' or (opening[0] == 2 and first == 3)):
-        return None             # not a pre-empt; a fourth-seat two-bid is sound
+            or calls[first][1] == '2C' or (opened and opening[0] == 2 and first == 3)):
+        # Not a pre-empt; a fourth-seat two-bid is sound. `first` counts
+        # calls, so only an opening is in fourth seat at 3: a jump overcall
+        # there is P P 1x 2y, direct over a third-seat opening, a pre-empt.
+        return None
     return first
 
 

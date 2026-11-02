@@ -3530,6 +3530,38 @@ def _runout_choice(ctx: Ctx) -> tuple:
 #: Responder looks for a major fit only: no 3NT and no 2NT invitation over
 #: their bid, which measured worse (BIDDING.md).
 STAYMAN_CONTESTED = True
+#: ...and we still reach our game over their bid (the user, 2026-11-02:
+#: 2NT P 3♣ (3♦) went P P P with 31 HCP). A 2NT opener with no major to show
+#: bids 3NT with a stopper in their suit (STAYMAN_OPENER_3NT), so its pass
+#: denies one. With four or more of their suit and a stopper, opener (or an
+#: invitational responder) doubles for penalty (STAYMAN_PENALTY_X).
+#: Responder with game values and no major fit doubles with four of their
+#: suit, else bids 3NT with a stopper (STAYMAN_RESPONDER_3NT); with no
+#: stopper STAYMAN_NO_STOP says: '3NT' (when opener's pass didn't deny one;
+#: else double), 'X' (double, penalty on values), or None (pass, as before).
+STAYMAN_OPENER_3NT = True
+STAYMAN_PENALTY_X = True
+STAYMAN_RESPONDER_3NT = True
+STAYMAN_NO_STOP = '3NT'
+STAYMAN_X_ALERT = "Penalty: 4+ {}."
+STAYMAN_VALUES_X = "Penalty: values, no major fit."
+
+
+def _stayman_no_fit(ctx: Ctx, their: str | None, denied: bool) -> tuple | None:
+    """Responder's game force with no major fit, over their bid: penalty
+    double, 3NT, or None to pass. `denied`: opener's pass denied a stopper."""
+    h = ctx.h
+    if their not in SUITS:
+        return None
+    if STAYMAN_PENALTY_X and h.len[their] >= 4 and ctx.ok('X'):
+        return 'X', STAYMAN_VALUES_X
+    if STAYMAN_RESPONDER_3NT and h.stopper(their) and ctx.ok('3NT'):
+        return '3NT', TO_PLAY
+    if STAYMAN_NO_STOP == '3NT' and not denied and ctx.ok('3NT'):
+        return '3NT', TO_PLAY
+    if STAYMAN_NO_STOP in ('3NT', 'X') and ctx.ok('X'):
+        return 'X', STAYMAN_VALUES_X
+    return None
 
 
 def _stayman_contested(ctx: Ctx) -> tuple | None:
@@ -3558,9 +3590,16 @@ def _stayman_contested(ctx: Ctx) -> tuple | None:
             call = f"{lvl}{m}"
             if h.len[m] >= 4 and ctx.ok(call):
                 return call, f"4+ {SYM[m]}."
+        if their in SUITS:
+            if STAYMAN_PENALTY_X and h.len[their] >= 4 and h.stopper(their) and ctx.ok('X'):
+                return 'X', STAYMAN_X_ALERT.format(SYM[their])
+            if STAYMAN_OPENER_3NT and base == 2 and h.stopper(their) and ctx.ok('3NT'):
+                return '3NT', f"{SYM[their]} stopper, no major to show."
         return 'Pass', "No major to show."
     if not ctx.i_am_opener() and len(seq) == told:
         hcp = h.judge
+        if answer in ('X', '3NT'):
+            return 'Pass', "Partner placed the contract."
         if shown and h.len[shown] >= 4:
             if hcp + lo >= GAME_MAJOR and ctx.ok(f"4{shown}"):
                 return f"4{shown}", TO_PLAY
@@ -3576,6 +3615,13 @@ def _stayman_contested(ctx: Ctx) -> tuple | None:
             for m in sorted(MAJORS, key=lambda m: -h.len[m]):
                 if m != their and m != shown and h.len[m] >= 5 and ctx.ok(f"3{m}"):
                     return f"3{m}", f"5+ {SYM[m]}, game forcing."
+            denied = base == 2 and STAYMAN_OPENER_3NT and answer is None
+            game = _stayman_no_fit(ctx, their, denied)
+            if game:
+                return game
+        elif (STAYMAN_PENALTY_X and their in SUITS and h.len[their] >= 4
+              and h.stopper(their) and ctx.ok('X')):
+            return 'X', STAYMAN_VALUES_X
         return 'Pass', "No major fit."
     if ctx.i_am_opener() and len(seq) == told + 1:
         last = seq[-1]

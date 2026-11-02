@@ -658,7 +658,8 @@ function preemptIndex(player: Seat, auction: AuctionState,
   const calls = auction.calls;
   let first = calls.findIndex(([, c]) => c !== 'Pass');
   if (first < 0) return null;
-  if (calls[first][0] !== player) {
+  const opened = calls[first][0] === player;
+  if (!opened) {
     const wjo = overcalls && JUMP_OVERCALL_PASSES ? weakJumpOvercall(player, calls) : null;
     if (wjo === null) return null;
     first = wjo;
@@ -670,8 +671,10 @@ function preemptIndex(player: Seat, auction: AuctionState,
   }
   const opening = parseBid(calls[first][1]);
   if (!opening || opening[0] < 2 || opening[1] === 'NT'
-    || calls[first][1] === '2C' || (opening[0] === 2 && first === 3)) {
-    return null;              // not a pre-empt; a fourth-seat two-bid is sound
+    || calls[first][1] === '2C' || (opened && opening[0] === 2 && first === 3)) {
+    // Not a pre-empt; a fourth-seat two-bid is sound. Only an opening is in
+    // fourth seat at 3: a jump overcall there is P P 1x 2y. See ai.py.
+    return null;
   }
   return first;
 }

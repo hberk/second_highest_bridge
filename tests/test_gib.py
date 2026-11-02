@@ -134,7 +134,10 @@ def test_stayman_when_they_overcall():
     opener = 'QS 6S 3S KH JH 10H 4H JD 4D AC KC QC 6C'
     call, why = bid(opener, '1NT', 'Pass', '2C', '2D')
     assert call == '2H' and why.startswith('4+'), why
-    assert bid('AS 9S 4S KH QH 3H KD QD 4D 2D AC 7C 3C', '1NT', 'Pass', '2C', '2D')[0] == 'Pass'
+    # No major: four of their suit and a stopper double for penalty, else pass.
+    assert bid('AS 9S 4S KH QH 3H KD QD 4D 2D AC 7C 3C', '1NT', 'Pass', '2C', '2D') \
+        == ('X', 'Penalty: 4+ \u2666.')
+    assert bid('AS 9S 4S KH QH 3H KD 4D 2D AC 7C 3C 2C', '1NT', 'Pass', '2C', '2D')[0] == 'Pass'
     resp = 'KS 10S 4S 2S AH QH 8H 7H 3H QD 10D 10C 2C'
     assert bid(resp, '1NT', 'Pass', '2C', '2D', '2H', '2S')[0] == '4H'
     # Opener passed: five hearts and game values bid 3♥, and opener raises it.
@@ -145,6 +148,27 @@ def test_stayman_when_they_overcall():
                '1NT', 'Pass', '2C', '2D', 'Pass', '2S', '3H', 'Pass')[0] == '4H'
     # Over 2NT the same, a level up.
     assert bid(opener.replace('JD', 'AD'), '2NT', 'Pass', '3C', '3D')[0] == '3H'
+
+
+def test_game_after_they_overcall_stayman():
+    """We still reach game over their bid (the user, 2026-11-02: 2NT P 3♣ (3♦)
+    went P P P with 31 HCP). A 2NT opener with a stopper bids 3NT, so its pass
+    denies one; responder's game force bids 3NT with a stopper, doubles with
+    four of their suit, and with neither doubles once opener has denied one
+    (over 1NT, whose pass denies nothing, 3NT)."""
+    nt2 = 'AS KS 3S AH QH 2H KD QD 5D KC JC 4C 3C'
+    assert bid(nt2, '2NT', 'Pass', '3C', '3D') == ('3NT', '\u2666 stopper, no major to show.')
+    assert bid('AS KS 3S AH QH 2H 5D 4D 3D AC KC QC 4C', '2NT', 'Pass', '3C', '3D')[0] == 'Pass'
+    after = ('2NT', 'Pass', '3C', '3D', 'Pass', 'Pass')
+    assert bid('QS JS 5S 4S KH JH 4H 3H 7D 6D QC 5C 2C', *after)[0] == 'X'
+    assert bid('QS JS 5S 4S KH JH 4H 3H KD 6D QC 5C 2C', *after) == ('3NT', 'To play.')
+    after = ('1NT', 'Pass', '2C', '2D', 'Pass', 'Pass')
+    assert bid('KS QS 5S 4S KH QH 4H 3H 7D 6D KC QC 2C', *after) == ('3NT', 'To play.')
+    assert bid('KS JS 5S 4S AH 3H KD JD 9D 6D QC 5C 2C', *after) \
+        == ('X', 'Penalty: values, no major fit.')
+    # A penalty double stands.
+    assert bid('AS KS 3S QH 3H 2H QD 5D 4D AC JC 4C 3C',
+               '1NT', 'Pass', '2C', '2D', 'Pass', 'Pass', 'X', 'Pass')[0] == 'Pass'
 
 
 def test_jacoby_and_texas_transfers():
@@ -1281,6 +1305,11 @@ def test_a_weak_jump_overcaller_does_not_bid_again():
     assert gib.weak_jump_overcall('North', after('1D', '1S', dealer='West').calls) is None
     assert gib.weak_jump_overcall('South', after('1D', 'Pass', 'Pass', '2S',
                                                  dealer='West').calls) is None
+    # Straight over a third-seat opening, P P 1♣ (2♥), is a pre-empt too: the
+    # jump is the fourth call, but not a fourth-seat opening (review, 2026-11-02).
+    west = '5S KH QH JH 10H 9H 6H QD 7D 6D 8C 6C 5C'
+    call, why = bid(west, 'Pass', 'Pass', '1C', '2H', 'Pass', '3H', '3S', dealer='North')
+    assert (call, why) == ('Pass', ai.PREEMPTED), (call, why)
 
 
 def test_jam_over_partners_weak_jump_overcall_when_not_vulnerable():

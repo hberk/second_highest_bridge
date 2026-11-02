@@ -3230,6 +3230,29 @@ function runoutChoice(ctx: Ctx): Decision {
  *  Responder looks for a major fit only: no 3NT and no 2NT invitation over
  *  their bid, which measured worse (BIDDING.md). */
 export const STAYMAN_CONTESTED = true;
+/** ...and we still reach our game over their bid (the user, 2026-11-02). A
+ *  2NT opener with no major bids 3NT with a stopper, so its pass denies one;
+ *  four of their suit and a stopper double for penalty; responder's game
+ *  force doubles with four of their suit, else bids 3NT with a stopper, and
+ *  without one STAYMAN_NO_STOP decides. See gib.py. */
+export const STAYMAN_OPENER_3NT = true;
+export const STAYMAN_PENALTY_X = true;
+export const STAYMAN_RESPONDER_3NT = true;
+export const STAYMAN_NO_STOP: '3NT' | 'X' | null = '3NT';
+const STAYMAN_VALUES_X = 'Penalty: values, no major fit.';
+
+/** Responder's game force with no major fit, over their bid: penalty
+ *  double, 3NT, or null to pass. `denied`: opener's pass denied a stopper. */
+function staymanNoFit(ctx: Ctx, their: string | null, denied: boolean): Decision | null {
+  const h = ctx.h;
+  if (!isSuit(their)) return null;
+  const t = their as Suit;
+  if (STAYMAN_PENALTY_X && h.len[t] >= 4 && ctx.ok('X')) return ['X', STAYMAN_VALUES_X];
+  if (STAYMAN_RESPONDER_3NT && h.stopper(t) && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+  if (STAYMAN_NO_STOP === '3NT' && !denied && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+  if ((STAYMAN_NO_STOP === '3NT' || STAYMAN_NO_STOP === 'X') && ctx.ok('X')) return ['X', STAYMAN_VALUES_X];
+  return null;
+}
 
 /** Our 1NT/2NT, Stayman unopposed, then they bid. Null when the auction
  *  isn't that, or has gone past the rounds below. */
@@ -3255,10 +3278,20 @@ function staymanContested(ctx: Ctx): Decision | null {
       const call = `${lvl}${m}`;
       if (h.len[m] >= 4 && ctx.ok(call)) return [call, `4+ ${SYM[m]}.`];
     }
+    if (isSuit(their)) {
+      const t = their as Suit;
+      if (STAYMAN_PENALTY_X && h.len[t] >= 4 && h.stopper(t) && ctx.ok('X')) {
+        return ['X', `Penalty: 4+ ${SYM[t]}.`];
+      }
+      if (STAYMAN_OPENER_3NT && base === 2 && h.stopper(t) && ctx.ok('3NT')) {
+        return ['3NT', `${SYM[t]} stopper, no major to show.`];
+      }
+    }
     return ['Pass', 'No major to show.'];
   }
   if (!ctx.iAmOpener() && seq.length === told) {
     const hcp = h.judge;
+    if (answer === 'X' || answer === '3NT') return ['Pass', 'Partner placed the contract.'];
     if (shown && h.len[shown] >= 4) {
       if (hcp + lo >= GAME_MAJOR && ctx.ok(`4${shown}`)) return [`4${shown}`, TO_PLAY];
       if (ctx.ok(`3${shown}`)) return [`3${shown}`, 'Invitational.'];
@@ -3275,6 +3308,12 @@ function staymanContested(ctx: Ctx): Decision | null {
           return [`3${m}`, `5+ ${SYM[m]}, game forcing.`];
         }
       }
+      const denied = base === 2 && STAYMAN_OPENER_3NT && answer === null;
+      const game = staymanNoFit(ctx, their, denied);
+      if (game) return game;
+    } else if (STAYMAN_PENALTY_X && isSuit(their) && h.len[their as Suit] >= 4
+      && h.stopper(their as Suit) && ctx.ok('X')) {
+      return ['X', STAYMAN_VALUES_X];
     }
     return ['Pass', 'No major fit.'];
   }
