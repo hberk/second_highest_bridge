@@ -157,7 +157,10 @@ remains the reference.
   `cleanAlert` (one line, at most 70 characters; `clean_alert` in
   `bridge/auction.py` is its Python twin), and is shown live even on a pass,
   while robot pass reasons stay hidden. The robots don't read it: they read a person's
-  call by `callMeanings`, bidding and play alike (`robotReadings`, `alerts.ts`). Because the
+  call by `callMeaning`, bidding and play alike (`robotReadings`, `alerts.ts`): `gib_alert`'s
+  twin, which stops sampling once the call has come up `ENOUGH` (12) times, and costs nothing
+  when the bidding box has already sampled the auction (a shared, bounded memo in
+  `meanings.ts`; 2026-11-02, the wait after your call went from 154 ms to under 1 ms). Because the
   app takes free text, `lin.test.ts` fails if `{@html}` appears in any
   component.
 - **LIN** (`frontend/src/lib/lin.ts`, and `bridge/lin.py` in Python): BBO's

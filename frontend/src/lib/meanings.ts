@@ -71,25 +71,96 @@ export function sampleHand(rnd: () => number): Card[] {
  *  A call no sampled hand made is missing: the system has no meaning for it
  *  here that the sample found. */
 export function callMeanings(auction: AuctionState, hands = SAMPLE_HANDS): Map<string, string> {
+  return sampled(auction, hands).meanings;
+}
+
+/** Hits per call that `callMeaning` reads, then stops: `ENOUGH` in meanings.py. */
+export const ENOUGH = 12;
+
+/** The robots' alert for `call` if the player to act made it now, or null for
+ *  a pass or a call no sampled hand made: `gib_alert` in meanings.py, which the
+ *  robots use to read a person's call. It samples only until `call` has come up
+ *  ENOUGH times, so a common call costs a few dozen hands, not SAMPLE_HANDS;
+ *  when the bidding box has already sampled this auction it costs nothing. */
+export function callMeaning(auction: AuctionState, call: string): string | null {
+  if (call === 'Pass') return null;
+  const done = MEMO.get(keyOf(auction, SAMPLE_HANDS));
+  if (done) return commonest(done.first.get(call) ?? []);
+  const here = copyOf(auction);
+  const who = here.currentPlayer();
+  const rnd = prng(seedOf(here));
+  const whys: string[] = [];
+  for (let i = 0; i < SAMPLE_HANDS && whys.length < ENOUGH; i++) {
+    const [made, why] = aiBidExplained(who, sampleHand(rnd), here);
+    if (made === call) whys.push(why);
+  }
+  return commonest(whys);
+}
+
+interface Sample {
+  /** Each call's commonest alert over the whole sample: the bidding box. */
+  meanings: Map<string, string>;
+  /** Each call's first ENOUGH alerts, in sample order: `callMeaning`. */
+  first: Map<string, string[]>;
+}
+
+/** Sampled auctions, newest last; shared by the bidding box, the robots'
+ *  reading of your calls and the training recap, which ask about the same
+ *  auctions. Bounded, as the table server keeps it for every table. */
+const MEMO = new Map<string, Sample>();
+const MEMO_MAX = 512;
+
+const keyOf = (a: AuctionState, hands: number) =>
+  `${hands}|${a.dealer}|${a.vulnerability}|${a.calls.map(([, c]) => c).join(' ')}`;
+
+function copyOf(auction: AuctionState): AuctionState {
   // A private copy: the robots read the auction, and this one may be reactive.
   const here = new AuctionState(auction.dealer, auction.vulnerability);
   for (const [p, c] of auction.calls) here.applyCall(p, c);
+  return here;
+}
+
+/** The commonest alert, ties to the first seen (Python's `max` over a dict). */
+function commonest(whys: string[]): string | null {
+  const count = new Map<string, number>();
+  for (const w of whys) count.set(w, (count.get(w) ?? 0) + 1);
+  let best: string | null = null;
+  for (const [w, n] of count) if (best === null || n > count.get(best)!) best = w;
+  return best;
+}
+
+function sampled(auction: AuctionState, hands: number): Sample {
+  const key = keyOf(auction, hands);
+  const hit = MEMO.get(key);
+  if (hit) {
+    MEMO.delete(key);
+    MEMO.set(key, hit);
+    return hit;
+  }
+  const here = copyOf(auction);
   const who = here.currentPlayer();
   const rnd = prng(seedOf(here));
   const tally = new Map<string, Map<string, number>>();
+  const first = new Map<string, string[]>();
   for (let i = 0; i < hands; i++) {
     const [call, why] = aiBidExplained(who, sampleHand(rnd), here);
     if (call === 'Pass') continue;
     const forCall = tally.get(call) ?? new Map<string, number>();
     forCall.set(why, (forCall.get(why) ?? 0) + 1);
     tally.set(call, forCall);
+    const seen = first.get(call) ?? [];
+    if (seen.length < ENOUGH) seen.push(why);
+    first.set(call, seen);
   }
   // Each call should read one way. If an auction the robots never reach on
   // their own splits it, take the commonest reading.
-  const out = new Map<string, string>();
+  const meanings = new Map<string, string>();
   for (const [call, whys] of tally) {
-    out.set(call, [...whys].sort((a, b) => b[1] - a[1])[0][0]);
+    meanings.set(call, [...whys].sort((a, b) => b[1] - a[1])[0][0]);
   }
+  const out = { meanings, first };
+  MEMO.set(key, out);
+  if (MEMO.size > MEMO_MAX) MEMO.delete(MEMO.keys().next().value!);
   return out;
 }
 
