@@ -1191,3 +1191,52 @@ def test_takeout_doubler_answers_partners_cuebid():
     call, why = bid('AS QS 3S 5S 4H 2H KD QD 3D 9D QC 3C 2C',
                     '1D', 'X', 'Pass', '2D', 'Pass')
     assert call == '2S' and why.startswith('4+')
+
+
+# ── Bidding meanings, the user's training deals of 2026-11-01 ────────────────
+
+def test_no_takeout_double_after_a_super_accept():
+    # 1NT P 2♦ P 3♥: a super accept is no place for a takeout double (4♥
+    # made, -420); over the plain 2♥ completion it stays.
+    north = 'KS 9S 5S 3S 4H AD QD 5D 2D KC JC 5C 2C'
+    assert bid(north, '1NT', 'Pass', '2D', 'Pass', '3H', dealer='West')[0] == 'Pass'
+    assert bid(north, '1NT', 'Pass', '2D', 'Pass', '2H', dealer='West')[0] == 'X'
+
+
+def test_responder_raises_openers_minor_after_1nt():
+    # 1♠ P 1NT P 2♦ P: 3♦ is natural and invitational, 10-11 HCP, 4+
+    # diamonds (it went 2NT, -100); opener declines on a minimum.
+    call, why = bid('AS JH 10H 9H 4H KD JD 8D 6D 3D JC 10C 9C',
+                    '1S', 'Pass', '1NT', 'Pass', '2D', 'Pass')
+    assert call == '3D' and why.startswith('4+')
+    assert bid('KS QS 9S 4S 3S KH 8H AD 7D 4D 2D 7C 5C',
+               '1S', 'Pass', '1NT', 'Pass', '2D', 'Pass', '3D', 'Pass')[0] == 'Pass'
+    # Clubs need five: 2♣ is often a three-card suit.
+    assert bid('AS JH 10H 9H 4H KD JD 8D 6D JC 10C 9C 3C',
+               '1S', 'Pass', '1NT', 'Pass', '2C', 'Pass')[0] == '2NT'
+
+
+def test_double_of_their_stayman_asks_for_a_lead():
+    # P 1♠ 1NT P 2♣: their Stayman, systems on. 18 HCP rebids the spades
+    # (the double read as 18+, partner doubled 2♥ on ♥T8732, -670).
+    assert bid('KS QS JS 9S 6S 4S 4H AD KD 7D KC QC 10C',
+               'Pass', '1S', '1NT', 'Pass', '2C', dealer='West')[0] == '2S'
+    call, why = bid('KS QS JS 9S 6S 4H AD 7D KC QC JC 10C 9C',
+                    'Pass', '1S', '1NT', 'Pass', '2C', dealer='West')
+    assert call == 'X' and why.startswith('Lead-directing')
+
+
+def test_delayed_two_of_their_minor_is_natural():
+    # 1♣ P 1♦ P 1♥: having passed 1♣, 2♣ is clubs, not Michaels.
+    call, why = bid('6S 2S 9H 8H 5H AD 2D AC QC JC 7C 6C 3C',
+                    '1C', 'Pass', '1D', 'Pass', '1H', dealer='East')
+    assert call == '2C' and 'Natural' in why
+    assert bid('6S 2S 9H 8H 5H 9D 2D AC QC JC 7C 6C 3C',
+               '1C', 'Pass', '1D', 'Pass', '1H', dealer='East')[0] == 'Pass'
+    # Partner doesn't pick a major from a two-suiter that wasn't shown.
+    call, why = bid('QS JS 10S 9S 4H 3H 2H QD 10D 8D 5D 3D 4C',
+                    '1C', 'Pass', '1D', 'Pass', '1H', '2C', '2H', dealer='East')
+    assert call == 'Pass' and 'two suits' not in why
+    # The immediate cue bid is still Michaels.
+    assert bid('QS JS 10S 9S 4H 3H 2H QD 10D 8D 5D 3D 4C',
+               '1C', '2C', 'Pass', dealer='East')[0] == '2S'
