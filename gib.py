@@ -1040,6 +1040,15 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
     return None
 
 
+#: 1M-1NT-2m-3m: responder raises opener's minor, natural and invitational,
+#: 10-11 HCP (the user's call, 2026-11-01, two training deals: 1♠ 1NT 2♦ 3♦
+#: had no meaning, and ♠A ♥JT94 ♦KJ863 ♣JT9 bid 2NT, -100, with 3♦ the
+#: spot). Opener's 2♦ shows 3+ and is usually four, so four diamonds raise; a
+#: 2♣ rebid is often a three-card suit, so clubs need five.
+MINOR_RAISE = True
+MINOR_RAISE_LEN = {'D': 4, 'C': 5}
+
+
 def _after_1nt_response(ctx: Ctx, x: str, o: str, lo: int, hi: int) -> tuple:
     h = ctx.h
     hcp = h.judge
@@ -1072,6 +1081,10 @@ def _after_1nt_response(ctx: Ctx, x: str, o: str, lo: int, hi: int) -> tuple:
         return 'Pass', "No game."
     if x in MAJORS and h.len[x] >= 2 and h.len[x] >= h.len[os_] and ctx.ok(f"2{x}"):
         return f"2{x}", f"Preference to {SYM[x]}."
+    need = MINOR_RAISE_LEN.get(os_)
+    if (MINOR_RAISE and need and x in MAJORS and h.len[os_] >= need
+            and 10 <= h.hcp <= 11 and ctx.ok(f"3{os_}")):
+        return f"3{os_}", f"{need}+ {SYM[os_]}, 10-11 HCP. Invitational."
     if 10 <= h.hcp <= 11 and ctx.ok('2NT'):
         return '2NT', "10-11 HCP, invitational."
     for s in SUITS:
@@ -1934,11 +1947,62 @@ def _overcall_after_response(ctx: Ctx) -> tuple | None:
     before = [c for _, c in ctx.calls[:j] if c != 'Pass']
     call = ctx.seq[0]
     y = strain_of(call)
+    if _delayed_minor(ctx, j):
+        return (y, None)
     if len(before) < 2 or any(level_of(c) == 0 for c in before) or level_of(call) != 2 \
             or y not in SUITS or y in {strain_of(c) for c in before} \
             or rank_of(f"1{y}") > rank_of(before[-1]):
         return None
     return (y, None)
+
+
+#: (1m) P (1x) P (1y) 2m: having passed over their minor opening, a later
+#: bid of that minor at the two level is natural, a long suit too good to
+#: keep out (the user's call, 2026-11-01, training deal 1♣ P 1♦ P 1♥ 2♣ on
+#: ♠62 ♥985 ♦92 ♣AQJ763). Michaels is the immediate cue bid only: with both
+#: majors the hand would have bid 2♣ the first time. Before, the judge had no
+#: meaning for it and partner took it as Michaels and bid 2♠ on ♠QJT9.
+DELAYED_MINOR = True
+
+
+def _delayed_minor(ctx: Ctx, j: int) -> bool:
+    """Is our first bid, `ctx.calls[j]`, the two-level bid of their opening
+    minor, after its bidder passed over the opening and they bid on?"""
+    if not DELAYED_MINOR:
+        return False
+    who, call = ctx.calls[j]
+    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None or ctx.calls[i][0] in (ctx.me, ctx.pd):
+        return False
+    opening = ctx.calls[i][1]
+    m = strain_of(opening)
+    theirs = [c for _, c in ctx.calls[i:j] if c != 'Pass']
+    return (level_of(opening) == 1 and m in MINORS and call == f"2{m}"
+            and any(w == who for w, _ in ctx.calls[i + 1:j])
+            and all(c == 'Pass' for w, c in ctx.calls[:j] if w in (ctx.me, ctx.pd))
+            and len(theirs) >= 2 and sum(strain_of(c) == m for c in theirs) == 1
+            and all(level_of(c) == 1 for c in theirs))
+
+
+def _delayed_minor_bid(ctx: Ctx) -> tuple | None:
+    """Bid their opening minor, naturally, now that it can't be Michaels."""
+    h = ctx.h
+    first = next((c for _, c in ctx.calls if c != 'Pass'), None)
+    m = strain_of(first)
+    if not DELAYED_MINOR or m not in MINORS or not ctx.ok(f"2{m}"):
+        return None
+    if not (h.len[m] >= 6 and h.good_suit(m) and OVERCALL_2[0] <= h.hcp <= OVERCALL_2[1]):
+        return None
+    probe = list(ctx.calls) + [(ctx.me, f"2{m}")]
+    if not _delayed_minor(_Probe(ctx, probe), len(probe) - 1):
+        return None
+    return f"2{m}", f"6+ {SYM[m]}, {OVERCALL_2[0]}-{OVERCALL_2[1]} HCP. Natural."
+
+
+class _Probe:
+    """Just enough of a Ctx to ask `_delayed_minor` about a call not yet made."""
+    def __init__(self, ctx: Ctx, calls: list):
+        self.me, self.pd, self.calls = ctx.me, ctx.pd, calls
 
 
 def _two_suiter_lengths(seq: list[str], parity: int, two: tuple) -> dict:
@@ -2475,8 +2539,13 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
     cue = _cuebid_raise_reply(ctx)
     if cue:
         return cue
+    artificial = _their_artificial(ctx, len(ctx.calls) - 1)
+    if artificial and LEAD_DOUBLE:
+        lead = _lead_double(ctx)
+        if lead:
+            return lead
     hb = ctx.auction.highest_bid
-    if (ctx.i_am_opener() and level_of(first) == 1 and len(seq) == 1
+    if (ctx.i_am_opener() and level_of(first) == 1 and len(seq) == 1 and not artificial
             and h.hcp >= 18 and ctx.ok('X') and hb and hb[2] not in (ctx.me, ctx.pd)):
         return 'X', "18+ HCP, extra values."
     if ctx.i_am_opener() and level_of(first) == 1 and len(seq) == 2:
@@ -3391,10 +3460,31 @@ def _their_artificial(ctx: Ctx, at: int) -> str | None:
     s = strain_of(call)
     if who in (ctx.me, ctx.pd) or s not in SUITS:
         return None
-    if any(c != 'Pass' for w, c in ctx.calls[:at] if w in (ctx.me, ctx.pd)):
+    ours = [k for k, (w, c) in enumerate(ctx.calls[:at]) if w in (ctx.me, ctx.pd) and c != 'Pass']
+    if ours and not _their_nt_overcall(ctx, ours, at):
         return None
     seq = [c for w, c in ctx.calls[:at + 1] if w not in (ctx.me, ctx.pd) and c != 'Pass']
     return s if shown_suit(seq, len(seq) - 1) != s else None
+
+
+#: ...and the same once they overcall our one-level opening with 1NT and we
+#: only pass after it: they play systems on (as `Ctx.nt_overcall` does for
+#: us), so 1♠ (1NT) P (2♣) is Stayman, and a double of it asks for a club
+#: lead; it no longer shows 18+ (the user's call, 2026-11-01: North doubled
+#: 2♣ on ♠KQJ964 ♥4 ♦AK7 ♣KQT, South read 18+ and doubled 2♥ on ♥T8732,
+#: -670). With no lead to ask for, opener just bids on.
+THEIR_NT_OVERCALL = True
+
+
+def _their_nt_overcall(ctx: Ctx, ours: list[int], at: int) -> bool:
+    """Our only bid before `at`, index `ours[0]`, is a one-level opening,
+    their 1NT came straight over it, and we have only passed since."""
+    if not THEIR_NT_OVERCALL or len(ours) != 1 or not ctx.we_opened:
+        return False
+    k = ours[0]
+    opening = ctx.calls[k][1]
+    return (level_of(opening) == 1 and strain_of(opening) in SUITS and k + 1 < at
+            and ctx.calls[k + 1][1] == '1NT')
 
 
 def _lead_double(ctx: Ctx) -> tuple | None:
@@ -3690,6 +3780,9 @@ def _defend(ctx: Ctx) -> tuple | None:
                 jump = f"{level_of(cheap) + 1}{s}"
                 if level_of(jump) <= 3 and ctx.ok(jump):
                     return jump, f"6+ {SYM[s]}, 3-9 HCP. Weak jump overcall."
+    delayed = _delayed_minor_bid(ctx)
+    if delayed:
+        return delayed
     # Simple overcall.
     own = [s for s in SUITS if s not in theirs and h.len[s] >= 5]
     if own and hcp <= 17:
@@ -3705,7 +3798,8 @@ def _defend(ctx: Ctx) -> tuple | None:
                 return call, f"5+ {SYM[s]}, {need[0]}-{need[1]} HCP. Overcall."
     # Takeout double, through 4H.
     if (ctx.ok('X') and rank_of(lb) <= rank_of('4H') and their in SUITS
-            and not (LEAD_DOUBLE and _their_artificial(ctx, len(ctx.calls) - 1))):
+            and not (LEAD_DOUBLE and _their_artificial(ctx, len(ctx.calls) - 1))
+            and _takeout_after_notrump(ctx)):
         shape_ok = h.len[their] <= 2 and all(h.len[s] >= 3 for s in SUITS if s != their)
         need = (TAKEOUT_MIN if lvl == 1 else 13) - bal
         if (shape_ok and hcp >= need) or hcp >= 18:
@@ -3713,6 +3807,23 @@ def _defend(ctx: Ctx) -> tuple | None:
     if lvl == 3 and h.balanced and hcp >= 16 and h.stopper(their) and ctx.ok('3NT'):
         return '3NT', f"16+ HCP, {SYM[their]} stopper."
     return 'Pass', "No action."
+
+
+#: After their notrump opening, a takeout double of the suit they land in is
+#: made only over a plain two-level transfer, 1NT (P) 2♦ (P) 2♥ (the user's
+#: call, 2026-11-01: West's 3♥ super accept was doubled, 4♥ made, -420). A
+#: super accept shows a fit and a maximum, and nothing else of theirs has
+#: shown a suit we can take out: too dangerous in general.
+NT_TAKEOUT_TRANSFER_ONLY = True
+
+
+def _takeout_after_notrump(ctx: Ctx) -> bool:
+    """May I make a takeout double of their last bid? Always, unless they
+    opened in notrump: then only over the two-level completion of a transfer."""
+    seq = [c for _, c in ctx.theirs]
+    if not NT_TAKEOUT_TRANSFER_ONLY or not seq or strain_of(seq[0]) != 'NT':
+        return True
+    return seq in (['1NT', '2D', '2H'], ['1NT', '2H', '2S'])
 
 
 #: Partner showed two suits and RHO bid: I am no longer forced to choose, so
@@ -3818,6 +3929,8 @@ def _advance(ctx: Ctx) -> tuple | None:
 def _two_suits_shown(ctx: Ctx, p: str, opening: str | None) -> tuple | None:
     if not opening or level_of(opening) != 1:
         return None
+    if _our_two_level_overcall(ctx):
+        return None                       # a natural 2m: DELAYED_MINOR
     their = strain_of(opening)
     if p == '2NT':
         low = [s for s in SUITS if s != their][:2]

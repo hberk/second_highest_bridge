@@ -692,6 +692,24 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     responder passing opener's decline after 1NT, a transfer and 2NT lost
     1,620 points over 42 auctions. Bidding the game after a decline is right
     here more often than it looks.
+- **Four meanings from training deals** (2026-11-02, the user's calls; not
+  measured head to head, they are system fixes):
+  - `NT_TAKEOUT_TRANSFER_ONLY`: after their notrump opening, a takeout double
+    is made only over a plain two-level transfer completion (1NT 2♦ 2♥,
+    1NT 2♥ 2♠); never over a super accept (3♥ was doubled, 4♥ made) or
+    anything else they bid.
+  - `MINOR_RAISE`: 1M 1NT 2m 3m is natural and invitational, 10-11 HCP, four
+    diamonds or five clubs (2♣ is often three cards). Before, 3♦ had no
+    meaning and 10-11 balanced bid 2NT; opener answers it like any
+    three-level invitation (3NT on 13+).
+  - `THEIR_NT_OVERCALL`: when they overcall our one-level opening with 1NT and
+    we pass, they play systems on, so their 2♣ is Stayman and their 2♦/2♥
+    transfers are artificial (`_their_artificial`). Opener's double of one
+    is lead-directing (`LEAD_DOUBLE`'s terms) and no longer shows 18+.
+  - `DELAYED_MINOR`: (1m) P (1x) P (1y) 2m, by the hand that passed over 1m,
+    is natural, 6+ cards, a good suit, 10-17 HCP; partner reads it as one
+    suit (`_overcall_after_response`), not Michaels. Michaels is the
+    immediate cue bid only.
 
 ## The previous system (`ai.USE_GIB = False`)
 
