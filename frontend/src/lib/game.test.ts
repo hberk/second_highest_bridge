@@ -192,6 +192,74 @@ describe('table flow', () => {
     expect(review).toContain("Robots' board");
   });
 
+  it('undoes your last call and the robots\' calls after it, until play starts', () => {
+    for (let seed = 1; seed < 6; seed++) {
+      const game = new Game(null, prng(seed));
+      expect(game.canUndo).toBe(false);
+      const before = game.calls.length;
+      const first = game.auction.legalCalls().find((c) => /^\d/.test(c))!;
+      game.humanBids(first);
+      expect(game.canUndo).toBe(!game.auction.passedOut);
+      const after = [...game.calls];
+      game.undoBid();
+      expect(game.calls).toHaveLength(before);
+      expect(game.auction.currentPlayer()).toBe(game.mySeat);
+      expect(Object.keys(game.alerts).every((k) => Number(k) < before)).toBe(true);
+      // The robots are deterministic: the same call brings the same replies.
+      game.humanBids(first);
+      expect(game.calls).toEqual(after);
+      for (let g = 0; g < 60 && game.phase === 'bidding' && !game.auction.passedOut; g++) game.humanBids('Pass');
+      if (game.phase === 'auction_done') {
+        expect(game.canUndo).toBe(true);
+        expectBoth(renderAll(game), '>Undo<');
+        game.undoBid();
+        expect(game.phase).toBe('bidding');
+        expect(game.contract).toBeNull();
+        for (let g = 0; g < 60 && (game.phase as string) === 'bidding' && !game.auction.passedOut; g++) game.humanBids('Pass');
+        if (game.phase === 'auction_done') game.startPlay();
+        expect(game.canUndo).toBe(false);
+      }
+    }
+    const challengeGame = new Game(null, prng(2));
+    challengeGame.dealChallenge();
+    challengeGame.humanBids('Pass');
+    expect(challengeGame.canUndo).toBe(false);
+  });
+
+  it('moves on from a finished trick by a tap on the felt, or by leading when you won it', () => {
+    let leads = 0;
+    for (let seed = 1; seed < 12 && leads < 3; seed++) {
+      const game = new Game(null, prng(seed));
+      for (let guard = 0; guard < 400 && !game.boardOver; guard++) {
+        if (game.phase === 'bidding') game.humanBids(game.auction.legalCalls().find((c) => c === '1NT') ?? 'Pass');
+        else if (game.phase === 'auction_done') game.startPlay();
+        else if (game.phase === 'trick_done') {
+          const htmls = renderAll(game);
+          if (game.gameOver) { game.nextTrick(); continue; }
+          expect(htmls[0]).toContain('tf-tap');
+          const w = game.trickWinner!;
+          const c = game.contract!;
+          const mine = (w === game.mySeat && c.declarer !== seatAt(game.mySeat, 'top'))
+            || (w === seatAt(game.mySeat, 'top') && c.declarer === game.mySeat);
+          if (mine) {
+            expect(htmls[0]).toContain('Your lead');
+            expect(htmls[0]).not.toContain('>Next trick');
+            const card = game.hands[w][0];
+            // What the view does when a card is tapped: clear the trick, lead it.
+            game.nextTrick();
+            game.humanPlays(w, card);
+            expect(game.trick[0]).toEqual([w, card]);
+            leads++;
+          } else game.nextTrick();
+        } else {
+          const who = game.whoseTurn()!;
+          game.humanPlays(who, legalPlays(game.hands[who], game.trick[0]?.[1].suit ?? null)[0]);
+        }
+      }
+    }
+    expect(leads).toBeGreaterThan(0);
+  });
+
   it('refuses illegal or out-of-turn actions', () => {
     const game = new Game(null, prng(4));
     const before = game.calls.length;

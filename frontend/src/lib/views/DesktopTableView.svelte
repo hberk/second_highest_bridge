@@ -166,6 +166,7 @@
         <section class="dk-panel dk-hand">
           <div class="dk-hand-head">
             <span class="eyebrow">Your hand · {me}</span>
+            {#if game.canUndo}<button class="chip-btn" onclick={() => game.undoBid?.()}>Undo</button>{/if}
             {#if settings.showStrength && m.strength}
               <span class="dk-strength">HCP <strong>{m.strength.hcp}</strong> <span class="dk-sep">|</span> 2nd-highest value <strong>{m.strength.value}</strong> <span class="dk-sep">|</span> Shape <strong>{m.strength.shape}</strong></span>
             {/if}
@@ -177,12 +178,12 @@
         <!-- ── Play ────────────────────────────────────────────────────────── -->
         {#if m.topSeat}
           <section class="dk-panel dk-hand dummy-zone">
-            <div class="eyebrow" class:accent={m.who === m.topSeat}>
-              {m.labels[m.topSeat]}{c.declarer === me ? ' · you play this hand' : ''}{m.who === m.topSeat ? ' · your turn' : ''}
+            <div class="eyebrow" class:accent={m.canPlay(m.topSeat)}>
+              {m.labels[m.topSeat]}{c.declarer === me ? ' · you play this hand' : ''}{m.who === m.topSeat ? ' · your turn' : m.leadNext === m.topSeat ? ' · your lead' : ''}
             </div>
             <Fan cards={game.hands[m.topSeat]} trump={m.dummyTrump} size="lg"
-              playable={m.who === m.topSeat} legal={m.legalFor(m.topSeat)}
-              label="{m.topSeat}'s hand" onplay={(card) => game.humanPlays(m.topSeat!, card)} />
+              playable={m.canPlay(m.topSeat)} legal={m.legalFor(m.topSeat)}
+              label="{m.topSeat}'s hand" onplay={(card) => m.play(m.topSeat!, card)} />
           </section>
         {/if}
 
@@ -193,7 +194,8 @@
           {/snippet}
           <div class="dk-felt">
             <TrickFelt trick={game.trick} winner={game.phase === 'trick_done' ? game.trickWinner : null}
-              labels={m.labels} awaiting={m.who} {info} {me} />
+              labels={m.labels} awaiting={m.who} {info} {me}
+              onadvance={game.phase === 'trick_done' ? () => game.nextTrick() : undefined} />
           </div>
         {/snippet}
         {@render seats(trickFelt)}
@@ -208,8 +210,10 @@
 
         <section class="dk-panel dk-hand" class:dk-turn={m.who === me}>
           <div class="dk-hand-head">
-            <span class="eyebrow" class:accent={m.who !== null}>
-              {#if m.who === me}Your turn · {me}{m.led && game.hands[me].some((x) => x.suit === m.led) ? ` · follow in ${STRAIN_SYMBOLS[m.led]}` : ''}
+            <span class="eyebrow" class:accent={m.who !== null || m.leadNext !== null}>
+              {#if m.leadNext === me}Your lead · {me}
+              {:else if m.leadNext}Your lead · from {m.name(m.leadNext)}'s hand
+              {:else if m.who === me}Your turn · {me}{m.led && game.hands[me].some((x) => x.suit === m.led) ? ` · follow in ${STRAIN_SYMBOLS[m.led]}` : ''}
               {:else if m.who}Your turn · play from {m.name(m.who)}'s hand
               {:else}{m.labels[me]} · {me}{/if}
             </span>
@@ -220,8 +224,8 @@
             {/if}
           </div>
           <Fan cards={game.hands[me]} trump={m.myTrump} trumpLast={m.meDummy} size="lg"
-            playable={m.who === me} legal={m.legalFor(me)}
-            label="Your hand" onplay={(card) => game.humanPlays(me, card)} />
+            playable={m.canPlay(me)} legal={m.legalFor(me)}
+            label="Your hand" onplay={(card) => m.play(me, card)} />
         </section>
       {/if}
     </div>

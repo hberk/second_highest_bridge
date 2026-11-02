@@ -54,6 +54,10 @@ export interface TableSource {
   startPlay(): void;
   nextTrick(): void;
   newBoard(): void;
+  /** Take back your last call (and the robots' calls after it). Solo play
+   *  only, and only while the auction can still change: not in Challenge. */
+  readonly canUndo?: boolean;
+  undoBid?(): void;
   /** A person's name in the seat, at a multiplayer table; null for a robot. */
   playerName?(p: Seat): string | null;
 }
@@ -133,9 +137,34 @@ export class TableModel {
 
   labels = $derived(Object.fromEntries(SEATS.map((p) => [p, this.seatLabel(p)])) as Record<Seat, string>);
 
+  /** A finished trick on the felt that you won: the seat you lead from
+   *  next. Playing a card from it clears the trick and leads at once, with
+   *  no "Next trick" between. Null otherwise. */
+  leadNext = $derived.by((): Seat | null => {
+    const g = this.game;
+    const c = this.contract;
+    const w = g.trickWinner;
+    if (g.phase !== 'trick_done' || g.gameOver || !c || !w) return null;
+    if (w === this.me && c.declarer !== this.partner) return w;
+    if (w === this.partner && c.declarer === this.me) return w;
+    return null;
+  });
+
+  /** Whether a seat's cards can be tapped now. */
+  canPlay(p: Seat): boolean {
+    return this.who === p || this.leadNext === p;
+  }
+
   /** Legal cards for a seat the player is about to play from; none otherwise. */
   legalFor(p: Seat) {
+    if (this.leadNext === p) return this.game.hands[p];
     return this.who === p ? legalPlays(this.game.hands[p], this.led) : [];
+  }
+
+  /** Play a card, first clearing a finished trick when it's your lead. */
+  play(p: Seat, c: Card): void {
+    if (this.leadNext === p) this.game.nextTrick();
+    this.game.humanPlays(p, c);
   }
 
   /** The seat as players call it: a person's name at a multiplayer table,

@@ -145,6 +145,9 @@ interface SavedTraining {
   version: 1;
   boardNum: number;
   log: TrainingLogEntry[];
+  /** The score counts the log from here on: "Reset score" moves it to the
+   *  end. The boards before stay in the log, so their deals aren't dealt again. */
+  scoreFrom?: number;
   current?: CurrentBoard;
 }
 
@@ -219,6 +222,8 @@ export class Trainer {
   alerts = $state<Record<number, string>>({});
   recap = $state.raw<Recap | null>(null);
   log = $state<TrainingLogEntry[]>([]);
+  /** Where the score starts in the log (see SavedTraining.scoreFrom). */
+  scoreFrom = $state(0);
 
   auction = $derived.by(() => {
     const a = new AuctionState(this.dealer, this.vulnerability);
@@ -240,7 +245,8 @@ export class Trainer {
 
   /** Over every board trained, or the last `last`. */
   tally(last?: number): Tally | null {
-    const log = last ? this.log.slice(-last) : this.log;
+    const scored = this.log.slice(this.scoreFrom);
+    const log = last ? scored.slice(-last) : scored;
     if (!log.length) return null;
     let vsPar = 0, vsRobots = 0, better = 0, same = 0, worse = 0;
     for (const e of log) {
@@ -259,6 +265,7 @@ export class Trainer {
     if (saved) {
       this.boardNum = saved.boardNum;
       this.log = saved.log;
+      this.scoreFrom = Math.min(saved.scoreFrom ?? 0, saved.log.length);
     }
     if (!(saved?.current && this.resume(saved.current))) this.newBoard();
   }
@@ -275,6 +282,7 @@ export class Trainer {
         version: 1,
         boardNum: v.boardNum as number,
         log: v.log.filter(isLogEntry),
+        scoreFrom: isCount(v.scoreFrom) ? v.scoreFrom as number : 0,
         current: isCurrent(v.current) ? v.current : undefined,
       };
     } catch {
@@ -295,6 +303,7 @@ export class Trainer {
         // The last board finished: a board in progress is counted when it ends.
         boardNum: this.recap ? this.boardNum : this.boardNum - 1,
         log: $state.snapshot(this.log),
+        scoreFrom: this.scoreFrom,
         current,
       } satisfies SavedTraining));
     } catch { /* storage full or blocked: training carries on */ }
@@ -342,6 +351,13 @@ export class Trainer {
     this.recap = null;
     this.advance();
     if (!this.recap) this.save();
+  }
+
+  /** Your score back to zero: the boards trained so far stop counting, and
+   *  the tally starts again from the next board. */
+  resetScore(): void {
+    this.scoreFrom = this.log.length;
+    this.save();
   }
 
   humanBids(call: string, alert = ''): void {

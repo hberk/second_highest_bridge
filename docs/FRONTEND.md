@@ -107,6 +107,9 @@ remains the reference.
   close as they improve). The log keeps no robot score: `Trainer.tally`
   reruns today's robots on each logged board (they are deterministic;
   cached per board), so a robot change moves the tally on old boards too;
+  "Reset score" (2026-11-02, the user's ask: to see how new robots do)
+  moves `scoreFrom` to the end of the log, so the tally counts only later
+  boards while the old ones still keep their deals from being dealt again;
   partner's hand beside yours (East-West behind a link), both hands' JP
   against the 26 / 32 / 33 lines (`GAME_MAJOR`, `GAME`, `SLAM`, exported
   from `gib.ts` for it), the auction with each of your calls against the
@@ -184,7 +187,16 @@ remains the reference.
   any card played drops it); **auto-play forced cards** (`settings.autoPlay`,
   off by default, and `Game.autoPlayForced` defaults to false so the
   state machine and its tests behave as before unless asked) and **fast
-  play** (`settings.fastPlay`, next trick after 1.2 s); a **session
+  play** (`settings.fastPlay`, next trick after 1.2 s); **tap to advance**
+  (2026-11-02): a finished trick moves on with a tap anywhere on the felt
+  (`TrickFelt`'s `onadvance`) or the Next trick button, and when you won it
+  you just play your next card (`TableModel.leadNext` / `play`: the trick
+  clears and the card leads, no button); **undo** (2026-11-02):
+  `Game.undoBid` takes back your last call and the robots' after it until
+  "Start play", solo only: not in Challenge or Training (both scored
+  against the robots, and undo would show their replies first), not once
+  passed out, not at a multiplayer table (`TableSource.canUndo` is
+  optional); a **session
   scoreboard** (`SessionScore.svelte`) on the home page: N/S total, made and
   set counts, a board-by-board running total, and the margin against the
   robots on challenge boards. Passed-out boards count (`Game.passedOutCount`);

@@ -118,6 +118,25 @@ describe('Bidding training', () => {
     expect(html).toContain('4 boards');
   });
 
+  it('resets the score to zero, keeping the boards so their deals are not dealt again', () => {
+    const storage = new MemoryStorage() as unknown as Storage;
+    const t = new Trainer(storage, prng(6));
+    bidBoard(t, 0);
+    t.newBoard();
+    bidBoard(t, 1);
+    expect(t.tally()!.boards).toBe(2);
+    t.resetScore();
+    expect(t.tally()).toBeNull();
+    expect(t.log).toHaveLength(2);
+    expect(render(TrainerView, { props: { trainer: t } }).body).toContain('Score reset');
+    t.newBoard();
+    expect(t.log.map((e) => e.deal_id)).not.toContain(t.dealId);
+    bidBoard(t, 2);
+    expect(t.tally()!.boards).toBe(1);
+    // Kept between visits.
+    expect(new Trainer(storage, prng(6)).tally()!.boards).toBe(1);
+  });
+
   it('carries on with a board half-bid after a reload, rather than dealing another', () => {
     const storage = new MemoryStorage() as unknown as Storage;
     const t = new Trainer(storage, prng(4));

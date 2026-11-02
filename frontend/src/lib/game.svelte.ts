@@ -289,6 +289,30 @@ export class Game {
     this.advanceAuction();
   }
 
+  /** You can take back your last call: solo play while the auction is open
+   *  or just won (before "Start play"). Not in Challenge, which is graded
+   *  against the robots, and not once the board has passed out. */
+  get canUndo(): boolean {
+    return this.challengeId === null && !this.auction.passedOut
+      && (this.phase === 'bidding' || this.phase === 'auction_done')
+      && this.calls.some(([p]) => p === this.mySeat);
+  }
+
+  /** Take back your last call and the robots' calls after it; it's your
+   *  call again. The robots are deterministic, so the auction up to that
+   *  call is the one they made. */
+  undoBid(): void {
+    if (!this.canUndo) return;
+    let i = this.calls.length - 1;
+    while (this.calls[i][0] !== this.mySeat) i--;
+    this.calls = this.calls.slice(0, i);
+    for (const k of Object.keys(this.alerts)) if (Number(k) >= i) delete this.alerts[Number(k)];
+    this.contract = null;
+    this.order = [];
+    this.phase = 'bidding';
+    this.advanceAuction();
+  }
+
   // ── Play ───────────────────────────────────────────────────────────────────
 
   /** You pick your own card, plus partner's when partner is your dummy. When
