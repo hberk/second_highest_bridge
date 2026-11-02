@@ -30,6 +30,8 @@
   const mine = $derived(new Hand(trainer.hands.South));
   const shape = (h: Hand) => ORDER.map((s) => h.len[s]).join('-');
   let showEW = $state(false);
+  /** "Reset score" asks once before it clears the tally. */
+  let resetAsk = $state(false);
   /** The whole auction, call by call: the felt shows only each seat's last few. */
   let auctionOpen = $state(false);
 
@@ -57,7 +59,7 @@
   /** Your record: every board, and the latest RECENT once there are more. */
   const RECENT = 20;
   const all = $derived(recap ? trainer.tally() : null);
-  const recent = $derived(recap && trainer.log.length > RECENT ? trainer.tally(RECENT) : null);
+  const recent = $derived(recap && trainer.log.length - trainer.scoreFrom > RECENT ? trainer.tally(RECENT) : null);
   const checkAt = (i: number) => recap?.checks.find((c) => c.index === i) ?? null;
   const notes = $derived(recap ? recap.checks.filter((c) => c.robot !== c.call || c.misfits.length) : []);
 
@@ -158,7 +160,18 @@
           <span>vs par</span><b>{signed(all.vsPar)}</b>{#if recent}<b>{signed(recent.vsPar)}</b>{/if}
           <span>vs robots</span><b class="accent">{signed(all.vsRobots)}</b>{#if recent}<b class="accent">{signed(recent.vsRobots)}</b>{/if}
           <p class="bt-note bt-tally-wide">Against the robots: {all.better} better · {all.same} same · {all.worse} worse</p>
+          <div class="bt-tally-wide bt-reset">
+            {#if resetAsk}
+              <span>Reset your score to zero?</span>
+              <button class="link-btn" onclick={() => { trainer.resetScore(); resetAsk = false; }}>Reset</button>
+              <button class="link-btn" onclick={() => (resetAsk = false)}>Cancel</button>
+            {:else}
+              <button class="link-btn" onclick={() => (resetAsk = true)}>Reset score</button>
+            {/if}
+          </div>
         </section>
+      {:else if trainer.log.length}
+        <p class="bt-note">Score reset. It counts from the next board.</p>
       {/if}
 
       <div class="bt-hands">
@@ -255,7 +268,7 @@
         <p class="bt-note">N/S tricks double dummy, the better declarer.</p>
       </section>
 
-      <button class="btn primary full big bt-next" onclick={() => { showEW = false; trainer.newBoard(); }}>Next board</button>
+      <button class="btn primary full big bt-next" onclick={() => { showEW = false; resetAsk = false; trainer.newBoard(); }}>Next board</button>
     </div>
   {/if}
 </div>

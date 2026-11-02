@@ -537,6 +537,22 @@ button { touch-action: manipulation; }
     text-transform: uppercase;
 }
 .tf-awaiting { border: 2px dashed #2c5a47; }
+/* A finished trick: the whole felt moves on to the next. */
+.tf-tap { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.tf-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--dim);
+    text-align: center;
+    pointer-events: none;
+    max-width: 90px;
+}
+.dk-felt .tf-hint { display: none; }
 
 .trick-line {
     margin: 10px 0 0;
@@ -1152,3 +1168,4 @@ button { touch-action: manipulation; }
 .bt-auction-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; font-size: 13px; font-weight: 700; }
 .bt-robots-title { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
 .bt-part { outline: 2px solid var(--accent); outline-offset: -1px; border-radius: 6px; }
+.bt-reset { display: flex; justify-content: flex-end; align-items: baseline; gap: 12px; font-size: 12.5px; color: var(--dim); }
