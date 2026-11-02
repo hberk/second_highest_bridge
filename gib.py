@@ -238,10 +238,13 @@ class Ctx:
 
     @property
     def natural(self) -> bool:
-        """Is our first call a natural 2♣ overcall, not a strong 2♣?"""
+        """Are our calls read naturally where the uncontested system has a
+        convention? Our first call is a natural 2♣ overcall, not a strong 2♣;
+        or our 1M opening was overcalled and partner's 2NT was natural, not
+        Jacoby (NATURAL_2NT). Each case touches its own calls only."""
         if self._natural is None:
             self._natural = bool(NATURAL_2C and OVERCALL_READ and self.seq and self.seq[0] == '2C'
-                                 and _our_two_level_overcall(self))
+                                 and _our_two_level_overcall(self)) or _contested_2nt(self)
         return self._natural
 
     def ok(self, call: str | None) -> bool:
@@ -1525,7 +1528,7 @@ def shown_suit(seq: list[str], i: int, natural: bool = False) -> str | None:
     s = strain_of(call)
     if s is None or s == 'NT':
         if i == 1 and call == '2NT' and strain_of(seq[0]) in MAJORS \
-                and level_of(seq[0]) == 1:
+                and level_of(seq[0]) == 1 and not natural:
             return strain_of(seq[0])                         # Jacoby
         return None
     first = seq[0]
@@ -1557,7 +1560,8 @@ def shown_suit(seq: list[str], i: int, natural: bool = False) -> str | None:
         x = strain_of(first)
         if _is_splinter(x, call):
             return x
-    if i == 2 and seq[1] == '2NT' and strain_of(first) in MAJORS and level_of(first) == 1:
+    if i == 2 and seq[1] == '2NT' and strain_of(first) in MAJORS and level_of(first) == 1 \
+            and not natural:
         return None                                          # Jacoby rebids
     if i == 3 and len(seq) > 3 and len({strain_of(c) for c in seq[:4]} & set(SUITS)) == 4:
         return None                                          # fourth suit forcing
@@ -1752,8 +1756,67 @@ def after_my_ask(ctx: Ctx) -> tuple | None:
 
 # ── Generic continuation ──────────────────────────────────────────────────────
 
-def _partner_min(seq: list[str], partner_index_parity: int) -> int:
-    """A floor on partner's HCP from what they have bid."""
+#: 1M (their overcall) 2NT is natural, 11-12 HCP with a stopper in their
+#: suit (`_respond_over_interference`), not Jacoby. Before 2026-11-02 the
+#: readers took it for Jacoby, so the opener "found" four-card support and a
+#: game force: P 1H (1S) 2NT P 4H with five hearts opposite a doubleton
+#: (user's item 20; 3NT made). After their double, 2NT stays Jordan.
+NATURAL_2NT = True
+NATURAL_2NT_MIN = 11
+
+
+def _contested_2nt(ctx: Ctx) -> bool:
+    """We opened 1M, they bid (not doubled) over it, and our next call was
+    partner's or my 2NT."""
+    if not NATURAL_2NT or len(ctx.seq) < 2 or ctx.seq[1] != '2NT' or not ctx.we_opened:
+        return False
+    first = ctx.seq[0]
+    if level_of(first) != 1 or strain_of(first) not in MAJORS:
+        return False
+    i0 = next(k for k, (w, c) in enumerate(ctx.calls) if c == first and w == ctx.ours[0][0])
+    i1 = next(k for k, (w, c) in enumerate(ctx.calls) if k > i0 and c == '2NT'
+              and w in (ctx.me, ctx.pd))
+    theirs = [c for w, c in ctx.calls[i0 + 1:i1] if w not in (ctx.me, ctx.pd) and parse_bid(c)]
+    # Not over their cuebid of our major (Michaels): there 2NT keeps its old
+    # reading, which measured better (-0.02 and -0.04 a board with it natural).
+    return bool(theirs) and not any(strain_of(c) == strain_of(first) for c in theirs)
+
+
+#: Opener after 1M (their bid) 2NT (P): the invitation is accepted with
+#: NATURAL_2NT_ACCEPT+ HCP, in 4M with six, else 3NT; a minimum signs off in
+#: 3M with six, else passes. Partner denied three-card support, which would
+#: have raised or cuebid. Over their bid, game with the values, else the
+#: fallback. Measured 2026-11-02 (BIDDING.md): passing every 2NT lost.
+NATURAL_2NT_ACCEPT = 14
+
+
+def _answer_natural_2nt(ctx: Ctx) -> tuple | None:
+    if not (ctx.i_am_opener() and len(ctx.seq) == 2 and ctx.calls[-2][0] == ctx.pd
+            and _contested_2nt(ctx)):
+        return None
+    h = ctx.h
+    m = strain_of(ctx.seq[0])
+    if ctx.calls[-1][1] != 'Pass':
+        # They competed over the 2NT: game with the values, else the fallback.
+        if h.hcp < NATURAL_2NT_ACCEPT:
+            return None
+        if h.len[m] >= 6 and ctx.ok(f"4{m}"):
+            return f"4{m}", f"6+ {SYM[m]}, accepting. To play."
+        return ('3NT', "Accepting. To play.") if ctx.ok('3NT') else None
+    if h.hcp >= NATURAL_2NT_ACCEPT:
+        if h.len[m] >= 6 and ctx.ok(f"4{m}"):
+            return f"4{m}", f"6+ {SYM[m]}, accepting. To play."
+        if ctx.ok('3NT'):
+            return '3NT', "Accepting. To play."
+        return None
+    if h.len[m] >= 6 and ctx.ok(f"3{m}"):
+        return f"3{m}", f"6+ {SYM[m]}, minimum. To play."
+    return 'Pass', "Minimum: no game."
+
+
+def _partner_min(seq: list[str], partner_index_parity: int, natural: bool = False) -> int:
+    """A floor on partner's HCP from what they have bid. `natural`: a 2NT
+    response is the natural one over their overcall, 11-12 (NATURAL_2NT)."""
     best = 0
     first = seq[0]
     for i, call in enumerate(seq):
@@ -1766,7 +1829,7 @@ def _partner_min(seq: list[str], partner_index_parity: int) -> int:
             x = strain_of(first)
             if level_of(first) == 1 and x in SUITS:
                 if call == '2NT' and x in MAJORS:
-                    v = 13
+                    v = NATURAL_2NT_MIN if natural else 13
                 elif level_of(call) == 2 and strain_of(call) in SUITS and \
                         strain_of(call) != x and _is_two_over_one(x, strain_of(call)):
                     v = 12
@@ -1814,7 +1877,7 @@ def _game_forced(seq: list[str], ctx: Ctx) -> bool:
         rs = strain_of(r)
         responder = ctx.ours[1][0]
         if not ctx.passed_hand(responder):
-            if r == '2NT' and x in MAJORS:
+            if r == '2NT' and x in MAJORS and not ctx.natural:
                 return True
             if level_of(r) == 2 and rs in SUITS and rs != x and (
                     _is_two_over_one(x, rs) or SUITS.index(rs) > SUITS.index(x)):
@@ -2291,7 +2354,7 @@ def continuation(ctx: Ctx) -> tuple:
     if not ctx.we_opened:
         me_parity = 0 if ctx.ours and ctx.ours[0][0] == ctx.me else 1
     p_parity = 1 - me_parity
-    pmin = _partner_min(seq, p_parity)
+    pmin = _partner_min(seq, p_parity, ctx.natural)
     plen = _shown_lengths(seq, p_parity, ctx.natural)
     mylen = _shown_lengths(seq, me_parity, ctx.natural)
     trump = agreed_trump(seq, ctx.natural)
@@ -2461,6 +2524,9 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
     forced = _opener_over_forcing_response(ctx)
     if forced:
         return forced
+    natural_2nt = _answer_natural_2nt(ctx)
+    if natural_2nt:
+        return natural_2nt
 
     # Responder's first call over interference.
     if len(seq) == 1 and not ctx.i_am_opener() and level_of(first) == 1:
@@ -3806,12 +3872,50 @@ def _advance(ctx: Ctx) -> tuple | None:
                 return '1NT', f"8-11 HCP, {SYM[their]} stopper."
             if 12 <= hcp <= 14 and ctx.ok('2NT') and not _cue_2nt_on(ctx, ps, their):
                 return '2NT', f"12-14 HCP, {SYM[their]} stopper."
+        long = _long_suit_jump(ctx, [s for s in SUITS if s not in theirs and s != ps]) \
+            if LONG_ADVANCE else None
+        if long:
+            return long
         for s in SUITS:
             if s not in theirs and s != ps and h.len[s] >= 5 and hcp >= 8:
                 call = ctx.cheapest(s, 1)
                 if call and level_of(call) <= 2:
                     return call, f"5+ {SYM[s]}, 8+ HCP."
         return 'Pass', "Nothing to add."
+    return None
+
+
+#: A weak hand advancing partner's overcall with a long suit of its own
+#: names it at once, with a jump: pre-emptive, to play. (The same jump by
+#: responder over their overcall measured -0.20 a board, t = -2.2: not kept.)
+#: Championship archives, 2026-11-02: holding 7+ cards and at most 9 HCP,
+#: advancers named the suit at their first turn 51% of the time (8+ cards:
+#: 79%); the robots 3% (0 of 8 with eight). User's item 6: (1♣) 1♦ (1♠) with
+#: ♠KT95 ♥QT975432 ♦7 passed twice. Seven cards jump one level, to the three
+#: level at most; eight cards in a major bid game.
+LONG_ADVANCE = True
+LONG_SUIT = 7
+LONG_SUIT_HCP = (4, 9)
+LONG_SUIT_ALERT = "7+ {}, under 10 HCP. Pre-emptive."
+
+
+def _long_suit_jump(ctx: Ctx, allowed: list[str]) -> tuple | None:
+    h = ctx.h
+    if not LONG_SUIT_HCP[0] <= h.hcp <= LONG_SUIT_HCP[1]:
+        return None
+    longs = [s for s in allowed if h.len[s] >= LONG_SUIT]
+    if not longs:
+        return None
+    s = max(longs, key=lambda x: (h.len[x], SUITS.index(x)))
+    cheap = ctx.cheapest(s, 1)
+    if not cheap:
+        return None
+    jump = f"{level_of(cheap) + 1}{s}"
+    if h.len[s] >= LONG_SUIT + 1 and s in MAJORS and ctx.ok(f"4{s}") \
+            and rank_of(f"4{s}") >= rank_of(jump):
+        return f"4{s}", LONG_SUIT_ALERT.format(SYM[s])
+    if level_of(jump) <= 3 and ctx.ok(jump):
+        return jump, LONG_SUIT_ALERT.format(SYM[s])
     return None
 
 

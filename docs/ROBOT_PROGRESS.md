@@ -248,6 +248,10 @@ from the variant's side; t as above.
 | 10-31 | Slam on points needs 37 judgement points, not 33 (`SLAM = 37`: 6NT, quantitative 4NT, keycard; the championship study of uncontested auctions); three sets of fresh deals (4,000, 6,000, 6,000) | **+0.93, +1.07, +0.91** | +6.95, +8.99, +8.61 | 109, 165, 144 | on |
 | 10-31 | ...the notrump slams alone (6NT, quantitative 4NT) / keycard alone | +0.78, +0.94, +0.53 / +0.05, +0.03, +0.15 | +6.40, +8.61, +6.98 / +2.27, +0.93, +3.63 | 102, 141, 126 / 7, 24, 18 | both on, as above |
 | 10-31 | Opener passes when responder declines the game try (1M 2M try 3M), instead of bidding game anyway; two sets | -0.01, -0.08 | -0.11, -2.09 | 61, 49 | off |
+| 11-02 | Advancer with 7+ cards in an unbid suit and 4-9 HCP jumps in it, pre-emptive; eight in a major bid game (`LONG_ADVANCE`; the user's item 6, experts name such a suit 51% of the time, robots 3%); seeds 7M (3,000 deals), 8M, 9M (10,000 each) | **+0.06, +0.08, +0.06** | +1.55, +2.34, +1.85 | 16, 69, 39 | on |
+| 11-02 | ...from 0 HCP / the same jump by responder over their overcall (seed 7M only for the latter) | +0.09, +0.07 / -0.20 | +2.36, +1.96 / -2.20 | 99, 45 / 30 | off (4 HCP kept, conservative) / off |
+| 11-02 | 1M (their overcall) 2NT is natural 11-12, not Jacoby, in every reading (`NATURAL_2NT`; the user's item 20, P 1♥ (1♠) 2NT P 4♥ on five hearts); opener accepts with 14+ HCP (4M with six, else 3NT), else passes or 3M with six; seeds 8M, 9M | +0.02, -0.02 | +1.08, -0.48 | 16, 16 | on (bug fix, neutral) |
+| 11-02 | ...the reading alone, opener always passing / accepting at 13 / 15 / natural over Michaels too | -0.03, -0.08 / -0.03, -0.03 / -0.02, -0.06 / -0.02, -0.04 | -1.09, -2.40 / -1.40, -0.89 / -0.64, -1.95 / -0.64, -1.18 | 20, 31 / 19, 29 / 21, 31 / 21, 28 | off |
 
 ### The previous system (`ai_bid`)
 

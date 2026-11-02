@@ -692,6 +692,31 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     responder passing opener's decline after 1NT, a transfer and 2NT lost
     1,620 points over 42 auctions. Bidding the game after a decline is right
     here more often than it looks.
+- **Long suits and 2NT in competition** (2026-11-02; the user's items 6 and 20).
+  - *A weak advancer with a long suit.* (1♣) 1♦ (1♠) with ♠KT95 ♥QT975432
+    ♦7 ♣—: East passed twice, because advancing named a new suit only with
+    8+ HCP. In the championship archives, an advancer holding 7+ cards in an
+    unbid suit and at most 9 HCP named it at the first turn 51% of the time
+    (8+ cards: 79%, often in game); the robots of the day 3%, and 0 of 8 with
+    eight. `LONG_ADVANCE`: with 4-9 HCP and 7+ cards, jump one level (to the
+    three level at most); with eight in a major, bid game. Alert "7+ ♥, under
+    10 HCP. Pre-emptive." Fresh deals: **+0.06, +0.08, +0.06 a board** (t =
+    +1.6, +2.3, +1.9). From 0 HCP scored about the same (+0.09, +0.07); 4 is
+    kept as the more conservative. The same jump by responder over their
+    overcall lost (-0.20, t = -2.2): opener pulls to its own suit.
+  - *1M (overcall) 2NT is natural.* Responder's 2NT there shows 11-12 and a
+    stopper, but every reader (`shown_suit`, `_partner_min`, `_game_forced`)
+    saw only our calls, 1♥ 2NT, and took it for Jacoby: four trumps and a
+    game force, so the opener with ♠9 ♥AJ653 ♦AQ86 ♣A93 jumped to 4♥ on a 5-2
+    fit (one down; 3NT made). `NATURAL_2NT` reads it naturally (Jacoby still
+    after their double, where 2NT is Jordan, and after their cuebid of our
+    major). Reading it right and passing every time lost (-0.03, -0.08): the
+    old game force reached makeable games by accident. With an accept rule
+    (`NATURAL_2NT_ACCEPT = 14`: 4M with six, else 3NT; a minimum passes, or
+    3M with six) it is neutral: +0.02, -0.02 a board on about 16 changed
+    auctions in 40,000 boards. Accepting at 13 or 15 measured the same or
+    worse. Kept as a bug fix: the alerts promised 11-12, so the robot now
+    plays the system it explains.
 
 ## The previous system (`ai.USE_GIB = False`)
 

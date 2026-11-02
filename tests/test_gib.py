@@ -1140,3 +1140,22 @@ def test_takeout_doubler_answers_partners_cuebid():
     call, why = bid('AS QS 3S 5S 4H 2H KD QD 3D 9D QC 3C 2C',
                     '1D', 'X', 'Pass', '2D', 'Pass')
     assert call == '2S' and why.startswith('4+')
+
+
+def test_2nt_over_their_overcall_is_natural_not_jacoby():
+    # P 1♥ (1♠) 2NT P: 2NT showed 11-12 and a spade stopper, so five hearts
+    # have no fit and no game force (user's item 20: 4♥ went one down, 3NT
+    # made). Uncontested, 1♥ P 2NT is still Jacoby.
+    north = '9S AH JH 6H 5H 3H AD QD 8D 6D AC 9C 3C'
+    assert bid(north, 'Pass', '1H', '1S', '2NT', 'Pass', dealer='West')[0] != '4H'
+    assert bid(north, '1H', 'Pass', '2NT', 'Pass')[0] == '3S'
+
+
+def test_advancer_names_a_long_suit_with_a_jump():
+    # (1♣) 1♦ (1♠): ♠KT95 ♥QT975432 ♦7, 5 HCP, passed twice (user's item 6).
+    # Eight hearts bid game; seven jump one level.
+    call, why = bid('KS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 2H 7D', '1C', '1D', '1S', dealer='South')
+    assert call == '4H' and why.startswith('7+')
+    assert bid('KS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 7D 2D', '1C', '1D', '1S', dealer='South')[0] == '3H'
+    # Too weak (3 HCP): pass, as before.
+    assert bid('JS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 7D 2D', '1C', '1D', '1S', dealer='South')[0] == 'Pass'

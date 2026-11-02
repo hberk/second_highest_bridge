@@ -248,11 +248,14 @@ export class Ctx {
 
   private naturalMemo: boolean | null = null;
 
-  /** Is our first call a natural 2♣ overcall, not a strong 2♣? */
+  /** Are our calls read naturally where the uncontested system has a
+   *  convention? Our first call is a natural 2♣ overcall, not a strong 2♣;
+   *  or our 1M opening was overcalled and partner's 2NT was natural, not
+   *  Jacoby (NATURAL_2NT). Each case touches its own calls only. */
   get natural(): boolean {
     if (this.naturalMemo === null) {
-      this.naturalMemo = NATURAL_2C && OVERCALL_READ && this.seq.length > 0 && this.seq[0] === '2C'
-        && ourTwoLevelOvercall(this) !== null;
+      this.naturalMemo = (NATURAL_2C && OVERCALL_READ && this.seq.length > 0 && this.seq[0] === '2C'
+        && ourTwoLevelOvercall(this) !== null) || contested2nt(this);
     }
     return this.naturalMemo;
   }
@@ -1420,7 +1423,7 @@ export function shownSuit(seq: string[], i: number, natural = false): string | n
   const call = seq[i];
   const s = strainOf(call);
   if (s === null || s === 'NT') {
-    if (i === 1 && call === '2NT' && isMajor(strainOf(seq[0])) && levelOf(seq[0]) === 1) {
+    if (i === 1 && call === '2NT' && isMajor(strainOf(seq[0])) && levelOf(seq[0]) === 1 && !natural) {
       return strainOf(seq[0]);
     }
     return null;
@@ -1449,7 +1452,8 @@ export function shownSuit(seq: string[], i: number, natural = false): string | n
     const x = strainOf(first) as Suit;
     if (isSplinter(x, call)) return x;
   }
-  if (i === 2 && seq[1] === '2NT' && isMajor(strainOf(first)) && levelOf(first) === 1) return null;
+  if (i === 2 && seq[1] === '2NT' && isMajor(strainOf(first)) && levelOf(first) === 1
+    && !natural) return null;
   if (i === 3 && seq.length > 3
     && new Set(seq.slice(0, 4).map(strainOf).filter((t) => isSuit(t))).size === 4) {
     return null;
@@ -1637,7 +1641,61 @@ function afterMyAsk(ctx: Ctx): Decision | null {
 
 // ── Generic continuation ──────────────────────────────────────────────────────
 
-function partnerMin(seq: string[], parity: number): number {
+/** 1M (their overcall) 2NT is natural, 11-12 HCP with a stopper in their
+ *  suit (`respondOverInterference`), not Jacoby. Before 2026-11-02 the
+ *  readers took it for Jacoby, so the opener "found" four-card support and a
+ *  game force: P 1H (1S) 2NT P 4H with five hearts opposite a doubleton
+ *  (user's item 20; 3NT made). After their double, 2NT stays Jordan. */
+export const NATURAL_2NT = true;
+export const NATURAL_2NT_MIN = 11;
+
+/** We opened 1M, they bid (not doubled) over it, and our next call was
+ *  partner's or my 2NT. */
+function contested2nt(ctx: Ctx): boolean {
+  if (!NATURAL_2NT || ctx.seq.length < 2 || ctx.seq[1] !== '2NT' || !ctx.weOpened) return false;
+  const first = ctx.seq[0];
+  if (levelOf(first) !== 1 || !isMajor(strainOf(first))) return false;
+  const us = (w: Seat) => w === ctx.me || w === ctx.pd;
+  const i0 = ctx.calls.findIndex(([w, c]) => c === first && w === ctx.ours[0][0]);
+  const i1 = ctx.calls.findIndex(([w, c], k) => k > i0 && c === '2NT' && us(w));
+  const theirs = ctx.calls.slice(i0 + 1, i1).filter(([w, c]) => !us(w) && parseBid(c) !== null)
+    .map(([, c]) => c);
+  // Not over their cuebid of our major (Michaels): there 2NT keeps its old
+  // reading, which measured better (-0.02 and -0.04 a board with it natural).
+  return theirs.length > 0 && !theirs.some((c) => strainOf(c) === strainOf(first));
+}
+
+/** Opener after 1M (their bid) 2NT (P): the invitation is accepted with
+ *  NATURAL_2NT_ACCEPT+ HCP, in 4M with six, else 3NT; a minimum signs off in
+ *  3M with six, else passes. Partner denied three-card support, which would
+ *  have raised or cuebid. Over their bid, game with the values, else the
+ *  fallback. Measured 2026-11-02 (BIDDING.md): passing every 2NT lost. */
+export const NATURAL_2NT_ACCEPT = 14;
+
+function answerNatural2nt(ctx: Ctx): Decision | null {
+  const n = ctx.calls.length;
+  if (!(ctx.iAmOpener() && ctx.seq.length === 2 && n >= 2 && ctx.calls[n - 2][0] === ctx.pd
+    && contested2nt(ctx))) {
+    return null;
+  }
+  const h = ctx.h;
+  const m = strainOf(ctx.seq[0]) as Suit;
+  if (ctx.calls[n - 1][1] !== 'Pass') {
+    // They competed over the 2NT: game with the values, else the fallback.
+    if (h.hcp < NATURAL_2NT_ACCEPT) return null;
+    if (h.len[m] >= 6 && ctx.ok(`4${m}`)) return [`4${m}`, `6+ ${SYM[m]}, accepting. To play.`];
+    return ctx.ok('3NT') ? ['3NT', 'Accepting. To play.'] : null;
+  }
+  if (h.hcp >= NATURAL_2NT_ACCEPT) {
+    if (h.len[m] >= 6 && ctx.ok(`4${m}`)) return [`4${m}`, `6+ ${SYM[m]}, accepting. To play.`];
+    if (ctx.ok('3NT')) return ['3NT', 'Accepting. To play.'];
+    return null;
+  }
+  if (h.len[m] >= 6 && ctx.ok(`3${m}`)) return [`3${m}`, `6+ ${SYM[m]}, minimum. To play.`];
+  return ['Pass', 'Minimum: no game.'];
+}
+
+function partnerMin(seq: string[], parity: number, natural = false): number {
   let best = 0;
   const first = seq[0];
   seq.forEach((call, i) => {
@@ -1649,7 +1707,7 @@ function partnerMin(seq: string[], parity: number): number {
       const x = strainOf(first);
       if (levelOf(first) === 1 && isSuit(x)) {
         let v: number;
-        if (call === '2NT' && isMajor(x)) v = 13;
+        if (call === '2NT' && isMajor(x)) v = natural ? NATURAL_2NT_MIN : 13;
         else if (levelOf(call) === 2 && isSuit(strainOf(call)) && strainOf(call) !== x
           && isTwoOverOne(x, strainOf(call))) v = 12;
         else if (call === `3${x}`) v = isMajor(x) ? 11 : 6;
@@ -1691,7 +1749,7 @@ function gameForced(seq: string[], ctx: Ctx): boolean {
     const rs = strainOf(r);
     const responder = ctx.ours[1][0];
     if (!ctx.passedHand(responder)) {
-      if (r === '2NT' && isMajor(x)) return true;
+      if (r === '2NT' && isMajor(x) && !ctx.natural) return true;
       if (levelOf(r) === 2 && isSuit(rs) && rs !== x && (isTwoOverOne(x, rs) || idx(rs) > idx(x))) {
         return true;
       }
@@ -2116,7 +2174,7 @@ function continuation(ctx: Ctx): Decision {
   let meParity = ctx.iAmOpener() ? 0 : 1;
   if (!ctx.weOpened) meParity = ctx.ours.length && ctx.ours[0][0] === ctx.me ? 0 : 1;
   const pParity = 1 - meParity;
-  let pmin = partnerMin(seq, pParity);
+  let pmin = partnerMin(seq, pParity, ctx.natural);
   let plen = shownLengths(seq, pParity, ctx.natural);
   let mylen = shownLengths(seq, meParity, ctx.natural);
   let trump = agreedTrump(seq, ctx.natural);
@@ -2273,6 +2331,8 @@ function weOpenedContested(ctx: Ctx): Decision | null {
   if (support) return support;
   const forced = openerOverForcingResponse(ctx);
   if (forced) return forced;
+  const natural2nt = answerNatural2nt(ctx);
+  if (natural2nt) return natural2nt;
 
   if (seq.length === 1 && !ctx.iAmOpener() && levelOf(first) === 1) return respondOverInterference(ctx, x);
 
@@ -3518,6 +3578,8 @@ function advance(ctx: Ctx): Decision | null {
         return ['2NT', `12-14 HCP, ${SYM[their]} stopper.`];
       }
     }
+    const long = LONG_ADVANCE ? longSuitJump(ctx, SUITS.filter((s) => !theirs.includes(s) && s !== ps)) : null;
+    if (long) return long;
     for (const s of SUITS) {
       if (!theirs.includes(s) && s !== ps && h.len[s] >= 5 && hcp >= 8) {
         const call = ctx.cheapest(s, 1);
@@ -3526,6 +3588,37 @@ function advance(ctx: Ctx): Decision | null {
     }
     return ['Pass', 'Nothing to add.'];
   }
+  return null;
+}
+
+/** A weak hand advancing partner's overcall with a long suit of its own
+ *  names it at once, with a jump: pre-emptive, to play. Championship
+ *  archives, 2026-11-02: holding 7+ cards and at most 9 HCP, advancers named
+ *  the suit at their first turn 51% of the time (8+ cards: 79%); the robots
+ *  3% (0 of 8 with eight). User's item 6: (1♣) 1♦ (1♠) with ♠KT95
+ *  ♥QT975432 ♦7 passed twice. Seven cards jump one level, to the three level
+ *  at most; eight cards in a major bid game. */
+export const LONG_ADVANCE = true;
+export const LONG_SUIT = 7;
+export const LONG_SUIT_HCP: [number, number] = [4, 9];
+
+function longSuitJump(ctx: Ctx, allowed: Suit[]): Decision | null {
+  const h = ctx.h;
+  if (h.hcp < LONG_SUIT_HCP[0] || h.hcp > LONG_SUIT_HCP[1]) return null;
+  const longs = allowed.filter((x) => h.len[x] >= LONG_SUIT);
+  if (!longs.length) return null;
+  let s = longs[0];
+  for (const x of longs) {
+    if (h.len[x] > h.len[s] || (h.len[x] === h.len[s] && idx(x) > idx(s))) s = x;
+  }
+  const cheap = ctx.cheapest(s, 1);
+  if (!cheap) return null;
+  const jump = `${levelOf(cheap) + 1}${s}`;
+  const alert = `7+ ${SYM[s]}, under 10 HCP. Pre-emptive.`;
+  if (h.len[s] >= LONG_SUIT + 1 && isMajor(s) && ctx.ok(`4${s}`) && rankOf(`4${s}`) >= rankOf(jump)) {
+    return [`4${s}`, alert];
+  }
+  if (levelOf(jump) <= 3 && ctx.ok(jump)) return [jump, alert];
   return null;
 }
 
