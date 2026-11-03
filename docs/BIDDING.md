@@ -653,6 +653,23 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   without the jump overcaller's pass +0.25, +0.52, +0.14. The pass costs
   about 0.17 a board, games the re-raise found; kept by the user's rule.
   Scripts and scores: the project's `agreed-suit/` folder.
+- **Partner's choice after our Michaels stands** (`ai.TWO_SUITER_CHOICE`,
+  `TWO_SUITER_RAISE_HCP = 17`, `_two_suiter_choice`; the user's deal,
+  2026-11-03: 1♠ 2♠ X 3♥ P 4♥ on ♠9 ♥Q8742 ♦AJ ♣AKJT2 opposite ♥A3, -1,700
+  doubled). `gib._owns` does not see the Michaels cuebid (`shown_suit` reads
+  2♠ as spades), so the overcaller's second call fell to `_rebid`, which
+  read partner's 3♥ as partner's own suit with 2/1 values and raised it. Now
+  a choice between my two suits (Michaels or Unusual 2NT) promises only a
+  preference: with the opponents silent since, pass unless 17+ HCP, which
+  bids game; over their bid, compete by the count with partner read as an
+  advancer (`PROMISE_ADVANCED`). Expert archives (1996-2002): the Michaels
+  bidder passes partner's choice 64-72% of the time (Unusual 2NT 77-88%);
+  with the opponents silent, 15-16 HCP 5-5 passed 8 of 9 and 17+ raised 9 of
+  14. Three sets of 3,000 fresh deals: **-0.06, +0.10, +0.21 a board**
+  (t -0.38, +0.51, +1.33), about 55 auctions each; 16 HCP +0.07, 19 HCP
+  +0.10 mean, passing only when they are silent +0.07, all noise. Handing
+  the auction to `continuation` instead (`gib.MICHAELS_OWNS`, off): +0.01.
+  Scripts and scores: the project's `michaels-raise/` folder.
 - **Double, then a new suit, shows 18+ HCP** (`DOUBLE_THEN_SUIT`,
   `_doubler_new_suit`, `_raise_doubler_suit`, `doubler_guard`; the user's
   Bidding training deal, 2026-10-28: 1♥ P P X 2♥ P P 2♠ with 22 HCP was

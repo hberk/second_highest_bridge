@@ -860,6 +860,11 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
     if OWN_SUIT_RAISED and p_strain == my_first and _first_namer(auction, p_strain) == player:
         return _own_suit_raised(player, partner, auction, ev, groups, my_first, legal)
 
+    if TWO_SUITER_CHOICE:
+        choice = _two_suiter_choice(player, partner, auction, groups, p_strain, legal)
+        if choice:
+            return choice
+
     if p_strain in SUITS and len(groups[p_strain]) >= SUPPORT_LENGTH:
         held = len(groups[p_strain])
         promise = _partner_promise(player, partner, auction, p_strain)
@@ -913,6 +918,47 @@ def _own_suit_raised(player: str, partner: str, auction: AuctionState, ev: dict,
         return 'Pass', RAISE_STANDS
     return call, _contest_alert(player, auction, call,
                                 f"{SUIT_SYM[suit]} agreed. No extra values shown.")
+
+
+#: Partner chose one of the two suits my Michaels or Unusual 2NT showed
+#: (the user's deal, 2026-11-03: 1♠ 2♠ X 3♥ P 4♥ on ♠9 ♥Q8742 ♦AJ ♣AKJT2
+#: opposite ♥A3, -1,700 doubled). The support branch read the choice as
+#: partner's own suit, promising a 2/1's values, and raised it. A choice
+#: promises nothing but a preference, often two cards, so partner places the
+#: contract: with the opponents silent since, pass unless the hand is worth
+#: game by itself (TWO_SUITER_RAISE_HCP; experts, 1996-2002: 15-16 HCP 5-5
+#: passed 8 of 9, 17+ raised 9 of 14); over their bid, compete by the count
+#: with partner read as an advancer. Fresh deals, head to head: +0.08 a board
+#: (-0.06, +0.10, +0.21 on seeds 7M/8M/9M), in the noise (BIDDING.md).
+TWO_SUITER_CHOICE = True
+TWO_SUITER_RAISE_HCP = 17
+#: ...and over their bid, read partner as an advancer, not a 2/1 bidder.
+TWO_SUITER_CHOICE_COMPETE = True
+CHOICE_STANDS = "Partner's choice stands."
+
+
+def _two_suiter_choice(player: str, partner: str, auction: AuctionState, groups: dict,
+                       strain: str, legal: list[str]) -> tuple | None:
+    cards = [c for g in groups.values() for c in g]
+    two = gib._our_two_suiter(gib.Ctx(player, cards, auction))
+    if not two or strain not in two or _first_namer(auction, strain) != partner:
+        return None
+    hb = auction.highest_bid
+    if hb and hb[2] == partner:
+        if hcp(cards) >= TWO_SUITER_RAISE_HCP:
+            game = _game_call(strain, legal)
+            if game:
+                return game, f"{SUPPORT_LENGTH}+ {SUIT_SYM[strain]} support, game values."
+        return 'Pass', CHOICE_STANDS
+    if not TWO_SUITER_CHOICE_COMPETE:
+        return None
+    ev = eval_hand_sh(cards)
+    combined = _with_shortness(ev['suit_pts'][strain] + PROMISE_ADVANCED, groups, strain)
+    call, why = _place(strain, combined, legal, len(groups[strain]))
+    if call != 'Pass':
+        why = _contest_alert(player, auction, call,
+                             f"{SUPPORT_LENGTH}+ {SUIT_SYM[strain]} support, agreeing the suit.")
+    return call, why
 
 
 #: GIB 2/1 is the default system (gib.py). False plays the previous system,

@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { doublerGuard, gibBid, Hand, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert, weakJumpOvercall } from './gib';
+import { Ctx, doublerGuard, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert, weakJumpOvercall } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -491,6 +491,39 @@ function ownSuitRaised(player: Seat, partner: Seat, auction: AuctionState, ev: H
   return [call, contestAlert(player, auction, call, `${SUIT_SYM[suit]} agreed. No extra values shown.`)];
 }
 
+/** Partner chose one of the two suits my Michaels or Unusual 2NT showed
+ *  (the user's deal, 2026-11-03): a preference, often two cards, so partner
+ *  places the contract. Opponents silent: pass unless TWO_SUITER_RAISE_HCP
+ *  bids game; over their bid, compete reading partner as an advancer. See ai.py. */
+export const TWO_SUITER_CHOICE = true;
+export const TWO_SUITER_RAISE_HCP = 17;
+export const TWO_SUITER_CHOICE_COMPETE = true;
+const CHOICE_STANDS = "Partner's choice stands.";
+
+function twoSuiterChoice(player: Seat, partner: Seat, auction: AuctionState, groups: Groups,
+  strain: string, legal: string[]): Decision | null {
+  const cards = SUITS.flatMap((s) => groups[s]);
+  const two = ourTwoSuiter(new Ctx(player, cards, auction));
+  if (!two || !isSuit(strain) || !two.includes(strain as Suit)
+    || firstNamer(auction, strain) !== partner) return null;
+  const hb = auction.highestBid;
+  if (hb && hb[2] === partner) {
+    if (hcp(cards) >= TWO_SUITER_RAISE_HCP) {
+      const game = gameCall(strain, legal);
+      if (game) return [game, `${SUPPORT_LENGTH}+ ${SUIT_SYM[strain]} support, game values.`];
+    }
+    return ['Pass', CHOICE_STANDS];
+  }
+  if (!TWO_SUITER_CHOICE_COMPETE) return null;
+  const ev = evalHandSh(cards);
+  const combined = withShortness(ev.suit_pts[strain as Suit] + PROMISE_ADVANCED, groups, strain as Suit);
+  const [call, why] = place(strain, combined, legal);
+  return call !== 'Pass'
+    ? [call, contestAlert(player, auction, call,
+      `${SUPPORT_LENGTH}+ ${SUIT_SYM[strain]} support, agreeing the suit.`)]
+    : [call, why];
+}
+
 function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
   groups: Groups, bestSuit: Suit, bestLen: number, legal: string[]): Decision {
   const mine = bidsBy(player, auction);
@@ -508,6 +541,11 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
 
   if (OWN_SUIT_RAISED && pStrain === myFirst && firstNamer(auction, pStrain) === player) {
     return ownSuitRaised(player, partner, auction, ev, groups, myFirst, legal);
+  }
+
+  if (TWO_SUITER_CHOICE) {
+    const choice = twoSuiterChoice(player, partner, auction, groups, pStrain, legal);
+    if (choice) return choice;
   }
 
   if (isSuit(pStrain) && groups[pStrain].length >= SUPPORT_LENGTH) {
