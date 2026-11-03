@@ -3493,13 +3493,32 @@ export function leadDoubler(player: Seat, auction: AuctionState): boolean {
 export const BALANCE = true;
 export const BALANCE_DISCOUNT = 4;
 
-/** The HCP discount in the pass-out seat after 1x P P. */
-function balancing(ctx: Ctx): number {
-  if (!BALANCE || ctx.calls.length < 3 || ctx.calls.slice(-2).some(([, c]) => c !== 'Pass')) return 0;
+/** In the pass-out seat after their weak two, 2x P P, the two-level overcall
+ *  floor drops BALANCE_WEAK_TWO HCP for a six-card suit, and a three-level
+ *  balance needs six cards (the user's deals, 2026-11-03). See gib.py. */
+export const BALANCE_WEAK_TWO = 3;
+export const BALANCE_WEAK_TWO_LEN = 6;
+
+/** Their opening, a suit bid at the one or two level, when I am in the
+ *  pass-out seat after it (1x P P or 2x P P); else null. */
+function passOutOver(ctx: Ctx): string | null {
+  if (ctx.calls.length < 3 || ctx.calls.slice(-2).some(([, c]) => c !== 'Pass')) return null;
   const bids = ctx.calls.filter(([, c]) => c !== 'Pass');
   if (bids.length !== 1 || bids[0][0] === ctx.me || bids[0][0] === ctx.pd
-    || levelOf(bids[0][1]) !== 1 || !isSuit(strainOf(bids[0][1]))) return 0;
-  return BALANCE_DISCOUNT;
+    || levelOf(bids[0][1]) > 2 || !isSuit(strainOf(bids[0][1]))) return null;
+  return bids[0][1];
+}
+
+/** The HCP discount in the pass-out seat after 1x P P. */
+function balancing(ctx: Ctx): number {
+  const opening = passOutOver(ctx);
+  return BALANCE && opening && levelOf(opening) === 1 ? BALANCE_DISCOUNT : 0;
+}
+
+/** Am I in the pass-out seat after their weak two, 2x P P? */
+function weakTwoBalance(ctx: Ctx): boolean {
+  const opening = passOutOver(ctx);
+  return BALANCE_WEAK_TWO > 0 && opening !== null && levelOf(opening) === 2 && opening !== '2C';
 }
 
 function theyOpened(ctx: Ctx): Decision | null {
@@ -3737,11 +3756,29 @@ function defend(ctx: Ctx): Decision | null {
   const own = SUITS.filter((s) => !theirs.includes(s) && h.len[s] >= 5);
   if (own.length && hcp <= 17) {
     const s = maxBy(own, (t) => [h.len[t], idx(t)]);
-    const call = ctx.cheapest(s, 1);
+    let call = ctx.cheapest(s, 1);
+    const weak2 = weakTwoBalance(ctx);
+    if (call && weak2 && levelOf(call) === 3 && h.len[s] < BALANCE_WEAK_TWO_LEN) {
+      call = null; // a poor five-card suit at the three level
+    }
     if (call) {
       const base = levelOf(call) === 1 ? OVERCALL_1 : OVERCALL_2;
+      if (weak2) {
+        // One alert for the call, whichever hand holds it.
+        const n = BALANCE_WEAK_TWO_LEN;
+        const low = base[0] - BALANCE_WEAK_TWO;
+        const ok = levelOf(call) === 2 && h.len[s] < n ? base[0] <= hcp && hcp <= base[1]
+          : levelOf(call) === 2 ? low <= hcp && hcp <= base[1]
+          : 12 <= hcp && hcp <= base[1];
+        if (ok) {
+          if (levelOf(call) === 2) {
+            return [call, `5+ ${SYM[s]} (${n}+ under ${base[0]} HCP), ${low}-${base[1]} HCP. Balancing.`];
+          }
+          return [call, `${n}+ ${SYM[s]}, 12-${base[1]} HCP. Balancing.`];
+        }
+      }
       const need = [base[0] - bal, base[1]];
-      if (levelOf(call) <= 3 && need[0] <= hcp && hcp <= need[1] && (levelOf(call) <= 2 || hcp >= 12 - bal)) {
+      if (!weak2 && levelOf(call) <= 3 && need[0] <= hcp && hcp <= need[1] && (levelOf(call) <= 2 || hcp >= 12 - bal)) {
         if (bal) return [call, `5+ ${SYM[s]}, ${need[0]}-${need[1]} HCP. Balancing.`];
         return [call, `5+ ${SYM[s]}, ${need[0]}-${need[1]} HCP. Overcall.`];
       }

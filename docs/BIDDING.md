@@ -733,6 +733,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     +0.10 a board (t = +4.2, +0.9, +0.4). A 3 HCP discount was weaker. Those
     runs dropped the overcall ceiling too, so 14-17 HCP passed (found in
     review); keeping it added +0.27 a board (t = +2.9, seed 8M).
+  - **Balancing over a weak two** (`BALANCE_WEAK_TWO = 3`, 2026-11-03). In
+    the pass-out seat after 2♦/2♥/2♠ P P, a six-card suit balances at the two
+    level on 7-17 HCP ("5+ ♠ (6+ under 10 HCP), 7-17 HCP. Balancing."), and a three-level suit
+    balance needs six cards: a poor five-card suit plays badly in Second
+    Highest (the user's deal: 3♣ on AKQJ K4 42 96432 went -300 doubled). The
+    takeout double is unchanged. Experts acted on 7 of 13 hands with a six-card
+    suit and 7-10 HCP there, never with 6 or fewer. +0.04, +0.08, +0.07 a
+    board on three sets of 3,000 fresh deals, within noise.
   - **One level past the LoTT over their three level** (`LOTT_TOTAL = 18`).
     When they bid and raised their suit to three, and our known fit plus 8 plus
     one for my singleton (two for a void) in it reaches 18, `_total_tricks`
