@@ -341,6 +341,7 @@ def _name_the_suit(call: str, alert: str) -> str:
 #: suit (1♠ 2♠ X 3♥ P) as partner's own suit and raised it: 4♥ on
 #: ♠9 ♥Q8742 ♦AJ ♣AKJT2 opposite ♥A3, -1,700 doubled (the user's deal,
 #: 2026-11-03). `continuation` reads the two-suiter (TWO_SUITER_READ).
+#: Measured +0.01 a board, so off: ai.TWO_SUITER_CHOICE fixes the fallback instead.
 MICHAELS_OWNS = False
 
 
