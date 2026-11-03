@@ -1344,3 +1344,19 @@ def test_advancer_names_a_long_suit_with_a_jump():
     assert bid('KS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 7D 2D', '1C', '1D', '1S', dealer='South')[0] == '3H'
     # Too weak (3 HCP): pass, as before.
     assert bid('JS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 7D 2D', '1C', '1D', '1S', dealer='South')[0] == 'Pass'
+
+
+def test_overcaller_answers_2nt_asking_for_the_minor():
+    """The user's deal, 2026-11-03: P P 1NT 2♥ P 2NT P. 2♥ showed hearts and
+    a 4+ minor, 2NT asked which (its alert says so), and North passed: two
+    down in 2NT with nine clubs. North bids 3♣."""
+    north = 'KS JH 10H 8H 7H 2H 10D 5D 2D AC QC JC 9C'
+    calls = ('Pass', 'Pass', '1NT', '2H', 'Pass', '2NT', 'Pass')
+    call, why = bid(north, *calls, dealer='East')
+    assert call == '3C' and why.startswith('4+'), (call, why)
+    # The asker passes the answer.
+    south = 'JS 7S 6S 3S 2S 3H AD QD JD 4D 10C 5C 3C'
+    assert bid(south, *calls, '3C', 'Pass', dealer='East')[0] == 'Pass'
+    # Spades and diamonds, over their double of 2NT: 3♦.
+    spades = 'KS JS 8S 7S 2S 2H AD QD JD 9D 10C 5C 2C'
+    assert bid(spades, 'Pass', 'Pass', '1NT', '2S', 'Pass', '2NT', 'X', dealer='East')[0] == '3D'

@@ -3519,11 +3519,33 @@ function theyOpened(ctx: Ctx): Decision | null {
       if (decision) return decision;
     }
   }
+  const minor = answerMinorAsk(ctx);
+  if (minor) return minor;
   const cue = answerCuebid(ctx);
   if (cue) return cue;
   if (partners.length && !mine.length) return advance(ctx);
   if (mine.length && !partners.length && defendWasWeak(ctx, mine[0])) return ['Pass', 'Already described: weak.'];
   return cuebidRaiseReply(ctx);
+}
+
+/** (1NT) 2♥/2♠ (P) 2NT asks for the overcaller's minor; no branch answered it. */
+export const MINOR_ASK_ANSWER = true;
+
+/** Our 2♥/2♠ over their 1NT showed the major and a 4+ minor, and partner's
+ *  2NT asked which: bid it, at the three level. */
+function answerMinorAsk(ctx: Ctx): Decision | null {
+  const mine = ctx.mine();
+  const partners = ctx.partners();
+  if (!MINOR_ASK_ANSWER || mine.length !== 1 || (mine[0] !== '2H' && mine[0] !== '2S')
+      || partners.length !== 1 || partners[0] !== '2NT'
+      || ctx.ours[ctx.ours.length - 1][0] !== ctx.pd) return null;
+  const opening = ctx.calls.find(([, c]) => c !== 'Pass')?.[1] ?? null;
+  if (opening !== '1NT') return null;
+  const h = ctx.h;
+  const m: Suit = h.len.C >= h.len.D ? 'C' : 'D';
+  const call = ctx.cheapest(m, 3);
+  if (call && levelOf(call) === 3) return [call, `4+ ${SYM[m]}, answering 2NT.`];
+  return ['Pass', 'No room.'];
 }
 
 /** Was `seat`'s first call a takeout double: they opened, its partner had

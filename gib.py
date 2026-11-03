@@ -3843,6 +3843,9 @@ def they_opened(ctx: Ctx) -> tuple | None:
             decision = _doubler_new_suit(ctx)
             if decision:
                 return decision
+    minor = _answer_minor_ask(ctx)
+    if minor:
+        return minor
     cue = _answer_cuebid(ctx)
     if cue:
         return cue
@@ -3851,6 +3854,30 @@ def they_opened(ctx: Ctx) -> tuple | None:
     if mine and not partners and _defend_was_weak(ctx, mine[0]):
         return 'Pass', "Already described: weak."
     return _cuebid_raise_reply(ctx)
+
+
+#: (1NT) 2♥/2♠ (P) 2NT asks for the overcaller's minor (`_advance`'s
+#: alert says so), but no branch answered it: `continuation` read 2NT as
+#: natural and passed, so P P 1NT 2♥ P 2NT went two down in 2NT with
+#: 9 clubs (the user's deal, 2026-11-03). The overcaller now bids the minor.
+MINOR_ASK_ANSWER = True
+
+
+def _answer_minor_ask(ctx: Ctx) -> tuple | None:
+    """Our 2♥/2♠ over their 1NT showed the major and a 4+ minor, and
+    partner's 2NT asked which: bid it, at the three level."""
+    if not MINOR_ASK_ANSWER or ctx.mine() not in (['2H'], ['2S']) \
+            or ctx.partners() != ['2NT'] or ctx.ours[-1][0] != ctx.pd:
+        return None
+    opening = next((c for w, c in ctx.calls if c != 'Pass'), None)
+    if opening != '1NT':
+        return None
+    h = ctx.h
+    m = 'C' if h.len['C'] >= h.len['D'] else 'D'
+    call = ctx.cheapest(m, 3)
+    if call and level_of(call) == 3:
+        return call, f"4+ {SYM[m]}, answering 2NT."
+    return 'Pass', "No room."
 
 
 def _takeout_doubler(ctx: Ctx, seat: str) -> bool:
