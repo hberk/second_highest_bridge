@@ -2454,6 +2454,8 @@ function weOpenedContested(ctx: Ctx): Decision | null {
   if (reopen) return reopen;
   const splintered = answerCompetedSplinter(ctx);
   if (splintered) return splintered;
+  const reverse = contestedReverse(ctx) ?? answerContestedReverse(ctx) ?? afterReverseRaise(ctx);
+  if (reverse) return reverse;
   const support = afterSupportDouble(ctx);
   if (support) return support;
   const forced = openerOverForcingResponse(ctx);
@@ -2587,6 +2589,141 @@ function rebidOverTheirOvercall(ctx: Ctx): Decision | null {
     }
   }
   return ['Pass', 'No fit, nothing more to show.'];
+}
+
+/** Opener after 1x (y) 1NT (P) or 1x (y) 1z (P): a new suit at the two level
+ *  above x is a reverse, 16+ HCP and 5+ x, forcing one round, as when they
+ *  are silent. Over a negative double the same call is not a reverse. */
+export const REVERSE_CONTESTED = false;
+export const REVERSE_HCP = 16;
+export const REVERSE_Z_LEN = 4;
+/** ...and responder with 4+ of opener's minor and 8+ JP raises it at once;
+ *  opener bids game with 6-5 or 5-5 in the two suits, or the values. */
+export const REVERSE_MINOR_RAISE = true;
+export const REVERSE_RAISE_SHAPE = 10;
+/** Responder's values opposite a reverse, judgement points: a major fit
+ *  raises (to game on GAME_MAJOR with the reverse's 16 and the fit), a minor
+ *  raises on REVERSE_GAME_JUDGE; 3NT needs NT_GAME less the reverse's 16. */
+export const REVERSE_GAME_JUDGE = 8;
+export const REVERSE_NT_JUDGE = 12;
+
+/** The reverse suit when calls c0..c4 are 1x (y) R (P) 2z with R a free
+ *  1NT or one-level new suit and z above x and outside y and R's suit; with
+ *  c4 left out, '' when the first four calls fit. */
+function reverseSpot(c0: string, c1: string, c2: string, c3: string, c4?: string): string | null {
+  const x = strainOf(c0), y = strainOf(c1), r = strainOf(c2);
+  if (levelOf(c0) !== 1 || !isSuit(x) || !parseBid(c1) || !isSuit(y)
+    || y === x || c3 !== 'Pass' || levelOf(c2) !== 1 || r === x
+    || (isSuit(r) && rankOf(c2) <= rankOf(c1))) {
+    return null;
+  }
+  if (c4 === undefined) return '';
+  const z = strainOf(c4);
+  if (levelOf(c4) !== 2 || !isSuit(z) || z === x || z === y || z === r
+    || idx(z) <= idx(x) || (rankOf(`1${z}`) > rankOf(c1) && rankOf(`1${z}`) > rankOf(c2))) {
+    return null;
+  }
+  return z;
+}
+
+function reverseStart(ctx: Ctx): number | null {
+  const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
+  if (i < 0 || ctx.calls.length < i + 4 || (ctx.calls[i][0] !== ctx.me && ctx.calls[i][0] !== ctx.pd)) {
+    return null;
+  }
+  return i;
+}
+
+/** Opener's reverse after 1x (y) R (P): 16+ HCP, 5+ x, 4+ z. A six-card
+ *  x with only four z keeps its old rebid; a five-card z is shown. */
+function contestedReverse(ctx: Ctx): Decision | null {
+  const i = reverseStart(ctx);
+  if (!REVERSE_CONTESTED || i === null || ctx.calls.length !== i + 4 || !ctx.iAmOpener()) return null;
+  const [c0, c1, c2, c3] = ctx.calls.slice(i).map(([, c]) => c);
+  if (reverseSpot(c0, c1, c2, c3) === null) return null;
+  const h = ctx.h, x = strainOf(c0) as Suit;
+  if (h.hcp < REVERSE_HCP || h.len[x] < 5) return null;
+  const r = strainOf(c2);
+  if (isMajor(r) && h.len[r as Suit] >= 4) return null;
+  for (const z of sortedBy(SUITS, (s) => [h.len[s], idx(s)], true)) {
+    const call = `2${z}`;
+    if (h.len[z] >= REVERSE_Z_LEN && ctx.ok(call) && ctx.cheapest(z) === call
+      && reverseSpot(c0, c1, c2, c3, call) === z
+      && (h.len[z] >= 5 || h.len[x] < 6)) {
+      return [call, `${REVERSE_Z_LEN}+ ${SYM[z]}, 5+ ${SYM[x]}, ${REVERSE_HCP}+ HCP. Reverse, forcing.`];
+    }
+  }
+  return null;
+}
+
+/** Responder after 1x (y) R (P) 2z, partner's reverse. Over their pass it
+ *  forces: a major fit raises, to game with the values; a minor x raises on
+ *  REVERSE_GAME_JUDGE; 3NT on REVERSE_NT_JUDGE with their suit stopped; else
+ *  a five-card suit of mine, preference to a major x, or 2NT. If they bid
+ *  over it, weak hands pass. */
+function answerContestedReverse(ctx: Ctx): Decision | null {
+  const i = reverseStart(ctx);
+  if (!REVERSE_CONTESTED || i === null || ctx.calls.length !== i + 6
+    || ctx.iAmOpener() || ctx.calls[i][0] !== ctx.pd) {
+    return null;
+  }
+  const [c0, c1, c2, c3, c4, c5] = ctx.calls.slice(i).map(([, c]) => c);
+  const z = reverseSpot(c0, c1, c2, c3, c4);
+  if (!z) return null;
+  const h = ctx.h, x = strainOf(c0) as Suit, y = strainOf(c1) as Suit, r = strainOf(c2);
+  const free = c5 === 'Pass' || c5 === 'X' || c5 === 'XX';
+  for (const [m, n] of [[z as Suit, 4], [x, 3]] as const) {
+    if (isMajor(m) && h.len[m] >= n) {
+      const comb = h.judge + REVERSE_HCP + fitBonus(h, m, m === z ? 4 : 5);
+      if (comb >= GAME_MAJOR && ctx.ok(`4${m}`)) return [`4${m}`, TO_PLAY];
+    }
+  }
+  if (isMajor(z) && h.len[z as Suit] >= 4 && ctx.ok(`3${z}`)) return [`3${z}`, `4+ ${SYM[z as Suit]} support, no game.`];
+  if (REVERSE_MINOR_RAISE && isMinor(x) && h.len[x] >= 4
+    && h.judge >= REVERSE_GAME_JUDGE && ctx.ok(`3${x}`)) {
+    return [`3${x}`, `4+ ${SYM[x]} support.`];
+  }
+  if (free && h.judge >= REVERSE_NT_JUDGE && h.stopper(y) && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+  if (!free) return h.judge >= REVERSE_GAME_JUDGE ? null : ['Pass', 'Nothing more to show.'];
+  if (isSuit(r) && h.len[r] >= 5 && ctx.ok(`2${r}`)) return [`2${r}`, `5+ ${SYM[r]}, no fit.`];
+  if (isMajor(x) && h.len[x] >= 2 && ctx.ok(`3${x}`)) return [`3${x}`, `Preference to ${SYM[x]}.`];
+  if (ctx.ok('2NT')) return ['2NT', 'Nothing else to show.'];
+  return ['Pass', 'Nothing more to show.'];
+}
+
+/** Opener after 1x (y) R (P) 2z (..) 3x, partner's raise: game in x with a
+ *  two-suiter (REVERSE_RAISE_SHAPE cards in x and z) or the values; 3NT with
+ *  the values, their suit stopped and no shortness; else pass. */
+function afterReverseRaise(ctx: Ctx): Decision | null {
+  const i = reverseStart(ctx);
+  if (!(REVERSE_CONTESTED && REVERSE_MINOR_RAISE) || i === null
+    || ctx.calls.length !== i + 8 || !ctx.iAmOpener()) {
+    return null;
+  }
+  const [c0, c1, , , c4, , , c7] = ctx.calls.slice(i).map(([, c]) => c);
+  const x = strainOf(c0) as Suit, y = strainOf(c1) as Suit;
+  if (!reverseRaised(ctx)) return null;
+  const h = ctx.h;
+  const z = strainOf(c4) as Suit;
+  if ((h.len[x] + h.len[z] >= REVERSE_RAISE_SHAPE
+    || h.judge + REVERSE_GAME_JUDGE + fitBonus(h, x, 4) >= GAME) && ctx.ok(`5${x}`)) {
+    return [`5${x}`, TO_PLAY];
+  }
+  if (c7 === 'Pass' && h.stopper(y) && Math.min(...SUITS.map((s) => h.len[s])) >= 2
+    && h.judge + REVERSE_GAME_JUDGE >= NT_GAME && ctx.ok('3NT')) {
+    return ['3NT', TO_PLAY];
+  }
+  return ['Pass', 'No game.'];
+}
+
+/** 1x (y) R (P) 2z (..) 3x: responder's raise of a reversed minor. */
+function reverseRaised(ctx: Ctx): boolean {
+  const i = reverseStart(ctx);
+  if (!(REVERSE_CONTESTED && REVERSE_MINOR_RAISE) || i === null || ctx.calls.length < i + 7) return false;
+  const c = ctx.calls.slice(i, i + 7).map(([, k]) => k);
+  const x = strainOf(c[0]);
+  return Boolean(reverseSpot(c[0], c[1], c[2], c[3], c[4])) && isMinor(x) && c[6] === `3${x}`
+    && ctx.calls[i + 6][0] === ctx.calls[i + 2][0];
 }
 
 /** A reopening double on a doubleton in their suit needs extra values. */
@@ -3668,6 +3805,26 @@ function openingBidOnly(ctx: Ctx): string | null {
   return bids[0][1];
 }
 
+/** Our first call over their one-level suit opening with an eight-card major
+ *  and 9-15 HCP: game in it at once. */
+export const BLAST_GAME = true;
+export const BLAST_LEN = 8;
+export const BLAST_HCP: readonly [number, number] = [9, 15];
+
+function blastGame(ctx: Ctx, opening: string | null, their: string): Decision | null {
+  const h = ctx.h;
+  if (!BLAST_GAME || !opening || levelOf(opening) !== 1 || !isSuit(their)
+    || !(BLAST_HCP[0] <= h.hcp && h.hcp <= BLAST_HCP[1])) {
+    return null;
+  }
+  for (const m of ['S', 'H'] as const) {
+    if (m !== their && h.len[m] >= BLAST_LEN && ctx.ok(`4${m}`)) {
+      return [`4${m}`, `${BLAST_LEN}+ ${SYM[m]}, ${BLAST_HCP[0]}-${BLAST_HCP[1]} HCP. To play.`];
+    }
+  }
+  return null;
+}
+
 function defend(ctx: Ctx): Decision | null {
   const h = ctx.h;
   const hcp = h.hcp;
@@ -3695,6 +3852,8 @@ function defend(ctx: Ctx): Decision | null {
   }
   if (opening === '2C' || their === 'NT') return ['Pass', 'No action.'];
 
+  const blast = blastGame(ctx, opening, their);
+  if (blast) return blast;
   if (opening && levelOf(opening) === 1 && hcp >= TWO_SUITED_MIN) {
     const fives = SUITS.filter((s) => s !== their && h.len[s] >= 5);
     if (fives.length >= 2) {

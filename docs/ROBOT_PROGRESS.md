@@ -260,6 +260,9 @@ from the variant's side; t as above.
 | 11-02 | After their bid over Stayman (review of the combined PR): a 2NT opener bids 3NT with a stopper; four of their suit and a stopper double for penalty; responder's game force doubles with four, else 3NT with a stopper, else passes (`STAYMAN_OPENER_3NT`, `STAYMAN_PENALTY_X`, `STAYMAN_RESPONDER_3NT`); seeds 14M, 15M, 10,000 deals each | **+0.04, +0.03** | +2.09, +1.80 | 12, 17 | on |
 | 11-02 | ...also 3NT with no stopper (`STAYMAN_NO_STOP = '3NT'`) / a double on values instead / without the penalty doubles | +0.04, +0.03 / +0.02, +0.01 / -0.02, -0.01 | +1.74, +2.15 / +0.71, +0.33 / -2.40, -1.44 | 18, 22 / 18, 22 / 10, 14 | off (its 3NTs all went down) |
 | 11-02 | Monday's combined bidding fixes, every switch above from 11-02 on against all of them off (which bids 4,000 of 4,000 auctions exactly as main), plus the pass-out-seat fix to `weak_jump_overcall`; seed 7M, 1,000 fresh deals (`/mnt/project-files/monday-combined/`) | +0.55 | +1.19 | 138 | on |
+| 11-03 | An eight-card major with 9-15 HCP bids game at once over their one-level opening (`BLAST_GAME`); seeds 7M, 8M, 9M, 3,000 fresh deals each / 1,500 deals each filtered for such a hand (`/mnt/project-files/reverse-blast/`) | **+0.12, +0.07, -0.03** / **+11.9, +9.8, +14.2** | +2.33, +1.53, -1.69 / +9.65, +8.93, +10.59 | 6, 11, 10 / 1,107, 1,016, 1,211 | on |
+| 11-03 | Opener reverses after 1x (y) 1NT or a one-level new suit, 16+ HCP, with the raise of a minor (`REVERSE_CONTESTED`, `REVERSE_MINOR_RAISE`); 4,000 deals each filtered for a reversing hand | -0.02, -0.09, -0.01 | -0.72, -4.26, -0.52 | 28, 48, 40 | off (your call) |
+| 11-03 | ...18+ HCP / five cards in the reverse suit (`REVERSE_HCP = 18` / `REVERSE_Z_LEN = 5`) | -0.04, -0.05, -0.01 / -0.00, +0.00, +0.00 | -2.43, -3.07, -1.41 / -1.00, 0, 0 | 12, 16, 2 / 1, 0, 2 | off |
 
 ### The previous system (`ai_bid`)
 
