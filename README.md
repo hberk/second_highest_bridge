@@ -39,6 +39,23 @@ and many of bridge's instincts point the wrong way.
   this game. The hand history runs it in your browser: step through a board
   and every card shows how the contract would end if it were played.
 
+## How good the robots are
+
+On the 400 library deals at all 16 board positions (v0.1.0-alpha, measured
+2026-11-03 by `research/challenge_losses.py`):
+
+- **Card play is close to perfect.** Against double dummy the robots give
+  away 5 points a board, and the declarer was 0.025 tricks a board below it
+  when last measured on its own (2026-10-31).
+- **The auction is where the points go:** 233 points a board below par, the
+  double dummy best result for both sides. Par assumes perfect bidding by
+  everyone, so no table reaches it, but it is the figure each bidding change
+  is measured against.
+
+Every rule the robots use, and what it was worth, is in
+[`docs/ROBOT_PROGRESS.md`](docs/ROBOT_PROGRESS.md); changes by release are in
+[`CHANGELOG.md`](CHANGELOG.md).
+
 ## Running it yourself
 
 The web app is in `frontend/` (Svelte). It needs Node and, for the double

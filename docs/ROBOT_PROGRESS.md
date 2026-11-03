@@ -18,6 +18,8 @@ graded from N/S as the app grades):
 
 | measured | robots | lost in the auction | lost in the card play |
 |---|---|---|---|
+| 2026-11-03 | v0.1.0-alpha (PR #62): the Nov 3 bidding fixes, the 6-5 Michaels invite, the opening-suit cuebid fix | **233.1** | **5.0** |
+| 2026-11-03 | main before PR #62 (PR #61's robots, every bidding change through 11-02) | 233.6 | 5.3 |
 | 2026-10-28 | fourth hand wins with a dead card first (`DEAD_WINNER_FIRST`; from the declaring side the play went from -11.8 to -21.0, see CHALLENGE.md; bidding before PR #40's jam rule) | **240.8** | **20.7** |
 | 2026-10-28 | the same robots without it (PR #32's) | 240.8 | 12.1 |
 | 2026-10-24 | the penalty double where X is free, a cuebid raise read as support (PR #30), with the defender's suit plan | **240.8** | **6.0** |
