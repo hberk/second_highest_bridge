@@ -335,9 +335,20 @@ def _name_the_suit(call: str, alert: str) -> str:
     return alert
 
 
+#: Our Michaels cuebid (1♠ 2♠: hearts and a minor) is a call only this
+#: module reads, like notrump: `shown_suit` takes 2♠ as spades, so `_owns`
+#: said no and the auction fell to `ai_bid`, which read partner's choice of
+#: suit (1♠ 2♠ X 3♥ P) as partner's own suit and raised it: 4♥ on
+#: ♠9 ♥Q8742 ♦AJ ♣AKJT2 opposite ♥A3, -1,700 doubled (the user's deal,
+#: 2026-11-03). `continuation` reads the two-suiter (TWO_SUITER_READ).
+MICHAELS_OWNS = False
+
+
 def _owns(ctx: Ctx) -> bool:
     """Has our side made a call only this module can read: notrump, or a
     suit bid that does not show its suit?"""
+    if MICHAELS_OWNS and _our_two_suiter(ctx):
+        return True
     return any(strain_of(c) == 'NT' or (strain_of(c) in SUITS and
                                         shown_suit(ctx.seq, i) != strain_of(c))
                for i, c in enumerate(ctx.seq))
