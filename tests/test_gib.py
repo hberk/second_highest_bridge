@@ -1374,3 +1374,35 @@ def test_advancer_names_a_long_suit_with_a_jump():
     assert bid('KS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 7D 2D', '1C', '1D', '1S', dealer='South')[0] == '3H'
     # Too weak (3 HCP): pass, as before.
     assert bid('JS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 7D 2D', '1C', '1D', '1S', dealer='South')[0] == 'Pass'
+
+
+def test_eight_card_major_blasts_game_over_their_opening():
+    # The user's board, 2026-11-03: 1♣ by South, West ♠AKJ86542 ♥4 ♦K95 ♣6
+    # overcalled 1♠ and bid 2♠, 3♠, 4♠ in turn. Game at once (BLAST_GAME).
+    west = 'AS KS JS 8S 6S 5S 4S 2S 4H KD 9D 5D 6C'
+    call, why = bid(west, '1C', dealer='South')
+    assert call == '4S' and why.startswith('8+'), (call, why)
+    # Seven spades: the old overcall.
+    assert bid('AS KS JS 8S 6S 5S 4S 3H 4H KD 9D 5D 6C', '1C', dealer='South')[0] != '4S'
+
+
+def test_reverse_over_their_overcall_and_the_club_raise():
+    # The same board: 1♣ (1♠) 1NT (P) with ♠— ♥AKQT2 ♦43 ♣AKQT95 passed,
+    # and 2♥ had no meaning. With REVERSE_CONTESTED it is a reverse, North
+    # raises clubs with four, and South bids the club game.
+    south = 'AH KH QH 10H 2H 4D 3D AC KC QC 10C 9C 5C'
+    north = 'QS 10S 3S 9H 5H AD QD JD 2D JC 8C 4C 2C'
+    saved = gib.REVERSE_CONTESTED, gib.REVERSE_Z_LEN
+    try:
+        for z_len in (4, 5):
+            gib.REVERSE_CONTESTED, gib.REVERSE_Z_LEN = True, z_len
+            call, why = bid(south, '1C', '1S', '1NT', 'Pass', dealer='South')
+            assert call == '2H' and 'Reverse' in why, (call, why)
+            call, why = bid(north, '1C', '1S', '1NT', 'Pass', '2H', '2S', dealer='South')
+            assert call == '3C' and why.startswith('4+'), (call, why)
+            assert bid(south, '1C', '1S', '1NT', 'Pass', '2H', '2S', '3C', 'Pass',
+                       dealer='South')[0] == '5C'
+        gib.REVERSE_CONTESTED = False
+        assert bid(south, '1C', '1S', '1NT', 'Pass', dealer='South')[0] == 'Pass'
+    finally:
+        gib.REVERSE_CONTESTED, gib.REVERSE_Z_LEN = saved

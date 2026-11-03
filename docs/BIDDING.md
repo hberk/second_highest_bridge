@@ -863,6 +863,19 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     worse. Kept as a bug fix: the alerts promised 11-12, so the robot now
     plays the system it explains.
 
+**Eight-card overcalls and contested reverses (2026-11-03).** The user's board: 1♣ (1♠) 1NT (P)
+with South ♠— ♥AKQT2 ♦43 ♣AKQT95 passed, West's ♠AKJ86542 ♥4 ♦K95 ♣6 bid 1♠, 2♠, 3♠ and 4♠, and
+North's four clubs were never shown (5♣ makes). Experts (1996-2002 championships, 39.6k boards) bid
+game directly with eight of a major and 9-13 HCP 82% of the time (n=59), so `BLAST_GAME`: over
+their one-level suit opening, an eight-card major and 9-15 HCP bids 4M at once. It is rare (+0.05 a
+board on fresh deals) but large where it applies: +9.8 to +14.2 a board on deals filtered for such
+a hand, t ≈ 9-10. Contested reverses (`REVERSE_CONTESTED`: 2z above x after 1x (y) 1NT or a
+one-level new suit, 16+ HCP, 5+ x; responder raises a major, raises a minor with four on 8+ JP
+(`REVERSE_MINOR_RAISE`), 3NT only on 12+ JP; opener bids 5m over the raise with 10 cards in the two
+suits) are what experts play (median 18 HCP), but they lost on 3 × 4,000 filtered deals at every
+setting tried (16+, 18+, five-card reverse suit): opener passing partner's free 1NT or one-level
+suit scores better here. On by the user's choice, so the bidding box explains the reverse and the robots answer it.
+
 ## The previous system (`ai.USE_GIB = False`)
 
 - **Everything in this section about `ai_bid` describes the
