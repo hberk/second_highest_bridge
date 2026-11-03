@@ -2827,11 +2827,11 @@ def _rebid_over_their_overcall(ctx: Ctx) -> tuple | None:
 #: ♠— ♥AKQT2 ♦43 ♣AKQT95 passed, and 2♥ had no meaning). Experts (1996-2002
 #: championships) reverse here on a median 18 HCP, 64% at 16+; over a
 #: negative double the same call is not a reverse (median 13) and is left out.
-#: OFF: on 3 x 4,000 deals filtered for such an opener it lost every way it
-#: was tried (16+: -0.02/-0.09/-0.04 a board, 7 auctions better, 42 worse;
-#: 18+ also lost; 5-5 only fired 3 times). Passing partner's free 1NT or
-#: one-level suit scores better in this game. The user decides.
-REVERSE_CONTESTED = False
+#: On by the user's choice (2026-11-03), though on 3 x 4,000 deals filtered
+#: for such an opener it lost (16+: -0.02/-0.09/-0.04 a board, 7 auctions
+#: better, 42 worse; 18+ also lost; 5-5 only fired 3 times): the system
+#: bids what it explains.
+REVERSE_CONTESTED = True
 REVERSE_HCP = 16
 REVERSE_Z_LEN = 4
 #: ...and responder with 4+ of opener's minor and 8+ JP raises it at once,

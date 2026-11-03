@@ -2594,7 +2594,7 @@ function rebidOverTheirOvercall(ctx: Ctx): Decision | null {
 /** Opener after 1x (y) 1NT (P) or 1x (y) 1z (P): a new suit at the two level
  *  above x is a reverse, 16+ HCP and 5+ x, forcing one round, as when they
  *  are silent. Over a negative double the same call is not a reverse. */
-export const REVERSE_CONTESTED = false;
+export const REVERSE_CONTESTED = true;
 export const REVERSE_HCP = 16;
 export const REVERSE_Z_LEN = 4;
 /** ...and responder with 4+ of opener's minor and 8+ JP raises it at once;

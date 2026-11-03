@@ -839,7 +839,7 @@ one-level new suit, 16+ HCP, 5+ x; responder raises a major, raises a minor with
 (`REVERSE_MINOR_RAISE`), 3NT only on 12+ JP; opener bids 5m over the raise with 10 cards in the two
 suits) are what experts play (median 18 HCP), but they lost on 3 × 4,000 filtered deals at every
 setting tried (16+, 18+, five-card reverse suit): opener passing partner's free 1NT or one-level
-suit scores better here. Left off; with it off, the reverse has no robot meaning in the bidding box.
+suit scores better here. On by the user's choice, so the bidding box explains the reverse and the robots answer it.
 
 ## The previous system (`ai.USE_GIB = False`)
 
