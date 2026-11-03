@@ -3863,14 +3863,21 @@ def they_opened(ctx: Ctx) -> tuple | None:
 MINOR_ASK_ANSWER = True
 
 
+#: Only when they have bid nothing but the 1NT: answering everywhere
+#: measured -0.15/-0.05/-0.13 a board (t -2.3/-1.4/-3.0), as after a
+#: transfer, Stayman or their double they hold the cards and 3♣/3♦ went
+#: for 800+. Even so it costs -0.02/-0.01/-0.05 (seeds 7M/8M/9M, 10,000
+#: deals): undoubled 2NT loses less. Kept by the user's choice, so the call
+#: means what its alert says (2026-11-03).
+
+
 def _answer_minor_ask(ctx: Ctx) -> tuple | None:
     """Our 2♥/2♠ over their 1NT showed the major and a 4+ minor, and
     partner's 2NT asked which: bid it, at the three level."""
     if not MINOR_ASK_ANSWER or ctx.mine() not in (['2H'], ['2S']) \
             or ctx.partners() != ['2NT'] or ctx.ours[-1][0] != ctx.pd:
         return None
-    opening = next((c for w, c in ctx.calls if c != 'Pass'), None)
-    if opening != '1NT':
+    if [c for _, c in ctx.theirs if c != 'Pass'] != ['1NT']:
         return None
     h = ctx.h
     m = 'C' if h.len['C'] >= h.len['D'] else 'D'

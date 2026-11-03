@@ -3528,7 +3528,8 @@ function theyOpened(ctx: Ctx): Decision | null {
   return cuebidRaiseReply(ctx);
 }
 
-/** (1NT) 2♥/2♠ (P) 2NT asks for the overcaller's minor; no branch answered it. */
+/** (1NT) 2♥/2♠ (P) 2NT asks for the overcaller's minor; no branch answered it.
+ *  Answered only when their 1NT is their only bid (gib.py has the figures). */
 export const MINOR_ASK_ANSWER = true;
 
 /** Our 2♥/2♠ over their 1NT showed the major and a 4+ minor, and partner's
@@ -3539,8 +3540,8 @@ function answerMinorAsk(ctx: Ctx): Decision | null {
   if (!MINOR_ASK_ANSWER || mine.length !== 1 || (mine[0] !== '2H' && mine[0] !== '2S')
       || partners.length !== 1 || partners[0] !== '2NT'
       || ctx.ours[ctx.ours.length - 1][0] !== ctx.pd) return null;
-  const opening = ctx.calls.find(([, c]) => c !== 'Pass')?.[1] ?? null;
-  if (opening !== '1NT') return null;
+  const theirs = ctx.theirs.map(([, c]) => c).filter((c) => c !== 'Pass');
+  if (theirs.length !== 1 || theirs[0] !== '1NT') return null;
   const h = ctx.h;
   const m: Suit = h.len.C >= h.len.D ? 'C' : 'D';
   const call = ctx.cheapest(m, 3);

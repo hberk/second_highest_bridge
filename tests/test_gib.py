@@ -1357,6 +1357,8 @@ def test_overcaller_answers_2nt_asking_for_the_minor():
     # The asker passes the answer.
     south = 'JS 7S 6S 3S 2S 3H AD QD JD 4D 10C 5C 3C'
     assert bid(south, *calls, '3C', 'Pass', dealer='East')[0] == 'Pass'
-    # Spades and diamonds, over their double of 2NT: 3♦.
+    # Spades and diamonds: 3♦.
     spades = 'KS JS 8S 7S 2S 2H AD QD JD 9D 10C 5C 2C'
-    assert bid(spades, 'Pass', 'Pass', '1NT', '2S', 'Pass', '2NT', 'X', dealer='East')[0] == '3D'
+    assert bid(spades, 'Pass', 'Pass', '1NT', '2S', 'Pass', '2NT', 'Pass', dealer='East')[0] == '3D'
+    # Once they have bid again (here a transfer, 2♠ over it), no answer.
+    assert bid(spades, '1NT', 'Pass', '2H', '2S', 'Pass', '2NT', 'Pass', dealer='West')[0] != '3D'
