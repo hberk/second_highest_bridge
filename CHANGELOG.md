@@ -1,11 +1,12 @@
 # Changelog
 
-Releases are tagged on main (`v0.1-alpha`); the packages carry the same version in npm's three-number form (`0.1.0-alpha`). Until 1.0 the
-robots' bidding and play change from release to release; every change and
+Releases are tagged on main, and the tag matches the version in
+`frontend/package.json` and `server/package.json` (`v0.1.0-alpha` is
+0.1.0-alpha). Until 1.0 the robots' bidding and play change from release to release; every change and
 what it was measured to be worth is in
 [docs/ROBOT_PROGRESS.md](docs/ROBOT_PROGRESS.md).
 
-## v0.1-alpha (2026-11-03)
+## v0.1.0-alpha (2026-11-03)
 
 The first tagged release: everything up to and including PR #62.
 
