@@ -3490,6 +3490,58 @@ function staymanContested(ctx: Ctx): Decision | null {
   return null;
 }
 
+/** Negative doubles with Lebensohl over 1NT (2♥/2♠), the user's system (gib.py). */
+export const NEG_X_1NT = true;
+export const NEG_X_HCP = 8;
+
+/** Our 1NT opening and their 2♥/2♠ straight over it: the last call, or
+ *  (`doubled`) followed straight away by our double. */
+function negXSpot(ctx: Ctx, doubled = false): boolean {
+  if (!NEG_X_1NT || !ctx.seq.length || ctx.seq[0] !== '1NT') return false;
+  const i = ctx.calls.findIndex(([, c]) => c === '1NT');
+  if (i + 1 >= ctx.calls.length || (ctx.calls[i + 1][1] !== '2H' && ctx.calls[i + 1][1] !== '2S')) return false;
+  if (!doubled) return ctx.calls.length === i + 2;
+  return i + 2 < ctx.calls.length && ctx.calls[i + 2][1] === 'X';
+}
+
+/** Opener, after 1NT (2M) X (P). */
+function answerNegX(ctx: Ctx, their: Suit): Decision {
+  const h = ctx.h;
+  const other: Suit = their === 'H' ? 'S' : 'H';
+  if (h.len[their] >= 4) return ['Pass', `4+ ${SYM[their]}: defending.`];
+  if (h.len[other] >= 4) {
+    const call = ctx.cheapest(other, 2);
+    if (call && levelOf(call) <= 3) return [call, `4+ ${SYM[other]}.`];
+  }
+  if (h.stopper(their)) {
+    if (h.hcp >= 16 && ctx.ok('3NT')) return ['3NT', `${SYM[their]} stopper, 16+ HCP.`];
+    if (ctx.ok('2NT')) return ['2NT', `${SYM[their]} stopper, 15 HCP.`];
+  }
+  const m: Suit = h.len.D >= h.len.C ? 'D' : 'C';
+  const call = ctx.cheapest(m, 3);
+  if (call && levelOf(call) === 3) return [call, `No ${SYM[their]} stopper, 3+ ${SYM[m]}.`];
+  return ['Pass', 'Nothing to add.'];
+}
+
+/** Responder, after 1NT (2M) X (P) and opener's answer. */
+function afterNegX(ctx: Ctx, their: Suit, o: string): Decision {
+  const h = ctx.h;
+  if (o === 'Pass') return ['Pass', 'Defending.'];
+  const gf = h.hcp >= 10;
+  const s = strainOf(o);
+  if ((s === 'H' || s === 'S') && s !== their) {
+    if (h.len[s] >= 4) {
+      return gf && ctx.ok(`4${s}`) ? [`4${s}`, TO_PLAY] : ['Pass', 'To play.'];
+    }
+  } else if (o === '3NT' || (o === '2NT' && !gf)) {
+    return ['Pass', 'To play.'];
+  } else if (o === '2NT') {
+    return ctx.ok('3NT') ? ['3NT', TO_PLAY] : ['Pass', 'To play.'];
+  }
+  if (gf && h.stopper(their) && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+  return ['Pass', 'To play.'];
+}
+
 function ntInterference(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
   const h = ctx.h;
@@ -3518,8 +3570,16 @@ function ntInterference(ctx: Ctx): Decision | null {
     if (lb === '2C' && lastCall[1] === '2C' && ctx.ok('X') && MAJORS.some((m) => h.len[m] >= 4) && h.hcp >= 8) {
       return ['X', 'Stayman. Artificial.'];
     }
-    if (isSuit(their) && lb !== '2C' && h.len[their] >= 4 && h.hcp >= 8 && ctx.ok('X')) {
+    if (!negXSpot(ctx) && isSuit(their) && lb !== '2C' && h.len[their] >= 4 && h.hcp >= 8 && ctx.ok('X')) {
       return ['X', 'Penalty: 8+ HCP.'];
+    }
+    if (negXSpot(ctx) && h.hcp >= NEG_X_HCP && ctx.ok('X')) {
+      const t = their as Suit;
+      const five = SUITS.some((x) => x !== t && h.len[x] >= 5);
+      const other: Suit = t === 'H' ? 'S' : 'H';
+      if (h.hcp < 10 ? !five : h.len[other] >= 4 || h.len[t] >= 4 || !(five || h.stopper(t))) {
+        return ['X', `Negative: ${NEG_X_HCP}+ HCP.`];
+      }
     }
     if (h.hcp >= 10) {
       for (const s of sortedBy(SUITS, (t) => [h.len[t]], true)) {
@@ -3540,6 +3600,13 @@ function ntInterference(ctx: Ctx): Decision | null {
       }
     }
     return ['Pass', 'Nothing to show.'];
+  }
+  if (ctx.iAmOpener() && seq.length === 2 && seq[0] === '1NT' && seq[1] === 'X' && lastCall[1] === 'Pass'
+      && negXSpot(ctx, true)) {
+    return answerNegX(ctx, their as Suit);
+  }
+  if (!ctx.iAmOpener() && seq.length === 3 && seq[1] === 'X' && negXSpot(ctx, true)) {
+    return afterNegX(ctx, their as Suit, seq[2]);
   }
   if (ctx.iAmOpener() && seq[seq.length - 1] === '2NT' && seq.length === 2) {
     if (ctx.ok('3C')) return ['3C', `Completing the Lebensohl relay, ${SYM.C}.`];
@@ -3679,11 +3746,39 @@ function theyOpened(ctx: Ctx): Decision | null {
       if (decision) return decision;
     }
   }
+  const minor = answerMinorAsk(ctx);
+  if (minor) return minor;
   const cue = answerCuebid(ctx);
   if (cue) return cue;
   if (partners.length && !mine.length) return advance(ctx);
   if (mine.length && !partners.length && defendWasWeak(ctx, mine[0])) return ['Pass', 'Already described: weak.'];
   return cuebidRaiseReply(ctx);
+}
+
+/** (1NT) 2♥/2♠ (P) 2NT asks for the overcaller's minor; no branch answered it.
+ *  Answered only when their 1NT is their only bid (gib.py has the figures). */
+export const MINOR_ASK_ANSWER = true;
+/** ...and over their double of the 2♥/2♠ too. */
+export const MINOR_ASK_OVER_X = true;
+
+/** Our 2♥/2♠ over their 1NT showed the major and a 4+ minor, and partner's
+ *  2NT asked which: bid it, at the three level. */
+function answerMinorAsk(ctx: Ctx): Decision | null {
+  const mine = ctx.mine();
+  const partners = ctx.partners();
+  if (!MINOR_ASK_ANSWER || mine.length !== 1 || (mine[0] !== '2H' && mine[0] !== '2S')
+      || partners.length !== 1 || partners[0] !== '2NT'
+      || ctx.ours[ctx.ours.length - 1][0] !== ctx.pd) return null;
+  const theirs = ctx.theirs.map(([, c]) => c).filter((c) => c !== 'Pass');
+  const k = ctx.calls.findIndex(([w, c]) => w === ctx.me && c === mine[0]);
+  const doubled = MINOR_ASK_OVER_X && theirs.length === 2 && theirs[0] === '1NT' && theirs[1] === 'X'
+    && ctx.calls[k + 1][1] === 'X';
+  if (!(theirs.length === 1 && theirs[0] === '1NT') && !doubled) return null;
+  const h = ctx.h;
+  const m: Suit = h.len.C >= h.len.D ? 'C' : 'D';
+  const call = ctx.cheapest(m, 3);
+  if (call && levelOf(call) === 3) return [call, `4+ ${SYM[m]}, answering 2NT.`];
+  return ['Pass', 'No room.'];
 }
 
 /** Was `seat`'s first call a takeout double: they opened, its partner had
