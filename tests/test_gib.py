@@ -421,6 +421,22 @@ def test_takeout_doubles_stop_at_4h():
     assert call != 'X' or why.startswith('Penalty'), (call, why)
 
 
+def test_takeout_double_of_a_minor_with_both_majors():
+    # The user's hand (2026-11-03): West opened 1D, North passed 4-4-3-2.
+    both = 'AS KS QS 7S QH JH 9H 2H TD 9D 8D JC 4C'
+    saved = gib.MAJORS_TAKEOUT
+    try:
+        gib.MAJORS_TAKEOUT = True
+        assert bid(both, '1D')[0] == 'X'
+        assert bid(both.replace('TD 9D 8D JC 4C', 'TC 9C 8C JD 4D'), '1C')[0] == 'X'
+        # Four of their suit (4-4-4-1) still passes: experts doubled 0 of 20.
+        assert bid('AS KS QS 7S QH JH 9H 2H TD 9D 8D 6D JC', '1D')[0] != 'X'
+        gib.MAJORS_TAKEOUT = False
+        assert bid(both, '1D')[0] == 'Pass'
+    finally:
+        gib.MAJORS_TAKEOUT = saved
+
+
 # ── Slam conventions ──────────────────────────────────────────────────────────
 
 def test_keycard_blackwood_0314():

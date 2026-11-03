@@ -4096,12 +4096,26 @@ def _defend(ctx: Ctx) -> tuple | None:
             and not (LEAD_DOUBLE and _their_artificial(ctx, len(ctx.calls) - 1))
             and _takeout_after_notrump(ctx)):
         shape_ok = h.len[their] <= 2 and all(h.len[s] >= 3 for s in SUITS if s != their)
+        if (MAJORS_TAKEOUT and opening in ('1C', '1D') and h.len['H'] >= 4
+                and h.len['S'] >= 4 and h.len[their] <= 3
+                and (MAJORS_TAKEOUT_BALANCE or not bal)):
+            shape_ok = True               # both majors: the other minor may be short
         need = (TAKEOUT_MIN if lvl == 1 else 13) - bal
         if (shape_ok and hcp >= need) or hcp >= 18:
             return 'X', f"Balancing takeout: {need}+ HCP." if bal else f"Takeout: {need}+ HCP."
     if lvl == 3 and h.balanced and hcp >= 16 and h.stopper(their) and ctx.ok('3NT'):
         return '3NT', f"16+ HCP, {SYM[their]} stopper."
     return 'Pass', "No action."
+
+
+#: Over a one-level minor opening, four cards in each major is enough shape
+#: for a takeout double, with three of their suit and a doubleton in the
+#: other minor (the user's call, 2026-11-03: 1♦ by West, North passed
+#: ♠AKQ7 ♥QJ92 ♦T98 ♣J4). Championship archive, 12-14 HCP 4-4 majors with
+#: three of theirs: experts doubled 24/29 over 1♦ and 13/21 over 1♣.
+MAJORS_TAKEOUT = False
+#: ... and in the balancing seat too (1♦ P P X), on BALANCE_DISCOUNT fewer HCP.
+MAJORS_TAKEOUT_BALANCE = False
 
 
 #: After their notrump opening, a takeout double of the suit they land in is

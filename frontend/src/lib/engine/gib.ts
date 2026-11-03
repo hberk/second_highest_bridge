@@ -3750,7 +3750,11 @@ function defend(ctx: Ctx): Decision | null {
   if (ctx.ok('X') && rankOf(lb) <= rankOf('4H') && isSuit(their)
     && !(LEAD_DOUBLE && theirArtificial(ctx, ctx.calls.length - 1))
     && takeoutAfterNotrump(ctx)) {
-    const shapeOk = h.len[their] <= 2 && SUITS.every((s) => s === their || h.len[s] >= 3);
+    let shapeOk = h.len[their] <= 2 && SUITS.every((s) => s === their || h.len[s] >= 3);
+    if (MAJORS_TAKEOUT && (opening === '1C' || opening === '1D') && h.len.H >= 4
+      && h.len.S >= 4 && h.len[their] <= 3 && (MAJORS_TAKEOUT_BALANCE || !bal)) {
+      shapeOk = true;                 // both majors: the other minor may be short
+    }
     const need = (lvl === 1 ? TAKEOUT_MIN : 13) - bal;
     if ((shapeOk && hcp >= need) || hcp >= 18) {
       return ['X', bal ? `Balancing takeout: ${need}+ HCP.` : `Takeout: ${need}+ HCP.`];
@@ -3765,6 +3769,11 @@ function defend(ctx: Ctx): Decision | null {
 /** After their notrump opening, a takeout double of the suit they land in is
  *  made only over a plain two-level transfer, 1NT (P) 2♦ (P) 2♥ (the user's
  *  call, 2026-11-01: West's 3♥ super accept was doubled, 4♥ made, -420). */
+/** Over a one-level minor opening, 4-4 in the majors is enough shape for a
+ * takeout double (gib.py MAJORS_TAKEOUT). */
+export const MAJORS_TAKEOUT = false;
+/** ... and in the balancing seat too (gib.py MAJORS_TAKEOUT_BALANCE). */
+export const MAJORS_TAKEOUT_BALANCE = false;
 export const NT_TAKEOUT_TRANSFER_ONLY = true;
 
 function takeoutAfterNotrump(ctx: Ctx): boolean {
