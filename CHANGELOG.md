@@ -31,7 +31,8 @@ The first tagged release: everything up to and including PR #62.
 **In this release (PR #62)**
 - A takeout double of 1♣/1♦ with both majors, direct and balancing seat.
 - After our Michaels or Unusual 2NT, partner's choice of suit stands; a 6-5
-  hand invites, but not over their double.
+  hand invites, but not over their double; over their bid, a five-card holding
+  competes to the level of the fit.
 - Balancing over a weak two: a good six-card suit at the two level; no
   three-level balance on a poor five-card suit.
 - An eight-card major bids game at once over their one-level opening;
