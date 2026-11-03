@@ -3653,6 +3653,70 @@ def _stayman_contested(ctx: Ctx) -> tuple | None:
     return None
 
 
+#: Negative doubles with Lebensohl over 1NT (2♥/2♠) (the user's system,
+#: 2026-11-03): the double shows values, NEG_X_HCP+, not four of their
+#: major. Without it a responder with values and no five-card suit passed,
+#: so a pass didn't deny values. Opener passes with four of theirs (penalty),
+#: else bids four of the other major, 2NT/3NT with a stopper, or a minor.
+NEG_X_1NT = True
+NEG_X_HCP = 8
+
+
+def _neg_x_spot(ctx: Ctx, doubled: bool = False) -> bool:
+    """Our 1NT opening and their 2♥/2♠ straight over it: the last call, or
+    (`doubled`) followed straight away by our double."""
+    if not NEG_X_1NT or not ctx.seq or ctx.seq[0] != '1NT':
+        return False
+    i = next(k for k, (w, c) in enumerate(ctx.calls) if c == '1NT')
+    if i + 1 >= len(ctx.calls) or ctx.calls[i + 1][1] not in ('2H', '2S'):
+        return False
+    if not doubled:
+        return len(ctx.calls) == i + 2
+    return i + 2 < len(ctx.calls) and ctx.calls[i + 2][1] == 'X'
+
+
+def _answer_neg_x(ctx: Ctx, their: str) -> tuple:
+    """Opener, after 1NT (2M) X (P)."""
+    h = ctx.h
+    other = 'S' if their == 'H' else 'H'
+    if h.len[their] >= 4:
+        return 'Pass', f"4+ {SYM[their]}: defending."
+    if h.len[other] >= 4:
+        call = ctx.cheapest(other, 2)
+        if call and level_of(call) <= 3:
+            return call, f"4+ {SYM[other]}."
+    if h.stopper(their):
+        if h.hcp >= 16 and ctx.ok('3NT'):
+            return '3NT', f"{SYM[their]} stopper, 16+ HCP."
+        if ctx.ok('2NT'):
+            return '2NT', f"{SYM[their]} stopper, 15 HCP."
+    m = max(MINORS, key=lambda x: (h.len[x], SUITS.index(x)))
+    call = ctx.cheapest(m, 3)
+    if call and level_of(call) == 3:
+        return call, f"No {SYM[their]} stopper, 3+ {SYM[m]}."
+    return 'Pass', "Nothing to add."
+
+
+def _after_neg_x(ctx: Ctx, their: str, o: str) -> tuple:
+    """Responder, after 1NT (2M) X (P) and opener's answer."""
+    h = ctx.h
+    if o == 'Pass':
+        return 'Pass', "Defending."
+    gf = h.hcp >= 10
+    s = strain_of(o)
+    if s in MAJORS and s != their:
+        if h.len[s] >= 4:
+            return (f"4{s}", TO_PLAY) if gf and ctx.ok(f"4{s}") else ('Pass', "To play.")
+    elif o == '3NT' or (o == '2NT' and not gf):
+        return 'Pass', "To play."
+    elif o == '2NT':
+        return ('3NT', TO_PLAY) if ctx.ok('3NT') else ('Pass', "To play.")
+    if gf:
+        if h.stopper(their) and ctx.ok('3NT'):
+            return '3NT', TO_PLAY
+    return 'Pass', "To play."
+
+
 def _nt_interference(ctx: Ctx) -> tuple | None:
     """Our 1NT/2NT/2C was overcalled. Over 2C, a double is Stayman;
     otherwise Lebensohl: 2NT relays to 3C, a two-level suit is to play, a
@@ -3682,9 +3746,18 @@ def _nt_interference(ctx: Ctx) -> tuple | None:
         if lb == '2C' and ctx.calls[-1][1] == '2C' and ctx.ok('X') and \
                 any(h.len[m] >= 4 for m in MAJORS) and h.hcp >= 8:
             return 'X', "Stayman. Artificial."
-        if (their in SUITS and lb != '2C' and h.len[their] >= 4 and h.hcp >= 8
-                and ctx.ok('X')):
+        if (not _neg_x_spot(ctx) and their in SUITS and lb != '2C' and h.len[their] >= 4
+                and h.hcp >= 8 and ctx.ok('X')):
             return 'X', "Penalty: 8+ HCP."
+        if _neg_x_spot(ctx) and h.hcp >= NEG_X_HCP and ctx.ok('X'):
+            # 8-9 with a five-card suit bids it (Lebensohl); 10+ doubles with
+            # four of either major, or with no five-card suit and no stopper
+            # for 3NT, and else takes the game-forcing bids below.
+            five = any(h.len[x] >= 5 for x in SUITS if x != their)
+            other = 'S' if their == 'H' else 'H'
+            if (not five if h.hcp < 10 else
+                    h.len[other] >= 4 or h.len[their] >= 4 or not (five or h.stopper(their))):
+                return 'X', f"Negative: {NEG_X_HCP}+ HCP."
         if h.hcp >= 10:
             for s in sorted(SUITS, key=lambda s: h.len[s], reverse=True):
                 if s != their and h.len[s] >= 5:
@@ -3701,6 +3774,12 @@ def _nt_interference(ctx: Ctx) -> tuple | None:
                 if call and level_of(call) == 3 and h.hcp <= 9 and ctx.ok('2NT'):
                     return '2NT', "Lebensohl: relay to 3C. Artificial."
         return 'Pass', "Nothing to show."
+    if ctx.i_am_opener() and seq == ['1NT', 'X'] and ctx.calls[-1][1] == 'Pass' \
+            and _neg_x_spot(ctx, doubled=True):
+        return _answer_neg_x(ctx, their)
+    if not ctx.i_am_opener() and len(seq) == 3 and seq[1] == 'X' \
+            and _neg_x_spot(ctx, doubled=True):
+        return _after_neg_x(ctx, their, seq[2])
     if ctx.i_am_opener() and seq[-1] == '2NT' and len(seq) == 2:
         if ctx.ok('3C'):
             return '3C', f"Completing the Lebensohl relay, {SYM['C']}."
@@ -3861,6 +3940,8 @@ def they_opened(ctx: Ctx) -> tuple | None:
 #: natural and passed, so P P 1NT 2♥ P 2NT went two down in 2NT with
 #: 9 clubs (the user's deal, 2026-11-03). The overcaller now bids the minor.
 MINOR_ASK_ANSWER = True
+#: ...and over their double of the 2♥/2♠ too.
+MINOR_ASK_OVER_X = True
 
 
 #: Only when they have bid nothing but the 1NT: answering everywhere
@@ -3877,7 +3958,10 @@ def _answer_minor_ask(ctx: Ctx) -> tuple | None:
     if not MINOR_ASK_ANSWER or ctx.mine() not in (['2H'], ['2S']) \
             or ctx.partners() != ['2NT'] or ctx.ours[-1][0] != ctx.pd:
         return None
-    if [c for _, c in ctx.theirs if c != 'Pass'] != ['1NT']:
+    theirs = [c for _, c in ctx.theirs if c != 'Pass']
+    k = ctx.calls.index((ctx.me, ctx.mine()[0]))
+    doubled = MINOR_ASK_OVER_X and theirs == ['1NT', 'X'] and ctx.calls[k + 1][1] == 'X'
+    if theirs != ['1NT'] and not doubled:
         return None
     h = ctx.h
     m = 'C' if h.len['C'] >= h.len['D'] else 'D'

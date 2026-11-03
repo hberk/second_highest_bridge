@@ -1362,3 +1362,18 @@ def test_overcaller_answers_2nt_asking_for_the_minor():
     assert bid(spades, 'Pass', 'Pass', '1NT', '2S', 'Pass', '2NT', 'Pass', dealer='East')[0] == '3D'
     # Once they have bid again (here a transfer, 2♠ over it), no answer.
     assert bid(spades, '1NT', 'Pass', '2H', '2S', 'Pass', '2NT', 'Pass', dealer='West')[0] != '3D'
+
+
+def test_negative_double_over_their_two_major_after_1nt():
+    """The user's system (2026-11-03): Lebensohl with negative doubles, so
+    1NT (2♥) X shows 8+ HCP, not four hearts, and a pass denies values."""
+    call, why = bid('KS 4S QH 7H 3H JD 8D 5D 2D QC 7C 6C 3C', '1NT', '2H', dealer='West')
+    assert call == 'X' and why.startswith('Negative'), (call, why)
+    # A five-card suit at 8-9 HCP still bids it, to play.
+    assert bid('KS JS 8S 4S 2S 7H 3H KD 8D 5D 2D JC 6C', '1NT', '2H', dealer='West')[0] == '2S'
+    # Opener: four of theirs passes for penalty; four spades bids them.
+    assert bid('AS 5S KH JH 4H 3H AD QD 7D 4D KC 8C 5C', '1NT', '2H', 'X', 'Pass', dealer='West')[0] == 'Pass'
+    assert bid('AS QS 5S 2S KH 8H 4H AD JD 7D KC 5C 2C', '1NT', '2H', 'X', 'Pass', dealer='West')[0] == '2S'
+    # The overcaller answers the 2NT ask over the double too.
+    north = 'KS JH 10H 8H 7H 2H 10D 5D 2D AC QC JC 9C'
+    assert bid(north, '1NT', '2H', 'X', '2NT', 'Pass', dealer='West')[0] == '3C'
