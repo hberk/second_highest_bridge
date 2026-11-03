@@ -1439,3 +1439,36 @@ def test_negative_double_over_their_two_major_after_1nt():
     # The overcaller answers the 2NT ask over the double too.
     north = 'KS JH 10H 8H 7H 2H 10D 5D 2D AC QC JC 9C'
     assert bid(north, '1NT', '2H', 'X', '2NT', 'Pass', dealer='West')[0] == '3C'
+
+
+def test_negative_double_over_1nt_reaches_game_and_competes():
+    # Review of PR #62 (2026-11-03): 10+ HCP doubled for want of a stopper,
+    # then passed opener's 2♠ and 3♣ with 26 between the hands; and over
+    # 1NT (2♥) X (3♥) both hands passed with four spades and 27 HCP.
+    resp = 'QS 6S 3S 5H 4H KD QD 6D 5D AC JC 8C 2C'           # 12 HCP, no ♥ stopper
+    assert bid(resp, '1NT', '2H')[0] == 'X'
+    assert bid(resp, '1NT', '2H', 'X', 'Pass', '2S', 'Pass')[0] == '4S'
+    assert bid(resp, '1NT', '2H', 'X', 'Pass', '3C', 'Pass')[0] == '5C'
+    opener = 'AS KS 5S 4S KH 3H 2H AD 7D 4D QC 9C 3C'
+    assert bid(opener, '1NT', '2H', 'X', '3H')[0] == '3S'
+    assert bid(resp, '1NT', '2H', 'X', '3H', '3S', 'Pass')[0] == '4S'
+    call, why = bid(resp, '1NT', '2H', 'X', '3H', 'Pass', 'Pass')
+    assert call == 'X' and why.startswith('Penalty'), (call, why)
+    assert bid(opener, '1NT', '2H', 'X', '3H', 'Pass', 'Pass', 'X', 'Pass')[0] == 'Pass'
+    # Four of their suit: opener doubles their raise, and responder leaves it in.
+    four = 'AS KS 5S AH KH 3H 2H QD 7D 4D QC 9C 3C'
+    assert bid(four, '1NT', '2H', 'X', '3H')[0] == 'X'
+    assert bid(resp, '1NT', '2H', 'X', '3H', 'X', 'Pass')[0] == 'Pass'
+    # 8-9 HCP stays out.
+    assert bid('QS 6S 3S 5H 4H KD 9D 6D 5D AC 9C 8C 2C',
+               '1NT', '2H', 'X', '3H', 'Pass', 'Pass')[0] == 'Pass'
+
+
+def test_reverser_bids_game_over_the_raise_of_its_major():
+    # 1♣ (1♠) 1NT (P) 2♥ (P) 3♥ (P): 18 HCP 6-5 passed (review of PR #62).
+    south = 'AH KH QH 10H 2H 4D 3D AC KC QC 10C 9C 5C'
+    assert bid(south, '1C', '1S', '1NT', 'Pass', '2H', 'Pass', '3H', 'Pass',
+               dealer='South')[0] == '4H'
+    # A minimum 5-4 reverse stays in 3♥.
+    assert bid('AH KH 9H 2H 4D 3D 2D 5S AC KC QC 9C 5C', '1C', '1S', '1NT', 'Pass', '2H',
+               'Pass', '3H', 'Pass', dealer='South')[0] == 'Pass'

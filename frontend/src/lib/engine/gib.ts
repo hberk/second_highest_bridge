@@ -2610,6 +2610,11 @@ export const REVERSE_RAISE_SHAPE = 10;
  *  raises on REVERSE_GAME_JUDGE; 3NT needs NT_GAME less the reverse's 16. */
 export const REVERSE_GAME_JUDGE = 8;
 export const REVERSE_NT_JUDGE = 12;
+/** ...and opener over responder's 3z, the reverse suit raised short of game:
+ *  4z on REVERSE_RAISE_SHAPE cards in x and z or REVERSE_EXTRA_HCP (review of
+ *  PR #62, 2026-11-03: 18 HCP 6-5 passed 3♥). */
+export const REVERSE_MAJOR_RAISE = true;
+export const REVERSE_EXTRA_HCP = 18;
 
 /** The reverse suit when calls c0..c4 are 1x (y) R (P) 2z with R a free
  *  1NT or one-level new suit and z above x and outside y and R's suit; with
@@ -2706,9 +2711,17 @@ function afterReverseRaise(ctx: Ctx): Decision | null {
   }
   const [c0, c1, , , c4, , , c7] = ctx.calls.slice(i).map(([, c]) => c);
   const x = strainOf(c0) as Suit, y = strainOf(c1) as Suit;
-  if (!reverseRaised(ctx)) return null;
   const h = ctx.h;
   const z = strainOf(c4) as Suit;
+  if (REVERSE_MAJOR_RAISE && (z === 'H' || z === 'S') && reverseRaised(ctx, z)) {
+    // 3z: "4+ z support, no game" on the reverse's minimum; game with the
+    // shape or extras (1♣ (1♠) 1NT (P) 2♥ (P) 3♥ passed on 6-5, 18).
+    if ((h.len[x] + h.len[z] >= REVERSE_RAISE_SHAPE || h.hcp >= REVERSE_EXTRA_HCP) && ctx.ok(`4${z}`)) {
+      return [`4${z}`, TO_PLAY];
+    }
+    return ['Pass', 'No game.'];
+  }
+  if (!reverseRaised(ctx)) return null;
   if ((h.len[x] + h.len[z] >= REVERSE_RAISE_SHAPE
     || h.judge + REVERSE_GAME_JUDGE + fitBonus(h, x, 4) >= GAME) && ctx.ok(`5${x}`)) {
     return [`5${x}`, TO_PLAY];
@@ -2720,12 +2733,17 @@ function afterReverseRaise(ctx: Ctx): Decision | null {
   return ['Pass', 'No game.'];
 }
 
-/** 1x (y) R (P) 2z (..) 3x: responder's raise of a reversed minor. */
-function reverseRaised(ctx: Ctx): boolean {
+/** 1x (y) R (P) 2z (..) 3x: responder's raise of a reversed minor; with
+ *  `suit`, 3`suit` (the raise of the reverse suit z, when suit is z). */
+function reverseRaised(ctx: Ctx, suit?: Suit): boolean {
   const i = reverseStart(ctx);
   if (!(REVERSE_CONTESTED && REVERSE_MINOR_RAISE) || i === null || ctx.calls.length < i + 7) return false;
   const c = ctx.calls.slice(i, i + 7).map(([, k]) => k);
   const x = strainOf(c[0]);
+  if (suit !== undefined) {
+    return Boolean(reverseSpot(c[0], c[1], c[2], c[3], c[4])) && c[6] === `3${suit}`
+      && ctx.calls[i + 6][0] === ctx.calls[i + 2][0];
+  }
   return Boolean(reverseSpot(c[0], c[1], c[2], c[3], c[4])) && isMinor(x) && c[6] === `3${x}`
     && ctx.calls[i + 6][0] === ctx.calls[i + 2][0];
 }
@@ -3523,14 +3541,18 @@ function answerNegX(ctx: Ctx, their: Suit): Decision {
   return ['Pass', 'Nothing to add.'];
 }
 
-/** Responder, after 1NT (2M) X (P) and opener's answer. */
+/** Responder, after 1NT (2M) X (P) and opener's answer. 10+ HCP is game
+ *  opposite the 1NT (NEG_X_GAME): a 4-3 major fit without a stopper, a minor
+ *  fit, or 3NT where opener may hold the stopper (the review of PR #62,
+ *  2026-11-03: 11 HCP passed 2♠ and 3♣ with 26 between the hands). */
 function afterNegX(ctx: Ctx, their: Suit, o: string): Decision {
   const h = ctx.h;
   if (o === 'Pass') return ['Pass', 'Defending.'];
   const gf = h.hcp >= 10;
   const s = strainOf(o);
+  const stop = h.stopper(their);
   if ((s === 'H' || s === 'S') && s !== their) {
-    if (h.len[s] >= 4) {
+    if (h.len[s] >= 4 || (NEG_X_GAME && gf && h.len[s] >= 3 && !stop)) {
       return gf && ctx.ok(`4${s}`) ? [`4${s}`, TO_PLAY] : ['Pass', 'To play.'];
     }
   } else if (o === '3NT' || (o === '2NT' && !gf)) {
@@ -3538,8 +3560,65 @@ function afterNegX(ctx: Ctx, their: Suit, o: string): Decision {
   } else if (o === '2NT') {
     return ctx.ok('3NT') ? ['3NT', TO_PLAY] : ['Pass', 'To play.'];
   }
-  if (gf && h.stopper(their) && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+  if (gf) {
+    if (stop && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+    if (NEG_X_GAME && (s === 'C' || s === 'D') && h.len[s] >= 4) {
+      const game = h.hcp >= NEG_X_MINOR_GAME ? `5${s}` : `4${s}`;
+      if (ctx.ok(game)) return [game, TO_PLAY];
+    }
+    // Opener showed the major first: may hold a stopper.
+    if (NEG_X_GAME && (s === 'H' || s === 'S') && s !== their && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+  }
   return ['Pass', 'To play.'];
+}
+
+/** Over their bid after our negative double, 1NT (2M) X (3M): opener bids
+ *  four of the other major at the three level or doubles their bid with 4+
+ *  of it; responder, after opener's pass, bids 3NT with the stoppers or
+ *  doubles with 10+ (the review of PR #62: 3♥ played undoubled against 27). */
+export const NEG_X_COMPETE = true;
+/** Responder's 10+ HCP reaches game after opener's answer (above). */
+export const NEG_X_GAME = true;
+export const NEG_X_MINOR_GAME = 12;
+
+function negXIndex(ctx: Ctx): number {
+  return ctx.calls.findIndex(([, c]) => c === '1NT');
+}
+
+/** 1NT (2M) X (bid): opener's call; 1NT (2M) X (bid) P (P): responder's;
+ *  1NT (2M) X (bid) P (P) X (P): opener's again. */
+function negXCompeted(ctx: Ctx): Decision | null {
+  if (!NEG_X_COMPETE || !negXSpot(ctx, true)) return null;
+  const i = negXIndex(ctx);
+  const after = ctx.calls.slice(i + 3).map(([, c]) => c);
+  if (!after.length || !parseBid(after[0])) return null;
+  const h = ctx.h;
+  const orig = strainOf(ctx.calls[i + 1][1]) as Suit;
+  const bid = after[0];
+  const bs = strainOf(bid);
+  const their = new Set<Suit>([orig]);
+  if (isSuit(bs)) their.add(bs as Suit);
+  const other: Suit = orig === 'H' ? 'S' : 'H';
+  const rest = after.slice(1).join(' ');
+  if (ctx.iAmOpener() && after.length === 1) {
+    if (!their.has(other) && h.len[other] >= 4) {
+      const call = ctx.cheapest(other, 3);
+      if (call && levelOf(call) === 3) return [call, `4+ ${SYM[other]}.`];
+    }
+    if (isSuit(bs) && h.len[bs as Suit] >= 4 && ctx.ok('X')) return ['X', `Penalty: 4+ ${SYM[bs as Suit]}.`];
+    return ['Pass', 'Nothing to add.'];
+  }
+  if (!ctx.iAmOpener() && rest === 'Pass Pass') {
+    if (h.hcp >= 10) {
+      if ([...their].every((t) => h.stopper(t)) && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+      if (ctx.ok('X')) return ['X', 'Penalty: 10+ HCP.'];
+    }
+    return ['Pass', 'Nothing more to show.'];
+  }
+  if ((rest === 'X Pass' && !ctx.iAmOpener()) || (rest === 'Pass Pass X Pass' && ctx.iAmOpener())) {
+    return ['Pass', "Partner's double stands."];
+  }
+  return null;
 }
 
 function ntInterference(ctx: Ctx): Decision | null {
@@ -3601,12 +3680,14 @@ function ntInterference(ctx: Ctx): Decision | null {
     }
     return ['Pass', 'Nothing to show.'];
   }
+  const competed = negXCompeted(ctx);
+  if (competed) return competed;
   if (ctx.iAmOpener() && seq.length === 2 && seq[0] === '1NT' && seq[1] === 'X' && lastCall[1] === 'Pass'
       && negXSpot(ctx, true)) {
     return answerNegX(ctx, their as Suit);
   }
   if (!ctx.iAmOpener() && seq.length === 3 && seq[1] === 'X' && negXSpot(ctx, true)) {
-    return afterNegX(ctx, their as Suit, seq[2]);
+    return afterNegX(ctx, strainOf(ctx.calls[negXIndex(ctx) + 1][1]) as Suit, seq[2]);
   }
   if (ctx.iAmOpener() && seq[seq.length - 1] === '2NT' && seq.length === 2) {
     if (ctx.ok('3C')) return ['3C', `Completing the Lebensohl relay, ${SYM.C}.`];

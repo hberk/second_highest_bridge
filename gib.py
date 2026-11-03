@@ -2857,6 +2857,11 @@ REVERSE_RAISE_SHAPE = 10
 #: (the first measurement bid 3NT and 4M on 8 and lost).
 REVERSE_GAME_JUDGE = 8
 REVERSE_NT_JUDGE = 12
+#: ...and opener over responder's 3z, the reverse suit raised short of game:
+#: 4z on REVERSE_RAISE_SHAPE cards in x and z or REVERSE_EXTRA_HCP (review of
+#: PR #62, 2026-11-03: 18 HCP 6-5 passed 3♥).
+REVERSE_MAJOR_RAISE = True
+REVERSE_EXTRA_HCP = 18
 
 
 def _reverse_spot(c0: str, c1: str, c2: str, c3: str, c4: str | None = None) -> str | None:
@@ -2960,10 +2965,17 @@ def _after_reverse_raise(ctx: Ctx) -> tuple | None:
         return None
     c0, c1, c2, c3, c4, c5, c6, c7 = (c for _, c in ctx.calls[i:])
     x, y = strain_of(c0), strain_of(c1)
-    if not _reverse_raised(ctx):
-        return None
     h = ctx.h
     z = strain_of(c4)
+    if REVERSE_MAJOR_RAISE and z in MAJORS and _reverse_raised(ctx, z):
+        # 3z: "4+ z support, no game" on the reverse's minimum; game with
+        # the shape or extras (1♣ (1♠) 1NT (P) 2♥ (P) 3♥ passed on 6-5, 18).
+        if (h.len[x] + h.len[z] >= REVERSE_RAISE_SHAPE or h.hcp >= REVERSE_EXTRA_HCP) \
+                and ctx.ok(f"4{z}"):
+            return f"4{z}", TO_PLAY
+        return 'Pass', "No game."
+    if not _reverse_raised(ctx):
+        return None
     if (h.len[x] + h.len[z] >= REVERSE_RAISE_SHAPE
             or h.judge + REVERSE_GAME_JUDGE + _fit_bonus(h, x, 4) >= GAME) and ctx.ok(f"5{x}"):
         return f"5{x}", TO_PLAY
@@ -2973,13 +2985,17 @@ def _after_reverse_raise(ctx: Ctx) -> tuple | None:
     return 'Pass', "No game."
 
 
-def _reverse_raised(ctx: Ctx) -> bool:
-    """1x (y) R (P) 2z (..) 3x: responder's raise of a reversed minor."""
+def _reverse_raised(ctx: Ctx, suit: str | None = None) -> bool:
+    """1x (y) R (P) 2z (..) 3x: responder's raise of a reversed minor; with
+    `suit`, 3`suit` (the raise of the reverse suit z, when suit is z)."""
     i = _reverse_start(ctx)
     if not (REVERSE_CONTESTED and REVERSE_MINOR_RAISE) or i is None or len(ctx.calls) < i + 7:
         return False
     c = [c for _, c in ctx.calls[i:i + 7]]
     x = strain_of(c[0])
+    if suit is not None:
+        return (bool(_reverse_spot(*c[:5])) and c[6] == f"3{suit}"
+                and ctx.calls[i + 6][0] == ctx.calls[i + 2][0])
     return (bool(_reverse_spot(*c[:5])) and x in MINORS and c[6] == f"3{x}"
             and ctx.calls[i + 6][0] == ctx.calls[i + 2][0])
 
@@ -3865,23 +3881,80 @@ def _answer_neg_x(ctx: Ctx, their: str) -> tuple:
 
 
 def _after_neg_x(ctx: Ctx, their: str, o: str) -> tuple:
-    """Responder, after 1NT (2M) X (P) and opener's answer."""
+    """Responder, after 1NT (2M) X (P) and opener's answer. 10+ HCP is
+    game opposite the 1NT (NEG_X_GAME): a 4-3 major fit without a stopper,
+    a minor fit, or 3NT where opener may hold the stopper (the review of
+    PR #62, 2026-11-03: 11 HCP passed 2♠ and 3♣ with 26 between the hands)."""
     h = ctx.h
     if o == 'Pass':
         return 'Pass', "Defending."
     gf = h.hcp >= 10
     s = strain_of(o)
+    stop = h.stopper(their)
     if s in MAJORS and s != their:
-        if h.len[s] >= 4:
+        if h.len[s] >= 4 or (NEG_X_GAME and gf and h.len[s] >= 3 and not stop):
             return (f"4{s}", TO_PLAY) if gf and ctx.ok(f"4{s}") else ('Pass', "To play.")
     elif o == '3NT' or (o == '2NT' and not gf):
         return 'Pass', "To play."
     elif o == '2NT':
         return ('3NT', TO_PLAY) if ctx.ok('3NT') else ('Pass', "To play.")
     if gf:
-        if h.stopper(their) and ctx.ok('3NT'):
+        if stop and ctx.ok('3NT'):
             return '3NT', TO_PLAY
+        if NEG_X_GAME and s in MINORS and h.len[s] >= 4:
+            game = f"5{s}" if h.hcp >= NEG_X_MINOR_GAME else f"4{s}"
+            if ctx.ok(game):
+                return game, TO_PLAY
+        if NEG_X_GAME and s in MAJORS and s != their and ctx.ok('3NT'):
+            return '3NT', TO_PLAY       # opener showed the major first: may hold a stopper
     return 'Pass', "To play."
+
+
+#: Over their bid after our negative double, 1NT (2M) X (3M): opener bids
+#: four of the other major at the three level or doubles their bid with 4+
+#: of it; responder, after opener's pass, bids 3NT with the stoppers or
+#: doubles with 10+ (the review of PR #62: 3♥ played undoubled against 27).
+NEG_X_COMPETE = True
+#: Responder's 10+ HCP reaches game after opener's answer (above).
+NEG_X_GAME = True
+NEG_X_MINOR_GAME = 12
+
+
+def _neg_x_index(ctx: Ctx) -> int:
+    return next(k for k, (w, c) in enumerate(ctx.calls) if c == '1NT')
+
+
+def _neg_x_competed(ctx: Ctx) -> tuple | None:
+    """1NT (2M) X (bid): opener's call; 1NT (2M) X (bid) P (P): responder's;
+    1NT (2M) X (bid) P (P) X (P): opener's again."""
+    if not NEG_X_COMPETE or not _neg_x_spot(ctx, doubled=True):
+        return None
+    i = _neg_x_index(ctx)
+    after = [c for _, c in ctx.calls[i + 3:]]
+    if not after or not parse_bid(after[0]):
+        return None
+    h, orig, bid = ctx.h, strain_of(ctx.calls[i + 1][1]), after[0]
+    their = {orig, strain_of(bid)} & set(SUITS)
+    other = 'S' if orig == 'H' else 'H'
+    if ctx.i_am_opener() and len(after) == 1:
+        if other not in their and h.len[other] >= 4:
+            call = ctx.cheapest(other, 3)
+            if call and level_of(call) == 3:
+                return call, f"4+ {SYM[other]}."
+        if strain_of(bid) in SUITS and h.len[strain_of(bid)] >= 4 and ctx.ok('X'):
+            return 'X', f"Penalty: 4+ {SYM[strain_of(bid)]}."
+        return 'Pass', "Nothing to add."
+    if not ctx.i_am_opener() and after[1:] == ['Pass', 'Pass']:
+        if h.hcp >= 10:
+            if all(h.stopper(t) for t in their) and ctx.ok('3NT'):
+                return '3NT', TO_PLAY
+            if ctx.ok('X'):
+                return 'X', "Penalty: 10+ HCP."
+        return 'Pass', "Nothing more to show."
+    if (after[1:] == ['X', 'Pass'] and not ctx.i_am_opener()
+            or after[1:] == ['Pass', 'Pass', 'X', 'Pass'] and ctx.i_am_opener()):
+        return 'Pass', "Partner's double stands."
+    return None
 
 
 def _nt_interference(ctx: Ctx) -> tuple | None:
@@ -3941,12 +4014,15 @@ def _nt_interference(ctx: Ctx) -> tuple | None:
                 if call and level_of(call) == 3 and h.hcp <= 9 and ctx.ok('2NT'):
                     return '2NT', "Lebensohl: relay to 3C. Artificial."
         return 'Pass', "Nothing to show."
+    competed = _neg_x_competed(ctx)
+    if competed:
+        return competed
     if ctx.i_am_opener() and seq == ['1NT', 'X'] and ctx.calls[-1][1] == 'Pass' \
             and _neg_x_spot(ctx, doubled=True):
         return _answer_neg_x(ctx, their)
     if not ctx.i_am_opener() and len(seq) == 3 and seq[1] == 'X' \
             and _neg_x_spot(ctx, doubled=True):
-        return _after_neg_x(ctx, their, seq[2])
+        return _after_neg_x(ctx, strain_of(ctx.calls[_neg_x_index(ctx) + 1][1]), seq[2])
     if ctx.i_am_opener() and seq[-1] == '2NT' and len(seq) == 2:
         if ctx.ok('3C'):
             return '3C', f"Completing the Lebensohl relay, {SYM['C']}."
