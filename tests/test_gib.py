@@ -431,6 +431,8 @@ def test_takeout_double_of_a_minor_with_both_majors():
         assert bid(both.replace('TD 9D 8D JC 4C', 'TC 9C 8C JD 4D'), '1C')[0] == 'X'
         # Four of their suit (4-4-4-1) still passes: experts doubled 0 of 20.
         assert bid('AS KS QS 7S QH JH 9H 2H TD 9D 8D 6D JC', '1D')[0] != 'X'
+        # Balancing on BALANCE_DISCOUNT fewer HCP (MAJORS_TAKEOUT_BALANCE).
+        assert bid(both, '1D', 'Pass', 'Pass')[0] == 'X'
         gib.MAJORS_TAKEOUT = False
         assert bid(both, '1D')[0] == 'Pass'
     finally:

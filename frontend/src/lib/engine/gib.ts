@@ -3771,9 +3771,9 @@ function defend(ctx: Ctx): Decision | null {
  *  call, 2026-11-01: West's 3♥ super accept was doubled, 4♥ made, -420). */
 /** Over a one-level minor opening, 4-4 in the majors is enough shape for a
  * takeout double (gib.py MAJORS_TAKEOUT). */
-export const MAJORS_TAKEOUT = false;
+export const MAJORS_TAKEOUT = true;
 /** ... and in the balancing seat too (gib.py MAJORS_TAKEOUT_BALANCE). */
-export const MAJORS_TAKEOUT_BALANCE = false;
+export const MAJORS_TAKEOUT_BALANCE = true;
 export const NT_TAKEOUT_TRANSFER_ONLY = true;
 
 function takeoutAfterNotrump(ctx: Ctx): boolean {

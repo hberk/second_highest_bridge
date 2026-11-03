@@ -784,6 +784,16 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     responder passing opener's decline after 1NT, a transfer and 2NT lost
     1,620 points over 42 auctions. Bidding the game after a decline is right
     here more often than it looks.
+- **Takeout double with both majors** (2026-11-03, the user's board: 1♦ by
+  West, North passed ♠AKQ7 ♥QJ92 ♦T98 ♣J4): over a 1♣/1♦ opening, four cards
+  in each major and three or fewer of their suit is takeout shape even with a
+  doubleton in the other minor (`MAJORS_TAKEOUT`), in the balancing seat too
+  on `BALANCE_DISCOUNT` fewer HCP (`MAJORS_TAKEOUT_BALANCE`). Championship
+  archive (`/mnt/project-files/double-majors/archive.py`), 4-4 majors, three
+  of theirs, 12-14 HCP: experts doubled 24 of 29 over 1♦ and 13 of 21 over
+  1♣; with four of theirs, 0 of 20 over 1♦, so that still passes. Measured
+  neutral on three sets of 3,000 fresh deals (ROBOT_PROGRESS); kept on the
+  user's call, both seats.
 - **Four meanings from training deals** (2026-11-02, the user's calls; not
   measured head to head, they are system fixes):
   - `NT_TAKEOUT_TRANSFER_ONLY`: after their notrump opening, a takeout double

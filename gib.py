@@ -4113,9 +4113,9 @@ def _defend(ctx: Ctx) -> tuple | None:
 #: other minor (the user's call, 2026-11-03: 1♦ by West, North passed
 #: ♠AKQ7 ♥QJ92 ♦T98 ♣J4). Championship archive, 12-14 HCP 4-4 majors with
 #: three of theirs: experts doubled 24/29 over 1♦ and 13/21 over 1♣.
-MAJORS_TAKEOUT = False
+MAJORS_TAKEOUT = True
 #: ... and in the balancing seat too (1♦ P P X), on BALANCE_DISCOUNT fewer HCP.
-MAJORS_TAKEOUT_BALANCE = False
+MAJORS_TAKEOUT_BALANCE = True
 
 
 #: After their notrump opening, a takeout double of the suit they land in is
