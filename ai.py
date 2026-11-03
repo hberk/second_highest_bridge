@@ -928,8 +928,9 @@ def _own_suit_raised(player: str, partner: str, auction: AuctionState, ev: dict,
 #: contract: with the opponents silent since, pass unless the hand is worth
 #: game by itself (TWO_SUITER_RAISE_HCP; experts, 1996-2002: 15-16 HCP 5-5
 #: passed 8 of 9, 17+ raised 9 of 14); over their bid, compete by the count
-#: with partner read as an advancer.
-TWO_SUITER_CHOICE = False
+#: with partner read as an advancer. Fresh deals, head to head: +0.08 a board
+#: (-0.06, +0.10, +0.21 on seeds 7M/8M/9M), in the noise (BIDDING.md).
+TWO_SUITER_CHOICE = True
 TWO_SUITER_RAISE_HCP = 17
 #: ...and over their bid, read partner as an advancer, not a 2/1 bidder.
 TWO_SUITER_CHOICE_COMPETE = True

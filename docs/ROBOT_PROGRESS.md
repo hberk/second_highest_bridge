@@ -260,6 +260,7 @@ from the variant's side; t as above.
 | 11-02 | After their bid over Stayman (review of the combined PR): a 2NT opener bids 3NT with a stopper; four of their suit and a stopper double for penalty; responder's game force doubles with four, else 3NT with a stopper, else passes (`STAYMAN_OPENER_3NT`, `STAYMAN_PENALTY_X`, `STAYMAN_RESPONDER_3NT`); seeds 14M, 15M, 10,000 deals each | **+0.04, +0.03** | +2.09, +1.80 | 12, 17 | on |
 | 11-02 | ...also 3NT with no stopper (`STAYMAN_NO_STOP = '3NT'`) / a double on values instead / without the penalty doubles | +0.04, +0.03 / +0.02, +0.01 / -0.02, -0.01 | +1.74, +2.15 / +0.71, +0.33 / -2.40, -1.44 | 18, 22 / 18, 22 / 10, 14 | off (its 3NTs all went down) |
 | 11-02 | Monday's combined bidding fixes, every switch above from 11-02 on against all of them off (which bids 4,000 of 4,000 auctions exactly as main), plus the pass-out-seat fix to `weak_jump_overcall`; seed 7M, 1,000 fresh deals (`/mnt/project-files/monday-combined/`) | +0.55 | +1.19 | 138 | on |
+| 11-03 | After our Michaels or Unusual 2NT, partner's choice of suit stands: pass unless 17+ HCP, compete reading partner as an advancer (`TWO_SUITER_CHOICE`); three sets of 3,000 fresh deals | -0.06, +0.10, +0.21 | -0.38, +0.51, +1.33 | 50, 59, 58 | on (your choice) |
 
 ### The previous system (`ai_bid`)
 

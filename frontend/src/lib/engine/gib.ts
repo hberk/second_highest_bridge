@@ -312,7 +312,11 @@ export function nameTheSuit(call: string, alert: string): string {
   return alert;
 }
 
+/** Our Michaels cuebid read as GIB's (see gib.py). Measured +0.01; off. */
+export const MICHAELS_OWNS = false;
+
 function owns(ctx: Ctx): boolean {
+  if (MICHAELS_OWNS && ourTwoSuiter(ctx)) return true;
   return ctx.seq.some((c, i) => strainOf(c) === 'NT'
     || (isSuit(strainOf(c)) && shownSuit(ctx.seq, i) !== strainOf(c)));
 }
@@ -1834,7 +1838,7 @@ export const TWO_SUITER_READ = true;
 
 /** The suits our first call showed, when it was a two-suited overcall
  *  straight over their one-level opening. */
-function ourTwoSuiter(ctx: Ctx): [Suit, Suit | null] | null {
+export function ourTwoSuiter(ctx: Ctx): [Suit, Suit | null] | null {
   const i = overcallOver(ctx);
   if (i === null) return null;
   return twoSuitsShown(ctx, ctx.seq[0], ctx.calls[i][1]);
