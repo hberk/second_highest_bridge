@@ -499,6 +499,12 @@ export const TWO_SUITER_CHOICE = true;
 export const TWO_SUITER_RAISE_HCP = 17;
 export const TWO_SUITER_CHOICE_COMPETE = true;
 const CHOICE_STANDS = "Partner's choice stands.";
+/** Extra shape ("6-5, come alive"): with TWO_SUITER_SHAPE_LEN cards in the two
+ *  suits, 'invite' raises partner's choice a level, 'game' bids 4M. See ai.py. */
+export const TWO_SUITER_SHAPE: 'invite' | 'game' | null = 'invite';
+export const TWO_SUITER_SHAPE_LEN = 11;
+/** Advancer accepts the invite with this many HCP, two fewer with four trumps. */
+export const TWO_SUITER_ACCEPT_HCP = 8;
 
 function twoSuiterChoice(player: Seat, partner: Seat, auction: AuctionState, groups: Groups,
   strain: string, legal: string[]): Decision | null {
@@ -512,6 +518,20 @@ function twoSuiterChoice(player: Seat, partner: Seat, auction: AuctionState, gro
       const game = gameCall(strain, legal);
       if (game) return [game, `${SUPPORT_LENGTH}+ ${SUIT_SYM[strain]} support, game values.`];
     }
+    const shape = two.reduce((n, x) => n + (x
+      ? groups[x].length : Math.max(groups.C.length, groups.D.length)), 0);
+    if (TWO_SUITER_SHAPE && shape >= TWO_SUITER_SHAPE_LEN) {
+      if (TWO_SUITER_SHAPE === 'game') {
+        const game = gameCall(strain, legal);
+        if (game) return [game, `${SUPPORT_LENGTH}+ ${SUIT_SYM[strain]} support, extra shape.`];
+      } else {
+        const level = hb[0] + 1;
+        const call = `${level}${strain}`;
+        if (legal.includes(call) && level <= (strain === 'H' || strain === 'S' ? 4 : 5)) {
+          return [call, `${SUPPORT_LENGTH}+ ${SUIT_SYM[strain]} support, extra shape. Invites.`];
+        }
+      }
+    }
     return ['Pass', CHOICE_STANDS];
   }
   if (!TWO_SUITER_CHOICE_COMPETE) return null;
@@ -522,6 +542,22 @@ function twoSuiterChoice(player: Seat, partner: Seat, auction: AuctionState, gro
     ? [call, contestAlert(player, auction, call,
       `${SUPPORT_LENGTH}+ ${SUIT_SYM[strain]} support, agreeing the suit.`)]
     : [call, why];
+}
+
+function shapeInviteAnswer(player: Seat, partner: Seat, auction: AuctionState, groups: Groups,
+  strain: string, legal: string[]): Decision | null {
+  const cards = SUITS.flatMap((s) => groups[s]);
+  const two = ourTwoSuiter(new Ctx(player, cards, auction));
+  const hb = auction.highestBid;
+  if (!two || !isSuit(strain) || !two.includes(strain as Suit) || !hb || hb[2] !== partner
+    || hb[1] !== strain) return null;
+  if (firstNamer(auction, strain) !== player) return null;
+  const need = TWO_SUITER_ACCEPT_HCP - (groups[strain as Suit].length >= 4 ? 2 : 0);
+  if (hcp(cards) >= need) {
+    const game = gameCall(strain, legal);
+    if (game) return [game, 'Accepts the invitation.'];
+  }
+  return ['Pass', 'Declines the invitation.'];
 }
 
 function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
@@ -537,6 +573,11 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
     return call !== 'Pass'
       ? [call, `${SUIT_SYM[myFirst]} again over the cuebid. Partner showed support, not their suit.`]
       : [call, why];
+  }
+
+  if (TWO_SUITER_SHAPE === 'invite' && pStrain === myFirst) {
+    const answer = shapeInviteAnswer(player, partner, auction, groups, pStrain, legal);
+    if (answer) return answer;
   }
 
   if (OWN_SUIT_RAISED && pStrain === myFirst && firstNamer(auction, pStrain) === player) {

@@ -3228,6 +3228,13 @@ def _two_nt_raise_reply(ctx: Ctx) -> tuple | None:
     return None
 
 
+#: Partner rebidding the suit partner opened is never a cuebid, even when
+#: their Michaels cuebid named it too: on 1♦ (2♦) P (2♠) P P 3♠ P 4♦ P,
+#: East read West's 4♦ as a cuebid raise of East's 3♠ (itself a cuebid) and
+#: bid 4♠ on a doubleton, -1,800 to -2,100 doubled (Nov 3 2026).
+CUE_REPLY_OWN_REBID = True
+
+
 def _cuebid_raise_reply(ctx: Ctx) -> tuple | None:
     """Partner made a cuebid raise of my suit (limit raise or better, 10+):
     go to game with extras, else sign off at the cheapest level. And when I
@@ -3244,8 +3251,9 @@ def _cuebid_raise_reply(ctx: Ctx) -> tuple | None:
     # I bid my suit, partner cuebid theirs, my turn.
     x = strain_of(mine[0])
     p = partners[-1]
+    own_rebid = CUE_REPLY_OWN_REBID and len(partners) >= 2 and strain_of(partners[0]) == strain_of(p)
     if (x in SUITS and len(mine) == 1 and strain_of(p) in theirs and strain_of(p) != x
-            and ctx.ours[-1] == (ctx.pd, p)):
+            and ctx.ours[-1] == (ctx.pd, p) and not own_rebid):
         their = strain_of(p)
         if _cue_asks(ctx, p, x):
             if h.stopper(their) and ctx.ok('3NT'):

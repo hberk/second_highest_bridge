@@ -1472,3 +1472,27 @@ def test_reverser_bids_game_over_the_raise_of_its_major():
     # A minimum 5-4 reverse stays in 3♥.
     assert bid('AH KH 9H 2H 4D 3D 2D 5S AC KC QC 9C 5C', '1C', '1S', '1NT', 'Pass', '2H',
                'Pass', '3H', 'Pass', dealer='South')[0] == 'Pass'
+
+
+def test_six_five_michaels_invites_over_partners_choice():
+    # "6-5, come alive" (the user, 2026-11-03): 1♦ 2♦ P 2♥ P, West
+    # ♠KQ985 ♥AQ9543 ♦J ♣3 passed and game made. Now 3♥ invites, and East
+    # with four hearts and 8 HCP accepts.
+    west = 'KS QS 9S 8S 5S AH QH 9H 5H 4H 3H JD 3C'
+    east = 'JS 10H 8H 7H 2H QD 8D AC KC JC 8C 5C 4C'
+    call, why = bid(west, '1D', '2D', 'Pass', '2H', 'Pass', dealer='South')
+    assert call == '3H' and 'Invites' in why, (call, why)
+    call, why = bid(east, '1D', '2D', 'Pass', '2H', 'Pass', '3H', 'Pass', dealer='South')
+    assert call == '4H', (call, why)
+    # 5-5 still passes partner's choice below 17 HCP.
+    assert bid('KS QS 9S 8S 5S AH QH 9H 5H 4H 7C JD 3C', '1D', '2D', 'Pass', '2H', 'Pass',
+               dealer='South')[0] == 'Pass'
+
+
+def test_partners_opening_suit_rebid_is_not_a_cuebid():
+    # Pass (1♦) 2♦ P 2♠ P P 3♠ P 4♦ P: East's 3♠ was the cuebid; West's 4♦
+    # rebids the suit West opened. East bid 4♠ on ♠86, -2,100 doubled.
+    east = '8S 6S 8H 7H AD QD JD 7D 6D 4D QC JC 2C'
+    call, why = bid(east, 'Pass', '1D', '2D', 'Pass', '2S', 'Pass', 'Pass', '3S', 'Pass',
+                    '4D', 'Pass', dealer='South')
+    assert call == 'Pass', (call, why)

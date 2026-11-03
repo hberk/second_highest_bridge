@@ -2948,6 +2948,9 @@ function twoNtRaiseReply(ctx: Ctx): Decision | null {
   return null;
 }
 
+/** Partner rebidding the suit partner opened is never a cuebid (Nov 3 2026). */
+export const CUE_REPLY_OWN_REBID = true;
+
 function cuebidRaiseReply(ctx: Ctx): Decision | null {
   const twoNt = twoNtRaiseReply(ctx);
   if (twoNt) return twoNt;
@@ -2959,8 +2962,9 @@ function cuebidRaiseReply(ctx: Ctx): Decision | null {
   const x0 = strainOf(mine[0]);
   const p = partners[partners.length - 1];
   const lastOurs = ctx.ours[ctx.ours.length - 1];
+  const ownRebid = CUE_REPLY_OWN_REBID && partners.length >= 2 && strainOf(partners[0]) === strainOf(p);
   if (isSuit(x0) && mine.length === 1 && theirs.includes(strainOf(p) as Suit) && strainOf(p) !== x0
-    && lastOurs[0] === ctx.pd && lastOurs[1] === p) {
+    && lastOurs[0] === ctx.pd && lastOurs[1] === p && !ownRebid) {
     const x = x0;
     const their = strainOf(p) as Suit;
     if (cueAsks(ctx, p, x)) {
