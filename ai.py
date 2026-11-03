@@ -984,10 +984,41 @@ def _two_suiter_choice(player: str, partner: str, auction: AuctionState, groups:
     ev = eval_hand_sh(cards)
     combined = _with_shortness(ev['suit_pts'][strain] + PROMISE_ADVANCED, groups, strain)
     call, why = _place(strain, combined, legal, len(groups[strain]))
+    if (call == 'Pass' and TWO_SUITER_FIT_COMPETE and len(groups[strain]) >= 5
+            and _choice_shows_fit(partner, auction, strain)):
+        level = hb[0] + 1 if hb and _STRAIN_ORDER.index(hb[1]) >= _STRAIN_ORDER.index(strain) else hb[0]
+        bid_ = f"{level}{strain}"
+        if bid_ in legal and level <= (4 if strain in ('H', 'S') else 5):
+            return bid_, _contest_alert(player, auction, bid_,
+                                        f"5+ {SUIT_SYM[strain]}, a known fit. Competing.")
     if call != 'Pass':
         why = _contest_alert(player, auction, call,
                              f"{SUPPORT_LENGTH}+ {SUIT_SYM[strain]} support, agreeing the suit.")
     return call, why
+
+
+#: Over their bid after partner's choice, a 5+ card holding competes one
+#: level higher when partner's choice was free (their bid came in first) or
+#: a jump, so promises length: ten trumps, ten tricks (the user, 2026-11-03,
+#: on five deals where 5-5 hands stopped competing over their 4♥).
+TWO_SUITER_FIT_COMPETE = True
+_STRAIN_ORDER = ['C', 'D', 'H', 'S', 'NT']
+
+
+def _choice_shows_fit(partner: str, auction: AuctionState, strain: str) -> bool:
+    calls = auction.calls
+    i = next((k for k, (who, c) in enumerate(calls)
+              if who == partner and c not in ('Pass', 'X', 'XX') and c[1:] == strain), None)
+    if i is None:
+        return False
+    if i > 0 and calls[i - 1][1] != 'Pass':
+        return True                                   # a free choice
+    prior = [c for _, c in calls[:i] if c not in ('Pass', 'X', 'XX')]
+    if not prior:
+        return False
+    lv, st = int(prior[-1][0]), prior[-1][1:]
+    cheapest = lv + 1 if _STRAIN_ORDER.index(st) >= _STRAIN_ORDER.index(strain) else lv
+    return int(calls[i][1][0]) > cheapest             # a jump
 
 
 #: Advancer's answer to the extra-shape invite: game in a major with

@@ -1498,3 +1498,17 @@ def test_partners_opening_suit_rebid_is_not_a_cuebid():
     call, why = bid(east, 'Pass', '1D', '2D', 'Pass', '2S', 'Pass', 'Pass', '3S', 'Pass',
                     '4D', 'Pass', dealer='South')
     assert call == 'Pass', (call, why)
+
+
+def test_two_suiter_competes_to_the_level_of_the_fit():
+    # Seed 7M deal 117: 1♥ 2♥ (Michaels) 3♥ 3♠ 4♥ with South ♠K9654 ♥Q ♦A3
+    # ♣96543. North's free 3♠ promised length, so ten trumps: 4♠.
+    south = 'KS 9S 6S 5S 4S QH AD 3D 9C 6C 5C 4C 3C'
+    saved = ai.TWO_SUITER_FIT_COMPETE
+    try:
+        for on in (True, False):
+            ai.TWO_SUITER_FIT_COMPETE = on
+            call, why = bid(south, '1H', '2H', '3H', '3S', '4H', dealer='East')
+            assert call == ('4S' if on else 'Pass'), (on, call, why)
+    finally:
+        ai.TWO_SUITER_FIT_COMPETE = saved

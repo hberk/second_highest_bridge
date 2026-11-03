@@ -541,10 +541,38 @@ function twoSuiterChoice(player: Seat, partner: Seat, auction: AuctionState, gro
   const ev = evalHandSh(cards);
   const combined = withShortness(ev.suit_pts[strain as Suit] + PROMISE_ADVANCED, groups, strain as Suit);
   const [call, why] = place(strain, combined, legal);
+  if (call === 'Pass' && TWO_SUITER_FIT_COMPETE && groups[strain as Suit].length >= 5
+    && choiceShowsFit(partner, auction, strain) && hb) {
+    const level = STRAIN_ORDER.indexOf(hb[1]) >= STRAIN_ORDER.indexOf(strain) ? hb[0] + 1 : hb[0];
+    const bid = `${level}${strain}`;
+    if (legal.includes(bid) && level <= (strain === 'H' || strain === 'S' ? 4 : 5)) {
+      return [bid, contestAlert(player, auction, bid,
+        `5+ ${SUIT_SYM[strain]}, a known fit. Competing.`)];
+    }
+  }
   return call !== 'Pass'
     ? [call, contestAlert(player, auction, call,
       `${SUPPORT_LENGTH}+ ${SUIT_SYM[strain]} support, agreeing the suit.`)]
     : [call, why];
+}
+
+/** Over their bid after partner's choice, 5+ cards compete one level higher
+ *  when partner's choice was free or a jump (the Law of Total Tricks). See ai.py. */
+export const TWO_SUITER_FIT_COMPETE = true;
+const STRAIN_ORDER = ['C', 'D', 'H', 'S', 'NT'];
+
+function choiceShowsFit(partner: Seat, auction: AuctionState, strain: string): boolean {
+  const calls = auction.calls;
+  const i = calls.findIndex(([who, c]) =>
+    who === partner && c !== 'Pass' && c !== 'X' && c !== 'XX' && c.slice(1) === strain);
+  if (i < 0) return false;
+  if (i > 0 && calls[i - 1][1] !== 'Pass') return true;
+  const prior = calls.slice(0, i).map(([, c]) => c).filter((c) => c !== 'Pass' && c !== 'X' && c !== 'XX');
+  if (!prior.length) return false;
+  const last = prior[prior.length - 1];
+  const lv = Number(last[0]);
+  const cheapest = STRAIN_ORDER.indexOf(last.slice(1)) >= STRAIN_ORDER.indexOf(strain) ? lv + 1 : lv;
+  return Number(calls[i][1][0]) > cheapest;
 }
 
 function shapeInviteAnswer(player: Seat, partner: Seat, auction: AuctionState, groups: Groups,
