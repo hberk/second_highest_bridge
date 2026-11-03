@@ -1212,6 +1212,18 @@ def test_balancing_lowers_the_floor_not_the_ceiling():
     assert bid('9S 4S 3S 6H 2H AD KD 7D 6D 5D JC 6C 2C', '1H')[0] == 'Pass'
 
 
+def test_balancing_over_a_weak_two_needs_six_cards():
+    # 2♦ P P (the user's deals, 2026-11-03): QJT742 AT 92 T75 balances 2♠
+    # on 7 HCP; AKQJ K4 42 96432 no longer balances 3♣ on five poor clubs.
+    call, why = bid('QS JS 10S 7S 4S 2S AH 10H 9D 2D 10C 7C 5C', '2D', 'Pass', 'Pass')
+    assert (call, why) == ('2S', '5+ ♠ (6+ under 10 HCP), 7-17 HCP. Balancing.')
+    assert bid('AS KS QS JS KH 4H 4D 2D 9C 6C 4C 3C 2C', '2D', 'Pass', 'Pass')[0] == 'Pass'
+    # A five-card suit at the two level still needs the plain 10 HCP.
+    assert bid('QS JS 10S 7S 4S AH 10H 3H 9D 2D 10C 7C 5C', '2D', 'Pass', 'Pass')[0] == 'Pass'
+    # Not in the direct seat: 7 HCP there passes.
+    assert bid('QS JS 10S 7S 4S 2S AH 10H 9D 2D 10C 7C 5C', '2D')[0] == 'Pass'
+
+
 def test_lott_total_competes_one_level_more_with_values_only():
     # 1♠ 2♥ 3♠: nine hearts, a singleton spade, their eight-card fit: 4♥ with
     # 6 HCP, but never with 3 (the user's call after review).

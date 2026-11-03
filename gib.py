@@ -3826,15 +3826,40 @@ BALANCE = True
 BALANCE_DISCOUNT = 4
 
 
-def _balancing(ctx: Ctx) -> int:
-    """The HCP discount in the pass-out seat after 1x P P."""
-    if not BALANCE or len(ctx.calls) < 3 or any(c != 'Pass' for _, c in ctx.calls[-2:]):
-        return 0
+#: In the pass-out seat after their weak two, 2x P P, the two-level overcall
+#: floor drops BALANCE_WEAK_TWO HCP for a six-card suit: East's QJT742 AT 92
+#: T75 passed 2♦ P P, where 2♠ led to a making 4♠ (the user's deal,
+#: 2026-11-03; experts acted on 7 of 13 such hands with 7-10 HCP, never on
+#: 6 or fewer). A three-level balance there needs six cards: South's 3♣ on
+#: AKQJ K4 42 96432 went -300 doubled, and a poor five-card suit plays badly
+#: in Second Highest. Measured together +0.04/+0.08/+0.07 a board.
+BALANCE_WEAK_TWO = 3
+BALANCE_WEAK_TWO_LEN = 6
+
+
+def _pass_out_over(ctx: Ctx) -> str | None:
+    """Their opening, a suit bid at the one or two level, when I am in the
+    pass-out seat after it (1x P P or 2x P P); else None."""
+    if len(ctx.calls) < 3 or any(c != 'Pass' for _, c in ctx.calls[-2:]):
+        return None
     bids = [(w, c) for w, c in ctx.calls if c != 'Pass']
     if (len(bids) != 1 or bids[0][0] in (ctx.me, ctx.pd)
-            or level_of(bids[0][1]) != 1 or strain_of(bids[0][1]) not in SUITS):
-        return 0
-    return BALANCE_DISCOUNT
+            or level_of(bids[0][1]) > 2 or strain_of(bids[0][1]) not in SUITS):
+        return None
+    return bids[0][1]
+
+
+def _balancing(ctx: Ctx) -> int:
+    """The HCP discount in the pass-out seat after 1x P P."""
+    opening = _pass_out_over(ctx)
+    return BALANCE_DISCOUNT if BALANCE and opening and level_of(opening) == 1 else 0
+
+
+def _weak_two_balance(ctx: Ctx) -> bool:
+    """Am I in the pass-out seat after their weak two, 2x P P?"""
+    opening = _pass_out_over(ctx)
+    return BALANCE_WEAK_TWO > 0 and opening is not None and level_of(opening) == 2 \
+        and opening != '2C'
 
 
 def they_opened(ctx: Ctx) -> tuple | None:
@@ -4095,10 +4120,24 @@ def _defend(ctx: Ctx) -> tuple | None:
     if own and hcp <= 17:
         s = max(own, key=lambda s: (h.len[s], SUITS.index(s)))
         call = ctx.cheapest(s, 1)
+        weak2 = _weak_two_balance(ctx)
+        if call and weak2 and level_of(call) == 3 and h.len[s] < BALANCE_WEAK_TWO_LEN:
+            call = None                 # a poor five-card suit at the three level
         if call:
             need = OVERCALL_1 if level_of(call) == 1 else OVERCALL_2
+            if weak2:
+                # One alert for the call, whichever hand holds it.
+                n, low = BALANCE_WEAK_TWO_LEN, need[0] - BALANCE_WEAK_TWO
+                ok = (need[0] <= hcp <= need[1] if level_of(call) == 2 and h.len[s] < n
+                      else low <= hcp <= need[1] if level_of(call) == 2
+                      else 12 <= hcp <= need[1])
+                if ok:
+                    if level_of(call) == 2:
+                        return call, (f"5+ {SYM[s]} ({n}+ under {need[0]} HCP), "
+                                      f"{low}-{need[1]} HCP. Balancing.")
+                    return call, f"{n}+ {SYM[s]}, 12-{need[1]} HCP. Balancing."
             need = (need[0] - bal, need[1])
-            if level_of(call) <= 3 and need[0] <= hcp <= need[1] and \
+            if not weak2 and level_of(call) <= 3 and need[0] <= hcp <= need[1] and \
                     (level_of(call) <= 2 or hcp >= 12 - bal):
                 if bal:
                     return call, f"5+ {SYM[s]}, {need[0]}-{need[1]} HCP. Balancing."
