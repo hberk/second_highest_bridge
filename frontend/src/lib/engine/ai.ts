@@ -503,6 +503,8 @@ const CHOICE_STANDS = "Partner's choice stands.";
  *  suits, 'invite' raises partner's choice a level, 'game' bids 4M. See ai.py. */
 export const TWO_SUITER_SHAPE: 'invite' | 'game' | null = 'invite';
 export const TWO_SUITER_SHAPE_LEN = 11;
+/** ...and after their double of partner's choice too (off: pass, let them pay). */
+export const TWO_SUITER_SHAPE_DOUBLED = false;
 /** Advancer accepts the invite with this many HCP, two fewer with four trumps. */
 export const TWO_SUITER_ACCEPT_HCP = 8;
 
@@ -520,7 +522,8 @@ function twoSuiterChoice(player: Seat, partner: Seat, auction: AuctionState, gro
     }
     const shape = two.reduce((n, x) => n + (x
       ? groups[x].length : Math.max(groups.C.length, groups.D.length)), 0);
-    if (TWO_SUITER_SHAPE && shape >= TWO_SUITER_SHAPE_LEN) {
+    if (TWO_SUITER_SHAPE && shape >= TWO_SUITER_SHAPE_LEN
+      && (TWO_SUITER_SHAPE_DOUBLED || auction.doubled === 'None')) {
       if (TWO_SUITER_SHAPE === 'game') {
         const game = gameCall(strain, legal);
         if (game) return [game, `${SUPPORT_LENGTH}+ ${SUIT_SYM[strain]} support, extra shape.`];

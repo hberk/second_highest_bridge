@@ -949,6 +949,9 @@ CHOICE_STANDS = "Partner's choice stands."
 #: -2.53 (/mnt/project-files/shape-michaels/). Invite, the user's pick.
 TWO_SUITER_SHAPE: str | None = 'invite'
 TWO_SUITER_SHAPE_LEN = 11
+#: ...and after their double of partner's choice too. Off: pass and let
+#: them pay a level lower (the user, 2026-11-03).
+TWO_SUITER_SHAPE_DOUBLED = False
 
 
 def _two_suiter_choice(player: str, partner: str, auction: AuctionState, groups: dict,
@@ -964,7 +967,8 @@ def _two_suiter_choice(player: str, partner: str, auction: AuctionState, groups:
             if game:
                 return game, f"{SUPPORT_LENGTH}+ {SUIT_SYM[strain]} support, game values."
         shape = sum(len(groups[x]) if x else max(len(groups['C']), len(groups['D'])) for x in two)
-        if TWO_SUITER_SHAPE and shape >= TWO_SUITER_SHAPE_LEN:
+        if (TWO_SUITER_SHAPE and shape >= TWO_SUITER_SHAPE_LEN
+                and (TWO_SUITER_SHAPE_DOUBLED or auction.doubled == 'None')):
             if TWO_SUITER_SHAPE == 'game':
                 game = _game_call(strain, legal)
                 if game:

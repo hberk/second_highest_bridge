@@ -1,0 +1,40 @@
+# Changelog
+
+Versions follow [semantic versioning](https://semver.org/). Until 1.0 the
+robots' bidding and play change from release to release; every change and
+what it was measured to be worth is in
+[docs/ROBOT_PROGRESS.md](docs/ROBOT_PROGRESS.md).
+
+## v0.1.0-alpha.1 (2026-11-03)
+
+The first tagged release: everything up to and including PR #62.
+
+**The game**
+- Second-highest bridge in the browser (https://hberk.github.io/second_highest_bridge/):
+  play South against three robots, with alerts on every robot call and your own.
+- Challenge mode on 400 double-dummy-solved deals, grading each board into
+  what the auction and the card play cost.
+- Bidding training on its own solved deals.
+- Hand history with a card-by-card replayer, double dummy marks on every card
+  (the Rust solver as WebAssembly), and LIN export and import.
+- Multiplayer beta at bridge.ettamei.com: two to four people, robots in the
+  other seats.
+
+**The robots**
+- GIB 2/1 bidding, with the competitive rules from the championship study
+  (balancing, the Law of Total Tricks, penalty doubles, pre-empts, Stayman and
+  negative doubles over interference).
+- Card play close to double dummy: declarer 0.025 tricks a board below it on
+  the library.
+
+**In this release (PR #62)**
+- A takeout double of 1♣/1♦ with both majors, direct and balancing seat.
+- After our Michaels or Unusual 2NT, partner's choice of suit stands; a 6-5
+  hand invites, but not over their double.
+- Balancing over a weak two: a good six-card suit at the two level; no
+  three-level balance on a poor five-card suit.
+- An eight-card major bids game at once over their one-level opening;
+  reverses in a contested auction.
+- The 2NT minor ask over their 1NT is answered; negative doubles with
+  Lebensohl over (1NT) 2♥/2♠.
+- Fixed: partner's rebid of the suit they opened was read as a cuebid.

@@ -1484,6 +1484,8 @@ def test_six_five_michaels_invites_over_partners_choice():
     assert call == '3H' and 'Invites' in why, (call, why)
     call, why = bid(east, '1D', '2D', 'Pass', '2H', 'Pass', '3H', 'Pass', dealer='South')
     assert call == '4H', (call, why)
+    # Over their double of partner's choice, pass: they pay a level lower.
+    assert bid(west, '1D', '2D', 'Pass', '2H', 'X', dealer='South')[0] == 'Pass'
     # 5-5 still passes partner's choice below 17 HCP.
     assert bid('KS QS 9S 8S 5S AH QH 9H 5H 4H 7C JD 3C', '1D', '2D', 'Pass', '2H', 'Pass',
                dealer='South')[0] == 'Pass'
