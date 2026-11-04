@@ -290,6 +290,7 @@ from the variant's side; t as above.
 | 11-04 | ...past five / past game | -0.39, -0.41 / -1.06, -0.70 | -2.03, -2.16 / -3.94, -2.06 | 17, 22 / 86, 71 | off |
 | 11-04 | A void worth 3 / 2 / 1 tricks once a fit is agreed, not 5 (`SHORT_VOID_TRICKS`); seed 7 | -0.93 / -1.46 / -1.71 | -3.71 / -3.73 / -4.34 | 69 / 104 / 130 | off |
 | 11-04 | Advancer bids game in a five-card major over partner's takeout double when the cheapest answer is the three level (`ADVANCE_GAME_POINTS`; your deal, 3♥ P P X P 3♠ with 10 HCP; experts 4M 16 of 19); seeds 7M, 8M, 9M, 10,000 deals each; 9 / 10 / 11 points | **+0.06, +0.04, +0.06** / +0.04, +0.02, +0.05 / +0.05, +0.01, +0.05 | +2.56, +1.58, +2.46 / +2.40, +0.95, +2.53 / +3.15, +0.39, +2.58 | 36, 34, 46 / 23, 23, 28 / 11, 13, 18 | 9 on |
+| 11-04 | A five-card suit for a direct two-level overcall needs quality: 4/5/6+ judgement points in it, two of AKQ or three of AKQJT, or six cards (the user's board: 1♦, East 2♣ on ♠A4 ♥8652 ♦A6 ♣Q6432); library / seeds 7M, 8M, 9M, 3,000 fresh deals each (`/mnt/project-files/overcall-suit/REPORT.md`) | 4 JP -0.59 / -0.34, -0.48, +0.11; 5 JP -2.89 / -0.68, -0.41, -0.18; 6 JP -3.57 / -0.52, -0.28, -0.09; AKQ -2.56 / -0.70, -0.46, -0.12; six cards -3.58 / -0.66, +0.00, +0.37 | 4 JP -1.15 / -1.48, -2.52, +0.50; AKQ -2.50 / -2.58, -1.75, -0.46; six cards -2.60 / -1.70, +0.01, +0.91 | 42-170 / 332-1,229 | off (your call: any five cards stays) |
 
 ### The previous system (`ai_bid`)
 

@@ -836,7 +836,10 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   overcalling a five-card suit (-0.32), suit quality for three-level pre-empts
   (-0.23 to -0.27), weak jumps only to the two level (-0.53), and sounder
   three-level overcalls of a weak two or five-card minor jump raises (-0.04
-  each). Where the robots compete more than experts, the stronger Law of
+  each). A suit-quality gate on the five-card two-level overcall
+  (2026-11-04: judgement points, two of AKQ, or six cards) lost too, -0.10 to
+  -0.43 a board on 9,000 fresh deals, though experts overcall a poor five-card
+  suit on 10-12 HCP only 3% of the time (`/mnt/project-files/overcall-suit/`). Where the robots compete more than experts, the stronger Law of
   Total Tricks here rewards it; what transferred were the spots where the
   robots competed less. The study, scripts and data are in
   `/mnt/project-files/championship-study/`.
