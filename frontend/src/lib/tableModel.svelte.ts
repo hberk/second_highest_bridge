@@ -132,8 +132,10 @@ export class TableModel {
   dummyTrump = $derived(this.game.trump);
   /** You are dummy: your own hand is the one laid out for declarer. */
   meDummy = $derived(this.dummyDown && this.contract?.dummy === this.me);
+  /** You declare: your hand matches dummy's order, trumps on the left. */
+  meDeclarer = $derived(this.dummyDown && this.contract?.declarer === this.me);
   /** The trump to sort your own hand by, and whether it goes at the end. */
-  myTrump = $derived(this.meDummy ? this.dummyTrump : this.displayTrump);
+  myTrump = $derived(this.meDummy || this.meDeclarer ? this.dummyTrump : this.displayTrump);
 
   labels = $derived(Object.fromEntries(SEATS.map((p) => [p, this.seatLabel(p)])) as Record<Seat, string>);
 

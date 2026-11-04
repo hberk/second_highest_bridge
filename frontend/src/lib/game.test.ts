@@ -15,6 +15,7 @@ import ChallengeView from './views/ChallengeView.svelte';
 
 let openingLeads = 0;
 let sideDummies = 0;
+let declarerHands = 0;
 
 /** The table in both layouts, phone and desktop; every check below must hold
  *  for each. */
@@ -88,6 +89,16 @@ function playBoard(game: Game): void {
         }
         sideDummies++;
       }
+      // You declare: your hand matches dummy's, trumps at the left end.
+      if ((game.trickNum > 1 || game.trick.length > 0) && c.declarer === me && c.trump !== 'NT'
+        && game.hands[me].some((card) => card.suit === c.trump)) {
+        for (const [i, html] of htmls.entries()) {
+          const fan = html.slice(html.lastIndexOf('class="fan fan-lg'));
+          const first = fan.match(/class="fcard-suit"[^>]*>([♠♥♦♣])</)![1];
+          expect(first, `${['phone', 'desktop'][i]}: ${me} declares ${c.trump}; trumps on the left`).toBe(SUIT_SYMBOLS[c.trump as Suit]);
+        }
+        declarerHands++;
+      }
       game.humanPlays(who!, legalPlays(game.hands[who!], led)[0]);
     } else if (game.phase === 'trick_done') {
       expectBoth(htmls, 'trick-won');
@@ -118,6 +129,7 @@ describe('table flow', () => {
     expect(finished).toBeGreaterThan(10);
     expect(openingLeads, 'no blind opening lead was exercised').toBeGreaterThan(0);
     expect(sideDummies, 'no East or West dummy was exercised').toBeGreaterThan(0);
+    expect(declarerHands, 'no suit contract declared by you was exercised').toBeGreaterThan(0);
     expect(game.history.length).toBe(finished);
     expect(game.history.every((h) => h.tricks_log.length === 13)).toBe(true);
   });
