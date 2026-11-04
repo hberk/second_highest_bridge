@@ -22,6 +22,8 @@ same `ai._points` uses -- GIB's "total points".
 """
 from __future__ import annotations
 
+import copy
+
 from card import Card, SUITS, parse_bid
 from bridge.auction import AuctionState, PARTNERS
 
@@ -307,6 +309,10 @@ def gib_bid(player: str, cards: list[Card], auction: AuctionState) -> tuple | No
     if runout:
         return runout[0], _name_the_suit(*runout)
     decision = _decide(ctx)
+    if decision and decision == _nt_x_systems(ctx):
+        # Systems on over our double of their 1NT: the transfer's suit is
+        # not shown until it is completed, so total tricks can't read it.
+        return decision[0], _name_the_suit(*decision)
     placed = _after_jam(ctx)
     if placed and JAM_NEVER_AGAIN and (not decision or decision[0] != 'X'):
         return placed
@@ -4179,6 +4185,43 @@ def _neg_x_competed(ctx: Ctx) -> tuple | None:
     return None
 
 
+#: Systems on over their 2♣ overcall of our 1NT (the user, 2026-11-04):
+#: double is Stayman, 2♦ and 2♥ transfer, Texas stays. 1NT (2♣) X P 2♦ P P
+#: passed on ♠JT762 ♥A93 ♦A42 ♣KT, 10 HCP: a transfer to spades, and after
+#: the denial 2NT. While they only pass after the 2♣, the auction runs as
+#: 1NT 2♣ would uncontested; other hands keep Lebensohl (below).
+NT_2C_SYSTEMS = False
+
+
+def _nt_2c_systems(ctx: Ctx) -> tuple | None:
+    seq = ctx.seq
+    if not NT_2C_SYSTEMS or not seq or seq[0] != '1NT' or [c for _, c in ctx.theirs] != ['2C']:
+        return None
+    i = next(k for k, (w, c) in enumerate(ctx.calls) if c == '1NT')
+    if i + 1 >= len(ctx.calls) or ctx.calls[i + 1][1] != '2C':
+        return None
+    as_opened = copy.copy(ctx)
+    as_opened.seq = seq[:1] + ['2C' if c == 'X' and k == 1 else c for k, c in enumerate(seq[1:], 1)]
+    if len(seq) == 1:
+        if ctx.i_am_opener() or ctx.calls[-1][1] != '2C':
+            return None
+        decision = _nt_response(as_opened, 1, *NT1)
+        if decision[0] == '2C' and ctx.ok('X'):
+            return 'X', "Stayman. Artificial."
+        if decision[0] in ('2D', '2H', '4D', '4H') and ctx.ok(decision[0]):
+            return decision
+        return None
+    if seq[1] not in ('X', '2D', '2H'):
+        return None
+    if len(seq) == 2 and ctx.i_am_opener() and seq[1] != 'X':
+        return _nt_opener_answer(as_opened, 1, seq[1], *NT1)
+    if len(seq) == 3 and not ctx.i_am_opener():
+        return placed(ctx, _nt_responder_second(as_opened, 1, as_opened.seq, *NT1))
+    if len(seq) == 4 and ctx.i_am_opener():
+        return placed(ctx, _nt_opener_third(as_opened, 1, as_opened.seq, *NT1))
+    return None
+
+
 def _nt_interference(ctx: Ctx) -> tuple | None:
     """Our 1NT/2NT/2C was overcalled. Over 2C, a double is Stayman;
     otherwise Lebensohl: 2NT relays to 3C, a two-level suit is to play, a
@@ -4189,6 +4232,9 @@ def _nt_interference(ctx: Ctx) -> tuple | None:
     if not lb:
         return uncontested(ctx)
     first = seq[0]
+    systems = _nt_2c_systems(ctx)
+    if systems:
+        return systems
     if STAYMAN_CONTESTED and first in ('1NT', '2NT'):
         stayman = _stayman_contested(ctx)
         if stayman:
@@ -4394,10 +4440,85 @@ def _weak_two_balance(ctx: Ctx) -> bool:
         and opening != '2C'
 
 
+#: Systems on over our penalty double of their 1NT opening (the user's
+#: call, 2026-11-04): 1NT P P X P with ♠AT6543 ♥72 ♦J9 ♣Q54 passed, and
+#: transferring to spades would have found the better fit. While they bid
+#: nothing more, the doubler's partner answers as over a 1NT opening, but
+#: pulls the double only with a transfer (Jacoby or Texas) to a 5+ major;
+#: every other hand leaves it in.
+NT_X_SYSTEMS = False
+#: Which transfer hands pull: 'all' (every one `_nt_response` would make),
+#: 'weak' (at most NT_X_PULL_HCP HCP) or 'six' (a six-card major).
+NT_X_PULL = 'all'
+NT_X_PULL_HCP = 7
+#: Once partner has bid again after doubling their 1NT, their bid is not
+#: the double: I answer it (ai.py does), no longer "Penalty double: passing"
+#: (the same deal: 1NT P P X P P 2♣ 2♥ P, and West passed 2♥ with ♥72).
+NT_X_ADVANCE_FIX = False
+
+
+def _penalty_x_of_1nt(ctx: Ctx) -> bool:
+    """Their only bid is a 1NT opening and our first call doubled it."""
+    return (not ctx.we_opened and bool(ctx.seq) and ctx.seq[0] == 'X'
+            and [c for _, c in ctx.theirs] == ['1NT'])
+
+
+#: They bid again after our transfer: the doubler doubles a notrump bid
+#: (we hold the balance), else completes the transfer with 3+ cards up to
+#: the three level; the transfer bidder without game values has said all.
+NT_X_INTERFERED = True
+NT_X_TRANSFERS = {'2D': 'H', '2H': 'S', '4D': 'H', '4H': 'S'}
+
+
+def _nt_x_interfered(ctx: Ctx) -> tuple | None:
+    if (not NT_X_INTERFERED or ctx.we_opened or len(ctx.seq) < 2 or ctx.seq[0] != 'X'
+            or not ctx.theirs or ctx.theirs[0][1] != '1NT'
+            or ctx.seq[1] not in NT_X_TRANSFERS):
+        return None
+    s = NT_X_TRANSFERS[ctx.seq[1]]
+    at = next(k for k, (w, c) in enumerate(ctx.calls) if w in (ctx.me, ctx.pd) and c == ctx.seq[1])
+    if not any(w not in (ctx.me, ctx.pd) and c != 'Pass' for w, c in ctx.calls[at + 1:]):
+        return None
+    last = ctx.calls[-1]
+    if ctx.me == ctx.opener and ctx.seq == ['X', ctx.seq[1]]:
+        if last[1] != 'Pass' and strain_of(last[1]) == 'NT' and ctx.ok('X'):
+            return 'X', "Penalty."
+        call = ctx.cheapest(s, 2)
+        if ctx.h.len[s] >= 3 and call and level_of(call) <= 3:
+            return call, f"Completing the transfer to {SYM[s]}."
+        return 'Pass', "Nothing to add."
+    if ctx.me != ctx.opener and ctx.h.judge + NT1[0] < GAME_MAJOR:
+        return 'Pass', "Weak: transfer to play."
+    return None
+
+
+def _nt_x_systems(ctx: Ctx) -> tuple | None:
+    if not NT_X_SYSTEMS:
+        return None
+    if not _penalty_x_of_1nt(ctx):
+        return _nt_x_interfered(ctx)
+    as_opened = copy.copy(ctx)
+    as_opened.seq = ['1NT'] + ctx.seq[1:]
+    if len(ctx.seq) == 1:
+        if ctx.me == ctx.opener:
+            return None
+        decision = _nt_response(as_opened, 1, *NT1)
+        s = {'2D': 'H', '2H': 'S', '4D': 'H', '4H': 'S'}.get(decision[0])
+        if s and (NT_X_PULL == 'all'
+                  or (NT_X_PULL == 'weak' and ctx.h.hcp <= NT_X_PULL_HCP)
+                  or (NT_X_PULL == 'six' and ctx.h.len[s] >= 6)):
+            return decision
+        return 'Pass', "Penalty double: passing."
+    return notrump(as_opened, 0)
+
+
 def they_opened(ctx: Ctx) -> tuple | None:
     seq = ctx.seq
     if not seq:
         return _defend(ctx)
+    systems = _nt_x_systems(ctx)
+    if systems:
+        return systems
     mine = ctx.mine()
     partners = ctx.partners()
     if _was_lead_double(ctx, ctx.me) and not partners:
@@ -4836,6 +4957,8 @@ def _advance(ctx: Ctx) -> tuple | None:
         # haven't, is `contested`'s): ai.py answers it.
         return None
     if p == 'X' and opening == '1NT':
+        if NT_X_ADVANCE_FIX and ctx.partners() != ['X']:
+            return None
         return 'Pass', "Penalty double: passing."
     if opening == '1NT':
         if p == '2C':
