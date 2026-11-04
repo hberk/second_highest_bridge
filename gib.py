@@ -2267,7 +2267,15 @@ def _partner_length(ctx: Ctx, s: str) -> int:
         return 0
     n = 0
     mine_first = None
+    u = _unusual_cues(ctx) if UNUSUAL_CUE_REPLY else None
     for i, (who, call) in enumerate(ctx.ours):
+        if u and i == 1 and strain_of(call) in u[1] and level_of(call) == 3:
+            # Responder's cuebid over their Unusual 2NT shows no clubs or
+            # diamonds: a limit raise of ours, or five of the fourth suit.
+            limit = strain_of(call) == u[1][0]
+            if who != ctx.me and s == (u[0] if limit else u[2]):
+                n = max(n, 3 if limit else 5)
+            continue
         if who != ctx.me and _cue_raise(ctx, i) == s:
             n = max(n, 3)
             continue
@@ -2712,6 +2720,9 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
         answer = _answer_negative(ctx, x)
         if answer:
             return answer
+    unusual = _unusual_cue_reply(ctx)
+    if unusual:
+        return unusual
     cue = _cuebid_raise_reply(ctx)
     if cue:
         return cue
@@ -3297,6 +3308,102 @@ def _cuebid_raise_reply(ctx: Ctx) -> tuple | None:
 #: HCP the cuebid is above three and 3M shows 6-9, so bid game. Before,
 #: these hands passed (deal 346: ♠AK96 ♥K ♦QJ10432 ♣J6 over 1♠ (3♥)).
 JUMP_OVERCALL_GAME = True
+
+
+#: 1x (2NT Unusual) and responder's three-level cuebids: the cheaper one is
+#: a limit raise or better of x, the dearer one 5+ of the fourth suit, game
+#: forcing. Their suits came from a 2NT, which `_their_suits` doesn't read,
+#: so no rule answered either and the fallback passed: 1♠ (2NT) 3♣ P with
+#: ♠AJ543 ♥J42 ♦A74 ♣KT played 3♣ for -200; 5♠ makes (Nov 4 2026).
+UNUSUAL_CUE_REPLY = True
+
+
+def _unusual_cues(ctx: Ctx) -> tuple | None:
+    """(x, their two suits, the fourth suit, start index) when our 1x opening
+    was overcalled with a direct 2NT, their only bid so far."""
+    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None or len(ctx.calls) < i + 3:
+        return None
+    (w0, c0), (_, c1) = ctx.calls[i], ctx.calls[i + 1]
+    x = strain_of(c0)
+    if (w0 not in (ctx.me, ctx.pd) or level_of(c0) != 1 or x not in SUITS or c1 != '2NT'
+            or [c for _, c in ctx.theirs][:1] != ['2NT']):
+        return None
+    shown = [s for s in SUITS if s != x][:2]
+    rest = [s for s in SUITS if s != x and s not in shown]
+    return x, shown, rest[0] if rest else None, i
+
+
+def _unusual_cue_reply(ctx: Ctx) -> tuple | None:
+    """Answers to responder's cuebids over their Unusual 2NT
+    (`_respond_over_interference`). Opener after the limit raise: game with
+    the values the cuebid raise asks for, else the cheapest x; after the
+    game force: the fourth suit with three, a six-card major, 3NT with both
+    their suits stopped, else four of a major. Responder, when opener signs
+    off: game with 13+, as after any cuebid raise."""
+    if not UNUSUAL_CUE_REPLY:
+        return None
+    u = _unusual_cues(ctx)
+    if not u:
+        return None
+    x, shown, rest, i = u
+    h = ctx.h
+    after = ctx.calls[i + 2:]
+    responder = ctx.pd if ctx.i_am_opener() else ctx.me
+    if not after or after[0][0] != responder:
+        return None
+    cue = after[0][1]
+    if strain_of(cue) not in shown or level_of(cue) != 3:
+        return None
+    limit = strain_of(cue) == shown[0]
+    stops = all(h.stopper(s) for s in shown)
+
+    def game() -> tuple | None:
+        if x in MAJORS and ctx.ok(f"4{x}"):
+            return f"4{x}", TO_PLAY
+        if stops and ctx.ok('3NT'):
+            return '3NT', TO_PLAY
+        if ctx.ok(f"5{x}"):
+            return f"5{x}", TO_PLAY
+        return None
+
+    mine, partners = ctx.mine(), ctx.partners()
+    # Opener's first rebid.
+    if ctx.i_am_opener() and len(mine) == 1 and partners == [cue] and len(after) == 2:
+        if limit:
+            if h.judge >= 14 or (h.judge >= 12 and h.len[x] >= 6):
+                g = game()
+                if g:
+                    return g
+            call = ctx.cheapest(x, 3)
+            if call and (level_of(call) == 3 or (level_of(call) == 4 and x in MINORS
+                                                    and after[1][1] == 'Pass')):
+                return call, f"Minimum, {SYM[x]}."
+            return 'Pass', "Minimum."
+        if rest in MAJORS and h.len[rest] >= 3 and ctx.ok(f"4{rest}"):
+            return f"4{rest}", f"3+ {SYM[rest]}. To play."
+        if x in MAJORS and h.len[x] >= 6 and ctx.ok(f"4{x}"):
+            return f"4{x}", f"6+ {SYM[x]}. To play."
+        if stops and ctx.ok('3NT'):
+            return '3NT', f"{SYM[shown[0]]} and {SYM[shown[1]]} stopped."
+        if x in MAJORS and ctx.ok(f"4{x}"):
+            return f"4{x}", TO_PLAY
+        if ctx.ok('3NT'):
+            return '3NT', TO_PLAY
+        return None
+    # Responder, after the limit raise: opener bid game.
+    if (not ctx.i_am_opener() and limit and mine == [cue] and len(partners) == 2
+            and partners[1] in ('3NT', f"4{x}", f"5{x}") and ctx.ours[-1][0] == ctx.pd):
+        return 'Pass', "Game reached."
+    # Responder, after the limit raise, when opener signed off or passed.
+    if (not ctx.i_am_opener() and limit and mine == [cue] and len(after) == 4
+            and len(partners) <= 2 and (len(partners) == 1 or strain_of(partners[1]) == x)):
+        if h.judge >= 13:
+            g = game()
+            if g:
+                return g
+        return 'Pass', "No game."
+    return None
 
 
 def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
@@ -4705,7 +4812,16 @@ def _long_suit_jump(ctx: Ctx, allowed: list[str]) -> tuple | None:
     return None
 
 
+#: Over their weak 2M our 4M (16+) and 4NT (10-15) show both minors
+#: (`_overcall`), but advancer read neither: on (2♠) 4♠ P ? partner passed
+#: the cuebid with five diamonds (Nov 4 2026). Advancer now picks a minor.
+WEAK_TWO_MINORS_ADVANCE = True
+
+
 def _two_suits_shown(ctx: Ctx, p: str, opening: str | None) -> tuple | None:
+    if (WEAK_TWO_MINORS_ADVANCE and opening in ('2H', '2S')
+            and p in (f"4{strain_of(opening)}", '4NT')):
+        return ('C', 'D')
     if not opening or level_of(opening) != 1:
         return None
     if _our_two_level_overcall(ctx):
