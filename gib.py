@@ -2432,11 +2432,38 @@ def _jam_wjo_ok(ctx: Ctx) -> bool:
     return {'fav': not we and they, 'white': not we, 'any': True}[JAM_WJO_VUL]
 
 
+#: Jam over partner's simple major overcall (the user's training deal 30,
+#: 2026-11-04: P P 1S 2H 2S with AJ752 JT632 J4 J, "west should just jam 4H
+#: immediately"). With five-card support, my first call is game, at the
+#: vulnerabilities JAM_OVERCALL_VUL names ('white', 'any', None for off).
+#: Fresh deals, 3 x 2,000: 'any' +0.14, +0.33, +0.58 a board; 'white' +0.06,
+#: +0.20, +0.23; only after they bid again +0.05, +0.10. The user picked 'any'.
+JAM_OVERCALL_VUL: str | None = 'any'
+
+
+def _jam_overcall_ok(ctx: Ctx) -> bool:
+    if JAM_OVERCALL_VUL is None or ctx.we_opened or len(ctx.ours) != 1 or ctx.ours[0][0] != ctx.pd:
+        return False
+    x = strain_of(ctx.seq[0])
+    if x not in MAJORS or _jump(ctx, 0):
+        return False
+    first = next(i for i, (w, c) in enumerate(ctx.calls) if c != 'Pass')
+    if strain_of(ctx.calls[first][1]) == x:
+        return False
+    at = ctx.calls.index(ctx.ours[0])
+    if any(c != 'Pass' and w not in (ctx.me, ctx.pd) and w != ctx.calls[first][0]
+           for w, c in ctx.calls[first + 1:at]):
+        return False                     # partner's call came after both of them bid
+    v = ctx.auction.vulnerability
+    we = v == 'Both' or v == ('N/S' if ctx.me in ('North', 'South') else 'E/W')
+    return {'white': not we, 'any': True}[JAM_OVERCALL_VUL]
+
+
 def _jam_spot(ctx: Ctx) -> str | None:
     """The game call partner's pre-empt asks of my first call, or None."""
     if not JAM_GAME or ctx.i_am_opener() or ctx.seq[1:] or not ctx.seq:
         return None
-    if not ctx.we_opened and not _jam_wjo_ok(ctx):
+    if not ctx.we_opened and not _jam_wjo_ok(ctx) and not _jam_overcall_ok(ctx):
         return None
     if any(w == ctx.me for w, _ in ctx.calls[ctx.calls.index(ctx.ours[0]) + 1:]):
         return None                      # not my first call: the jam is now or never

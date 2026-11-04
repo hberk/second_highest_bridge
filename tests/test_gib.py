@@ -695,13 +695,18 @@ def test_competes_to_the_level_of_the_fit():
         gib.LOTT = True
     # Deal 333: (1♣) 1♠ (3♣) with ♠109875 ♥J74 ♦Q1093 ♣7, 3 HCP: ten trumps
     # and a singleton raise to 3♠, and GIB's free raise reads the same.
+    # (With five spades that is ten: the overcall jam, JAM_OVERCALL_VUL, bids
+    # 4♠ at once; this part is about the raise, so the jam is off for it.)
     weak = '10S 9S 8S 7S 5S JH 7H 4H QD 10D 9D 3D 7C'
-    assert bid(weak, '1C', '1S', '3C', dealer='West') == ('3S', '3+ ♠, competitive.')
-    gib.LOTT_SHORT = False
+    assert bid(weak, '1C', '1S', '3C', dealer='West')[0] == '4S'
+    gib.JAM_OVERCALL_VUL = None
     try:
+        assert bid(weak, '1C', '1S', '3C', dealer='West') == ('3S', '3+ ♠, competitive.')
+        gib.LOTT_SHORT = False
         assert bid(weak, '1C', '1S', '3C', dealer='West')[0] == 'Pass'
     finally:
         gib.LOTT_SHORT = True
+        gib.JAM_OVERCALL_VUL = 'any'
     # Nine trumps compete to three, not four.
     assert bid('AS 9S 8S 5S 10H 7H 9D 6D 3D 2D KC QC 4C', *auction,
                dealer='South')[0] == 'Pass'
@@ -1543,3 +1548,49 @@ def test_no_part_score_penalty_double_after_a_strong_opening():
     west = 'KS QS 9S 8S 4S 10H 6H 5H KD 10D 3D 4C 2C'
     call, why = ai.ai_bid_explained('West', hand(west), auction, strong)
     assert call == 'X', (call, why)
+
+
+# The user's training deal 30, 2026-11-04 (dealer South, E/W vulnerable).
+_D30 = {
+    'North': 'KS QS 6S 4S 3S QD 7D 6D 3D KC QC 9C 2C',
+    'East': 'AH KH 9H 8H 5H AD KD 10D 2D 10C 7C 5C 3C',
+    'South': '10S 9S 8S QH 7H 4H 9D 8D 5D AC 8C 6C 4C',
+    'West': 'AS JS 7S 5S 2S JH 10H 6H 3H 2H JD 4D JC',
+}
+
+
+def test_jam_over_partners_simple_overcall():
+    """P P 1♠ (2♥) 2♠: West's five hearts make ten with the overcall, so 4♥
+    at once, vulnerable or not ("west should just jam 4H immediately")."""
+    for vul in ('E/W', 'None'):
+        call, why = _vul_bid(_D30['West'], vul, 'Pass', 'Pass', '1S', '2H', '2S', dealer='South')
+        assert call == '4H' and why.startswith('Game in'), (vul, call, why)
+    # Four hearts are not ten: no jam.
+    west4 = 'AS JS 7S 5S 2S 4S JH 10H 6H 3H JD 4D JC'
+    assert _vul_bid(west4, 'E/W', 'Pass', 'Pass', '1S', '2H', '2S', dealer='South')[0] != '4H'
+    saved = gib.JAM_OVERCALL_VUL
+    try:
+        gib.JAM_OVERCALL_VUL = None
+        assert _vul_bid(_D30['West'], 'E/W', 'Pass', 'Pass', '1S', '2H', '2S', dealer='South')[0] == '3H'
+    finally:
+        gib.JAM_OVERCALL_VUL = saved
+
+
+def test_no_competing_past_the_six_level():
+    """Without the jam the deal ran P P 1♠ 2♥ 2♠ 3♥ 3♠ 4♥ 4♠ 5♥ 5♠ 6♥ 6♠ 7♥:
+    each side void in the other's suit counted 13 tricks. Over their bid
+    nobody now goes past six."""
+    hands = {s: hand(t) for s, t in _D30.items()}
+    saved = gib.JAM_OVERCALL_VUL
+    try:
+        gib.JAM_OVERCALL_VUL = None
+        auction = AuctionState(dealer='South', vulnerability='E/W')
+        while not auction.is_complete:
+            p = auction.current_player()
+            call, why = ai.ai_bid_explained(p, hands[p], auction)
+            auction.apply_call(p, call)
+        calls = [c for _, c in auction.calls]
+        assert '7H' not in calls and auction.get_contract()['level'] == 6, calls
+        assert ai.COMPETE_CAP_ALERT.format(6) in ai._robot_alerts(auction).values()
+    finally:
+        gib.JAM_OVERCALL_VUL = saved

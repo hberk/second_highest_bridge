@@ -1303,7 +1303,28 @@ def ai_bid_explained(player: str, hand: list[Card], auction: AuctionState,
     decision = (_preemptor_passes(player, hand, auction, alerts)
                 or _lead_doubler_passes(player, hand, auction, alerts)
                 or _penalty_or_base(player, hand, auction, alerts))
+    decision = _compete_cap(player, auction, decision)
     auction.__dict__.setdefault('_robot_said', {})[len(auction.calls)] = decision
+    return decision
+
+
+#: The ceiling on competing over their bid (the user's training deal 30,
+#: 2026-11-04: P P 1S 2H 2S 3H 3S 4H 4S 5H 5S 6H 6S 7H, both sides void in
+#: the other's suit, so each counted 13-14 tricks and bid one more). A bid
+#: over theirs never goes past this level; None leaves it alone. Fresh
+#: deals, 3 x 2,000: -0.08, +0.15, +0.03 a board, ending the seven-level
+#: runaways (about one board in 3,000). Five measured -0.4, game -0.7 to -1.1.
+COMPETE_MAX: int | None = 6
+COMPETE_CAP_ALERT = "Not past the {} level in competition."
+
+
+def _compete_cap(player: str, auction: AuctionState, decision: tuple) -> tuple:
+    bid = parse_bid(decision[0])
+    hb = auction.highest_bid
+    if COMPETE_MAX is None or not bid or not hb or PARTNERSHIP[hb[2]] == PARTNERSHIP[player]:
+        return decision
+    if bid[0] > COMPETE_MAX:
+        return 'Pass', COMPETE_CAP_ALERT.format(COMPETE_MAX)
     return decision
 
 

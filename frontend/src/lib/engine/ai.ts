@@ -872,9 +872,23 @@ export function aiBidExplained(player: Seat, hand: Card[], auction: AuctionState
   const decision = preemptorPasses(player, hand, auction, known)
     ?? leadDoublerPasses(player, hand, auction, known)
     ?? penaltyOrBase(player, hand, auction, known);
+  const capped = competeCap(player, auction, decision);
   if (!robotSaid.has(auction)) robotSaid.set(auction, new Map());
-  robotSaid.get(auction)!.set(auction.calls.length, decision);
-  return decision;
+  robotSaid.get(auction)!.set(auction.calls.length, capped);
+  return capped;
+}
+
+/** The ceiling on competing over their bid (the user's training deal 30,
+ *  2026-11-04): a bid over theirs never goes past this level; null leaves it
+ *  alone. See ai.py. */
+export const COMPETE_MAX: number | null = 6;
+export const COMPETE_CAP_ALERT = 'Not past the {} level in competition.';
+
+function competeCap(player: Seat, auction: AuctionState, decision: Decision): Decision {
+  const bid = parseBid(decision[0]);
+  const hb = auction.highestBid;
+  if (COMPETE_MAX === null || !bid || !hb || PARTNERSHIP[hb[2]] === PARTNERSHIP[player]) return decision;
+  return bid[0] > COMPETE_MAX ? ['Pass', COMPETE_CAP_ALERT.replace('{}', String(COMPETE_MAX))] : decision;
 }
 
 /** What this function said on each auction object, by call index. Left out,
