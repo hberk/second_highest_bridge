@@ -63,6 +63,12 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     hand that can bid them at the three level, 6+ cards and 12+ HCP
     (`SHOWN_SUIT_LEN`, `SHOWN_SUIT_HCP`, the user's rule). Freed for every
     hand it lost -0.04 a board: 3♦ straight over the transfer went for 1,470.
+    Partner reads it from the auction (`SHOWN_SUIT_PARTNER`, the PR #63
+    review): when our side's first bid after their artificial bid is in its
+    suit, that suit is ours for both of us, in `_their_suits` and in
+    `ai._is_cuebid` (via `gib.our_suit_after_artificial`). Before, partner
+    read our natural 3♦ as a cuebid and bid 4♠ "again over the cuebid" with
+    no spades shown. No auction changed in 36,000 fresh boards.
 - **Systems on over our 1NT overcall** (`Ctx.nt_overcall`): after (1x)-1NT,
   both partners play the 1NT opening's whole structure, every round, at the
   overcall's 15-18, while the opponents pass. Before, only advancer's first

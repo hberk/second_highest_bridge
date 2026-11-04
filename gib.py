@@ -2733,9 +2733,35 @@ def contested(ctx: Ctx) -> tuple | None:
 #: so it is ours only to a hand that can bid it at the three level: 6+
 #: cards and 12+ HCP (the user's rule; 3 auctions in 80,000 boards, +0.01).
 #: Read as `_their_artificial` reads them: only while our side had passed.
+#: Partner reads it from the auction (the PR #63 review: partner, without
+#: the six cards, read our natural 3♦ over 1NT P 2♦ P 2♥ P P as a cuebid
+#: and bid a suit of its own a fifth of the time): when our side's first bid
+#: after their artificial bid is in its suit, the suit is ours for both.
 THEIR_SHOWN_SUITS = True
 SHOWN_SUIT_LEN = 6
 SHOWN_SUIT_HCP = 12
+SHOWN_SUIT_PARTNER = True
+
+
+def _we_bid_it_first(ctx: Ctx, k: int, s: str) -> bool:
+    """Is our side's first bid after their call `k` in the suit `s`?"""
+    if not SHOWN_SUIT_PARTNER:
+        return False
+    first = next((c for w, c in ctx.calls[k + 1:]
+                  if w in (ctx.me, ctx.pd) and c != 'Pass'), None)
+    return first is not None and strain_of(first) == s
+
+
+def our_suit_after_artificial(player: str, auction: AuctionState, s: str) -> bool:
+    """Did our side's first bid after their artificial bid in `s` (a transfer,
+    Stayman) name `s`? Then it is our suit, natural, not a cuebid
+    (`ai._is_cuebid` asks), and partner reads it from the auction alone."""
+    if not THEIR_SHOWN_SUITS:
+        return False
+    ctx = Ctx(player, [], auction)
+    return any(w not in (ctx.me, ctx.pd) and strain_of(c) == s
+               and _their_artificial(ctx, k) and _we_bid_it_first(ctx, k, s)
+               for k, (w, c) in enumerate(ctx.calls))
 
 
 def _their_suits(ctx: Ctx) -> list[str]:
@@ -2744,8 +2770,9 @@ def _their_suits(ctx: Ctx) -> list[str]:
         if w in (ctx.me, ctx.pd) or c == 'Pass':
             continue
         s = strain_of(c)
-        if THEIR_SHOWN_SUITS and s in SUITS and ctx.h.len[s] >= SHOWN_SUIT_LEN \
-                and ctx.h.hcp >= SHOWN_SUIT_HCP and _their_artificial(ctx, k):
+        if THEIR_SHOWN_SUITS and s in SUITS and (
+                (ctx.h.len[s] >= SHOWN_SUIT_LEN and ctx.h.hcp >= SHOWN_SUIT_HCP)
+                or _we_bid_it_first(ctx, k, s)) and _their_artificial(ctx, k):
             seq = [x for v, x in ctx.calls[:k + 1] if v not in (ctx.me, ctx.pd) and x != 'Pass']
             s = shown_suit(seq, len(seq) - 1)
         if s in SUITS and s not in out:

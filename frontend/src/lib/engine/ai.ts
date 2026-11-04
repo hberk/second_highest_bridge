@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { Ctx, doublerGuard, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
+import { Ctx, doublerGuard, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -179,7 +179,8 @@ function firstNamer(auction: AuctionState, strain: string): Seat | null {
 
 function isCuebid(player: Seat, auction: AuctionState, strain: string): boolean {
   const namer = firstNamer(auction, strain);
-  return namer !== null && namer !== player && namer !== PARTNERS[player];
+  return namer !== null && namer !== player && namer !== PARTNERS[player]
+    && !ourSuitAfterArtificial(player, auction, strain);
 }
 
 function partnerPromise(player: Seat, partner: Seat, auction: AuctionState, strain: string): number {

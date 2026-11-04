@@ -23,7 +23,8 @@ at +1.18 points a board against v0.1.0-alpha (3 x 1,000 fresh deals).
 - Our cuebids over their Unusual 2NT are answered; advancer picks a minor
   after our 4M/4NT minors over their weak two.
 - The doubler answers partner's responsive double; the suit their transfer shows is
-  ours to bid only with 6+ cards and 12+ HCP.
+  ours to bid only with 6+ cards and 12+ HCP, and partner reads that bid as
+  natural, not a cuebid.
 - Measured and left as is: a five-card two-level overcall needs no particular
   suit quality.
 

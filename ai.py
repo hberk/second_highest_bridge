@@ -275,7 +275,8 @@ def _is_cuebid(player: str, auction: AuctionState, strain: str) -> bool:
     the opponents' suit and the pair plays in it.
     """
     namer = _first_namer(auction, strain)
-    return namer is not None and namer not in (player, PARTNERS[player])
+    return (namer is not None and namer not in (player, PARTNERS[player])
+            and not gib.our_suit_after_artificial(player, auction, strain))
 
 
 def _partner_promise(player: str, partner: str, auction: AuctionState,

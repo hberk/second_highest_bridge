@@ -388,6 +388,21 @@ def test_their_transfer_suit_is_ours_to_bid():
     assert gib._their_suits(ctx) == []
 
 
+def test_partner_reads_our_bid_in_their_transfer_suit_as_natural():
+    # The PR #63 review: partner, without six diamonds, read our natural 3D
+    # over 1NT P 2D P 2H P P as a cuebid and bid 4S "again over the cuebid"
+    # (partner never bid spades). Our side's first bid after their artificial
+    # bid, in its suit, is natural for both of us.
+    calls = ('1NT', 'Pass', '2D', 'Pass', '2H', 'Pass', 'Pass', '3D', 'Pass')
+    call, why = bid('AS KS QS 7S 4S 3S KH 5H 3D AC QC 7C 2C', *calls)
+    assert call == '4S' and 'cuebid' not in why
+    a = after(*calls)
+    assert not ai._is_cuebid('West', a, 'D')
+    assert gib._their_suits(gib.Ctx('West', hand('9S 9H 3D 2C'), a)) == ['H']
+    # Their real suit is still theirs.
+    assert ai._is_cuebid('West', a, 'H')
+
+
 def test_doubler_answers_responsive_double():
     # (1C) X (2C) X (P): partner's responsive double shows both majors; the
     # doubler bids the better one, never passes (the gap analysis, 2026-11-04).

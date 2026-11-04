@@ -2489,6 +2489,26 @@ function contested(ctx: Ctx): Decision | null {
 export const THEIR_SHOWN_SUITS = true;
 export const SHOWN_SUIT_LEN = 6;
 export const SHOWN_SUIT_HCP = 12;
+export const SHOWN_SUIT_PARTNER = true;
+
+/** Is our side's first bid after their call `k` in the suit `s`? Then the
+ *  suit is ours for partner too, who reads it from the auction (the PR #63
+ *  review). See gib.py. */
+function weBidItFirst(ctx: Ctx, k: number, s: Suit): boolean {
+  if (!SHOWN_SUIT_PARTNER) return false;
+  const first = ctx.calls.slice(k + 1).find(([w, c]) => (w === ctx.me || w === ctx.pd) && c !== 'Pass');
+  return first !== undefined && strainOf(first[1]) === s;
+}
+
+/** Did our side's first bid after their artificial bid in `s` (a transfer,
+ *  Stayman) name `s`? Then it is our suit, natural, not a cuebid
+ *  (`isCuebid` in ai.ts asks). See gib.py. */
+export function ourSuitAfterArtificial(player: Seat, auction: AuctionState, s: string): boolean {
+  if (!THEIR_SHOWN_SUITS) return false;
+  const ctx = new Ctx(player, [], auction);
+  return ctx.calls.some(([w, c], k) => w !== ctx.me && w !== ctx.pd && strainOf(c) === s
+    && theirArtificial(ctx, k) !== null && weBidItFirst(ctx, k, s as Suit));
+}
 
 function theirSuits(ctx: Ctx): Suit[] {
   const out: Suit[] = [];
@@ -2496,8 +2516,9 @@ function theirSuits(ctx: Ctx): Suit[] {
   ctx.calls.forEach(([w, c], k) => {
     if (us(w) || c === 'Pass') return;
     let s: string | null = strainOf(c);
-    if (THEIR_SHOWN_SUITS && isSuit(s) && ctx.h.len[s] >= SHOWN_SUIT_LEN
-        && ctx.h.hcp >= SHOWN_SUIT_HCP && theirArtificial(ctx, k)) {
+    if (THEIR_SHOWN_SUITS && isSuit(s)
+        && ((ctx.h.len[s] >= SHOWN_SUIT_LEN && ctx.h.hcp >= SHOWN_SUIT_HCP) || weBidItFirst(ctx, k, s))
+        && theirArtificial(ctx, k)) {
       const seq = ctx.calls.slice(0, k + 1).filter(([v, x]) => !us(v) && x !== 'Pass').map(([, x]) => x);
       s = shownSuit(seq, seq.length - 1);
     }
