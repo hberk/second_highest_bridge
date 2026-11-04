@@ -494,6 +494,24 @@ function response(player: Seat, partner: Seat, auction: AuctionState, ev: HandEv
   return ['Pass', `Fewer than ${SUPPORT_LENGTH} ${SUIT_SYM[pStrain]} and no five-card suit.`];
 }
 
+/** Partner opened one of a minor and has not bid it again: three or four,
+ *  so three of mine need not be a fit (the user's board, 2026-11-04: 1D P 1S
+ *  X P 2C 2D on QT853 A863 Q72 T). Raise with exactly three only holding a
+ *  side singleton or void. See ai.py. */
+export const MINOR_RAISE_SHORT = true;
+
+function thinMinorRaise(partner: Seat, auction: AuctionState, groups: Groups, strain: Suit): boolean {
+  if (!MINOR_RAISE_SHORT || (strain !== 'C' && strain !== 'D') || groups[strain].length !== SUPPORT_LENGTH) {
+    return false;
+  }
+  const bids = bidsBy(partner, auction);
+  if (bids.length !== 1 || bids[0][0] !== 1 || bids[0][1] !== strain
+      || firstNamer(auction, strain) !== partner) return false;
+  const first = auction.calls.find(([, c]) => c !== 'Pass');
+  if (!first || first[0] !== partner) return false;
+  return Math.min(...SUITS.filter(s => s !== strain).map(s => groups[s].length)) > 1;
+}
+
 /** Partner has raised the suit I bid first (the user's boards, 2026-11-01):
  *  the suit is agreed. With the opponents silent since partner's raise our
  *  side holds the contract, so the only call worth making is game; over
@@ -641,7 +659,8 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
     if (choice) return choice;
   }
 
-  if (isSuit(pStrain) && groups[pStrain].length >= SUPPORT_LENGTH) {
+  if (isSuit(pStrain) && groups[pStrain].length >= SUPPORT_LENGTH
+      && !thinMinorRaise(partner, auction, groups, pStrain)) {
     const combined = withShortness(
       ev.suit_pts[pStrain] + partnerPromise(player, partner, auction, pStrain), groups, pStrain as Suit);
     const [call, why] = place(pStrain, combined, legal);
