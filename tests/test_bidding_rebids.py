@@ -137,23 +137,30 @@ def test_no_runaway_levels_over_many_boards():
     minor on purpose, to make or to take their game away. And except five
     bid straight over their four-level game, a sacrifice: seed 11 board 112,
     1C (1S) 2H (2S) 3H P 4H (4S) P P 5H on 21 HCP, one down double dummy
-    against their 4S making (NEG_BIDS_FIVE's 2H first reached it)."""
+    against their 4S making (NEG_BIDS_FIVE's 2H first reached it). And
+    except advancer's choice of minor after partner's 4NT or 4M over their
+    weak two (both minors, gib.WEAK_TWO_MINORS_ADVANCE): partner put us at
+    the five level, and passing 4NT or their own cuebid is worse."""
     random.seed(11)
     for index in range(200):
         hands = deal()
         auction = AuctionState(dealer=PLAYERS[index % 4], vulnerability='None')
         guard = 0
         jams = set()
+        chosen = set()
         while not auction.is_complete and guard < 60:
             who = auction.current_player()
             call, why = ai.ai_bid_explained(who, hands[who], auction)
             if 'to jam the auction' in why:
                 jams.add((who, call))
+            if call[0] == '5' and "partner's two suits" in why:
+                chosen.add(who)
             auction.apply_call(who, call)
             guard += 1
         contract = auction.get_contract()
         jammed = any(who in (contract['declarer'], PARTNERS[contract['declarer']])
                      for who, _ in jams) if contract else False
+        jammed = jammed or (contract is not None and contract['declarer'] in chosen)
         bids = [(who, c) for who, c in auction.calls if c not in ('Pass', 'X', 'XX')]
         saved = (contract is not None and contract['level'] == 5 and len(bids) >= 2
                  and bids[-2][1][0] == '4'

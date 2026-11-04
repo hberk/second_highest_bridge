@@ -1608,3 +1608,27 @@ def test_advancer_bids_game_over_a_three_level_takeout_double():
                '3H', 'X', 'Pass', dealer='East')[0] == '3S'
     assert bid('KS JS 10S 9S AH QH 7H 3H 8D 8C 5C 4C 2C',
                '3C', 'X', 'Pass', dealer='East')[0] in ('3S', '3H')
+
+
+def test_cuebids_over_their_unusual_2nt_are_answered():
+    """The user's board, 2026-11-04: Pass 1♠ (2NT) 3♣ (Pass), and North
+    passed the artificial limit raise, -200 in 3♣. Opener now signs off in
+    the major with a minimum, and answers the game-forcing cuebid with game."""
+    north = 'AS JS 5S 4S 3S JH 4H 2H AD 7D 4D KC 10C'
+    call, why = bid(north, 'Pass', '1S', '2NT', '3C', 'Pass', dealer='West')
+    assert call == '3S', (call, why)
+    call, why = bid(north, 'Pass', '1S', '2NT', '3D', 'Pass', dealer='West')
+    assert call == '4H', (call, why)       # 5+ hearts opposite three
+    # Responder, after opener's sign-off: game with 13+.
+    south = 'KS 10S 8S AH QH 10H 9H 8H AD JD 5D 9C 2C'
+    call, why = bid(south, 'Pass', '1S', '2NT', '3C', 'Pass', '3S', 'Pass', dealer='West')
+    assert call == '4S', (call, why)
+
+
+def test_advancer_picks_a_minor_after_our_minors_over_a_weak_two():
+    """Fresh deals, 2026-11-04: (2♠) 4♠ (both minors, 16+) P and partner
+    passed the cuebid with five diamonds; 4NT (10-15) was passed too."""
+    north = '8S 6S 5S KH QH 9H 6H QD JD 9D 5D 2D 10C'
+    for overcall in ('4S', '4NT'):
+        call, why = bid(north, 'Pass', '2S', overcall, 'Pass')
+        assert call == '5D', (overcall, call, why)

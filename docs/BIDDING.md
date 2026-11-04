@@ -590,6 +590,32 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   175 worse). The same length for the pre-emptive jump raise over their
   bid (5+ ♦ / 6+ ♣, not 4+) measured -0.02, t = -0.1, and with 1♣-3♣ on 6+
   -0.03; left off (the user's call: weak raises stay where they were).
+- **Answers to responder's cuebids over their Unusual 2NT**
+  (`UNUSUAL_CUE_REPLY`, `_unusual_cue_reply`; the user's board, 2026-11-04:
+  Pass 1♠ (2NT) 3♣ P, North passed the artificial limit raise on ♠AJ543
+  ♥J42 ♦A74 ♣KT, -200 in 3♣). `_their_suits` reads suit bids only, so their
+  2NT showed no suits, `_cuebid_raise_reply` never fired and the fallback
+  passed. After the cheaper cuebid (limit raise or better) opener bids game
+  with extras, as over any cuebid raise, else signs off in the suit; after
+  the dearer one (5+ of the fourth suit, game forcing) opener bids four of
+  the fourth suit with three, four of a six-card major, 3NT with both their
+  suits stopped, else four of the major or 3NT. Responder bids game with
+  13+ after opener's sign-off and passes opener's game. `_partner_length`
+  reads the cuebids the same way, so the LoTT and 4M-over-3NT layers no
+  longer take 3♥ for hearts. 20,000 fresh deals (seed 41M,
+  `/mnt/project-files/unusual-cue/`): **+0.15, t = +5.0, 85 auctions
+  changed** (63 better, 16 worse).
+- **Advancer picks a minor after our minors over their weak two**
+  (`WEAK_TWO_MINORS_ADVANCE`, `_two_suits_shown`; found by the same survey of
+  passes of partner's artificial bids). Over (2♥)/(2♠) our 4M (16+) and 4NT
+  (10-15) show both minors, but advancer passed both. Now advancer bids the
+  longer minor at the five level. The same deals: **+0.21, t = +6.4, 97
+  auctions changed** (73 better, 10 worse); with the cuebid answers **+0.36,
+  t = +8.1**. The runaway test exempts this forced choice. Also measured on
+  them: treating our calls over their 1NT as the defence only when they come
+  straight over it (so no 2NT minor ask after a natural overcall of their
+  Stayman or transfer) -0.09, t = -3.3; dropped, the fallback did worse than
+  the unanswered 2NT.
 - **Runouts after our 1NT is penalty-doubled** (`NT_RUNOUTS`, `_nt_runout`,
   `_runout_choice`; the user's system, 2026-10-28, from training board 25,
   where 1NT (X) P (P) had the opener bid Stayman: systems on read the
