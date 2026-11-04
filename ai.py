@@ -1055,6 +1055,10 @@ USE_GIB = True
 #: deals, head to head: +10.95 a board, t = +13.4 (BIDDING.md).
 PENALTY_DOUBLE = True
 PENALTY_JUDGE = 20
+#: My suit doubled and passed round to me (1D P P 1S X P P): never bid the same
+#: suit higher. False = off; 'pass' = pass instead; 'run' = run to another
+#: 5+ card suit at the two level, else pass. Measured in the 2026-11-04 thread.
+LEFT_IN = False
 _RANGE_RE = re.compile(r'(\d+)-(\d+) (?:HCP|points)')
 _MIN_RE = re.compile(r'(\d+)\+ (?:HCP|points)')
 _MAX_RE = re.compile(r'Fewer than (\d+) (?:HCP|points)')
@@ -1299,7 +1303,34 @@ def _penalty_or_base(player: str, hand: list[Card], auction: AuctionState,
         # down more. The branches that raise a fit were written when no robot
         # doubled for penalty.
         return 'Pass', "Doubled: no higher in the same strain."
+    if (LEFT_IN and hb and auction.doubled == 'X' and hb[2] == player
+            and _passes_since_double(auction) == 2
+            and parse_bid(decision[0]) and parse_bid(decision[0])[1] == hb[1]):
+        # My suit was doubled and the doubler's partner passed: the double is
+        # for penalty now, whatever it showed. Bidding the same suit higher
+        # only invites the same double one level up. Experts never do it
+        # (championship archive: 150 pass, 12 new suit, 7 XX, 0 same suit).
+        if LEFT_IN == 'run':
+            run = _run_suit(hand, auction)
+            if run:
+                return run, f"5+ {SUIT_SYM[parse_bid(run)[1]]}. Running from the double."
+        return 'Pass', "Doubled and left in: no higher in the same suit."
     return decision
+
+
+def _run_suit(hand: list[Card], auction: AuctionState) -> str | None:
+    """Cheapest two-level-or-lower bid in my longest other 5+ card suit that
+    the opponents have not named."""
+    hb = auction.highest_bid
+    theirs = {s for s in SUITS
+              if _first_namer(auction, s) not in (None, hb[2], PARTNERS[hb[2]])}
+    lengths = {s: sum(c.suit == s for c in hand) for s in SUITS}
+    options = [s for s in SUITS if s != hb[1] and s not in theirs and lengths[s] >= 5]
+    if not options:
+        return None
+    best = max(options, key=lambda s: (lengths[s], SUITS.index(s)))
+    call = _cheapest(best, 1, auction.legal_calls())
+    return call if call and parse_bid(call)[0] <= max(2, hb[0]) else None
 
 
 def _passes_since_double(auction: AuctionState) -> int:
