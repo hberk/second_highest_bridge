@@ -2201,10 +2201,30 @@ function jamWjoOk(ctx: Ctx): boolean {
   return { fav: !we && they, white: !we, any: true }[JAM_WJO_VUL];
 }
 
+/** Jam over partner's simple major overcall (the user's training deal 30,
+ *  2026-11-04): with five-card support my first call is game, at the
+ *  vulnerabilities JAM_OVERCALL_VUL names: 'white', 'any', or null for off.
+ *  See gib.py. */
+export const JAM_OVERCALL_VUL: 'white' | 'any' | null = 'any';
+
+function jamOvercallOk(ctx: Ctx): boolean {
+  if (JAM_OVERCALL_VUL === null || ctx.weOpened || ctx.ours.length !== 1 || ctx.ours[0][0] !== ctx.pd) return false;
+  const x = strainOf(ctx.seq[0]);
+  if (!isMajor(x) || jump(ctx, 0)) return false;
+  const first = ctx.calls.findIndex(([, c]) => c !== 'Pass');
+  if (strainOf(ctx.calls[first][1]) === x) return false;
+  const at = ctx.calls.findIndex(([w, c]) => w === ctx.ours[0][0] && c === ctx.ours[0][1]);
+  if (ctx.calls.slice(first + 1, at).some(([w, c]) => c !== 'Pass' && w !== ctx.me && w !== ctx.pd
+    && w !== ctx.calls[first][0])) return false;   // partner's call came after both of them bid
+  const v = ctx.auction.vulnerability;
+  const we = v === 'Both' || v === (ctx.me === 'North' || ctx.me === 'South' ? 'N/S' : 'E/W');
+  return { white: !we, any: true }[JAM_OVERCALL_VUL];
+}
+
 /** The game call partner's opening asks of my first call, or null. */
 function jamSpot(ctx: Ctx): string | null {
   if (!JAM_GAME || ctx.iAmOpener() || ctx.seq.length !== 1) return null;
-  if (!ctx.weOpened && !jamWjoOk(ctx)) return null;
+  if (!ctx.weOpened && !jamWjoOk(ctx) && !jamOvercallOk(ctx)) return null;
   const at = ctx.calls.findIndex(([w, c]) => w === ctx.ours[0][0] && c === ctx.ours[0][1]);
   if (ctx.calls.slice(at + 1).some(([w]) => w === ctx.me)) return null;   // now or never
   const x = strainOf(ctx.seq[0]);

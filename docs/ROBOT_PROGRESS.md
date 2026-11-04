@@ -281,6 +281,11 @@ from the variant's side; t as above.
 | 11-03 | Over their bid after partner's choice, 5+ cards compete one level higher (to 4M at most) when the choice was free or a jump: the level of the fit (`TWO_SUITER_FIT_COMPETE`; the user's call); filtered sets as above / seeds 7M, 8M, 9M, 1,000 fresh deals each | +0.23, -0.01, +0.09 / +0.21, -0.07, -0.26 | +2.12, -0.07, +0.60 / +1.69, -1.00, -1.37 | 5, 24, 14 / 3, 1, 4 | on (your call; neutral) |
 | 11-03 | **The whole of PR #62 (v0.1.0-alpha)**: every switch above from 11-03 on, the review fixes and the 6-5 invite, against all of them off (which bids 4,000 of 4,000 auctions exactly as main); seeds 7M, 8M, 9M, 1,000 fresh deals each (`/mnt/project-files/nov3-combined/all_score*.txt`) | -0.55, -0.23, +0.35 (mean -0.14) | -2.67, -0.43, +0.97 | 51, 50, 55 | on (each switch your pick; the total is in the noise: these hands are rare on fresh deals, and the filtered sets above carry the signal) |
 | 11-03 | **The whole of PR #62 (v0.1.0-alpha), final**: every switch above from 11-03 on, the fit compete included, against all of them off (main's bidding); seed 10M, 10,000 fresh deals (`/mnt/project-files/nov3-combined/big_score.txt`) | **+0.22** | +2.19 | 449 (224 better, 164 worse) | on |
+| 11-04 | A five-card fit jams game over partner's simple major overcall, at any vulnerability (`JAM_OVERCALL_VUL = 'any'`; the user's training deal 30); 2,000 fresh deals x 3 | +0.14, +0.33, +0.58 | +1.09, +1.72, +2.96 | 54, 88, 89 | on (your pick) |
+| 11-04 | ...not vulnerable only / only after they bid again | +0.06, +0.20, +0.23 / +0.05, +0.10 | +0.79, +1.87, +1.88 / +0.50, +0.59 | 24, 47, 41 / 39, 68 | off |
+| 11-04 | No call over their bid past the six level (`COMPETE_MAX = 6`; deal 30 ran to 7♥ on two voids) | -0.08, +0.15, +0.03 | -1.00, +2.76, +1.00 | 2, 11, 1 | on (your pick; ends 7-level runaways) |
+| 11-04 | ...past five / past game | -0.39, -0.41 / -1.06, -0.70 | -2.03, -2.16 / -3.94, -2.06 | 17, 22 / 86, 71 | off |
+| 11-04 | A void worth 3 / 2 / 1 tricks once a fit is agreed, not 5 (`SHORT_VOID_TRICKS`); seed 7 | -0.93 / -1.46 / -1.71 | -3.71 / -3.73 / -4.34 | 69 / 104 / 130 | off |
 
 ### The previous system (`ai_bid`)
 

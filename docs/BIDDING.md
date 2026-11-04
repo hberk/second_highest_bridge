@@ -653,6 +653,23 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   without the jump overcaller's pass +0.25, +0.52, +0.14. The pass costs
   about 0.17 a board, games the re-raise found; kept by the user's rule.
   Scripts and scores: the project's `agreed-suit/` folder.
+- **Jam over partner's simple major overcall** (`gib.JAM_OVERCALL_VUL`, in
+  `_jam_spot`; the user's training deal 30, 2026-11-04: P P 1♠ (2♥) 2♠ with
+  ♠AJ752 ♥JT632 ♦J4 ♣J, "west should just jam 4H immediately"). With five
+  cards in partner's one- or two-level major overcall my first call is game,
+  at any vulnerability ('any', the user's pick). 2,000 fresh deals x 3:
+  **+0.14, +0.33, +0.58 a board** (t +1.1, +1.7, +3.0); not vulnerable
+  only +0.06, +0.20, +0.23; only after they bid again +0.05, +0.10.
+- **No competing past the six level** (`ai.COMPETE_MAX = 6`,
+  `_compete_cap`, the last word in `ai_bid_explained`). The same deal
+  without the jam ran 2♠ 3♥ 3♠ 4♥ 4♠ 5♥ 5♠ 6♥ 6♠ 7♥: North and East each
+  held a void in the other's suit, the fallback's `_place` counted it at
+  `SHORT_VOID_TRICKS` (5) and has no ceiling over their bid (`LOTT_MAX`
+  caps only GIB's LoTT). Over their bid no call now goes past six:
+  -0.08, +0.15, +0.03 a board, ending seven-level runaways (about one
+  board in 3,000). A ceiling at five measured -0.39, -0.41; at game -1.06,
+  -0.70. A void worth less, to the user's question (3, 2, 1 tricks):
+  -0.93, -1.46, -1.71 on seed 7, so it stays 5. Scripts: `runaway-7h/`.
 - **Partner's choice after our Michaels stands** (`ai.TWO_SUITER_CHOICE`,
   `TWO_SUITER_RAISE_HCP = 17`, `_two_suiter_choice`; the user's deal,
   2026-11-03: 1♠ 2♠ X 3♥ P 4♥ on ♠9 ♥Q8742 ♦AJ ♣AKJT2 opposite ♥A3, -1,700
