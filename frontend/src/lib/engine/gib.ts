@@ -2093,8 +2093,16 @@ function partnerLength(ctx: Ctx, s: Suit): number {
   if (theirSuits(ctx).includes(s)) return 0;
   let n = 0;
   let mineFirst: number | null = null;
+  const u = UNUSUAL_CUE_REPLY ? unusualCues(ctx) : null;
   for (let i = 0; i < ctx.ours.length; i++) {
     const [who, call] = ctx.ours[i];
+    if (u && i === 1 && (u[1] as string[]).includes(strainOf(call) as string) && levelOf(call) === 3) {
+      // Responder's cuebid over their Unusual 2NT shows no clubs or
+      // diamonds: a limit raise of ours, or five of the fourth suit.
+      const limit = strainOf(call) === u[1][0];
+      if (who !== ctx.me && s === (limit ? u[0] : u[2])) n = Math.max(n, limit ? 3 : 5);
+      continue;
+    }
     if (who !== ctx.me && cueRaise(ctx, i) === s) {
       n = Math.max(n, 3);
       continue;
@@ -2474,6 +2482,8 @@ function weOpenedContested(ctx: Ctx): Decision | null {
     const answer = answerNegative(ctx, x);
     if (answer) return answer;
   }
+  const unusual = unusualCueReply(ctx);
+  if (unusual) return unusual;
   const cue = cuebidRaiseReply(ctx);
   if (cue) return cue;
   const artificial = theirArtificial(ctx, ctx.calls.length - 1);
@@ -3003,6 +3013,95 @@ function cuebidRaiseReply(ctx: Ctx): Decision | null {
  *  HCP the cuebid is above three and 3M shows 6-9, so bid game. Before,
  *  these hands passed (deal 346: ♠AK96 ♥K ♦QJ10432 ♣J6 over 1♠ (3♥)). */
 export const JUMP_OVERCALL_GAME = true;
+
+/** 1x (2NT Unusual) and responder's three-level cuebids: the cheaper one is
+ * a limit raise or better of x, the dearer one 5+ of the fourth suit, game
+ * forcing. Their suits came from a 2NT, which `theirSuits` doesn't read, so
+ * no rule answered either and the fallback passed: 1♠ (2NT) 3♣ P with
+ * ♠AJ543 ♥J42 ♦A74 ♣KT played 3♣ for -200; 5♠ makes (Nov 4 2026). */
+export const UNUSUAL_CUE_REPLY = true;
+
+/** [x, their two suits, the fourth suit, start index] when our 1x opening
+ * was overcalled with a direct 2NT, their only bid so far. */
+function unusualCues(ctx: Ctx): [Suit, Suit[], Suit | null, number] | null {
+  const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
+  if (i < 0 || ctx.calls.length < i + 3) return null;
+  const [w0, c0] = ctx.calls[i];
+  const c1 = ctx.calls[i + 1][1];
+  const x = strainOf(c0);
+  if ((w0 !== ctx.me && w0 !== ctx.pd) || levelOf(c0) !== 1 || !isSuit(x) || c1 !== '2NT'
+    || !ctx.theirs.length || ctx.theirs[0][1] !== '2NT') return null;
+  const shown = SUITS.filter((s) => s !== x).slice(0, 2);
+  const rest = SUITS.filter((s) => s !== x && !shown.includes(s));
+  return [x, shown, rest.length ? rest[0] : null, i];
+}
+
+/** Answers to responder's cuebids over their Unusual 2NT
+ * (`respondOverInterference`). Opener after the limit raise: game with
+ * the values the cuebid raise asks for, else the cheapest x; after the
+ * game force: the fourth suit with three, a six-card major, 3NT with both
+ * their suits stopped, else four of a major. Responder, when opener signs
+ * off: game with 13+, as after any cuebid raise. */
+function unusualCueReply(ctx: Ctx): Decision | null {
+  if (!UNUSUAL_CUE_REPLY) return null;
+  const u = unusualCues(ctx);
+  if (!u) return null;
+  const [x, shown, rest, i] = u;
+  const h = ctx.h;
+  const after = ctx.calls.slice(i + 2);
+  const responder = ctx.iAmOpener() ? ctx.pd : ctx.me;
+  if (!after.length || after[0][0] !== responder) return null;
+  const cue = after[0][1];
+  if (!(shown as string[]).includes(strainOf(cue) as string) || levelOf(cue) !== 3) return null;
+  const limit = strainOf(cue) === shown[0];
+  const stops = shown.every((s) => h.stopper(s));
+  const game = (): Decision | null => {
+    if (isMajor(x) && ctx.ok(`4${x}`)) return [`4${x}`, TO_PLAY];
+    if (stops && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+    if (ctx.ok(`5${x}`)) return [`5${x}`, TO_PLAY];
+    return null;
+  };
+  const mine = ctx.mine();
+  const partners = ctx.partners();
+  // Opener's first rebid.
+  if (ctx.iAmOpener() && mine.length === 1 && partners.length === 1 && partners[0] === cue
+    && after.length === 2) {
+    if (limit) {
+      if (h.judge >= 14 || (h.judge >= 12 && h.len[x] >= 6)) {
+        const g = game();
+        if (g) return g;
+      }
+      const call = ctx.cheapest(x, 3);
+      if (call && (levelOf(call) === 3 || (levelOf(call) === 4 && isMinor(x) && after[1][1] === 'Pass'))) {
+        return [call, `Minimum, ${SYM[x]}.`];
+      }
+      return ['Pass', 'Minimum.'];
+    }
+    if (rest !== null && isMajor(rest) && h.len[rest] >= 3 && ctx.ok(`4${rest}`)) {
+      return [`4${rest}`, `3+ ${SYM[rest]}. To play.`];
+    }
+    if (isMajor(x) && h.len[x] >= 6 && ctx.ok(`4${x}`)) return [`4${x}`, `6+ ${SYM[x]}. To play.`];
+    if (stops && ctx.ok('3NT')) return ['3NT', `${SYM[shown[0]]} and ${SYM[shown[1]]} stopped.`];
+    if (isMajor(x) && ctx.ok(`4${x}`)) return [`4${x}`, TO_PLAY];
+    if (ctx.ok('3NT')) return ['3NT', TO_PLAY];
+    return null;
+  }
+  // Responder, after the limit raise: opener bid game.
+  if (!ctx.iAmOpener() && limit && mine.length === 1 && mine[0] === cue && partners.length === 2
+    && ['3NT', `4${x}`, `5${x}`].includes(partners[1]) && ctx.ours[ctx.ours.length - 1][0] === ctx.pd) {
+    return ['Pass', 'Game reached.'];
+  }
+  // Responder, after the limit raise, when opener signed off or passed.
+  if (!ctx.iAmOpener() && limit && mine.length === 1 && mine[0] === cue && after.length === 4
+    && partners.length <= 2 && (partners.length === 1 || strainOf(partners[1]) === x)) {
+    if (h.judge >= 13) {
+      const g = game();
+      if (g) return g;
+    }
+    return ['Pass', 'No game.'];
+  }
+  return null;
+}
 
 function respondOverInterference(ctx: Ctx, x: Suit): Decision {
   const h = ctx.h;
@@ -4305,7 +4404,14 @@ function longSuitJump(ctx: Ctx, allowed: Suit[]): Decision | null {
   return null;
 }
 
+/** Over their weak 2M our 4M (16+) and 4NT (10-15) show both minors
+ * (`overcall`), but advancer read neither: on (2♠) 4♠ P ? partner passed
+ * the cuebid with five diamonds (Nov 4 2026). Advancer now picks a minor. */
+export const WEAK_TWO_MINORS_ADVANCE = true;
+
 function twoSuitsShown(ctx: Ctx, p: string, opening: string | null): [Suit, Suit | null] | null {
+  if (WEAK_TWO_MINORS_ADVANCE && (opening === '2H' || opening === '2S')
+    && (p === `4${strainOf(opening)}` || p === '4NT')) return ['C', 'D'];
   if (!opening || levelOf(opening) !== 1) return null;
   if (ourTwoLevelOvercall(ctx)) return null;            // a natural 2m: DELAYED_MINOR
   const their = strainOf(opening);
