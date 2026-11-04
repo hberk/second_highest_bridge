@@ -283,6 +283,7 @@ from the variant's side; t as above.
 | 11-03 | **The whole of PR #62 (v0.1.0-alpha), final**: every switch above from 11-03 on, the fit compete included, against all of them off (main's bidding); seed 10M, 10,000 fresh deals (`/mnt/project-files/nov3-combined/big_score.txt`) | **+0.22** | +2.19 | 449 (224 better, 164 worse) | on |
 | 11-04 | My suit doubled and passed round: pass, never the suit higher (`LEFT_IN`; the user's board 1♦ P P 1♠ X P P 2♠); seed 14M, 20,000 fresh deals (`/mnt/project-files/left-in/score.txt`) | **+0.14** | +5.63 | 85 (68 better, 13 worse) | on (your pick); running to a new 5+ suit +0.13, t +5.21, not kept |
 | 11-04 | Every lone rebid of my own suit shows six (`REBID_ALONE_SIX_FROM = 2`, was 3; the user's rule), alone and with `LEFT_IN`; same deals (`score2.txt`) | +0.50 / **+0.62** | +5.10 / +6.17 | 3,436 / 3,495 | on, both (your pick) |
+| 11-04 | No penalty double of a part score once an opponent's alert showed 20+ (2NT, strong 2♣) (`PENALTY_STRONG_STOP`; the user's board 2NT P 3♣ P 3♠ X); seeds 7M, 8M, 9M, 3,000 fresh deals each | -0.13, -0.39, -0.05 | -3.10, -3.37, -1.95 | 10, 24, 4 (0 better) | on (your call: no doubled part score stood; the loss is robots running into doubled games) |
 
 ### The previous system (`ai_bid`)
 

@@ -516,6 +516,18 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     is also takeout or negative, +7.30 (off, above); before the doubled side
     stopped raising, +10.95: the incumbent's runouts were part of that. The
     robots don't run from a penalty double; a person might.
+  - **Not below game after an opponent showed 20+** (`PENALTY_STRONG_STOP`,
+    `PENALTY_STRONG`; the user's call, 2026-11-04, on 2NT P 3♣ P 3♠ X with
+    ♠K984: they reach game anyway, and the double only shows the trumps).
+    An opponent's alert with a range or minimum of 20+ (2NT, strong 2♣)
+    stops the double of any part score. In the championship archive a
+    defender sat over a Stayman answer with 4+ of the major 169 times and
+    never doubled. Head to head it measured -0.13, -0.39, -0.05 a board
+    (seeds 7M, 8M, 9M, 3,000 fresh deals each; t -3.1, -3.4, -2.0; 38
+    auctions), kept by choice: no doubled part score ever stood. Every
+    "gain" was the robots on the strong side running from the double into
+    a game that was doubled and failed, which a person would not do
+    (`/mnt/project-files/penalty-partscore/`).
 - **A cuebid raise shows support to the LoTT** (`CUE_RAISE_FIT`, the user's
   deal 338): 1♦ 1♠ X 2♦ (3+ ♠, 10+) - 2♠ 3♥ was passed out with ten spades,
   because `_partner_length` and `_total_tricks` read only natural bids and

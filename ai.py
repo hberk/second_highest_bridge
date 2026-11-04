@@ -1064,6 +1064,13 @@ _RANGE_RE = re.compile(r'(\d+)-(\d+) (?:HCP|points)')
 _MIN_RE = re.compile(r'(\d+)\+ (?:HCP|points)')
 _MAX_RE = re.compile(r'Fewer than (\d+) (?:HCP|points)')
 PENALTY_ALERT = "Penalty: {n}+ {sym}."
+#: No penalty double below game once an opponent's alert showed
+#: PENALTY_STRONG+ (a 2NT opening, a strong 2C). The user, 2026-11-04, on
+#: 2NT P 3C P 3S X with K984: they will reach game anyway, so doubling the
+#: part score only shows them where the trumps are. Experts doubled none of
+#: 169 Stayman answers with 4+ trumps behind them (BIDDING.md).
+PENALTY_STRONG_STOP = True
+PENALTY_STRONG = 20
 
 
 def _partner_middle(partner: str, auction: AuctionState, alerts: dict, mine: int) -> float:
@@ -1088,6 +1095,18 @@ def _partner_middle(partner: str, auction: AuctionState, alerts: dict, mine: int
     return (lo + max(lo, hi)) / 2
 
 
+def _opp_shown_strong(player: str, auction: AuctionState, alerts: dict) -> bool:
+    """Has an opponent's alert shown PENALTY_STRONG or more points?"""
+    for i, (who, _) in enumerate(auction.calls):
+        if who in (player, PARTNERS[player]):
+            continue
+        text = alerts.get(i, '')
+        los = [int(a) for a, _ in _RANGE_RE.findall(text)] + [int(a) for a in _MIN_RE.findall(text)]
+        if any(lo >= PENALTY_STRONG for lo in los):
+            return True
+    return False
+
+
 def _penalty_double(player: str, hand: list[Card], auction: AuctionState,
                     alerts: dict) -> tuple | None:
     hb = auction.highest_bid
@@ -1102,6 +1121,9 @@ def _penalty_double(player: str, hand: list[Card], auction: AuctionState,
     n = sum(1 for c in hand if c.suit == suit)
     need = 5 if level <= 2 else 4
     if n < need:
+        return None
+    if (PENALTY_STRONG_STOP and level < (4 if suit in ('H', 'S') else 5)
+            and _opp_shown_strong(player, auction, alerts)):
         return None
     mine = gib.Hand(hand).judge
     if mine + _partner_middle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE:
