@@ -2725,10 +2725,29 @@ def contested(ctx: Ctx) -> tuple | None:
     return they_opened(ctx)
 
 
+#: Their suits are the suits their bids SHOW. Over their 1NT a transfer
+#: (1NT P 2D) shows hearts, not diamonds, and Stayman shows no suit. Read as
+#: their suit, the diamonds were barred to us: 1NT P 2D P 2H P P passed on
+#: six diamonds (the gap analysis, 2026-11-04). Freeing the suit for every
+#: hand lost (-0.04 a board, t -1.3: 3D straight over 2D went for 1,470),
+#: so it is ours only to a hand that can bid it at the three level: 6+
+#: cards and 12+ HCP (the user's rule; 3 auctions in 80,000 boards, +0.01).
+#: Read as `_their_artificial` reads them: only while our side had passed.
+THEIR_SHOWN_SUITS = True
+SHOWN_SUIT_LEN = 6
+SHOWN_SUIT_HCP = 12
+
+
 def _their_suits(ctx: Ctx) -> list[str]:
     out = []
-    for _, c in ctx.theirs:
+    for k, (w, c) in enumerate(ctx.calls):
+        if w in (ctx.me, ctx.pd) or c == 'Pass':
+            continue
         s = strain_of(c)
+        if THEIR_SHOWN_SUITS and s in SUITS and ctx.h.len[s] >= SHOWN_SUIT_LEN \
+                and ctx.h.hcp >= SHOWN_SUIT_HCP and _their_artificial(ctx, k):
+            seq = [x for v, x in ctx.calls[:k + 1] if v not in (ctx.me, ctx.pd) and x != 'Pass']
+            s = shown_suit(seq, len(seq) - 1)
         if s in SUITS and s not in out:
             out.append(s)
     return out
@@ -4358,6 +4377,9 @@ def they_opened(ctx: Ctx) -> tuple | None:
         return 'Pass', "My double showed my suit, for the lead."
     if _was_lead_double(ctx, ctx.pd) and not mine:
         return 'Pass', "Partner's double asks for a lead."
+    responsive = _answer_responsive(ctx)
+    if responsive:
+        return responsive
     if DOUBLE_THEN_SUIT:
         s = _doubler_suit(ctx, ctx.pd)
         if s and len(partners) == 2 and ctx.ours[-1][0] == ctx.pd:
@@ -4413,6 +4435,40 @@ def _answer_minor_ask(ctx: Ctx) -> tuple | None:
     if call and level_of(call) == 3:
         return call, f"4+ {SYM[m]}, answering 2NT."
     return 'Pass', "No room."
+
+
+#: (1x) X (2x) X (P): partner's responsive double (`_advance`) shows the
+#: two unbid suits, and no branch answered it: the fallback read it as
+#: penalty and passed (the gap analysis, 2026-11-04). The doubler now bids
+#: the better of the two at its cheapest level, and never passes it.
+RESPONSIVE_ANSWER = True
+
+
+def _partner_responsive(ctx: Ctx) -> bool:
+    """My takeout double, their new bid, partner's double of it, and only
+    passes since: partner's responsive double, which I must answer."""
+    if not RESPONSIVE_ANSWER or ctx.mine() != ['X'] or ctx.partners() != ['X'] \
+            or not _takeout_doubler(ctx, ctx.me):
+        return False
+    at = max(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.pd)
+    before = ctx.calls[at - 1] if at else None
+    opening = next((c for _, c in ctx.calls if c != 'Pass'), None)
+    return bool(before and before[0] not in (ctx.me, ctx.pd) and parse_bid(before[1])
+                and before[1] != opening and all(c == 'Pass' for _, c in ctx.calls[at + 1:]))
+
+
+def _answer_responsive(ctx: Ctx) -> tuple | None:
+    if not _partner_responsive(ctx):
+        return None
+    theirs = _their_suits(ctx)
+    unbid = [s for s in SUITS if s not in theirs][-2:]
+    if len(unbid) < 2:
+        return None
+    s = max(unbid, key=lambda s: (ctx.h.len[s], SUITS.index(s)))
+    call = ctx.cheapest(s, 1)
+    if not call or level_of(call) > 4:
+        return None
+    return call, f"Answering the responsive double, {SYM[s]}."
 
 
 def _takeout_doubler(ctx: Ctx, seat: str) -> bool:
@@ -4545,7 +4601,7 @@ def doubler_guard(player: str, cards: list[Card], auction: AuctionState,
     s = strain_of(decision[0])
     if (s not in SUITS or ctx.mine() != ['X'] or not _takeout_doubler(ctx, player)
             or any(strain_of(c) == s for _, c in ctx.calls)
-            or _partner_cuebid(ctx)):
+            or _partner_cuebid(ctx) or _partner_responsive(ctx)):
         return decision
     if ctx.h.hcp >= DOUBLER_SUIT_HCP and ctx.h.len[s] >= 5:
         return decision[0], _doubler_alert(s)

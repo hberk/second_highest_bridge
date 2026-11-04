@@ -47,6 +47,22 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   open candidates are listed in [ROADMAP.md](ROADMAP.md). Tools:
   `research/gib_handoffs.py` (the survey) and `research/gib_h2h.py` (head to
   head for a new branch).
+- **Passes with no meaning** (the gap analysis, 2026-11-04, on v0.1.0-alpha;
+  [reports/2026-11-04-gap-analysis.md](../reports/2026-11-04-gap-analysis.md)).
+  Every contested robot Pass was tagged with the line that returned it: 70%
+  come from an explicit GIB rule, 26% from the fallback, 4% from
+  `continuation`'s catch-all. On hands with values the natural alternatives
+  (X, own suit, raise, NT) mostly lose on fresh deals, so most passes are
+  right. Two had no meaning and are now answered:
+  - **The doubler answers a responsive double** (`RESPONSIVE_ANSWER`,
+    `_answer_responsive`): (1x) X (2x) X (P) bids the better of the two
+    unbid suits partner showed, at its cheapest level; `doubler_guard` lets
+    it through like an answer to a cuebid. +0.07 and +0.04 a board.
+  - **Their artificial bid shows its shown suit** (`THEIR_SHOWN_SUITS` in
+    `_their_suits`): over 1NT P 2♦, diamonds are not theirs, but only to a
+    hand that can bid them at the three level, 6+ cards and 12+ HCP
+    (`SHOWN_SUIT_LEN`, `SHOWN_SUIT_HCP`, the user's rule). Freed for every
+    hand it lost -0.04 a board: 3♦ straight over the transfer went for 1,470.
 - **Systems on over our 1NT overcall** (`Ctx.nt_overcall`): after (1x)-1NT,
   both partners play the 1NT opening's whole structure, every round, at the
   overcall's 15-18, while the opponents pass. Before, only advancer's first
