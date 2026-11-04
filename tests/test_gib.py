@@ -1689,3 +1689,27 @@ def test_advancer_picks_a_minor_after_our_minors_over_a_weak_two():
     for overcall in ('4S', '4NT'):
         call, why = bid(north, 'Pass', '2S', overcall, 'Pass')
         assert call == '5D', (overcall, call, why)
+
+
+def test_a_two_club_rebid_shows_six_clubs():
+    """Board 53, 2026-11-04: 1♣ 1NT 2♣ was alerted 4+ clubs; it shows six,
+    five only with a singleton or void (or 15+ HCP and no other bid). Other
+    five-club minimums pass 1NT or rebid 1NT."""
+    five = 'QS 5S QH 8H 3H KD JD 4D AC JC 8C 6C 4C'           # 2-3-3-5, 13 HCP
+    six = 'KS 5S QH 8H 3H KD 2D AC JC 8C 6C 4C 3C'
+    short = '5S QH 8H 3H KD JD 4D 2D AC JC 8C 6C 4C'         # 1-3-4-5
+    major = 'JS 5S KH QH 8H 3H KD 4D AC JC 8C 6C 4C'          # 2-4-2-5, 14 HCP
+    assert bid(five, '1C', 'Pass', '1NT', 'Pass')[0] == 'Pass'
+    assert bid(major, '1C', 'Pass', '1NT', 'Pass')[0] == 'Pass'
+    assert bid(major, '1C', 'Pass', '1S', 'Pass') == ('1NT', '11-14 HCP.')
+    single = '5S KH QH 8H 3H KD JD 4D AC JC 8C 6C 4C'         # 1-4-3-5
+    for cards in (six, short, single):
+        call, why = bid(cards, '1C', 'Pass', '1NT', 'Pass')
+        assert (call, why) == ('2C', '5+ ♣, usually 6. 11-15 HCP.'), (cards, call, why)
+    call, why = bid(six, '1C', 'Pass', '1H', 'Pass')
+    assert (call, why) == ('2C', '5+ ♣, usually 6. 11-18 HCP.')
+    gib.CLUB_REBID_LEN = None
+    try:
+        assert bid(major, '1C', 'Pass', '1NT', 'Pass')[0] == '2C'
+    finally:
+        gib.CLUB_REBID_LEN = 6

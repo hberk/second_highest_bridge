@@ -299,6 +299,8 @@ from the variant's side; t as above.
 | 11-04 | ...for every hand / only in the pass-out seat / at 14+ HCP | -0.04 / -0.02 / 0.00 | -1.31 / -0.94 / 0 | 45 / 4 / 0 | off (a direct 3♦ over the transfer went for 1,470) |
 | 11-04 | ...and partner reads it the same way: our side's first bid in their artificial suit is natural for both of us, never a cuebid (`SHOWN_SUIT_PARTNER`; the PR #63 review: partner bid 4♠ "again over the cuebid"); seeds 7M, 8M, 9M, 3,000 fresh deals each (`/mnt/project-files/pr63-review/measure/`) | +0.00, +0.00, +0.00 | 0 | 0 | on (bug fix, your pick) |
 | 11-04 | **The Nov 4 fixes together (v0.1.1-alpha)**: every 11-04 row above that is on, the gap analysis's two included, against all of them off (which bids 2,000 of 2,000 auctions exactly as main); seeds 7M, 8M, 9M, 1,000 fresh deals each (`/mnt/project-files/nov4-combined/REPORT.md`, with each fix taken out on top of the rest: none turns negative except the penalty stop, which cost a little alone too) | +0.24, +2.15, +1.14 (mean **+1.18**) | +0.46, +3.64, +1.87 | 245, 220, 243 | on |
+| 11-04 | A 2♣ rebid shows six clubs, five only with a singleton or void (`CLUB_REBID_LEN`; the user's board 53); seeds 7M, 8M, 9M, 1,000 fresh deals each (`/mnt/project-files/club-rebid/REPORT.md`) | -0.04, +0.02, -0.07 | -1.39, +1.94, -0.88 | 6, 14, 6 | on (your pick) |
+| 11-04 | ...five only with 5-4 in the minors and shortness | -0.04, -0.24, -0.07 | -1.39, -2.55, -0.85 | 10, 22, 11 | off |
 
 ### The previous system (`ai_bid`)
 

@@ -802,6 +802,8 @@ def _rebid_over_1nt(ctx: Ctx, x: str, passed_resp: bool) -> tuple:
         elif hcp >= 16 and ctx.ok(f"2{z}"):
             return f"2{z}", f"4+ {SYM[z]}, 16+ HCP. Reverse."
     if (h.len[x] >= 5 or (x in MINORS and h.len[x] >= 4)) and hcp <= 15:
+        if x == 'C' and CLUB_REBID_LEN and not _club_rebid_five(h):
+            return 'Pass', "Minimum, no six-card suit."
         return f"2{x}", _rebid_1nt_alert(x)
     minors = [m for m in MINORS if m != x and h.len[m] >= 3]
     if minors:
@@ -813,9 +815,29 @@ def _rebid_over_1nt(ctx: Ctx, x: str, passed_resp: bool) -> tuple:
     return 'Pass', "Minimum, balanced."
 
 
+#: Opener's 2♣ rebid after 1♣-1y or 1♣-1NT shows six clubs, five only with
+#: a singleton or void (the user's call, 2026-11-04, board 53: 1♣ 1NT 2♣ was
+#: alerted 4+; singleton hands in notrump measured worse). A 15-18 HCP hand
+#: with five clubs and no other bid still rebids 2♣. Any other five-club hand
+#: rebids 1NT (11-14) over a one-level response, or passes 1NT. None keeps
+#: the old rule, where 2♣ was the fallback on four or five.
+CLUB_REBID_LEN = 6
+
+
+def _club_rebid_five(h: Hand) -> bool:
+    """Five clubs that still rebid 2♣ on a minimum: a singleton or void."""
+    return h.len['C'] == 5 and min(h.len.values()) <= 1
+
+
+def _club_rebid_alert(lo: int, hi: int) -> str:
+    return f"5+ {SYM['C']}, usually 6. {lo}-{hi} HCP."
+
+
 def _rebid_1nt_alert(x: str) -> str:
     """Opener's 2x after 1x-1NT. An unbalanced minor opening holds four:
     only 4-4-3-2 shapes open on three, and those pass 1NT or bid 3NT."""
+    if x == 'C' and CLUB_REBID_LEN:
+        return _club_rebid_alert(11, 15)
     return f"{5 if x in MAJORS else 4}+ {SYM[x]}, 11-15 HCP."
 
 
@@ -838,7 +860,7 @@ def _rebid_over_new_suit(ctx: Ctx, x: str, y: str) -> tuple:
                 and hcp <= 18 and ctx.ok(f"1{z}")):
             return f"1{z}", f"4+ {SYM[z]}, 11-18 HCP."
     if h.balanced and hcp <= 14:
-        return '1NT', "11-14 HCP, balanced."
+        return '1NT', "11-14 HCP." if x == 'C' and CLUB_REBID_LEN else "11-14 HCP, balanced."
     if h.balanced and 18 <= hcp <= 19:
         return '2NT', "18-19 HCP, balanced."
     if y == 'D' and x == 'C' and h.len['D'] >= 4 and hcp <= 14:
@@ -846,6 +868,8 @@ def _rebid_over_new_suit(ctx: Ctx, x: str, y: str) -> tuple:
     if h.len[x] >= 6:
         if hcp >= 17 and ctx.ok(f"3{x}"):
             return f"3{x}", f"6+ {SYM[x]}, 17-21 HCP."
+        if x == 'C' and CLUB_REBID_LEN:
+            return '2C', _club_rebid_alert(11, 18)
         return f"2{x}", f"5+ {SYM[x]}, 11-18 HCP."
     for z in sorted(SUITS, key=lambda s: (h.len[s], SUITS.index(s)), reverse=True):
         if z in (x, y) or h.len[z] < 4:
@@ -858,6 +882,10 @@ def _rebid_over_new_suit(ctx: Ctx, x: str, y: str) -> tuple:
         elif hcp >= 16 and ctx.ok(f"2{z}"):
             return f"2{z}", f"4+ {SYM[z]}, 16+ HCP. Reverse."
     if hcp <= 18:
+        if x == 'C' and CLUB_REBID_LEN:
+            if hcp <= 14 and not _club_rebid_five(h):
+                return '1NT', "11-14 HCP."
+            return '2C', _club_rebid_alert(11, 18)
         return f"2{x}", f"5+ {SYM[x]}, 11-18 HCP."
     return '3NT', TO_PLAY
 

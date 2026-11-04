@@ -161,6 +161,17 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   promise was. 10,000 fresh deals (`research/gib_fresh_h2h.py`, seed 7M):
   **+0.26 a board, t = +3.46, 247 auctions changed** (115 better, 84 worse);
   1.0 measured +0.26 (t = +3.12), 0.0 +0.23 (t = +2.61).
+- **A 2♣ rebid shows six clubs** (2026-11-04, the user's board 53: 1♣ P 1NT
+  P 2♣ alerted "4+ ♣"; "a rebid of 2♣ should show 6, only 5 in very unusual
+  circumstances"). After 1♣-1y or 1♣-1NT, 2♣ was the fallback on four or five
+  (51% of 165 such rebids in 12,000 robot auctions held five). Now
+  (`CLUB_REBID_LEN`) five clubs rebid 2♣ only with a singleton or void, or on
+  15-18 HCP with no other bid; other five-club hands rebid 1NT (11-14, its
+  alert after 1♣ drops "balanced") or pass 1NT. The alert reads "5+ ♣,
+  usually 6." Fresh deals, seeds 7M/8M/9M, 1,000 each: -0.04, +0.02, -0.07
+  (6, 14, 6 auctions); keeping only 5-4 minors with shortness cost -0.04,
+  -0.24, -0.07 (singleton hands went down in 1NT where 2♣ made nine)
+  (`/mnt/project-files/club-rebid/REPORT.md`).
 - **A raise beside the support double shows four** (2026-11-04, the user's
   board 1♦ P 1♥ (1♠) 2♥ on ♥KJT3, alerted "3+ ♥, competitive."). Opener
   doubles with exactly three of responder's suit when the overcall is 2♥ or

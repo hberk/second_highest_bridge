@@ -732,6 +732,7 @@ function rebidOver1nt(ctx: Ctx, x: Suit, passedResp: boolean): Decision {
     }
   }
   if ((h.len[x] >= 5 || (isMinor(x) && h.len[x] >= 4)) && hcp <= 15) {
+    if (x === 'C' && CLUB_REBID_LEN && !clubRebidFive(h)) return ['Pass', 'Minimum, no six-card suit.'];
     return [`2${x}`, rebid1ntAlert(x)];
   }
   const minors = MINORS.filter((m) => m !== x && h.len[m] >= 3);
@@ -743,7 +744,22 @@ function rebidOver1nt(ctx: Ctx, x: Suit, passedResp: boolean): Decision {
   return ['Pass', 'Minimum, balanced.'];
 }
 
+/** Opener's 2♣ rebid after 1♣-1y or 1♣-1NT shows six clubs, five only with
+ * a singleton or void (the user's call, 2026-11-04, board 53). A 15-18 HCP
+ * hand with five clubs and no other bid still rebids 2♣; any other five-club
+ * hand rebids 1NT (11-14) or passes 1NT. */
+export const CLUB_REBID_LEN: number | null = 6;
+
+function clubRebidFive(h: Hand): boolean {
+  return h.len.C === 5 && Math.min(...SUITS.map((s) => h.len[s])) <= 1;
+}
+
+function clubRebidAlert(lo: number, hi: number): string {
+  return `5+ ${SYM.C}, usually 6. ${lo}-${hi} HCP.`;
+}
+
 function rebid1ntAlert(x: Suit): string {
+  if (x === 'C' && CLUB_REBID_LEN) return clubRebidAlert(11, 15);
   return `${isMajor(x) ? 5 : 4}+ ${SYM[x]}, 11-15 HCP.`;
 }
 
@@ -764,11 +780,14 @@ function rebidOverNewSuit(ctx: Ctx, x: Suit, y: Suit): Decision {
       return [`1${z}`, `4+ ${SYM[z]}, 11-18 HCP.`];
     }
   }
-  if (h.balanced && hcp <= 14) return ['1NT', '11-14 HCP, balanced.'];
+  if (h.balanced && hcp <= 14) {
+    return ['1NT', x === 'C' && CLUB_REBID_LEN ? '11-14 HCP.' : '11-14 HCP, balanced.'];
+  }
   if (h.balanced && hcp >= 18 && hcp <= 19) return ['2NT', '18-19 HCP, balanced.'];
   if (y === 'D' && x === 'C' && h.len.D >= 4 && hcp <= 14) return ['2D', `4+ ${SYM.D}, 11-14 HCP.`];
   if (h.len[x] >= 6) {
     if (hcp >= 17 && ctx.ok(`3${x}`)) return [`3${x}`, `6+ ${SYM[x]}, 17-21 HCP.`];
+    if (x === 'C' && CLUB_REBID_LEN) return ['2C', clubRebidAlert(11, 18)];
     return [`2${x}`, `5+ ${SYM[x]}, 11-18 HCP.`];
   }
   for (const z of sortedBy(SUITS, (s) => [h.len[s], idx(s)], true)) {
@@ -780,7 +799,13 @@ function rebidOverNewSuit(ctx: Ctx, x: Suit, y: Suit): Decision {
       return [`2${z}`, `4+ ${SYM[z]}, 16+ HCP. Reverse.`];
     }
   }
-  if (hcp <= 18) return [`2${x}`, `5+ ${SYM[x]}, 11-18 HCP.`];
+  if (hcp <= 18) {
+    if (x === 'C' && CLUB_REBID_LEN) {
+      if (hcp <= 14 && !clubRebidFive(h)) return ['1NT', '11-14 HCP.'];
+      return ['2C', clubRebidAlert(11, 18)];
+    }
+    return [`2${x}`, `5+ ${SYM[x]}, 11-18 HCP.`];
+  }
   return ['3NT', TO_PLAY];
 }
 
