@@ -398,7 +398,10 @@ const CLIENT = { layout: 'phone', width: 390, height: 844, ua: 'test', build: 'a
 
 describe('the game log', () => {
   it("times every action, a robot's thinking included, and exports the board as LIN", async () => {
-    const s = await serve();
+    // A whole board, so robots at 50 ms (see the first test): at 1 ms hello,
+    // join, sit, deal, four passes and 13 cards can land inside one second,
+    // and the rate limit closes the socket before the last card.
+    const s = await serve({ robotDelayMs: 50 });
     const { body } = await createTable(s.url);
     const c = await Client.open(s.port, body.id!);
     await c.join('Alex', 'South');
@@ -430,7 +433,7 @@ describe('the game log', () => {
 
   it("keeps a closed table's boards and log, and who sat where", async () => {
     let offset = 0;
-    const s = await serve({ clock: { ...realClock, now: () => Date.now() + offset } });
+    const s = await serve({ clock: { ...realClock, now: () => Date.now() + offset }, robotDelayMs: 50 });
     const { body } = await createTable(s.url);
     const c = await Client.open(s.port, body.id!);
     await c.join('Sam', 'West');

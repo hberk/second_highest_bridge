@@ -857,8 +857,18 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
                    f"Partner showed support, not their suit.")
         return call, why
 
+    if TWO_SUITER_SHAPE == 'invite' and p_strain == my_first:
+        answer = _shape_invite_answer(player, partner, auction, groups, p_strain, legal)
+        if answer:
+            return answer
+
     if OWN_SUIT_RAISED and p_strain == my_first and _first_namer(auction, p_strain) == player:
         return _own_suit_raised(player, partner, auction, ev, groups, my_first, legal)
+
+    if TWO_SUITER_CHOICE:
+        choice = _two_suiter_choice(player, partner, auction, groups, p_strain, legal)
+        if choice:
+            return choice
 
     if p_strain in SUITS and len(groups[p_strain]) >= SUPPORT_LENGTH:
         held = len(groups[p_strain])
@@ -913,6 +923,124 @@ def _own_suit_raised(player: str, partner: str, auction: AuctionState, ev: dict,
         return 'Pass', RAISE_STANDS
     return call, _contest_alert(player, auction, call,
                                 f"{SUIT_SYM[suit]} agreed. No extra values shown.")
+
+
+#: Partner chose one of the two suits my Michaels or Unusual 2NT showed
+#: (the user's deal, 2026-11-03: 1♠ 2♠ X 3♥ P 4♥ on ♠9 ♥Q8742 ♦AJ ♣AKJT2
+#: opposite ♥A3, -1,700 doubled). The support branch read the choice as
+#: partner's own suit, promising a 2/1's values, and raised it. A choice
+#: promises nothing but a preference, often two cards, so partner places the
+#: contract: with the opponents silent since, pass unless the hand is worth
+#: game by itself (TWO_SUITER_RAISE_HCP; experts, 1996-2002: 15-16 HCP 5-5
+#: passed 8 of 9, 17+ raised 9 of 14); over their bid, compete by the count
+#: with partner read as an advancer. Fresh deals, head to head: +0.08 a board
+#: (-0.06, +0.10, +0.21 on seeds 7M/8M/9M), in the noise (BIDDING.md).
+TWO_SUITER_CHOICE = True
+TWO_SUITER_RAISE_HCP = 17
+#: ...and over their bid, read partner as an advancer, not a 2/1 bidder.
+TWO_SUITER_CHOICE_COMPETE = True
+CHOICE_STANDS = "Partner's choice stands."
+#: Extra shape ("6-5, come alive", the user, 2026-11-03): with the opponents
+#: silent and TWO_SUITER_SHAPE_LEN cards or more in the two suits (11 = 6-5),
+#: 'invite' raises partner's choice one level, 'game' bids game in a major,
+#: None keeps the pass. On 1,500 deals x 3 holding a 5-5 or better: invite
+#: +0.17, +0.75, -1.78 (that set's loss five boards of the CUE_REPLY_OWN_REBID
+#: bug, about -0.1 without), game about the same, 5-5 inviting -0.84, -0.74,
+#: -2.53 (/mnt/project-files/shape-michaels/). Invite, the user's pick.
+TWO_SUITER_SHAPE: str | None = 'invite'
+TWO_SUITER_SHAPE_LEN = 11
+#: ...and after their double of partner's choice too. Off: pass and let
+#: them pay a level lower (the user, 2026-11-03).
+TWO_SUITER_SHAPE_DOUBLED = False
+
+
+def _two_suiter_choice(player: str, partner: str, auction: AuctionState, groups: dict,
+                       strain: str, legal: list[str]) -> tuple | None:
+    cards = [c for g in groups.values() for c in g]
+    two = gib._our_two_suiter(gib.Ctx(player, cards, auction))
+    if not two or strain not in two or _first_namer(auction, strain) != partner:
+        return None
+    hb = auction.highest_bid
+    if hb and hb[2] == partner:
+        if hcp(cards) >= TWO_SUITER_RAISE_HCP:
+            game = _game_call(strain, legal)
+            if game:
+                return game, f"{SUPPORT_LENGTH}+ {SUIT_SYM[strain]} support, game values."
+        shape = sum(len(groups[x]) if x else max(len(groups['C']), len(groups['D'])) for x in two)
+        if (TWO_SUITER_SHAPE and shape >= TWO_SUITER_SHAPE_LEN
+                and (TWO_SUITER_SHAPE_DOUBLED or auction.doubled == 'None')):
+            if TWO_SUITER_SHAPE == 'game':
+                game = _game_call(strain, legal)
+                if game:
+                    return game, f"{SUPPORT_LENGTH}+ {SUIT_SYM[strain]} support, extra shape."
+            else:
+                level = hb[0] + 1
+                call = f"{level}{strain}"
+                if call in legal and level <= (4 if strain in ('H', 'S') else 5):
+                    return call, f"{SUPPORT_LENGTH}+ {SUIT_SYM[strain]} support, extra shape. Invites."
+        return 'Pass', CHOICE_STANDS
+    if not TWO_SUITER_CHOICE_COMPETE:
+        return None
+    ev = eval_hand_sh(cards)
+    combined = _with_shortness(ev['suit_pts'][strain] + PROMISE_ADVANCED, groups, strain)
+    call, why = _place(strain, combined, legal, len(groups[strain]))
+    if (call == 'Pass' and TWO_SUITER_FIT_COMPETE and len(groups[strain]) >= 5
+            and _choice_shows_fit(partner, auction, strain)):
+        level = hb[0] + 1 if hb and _STRAIN_ORDER.index(hb[1]) >= _STRAIN_ORDER.index(strain) else hb[0]
+        bid_ = f"{level}{strain}"
+        if bid_ in legal and level <= (4 if strain in ('H', 'S') else 5):
+            return bid_, _contest_alert(player, auction, bid_,
+                                        f"5+ {SUIT_SYM[strain]}, a known fit. Competing.")
+    if call != 'Pass':
+        why = _contest_alert(player, auction, call,
+                             f"{SUPPORT_LENGTH}+ {SUIT_SYM[strain]} support, agreeing the suit.")
+    return call, why
+
+
+#: Over their bid after partner's choice, a 5+ card holding competes one
+#: level higher when partner's choice was free (their bid came in first) or
+#: a jump, so promises length: ten trumps, ten tricks (the user, 2026-11-03,
+#: on five deals where 5-5 hands stopped competing over their 4♥).
+TWO_SUITER_FIT_COMPETE = True
+_STRAIN_ORDER = ['C', 'D', 'H', 'S', 'NT']
+
+
+def _choice_shows_fit(partner: str, auction: AuctionState, strain: str) -> bool:
+    calls = auction.calls
+    i = next((k for k, (who, c) in enumerate(calls)
+              if who == partner and c not in ('Pass', 'X', 'XX') and c[1:] == strain), None)
+    if i is None:
+        return False
+    if i > 0 and calls[i - 1][1] != 'Pass':
+        return True                                   # a free choice
+    prior = [c for _, c in calls[:i] if c not in ('Pass', 'X', 'XX')]
+    if not prior:
+        return False
+    lv, st = int(prior[-1][0]), prior[-1][1:]
+    cheapest = lv + 1 if _STRAIN_ORDER.index(st) >= _STRAIN_ORDER.index(strain) else lv
+    return int(calls[i][1][0]) > cheapest             # a jump
+
+
+#: Advancer's answer to the extra-shape invite: game in a major with
+#: TWO_SUITER_ACCEPT_HCP, two fewer with four trumps; else pass.
+TWO_SUITER_ACCEPT_HCP = 8
+
+
+def _shape_invite_answer(player: str, partner: str, auction: AuctionState, groups: dict,
+                         strain: str, legal: list[str]) -> tuple | None:
+    cards = [c for g in groups.values() for c in g]
+    two = gib._our_two_suiter(gib.Ctx(player, cards, auction))
+    hb = auction.highest_bid
+    if not two or strain not in two or not hb or hb[2] != partner or hb[1] != strain:
+        return None
+    if _first_namer(auction, strain) != player:
+        return None
+    need = TWO_SUITER_ACCEPT_HCP - (2 if len(groups[strain]) >= 4 else 0)
+    if hcp(cards) >= need:
+        game = _game_call(strain, legal)
+        if game:
+            return game, "Accepts the invitation."
+    return 'Pass', "Declines the invitation."
 
 
 #: GIB 2/1 is the default system (gib.py). False plays the previous system,

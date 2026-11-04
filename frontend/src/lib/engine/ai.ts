@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { doublerGuard, gibBid, Hand, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert, weakJumpOvercall } from './gib';
+import { Ctx, doublerGuard, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert, weakJumpOvercall } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -491,6 +491,106 @@ function ownSuitRaised(player: Seat, partner: Seat, auction: AuctionState, ev: H
   return [call, contestAlert(player, auction, call, `${SUIT_SYM[suit]} agreed. No extra values shown.`)];
 }
 
+/** Partner chose one of the two suits my Michaels or Unusual 2NT showed
+ *  (the user's deal, 2026-11-03): a preference, often two cards, so partner
+ *  places the contract. Opponents silent: pass unless TWO_SUITER_RAISE_HCP
+ *  bids game; over their bid, compete reading partner as an advancer. See ai.py. */
+export const TWO_SUITER_CHOICE = true;
+export const TWO_SUITER_RAISE_HCP = 17;
+export const TWO_SUITER_CHOICE_COMPETE = true;
+const CHOICE_STANDS = "Partner's choice stands.";
+/** Extra shape ("6-5, come alive"): with TWO_SUITER_SHAPE_LEN cards in the two
+ *  suits, 'invite' raises partner's choice a level, 'game' bids 4M. See ai.py. */
+export const TWO_SUITER_SHAPE: 'invite' | 'game' | null = 'invite';
+export const TWO_SUITER_SHAPE_LEN = 11;
+/** ...and after their double of partner's choice too (off: pass, let them pay). */
+export const TWO_SUITER_SHAPE_DOUBLED = false;
+/** Advancer accepts the invite with this many HCP, two fewer with four trumps. */
+export const TWO_SUITER_ACCEPT_HCP = 8;
+
+function twoSuiterChoice(player: Seat, partner: Seat, auction: AuctionState, groups: Groups,
+  strain: string, legal: string[]): Decision | null {
+  const cards = SUITS.flatMap((s) => groups[s]);
+  const two = ourTwoSuiter(new Ctx(player, cards, auction));
+  if (!two || !isSuit(strain) || !two.includes(strain as Suit)
+    || firstNamer(auction, strain) !== partner) return null;
+  const hb = auction.highestBid;
+  if (hb && hb[2] === partner) {
+    if (hcp(cards) >= TWO_SUITER_RAISE_HCP) {
+      const game = gameCall(strain, legal);
+      if (game) return [game, `${SUPPORT_LENGTH}+ ${SUIT_SYM[strain]} support, game values.`];
+    }
+    const shape = two.reduce((n, x) => n + (x
+      ? groups[x].length : Math.max(groups.C.length, groups.D.length)), 0);
+    if (TWO_SUITER_SHAPE && shape >= TWO_SUITER_SHAPE_LEN
+      && (TWO_SUITER_SHAPE_DOUBLED || auction.doubled === 'None')) {
+      if (TWO_SUITER_SHAPE === 'game') {
+        const game = gameCall(strain, legal);
+        if (game) return [game, `${SUPPORT_LENGTH}+ ${SUIT_SYM[strain]} support, extra shape.`];
+      } else {
+        const level = hb[0] + 1;
+        const call = `${level}${strain}`;
+        if (legal.includes(call) && level <= (strain === 'H' || strain === 'S' ? 4 : 5)) {
+          return [call, `${SUPPORT_LENGTH}+ ${SUIT_SYM[strain]} support, extra shape. Invites.`];
+        }
+      }
+    }
+    return ['Pass', CHOICE_STANDS];
+  }
+  if (!TWO_SUITER_CHOICE_COMPETE) return null;
+  const ev = evalHandSh(cards);
+  const combined = withShortness(ev.suit_pts[strain as Suit] + PROMISE_ADVANCED, groups, strain as Suit);
+  const [call, why] = place(strain, combined, legal);
+  if (call === 'Pass' && TWO_SUITER_FIT_COMPETE && groups[strain as Suit].length >= 5
+    && choiceShowsFit(partner, auction, strain) && hb) {
+    const level = STRAIN_ORDER.indexOf(hb[1]) >= STRAIN_ORDER.indexOf(strain) ? hb[0] + 1 : hb[0];
+    const bid = `${level}${strain}`;
+    if (legal.includes(bid) && level <= (strain === 'H' || strain === 'S' ? 4 : 5)) {
+      return [bid, contestAlert(player, auction, bid,
+        `5+ ${SUIT_SYM[strain]}, a known fit. Competing.`)];
+    }
+  }
+  return call !== 'Pass'
+    ? [call, contestAlert(player, auction, call,
+      `${SUPPORT_LENGTH}+ ${SUIT_SYM[strain]} support, agreeing the suit.`)]
+    : [call, why];
+}
+
+/** Over their bid after partner's choice, 5+ cards compete one level higher
+ *  when partner's choice was free or a jump (the Law of Total Tricks). See ai.py. */
+export const TWO_SUITER_FIT_COMPETE = true;
+const STRAIN_ORDER = ['C', 'D', 'H', 'S', 'NT'];
+
+function choiceShowsFit(partner: Seat, auction: AuctionState, strain: string): boolean {
+  const calls = auction.calls;
+  const i = calls.findIndex(([who, c]) =>
+    who === partner && c !== 'Pass' && c !== 'X' && c !== 'XX' && c.slice(1) === strain);
+  if (i < 0) return false;
+  if (i > 0 && calls[i - 1][1] !== 'Pass') return true;
+  const prior = calls.slice(0, i).map(([, c]) => c).filter((c) => c !== 'Pass' && c !== 'X' && c !== 'XX');
+  if (!prior.length) return false;
+  const last = prior[prior.length - 1];
+  const lv = Number(last[0]);
+  const cheapest = STRAIN_ORDER.indexOf(last.slice(1)) >= STRAIN_ORDER.indexOf(strain) ? lv + 1 : lv;
+  return Number(calls[i][1][0]) > cheapest;
+}
+
+function shapeInviteAnswer(player: Seat, partner: Seat, auction: AuctionState, groups: Groups,
+  strain: string, legal: string[]): Decision | null {
+  const cards = SUITS.flatMap((s) => groups[s]);
+  const two = ourTwoSuiter(new Ctx(player, cards, auction));
+  const hb = auction.highestBid;
+  if (!two || !isSuit(strain) || !two.includes(strain as Suit) || !hb || hb[2] !== partner
+    || hb[1] !== strain) return null;
+  if (firstNamer(auction, strain) !== player) return null;
+  const need = TWO_SUITER_ACCEPT_HCP - (groups[strain as Suit].length >= 4 ? 2 : 0);
+  if (hcp(cards) >= need) {
+    const game = gameCall(strain, legal);
+    if (game) return [game, 'Accepts the invitation.'];
+  }
+  return ['Pass', 'Declines the invitation.'];
+}
+
 function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
   groups: Groups, bestSuit: Suit, bestLen: number, legal: string[]): Decision {
   const mine = bidsBy(player, auction);
@@ -506,8 +606,18 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
       : [call, why];
   }
 
+  if (TWO_SUITER_SHAPE === 'invite' && pStrain === myFirst) {
+    const answer = shapeInviteAnswer(player, partner, auction, groups, pStrain, legal);
+    if (answer) return answer;
+  }
+
   if (OWN_SUIT_RAISED && pStrain === myFirst && firstNamer(auction, pStrain) === player) {
     return ownSuitRaised(player, partner, auction, ev, groups, myFirst, legal);
+  }
+
+  if (TWO_SUITER_CHOICE) {
+    const choice = twoSuiterChoice(player, partner, auction, groups, pStrain, legal);
+    if (choice) return choice;
   }
 
   if (isSuit(pStrain) && groups[pStrain].length >= SUPPORT_LENGTH) {

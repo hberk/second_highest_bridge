@@ -287,6 +287,17 @@ def test_no_preempt_in_fourth_seat():
     assert ai.ai_bid('North', sound, auction_after()) == '1S'
 
 
+def test_michaels_bidder_lets_partners_choice_stand():
+    """The user's deal (2026-11-03): 1S 2S(Michaels) X 3H P. Partner's 3H is
+    a choice between my suits, perhaps on two cards: East passed it to 4H,
+    -1,700 doubled. Only a 17+ HCP hand bids game by itself."""
+    east = hand('9S QH 8H 7H 4H 2H AD JD AC KC JC 10C 2C')       # 15 HCP, 5-5
+    a = auction_after('1S', '2S', 'X', '3H', 'Pass')
+    assert ai.ai_bid_explained('East', east, a) == ('Pass', ai.CHOICE_STANDS)
+    strong = hand('9S KH QH 7H 4H 2H AD JD AC KC JC 10C 2C')      # 18 HCP
+    assert ai.ai_bid('East', strong, a) == '4H'
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_') and callable(fn):

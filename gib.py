@@ -335,9 +335,21 @@ def _name_the_suit(call: str, alert: str) -> str:
     return alert
 
 
+#: Our Michaels cuebid (1♠ 2♠: hearts and a minor) is a call only this
+#: module reads, like notrump: `shown_suit` takes 2♠ as spades, so `_owns`
+#: said no and the auction fell to `ai_bid`, which read partner's choice of
+#: suit (1♠ 2♠ X 3♥ P) as partner's own suit and raised it: 4♥ on
+#: ♠9 ♥Q8742 ♦AJ ♣AKJT2 opposite ♥A3, -1,700 doubled (the user's deal,
+#: 2026-11-03). `continuation` reads the two-suiter (TWO_SUITER_READ).
+#: Measured +0.01 a board, so off: ai.TWO_SUITER_CHOICE fixes the fallback instead.
+MICHAELS_OWNS = False
+
+
 def _owns(ctx: Ctx) -> bool:
     """Has our side made a call only this module can read: notrump, or a
     suit bid that does not show its suit?"""
+    if MICHAELS_OWNS and _our_two_suiter(ctx):
+        return True
     return any(strain_of(c) == 'NT' or (strain_of(c) in SUITS and
                                         shown_suit(ctx.seq, i) != strain_of(c))
                for i, c in enumerate(ctx.seq))
@@ -2676,6 +2688,10 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
     splintered = _answer_competed_splinter(ctx)
     if splintered:
         return splintered
+    reverse = (_contested_reverse(ctx) or _answer_contested_reverse(ctx)
+               or _after_reverse_raise(ctx))
+    if reverse:
+        return reverse
     support = _after_support_double(ctx)
     if support:
         return support
@@ -2815,6 +2831,173 @@ def _rebid_over_their_overcall(ctx: Ctx) -> tuple | None:
             if call and level_of(call) == 2:
                 return call, f"4+ {SYM[s]}, {REBID_NEW_SUIT_HCP}+ HCP."
     return 'Pass', "No fit, nothing more to show."
+
+
+#: Opener after 1x (y) 1NT (P) or 1x (y) 1z (P): a new suit at the two level
+#: above x is a reverse, 16+ HCP and 5+ x, forcing one round, as when they
+#: are silent (the user's call, 2026-11-03: 1♣ (1♠) 1NT (P) with
+#: ♠— ♥AKQT2 ♦43 ♣AKQT95 passed, and 2♥ had no meaning). Experts (1996-2002
+#: championships) reverse here on a median 18 HCP, 64% at 16+; over a
+#: negative double the same call is not a reverse (median 13) and is left out.
+#: On by the user's choice (2026-11-03), though on 3 x 4,000 deals filtered
+#: for such an opener it lost (16+: -0.02/-0.09/-0.04 a board, 7 auctions
+#: better, 42 worse; 18+ also lost; 5-5 only fired 3 times): the system
+#: bids what it explains.
+REVERSE_CONTESTED = True
+REVERSE_HCP = 16
+REVERSE_Z_LEN = 4
+#: ...and responder with 4+ of opener's minor and 8+ JP raises it at once,
+#: before notrump (the same deal: 5♣ makes, 3NT does not); opener bids game
+#: with 6-5 or 5-5 in the two suits, or the values.
+REVERSE_MINOR_RAISE = True
+REVERSE_RAISE_SHAPE = 10
+#: Responder's values opposite a reverse, judgement points: a major fit
+#: raises (to game on GAME_MAJOR with the reverse's 16 and the fit), a minor
+#: raises on REVERSE_GAME_JUDGE; 3NT needs NT_GAME less the reverse's 16
+#: (the first measurement bid 3NT and 4M on 8 and lost).
+REVERSE_GAME_JUDGE = 8
+REVERSE_NT_JUDGE = 12
+#: ...and opener over responder's 3z, the reverse suit raised short of game:
+#: 4z on REVERSE_RAISE_SHAPE cards in x and z or REVERSE_EXTRA_HCP (review of
+#: PR #62, 2026-11-03: 18 HCP 6-5 passed 3♥).
+REVERSE_MAJOR_RAISE = True
+REVERSE_EXTRA_HCP = 18
+
+
+def _reverse_spot(c0: str, c1: str, c2: str, c3: str, c4: str | None = None) -> str | None:
+    """The reverse suit when calls c0..c4 are 1x (y) R (P) 2z with R a free
+    1NT or one-level new suit and z above x and outside y and R's suit; with
+    c4 left out, the suit z that may be reversed into is not fixed: returns
+    '' when the first four calls fit."""
+    x, y, r = strain_of(c0), strain_of(c1), strain_of(c2)
+    if (level_of(c0) != 1 or x not in SUITS or not parse_bid(c1) or y not in SUITS
+            or y == x or c3 != 'Pass' or level_of(c2) != 1 or r == x
+            or (r in SUITS and rank_of(c2) <= rank_of(c1))):
+        return None
+    if c4 is None:
+        return ''
+    z = strain_of(c4)
+    if (level_of(c4) != 2 or z not in SUITS or z in (x, y, r)
+            or SUITS.index(z) <= SUITS.index(x) or rank_of(f"1{z}") > rank_of(c1)
+            and rank_of(f"1{z}") > rank_of(c2)):
+        return None
+    return z
+
+
+def _reverse_start(ctx: Ctx) -> int | None:
+    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None or len(ctx.calls) < i + 4 or ctx.calls[i][0] not in (ctx.me, ctx.pd):
+        return None
+    return i
+
+
+def _contested_reverse(ctx: Ctx) -> tuple | None:
+    """Opener's reverse after 1x (y) R (P): 16+ HCP, 5+ x, 4+ z. A six-card
+    x with only four z keeps its old rebid; a five-card z is shown."""
+    i = _reverse_start(ctx)
+    if (not REVERSE_CONTESTED or i is None or len(ctx.calls) != i + 4
+            or not ctx.i_am_opener()):
+        return None
+    c0, c1, c2, c3 = (c for _, c in ctx.calls[i:])
+    if _reverse_spot(c0, c1, c2, c3) is None:
+        return None
+    h, x = ctx.h, strain_of(c0)
+    if h.hcp < REVERSE_HCP or h.len[x] < 5:
+        return None
+    if strain_of(c2) in MAJORS and h.len[strain_of(c2)] >= 4:
+        return None                                   # raise partner's major
+    for z in sorted(SUITS, key=lambda s: (h.len[s], SUITS.index(s)), reverse=True):
+        call = f"2{z}"
+        if (h.len[z] >= REVERSE_Z_LEN and ctx.ok(call) and ctx.cheapest(z) == call
+                and _reverse_spot(c0, c1, c2, c3, call) == z
+                and (h.len[z] >= 5 or h.len[x] < 6)):
+            return call, (f"{REVERSE_Z_LEN}+ {SYM[z]}, 5+ {SYM[x]}, {REVERSE_HCP}+ HCP. "
+                          "Reverse, forcing.")
+    return None
+
+
+def _answer_contested_reverse(ctx: Ctx) -> tuple | None:
+    """Responder after 1x (y) R (P) 2z, partner's reverse. Over their pass it
+    forces: a major fit raises, to game with the values; a minor x raises on
+    REVERSE_GAME_JUDGE (REVERSE_MINOR_RAISE); 3NT on REVERSE_NT_JUDGE with
+    their suit stopped; else a five-card suit of mine, preference to a major
+    x, or 2NT. If they bid over it, weak hands pass."""
+    i = _reverse_start(ctx)
+    if (not REVERSE_CONTESTED or i is None or len(ctx.calls) != i + 6
+            or ctx.i_am_opener() or ctx.calls[i][0] != ctx.pd):
+        return None
+    c0, c1, c2, c3, c4, c5 = (c for _, c in ctx.calls[i:])
+    z = _reverse_spot(c0, c1, c2, c3, c4)
+    if not z:
+        return None
+    h, x, y, r = ctx.h, strain_of(c0), strain_of(c1), strain_of(c2)
+    free = c5 in ('Pass', 'X', 'XX')
+    for m, n in ((z, 4), (x, 3)):
+        if m in MAJORS and h.len[m] >= n:
+            comb = h.judge + REVERSE_HCP + _fit_bonus(h, m, 4 if m == z else 5)
+            if comb >= GAME_MAJOR and ctx.ok(f"4{m}"):
+                return f"4{m}", TO_PLAY
+    if z in MAJORS and h.len[z] >= 4 and ctx.ok(f"3{z}"):
+        return f"3{z}", f"4+ {SYM[z]} support, no game."
+    if (REVERSE_MINOR_RAISE and x in MINORS and h.len[x] >= 4
+            and h.judge >= REVERSE_GAME_JUDGE and ctx.ok(f"3{x}")):
+        return f"3{x}", f"4+ {SYM[x]} support."
+    if free and h.judge >= REVERSE_NT_JUDGE and h.stopper(y) and ctx.ok('3NT'):
+        return '3NT', TO_PLAY
+    if not free:
+        return None if h.judge >= REVERSE_GAME_JUDGE else ('Pass', "Nothing more to show.")
+    if r in SUITS and h.len[r] >= 5 and ctx.ok(f"2{r}"):
+        return f"2{r}", f"5+ {SYM[r]}, no fit."
+    if x in MAJORS and h.len[x] >= 2 and ctx.ok(f"3{x}"):
+        return f"3{x}", f"Preference to {SYM[x]}."
+    if ctx.ok('2NT'):
+        return '2NT', "Nothing else to show."
+    return 'Pass', "Nothing more to show."
+
+
+def _after_reverse_raise(ctx: Ctx) -> tuple | None:
+    """Opener after 1x (y) R (P) 2z (..) 3x, partner's raise: game in x with
+    a two-suiter (REVERSE_RAISE_SHAPE cards in x and z) or the values; 3NT
+    with the values, their suit stopped and no shortness; else pass."""
+    i = _reverse_start(ctx)
+    if (not (REVERSE_CONTESTED and REVERSE_MINOR_RAISE) or i is None
+            or len(ctx.calls) != i + 8 or not ctx.i_am_opener()):
+        return None
+    c0, c1, c2, c3, c4, c5, c6, c7 = (c for _, c in ctx.calls[i:])
+    x, y = strain_of(c0), strain_of(c1)
+    h = ctx.h
+    z = strain_of(c4)
+    if REVERSE_MAJOR_RAISE and z in MAJORS and _reverse_raised(ctx, z):
+        # 3z: "4+ z support, no game" on the reverse's minimum; game with
+        # the shape or extras (1♣ (1♠) 1NT (P) 2♥ (P) 3♥ passed on 6-5, 18).
+        if (h.len[x] + h.len[z] >= REVERSE_RAISE_SHAPE or h.hcp >= REVERSE_EXTRA_HCP) \
+                and ctx.ok(f"4{z}"):
+            return f"4{z}", TO_PLAY
+        return 'Pass', "No game."
+    if not _reverse_raised(ctx):
+        return None
+    if (h.len[x] + h.len[z] >= REVERSE_RAISE_SHAPE
+            or h.judge + REVERSE_GAME_JUDGE + _fit_bonus(h, x, 4) >= GAME) and ctx.ok(f"5{x}"):
+        return f"5{x}", TO_PLAY
+    if (c7 == 'Pass' and h.stopper(y) and min(h.len.values()) >= 2
+            and h.judge + REVERSE_GAME_JUDGE >= NT_GAME and ctx.ok('3NT')):
+        return '3NT', TO_PLAY
+    return 'Pass', "No game."
+
+
+def _reverse_raised(ctx: Ctx, suit: str | None = None) -> bool:
+    """1x (y) R (P) 2z (..) 3x: responder's raise of a reversed minor; with
+    `suit`, 3`suit` (the raise of the reverse suit z, when suit is z)."""
+    i = _reverse_start(ctx)
+    if not (REVERSE_CONTESTED and REVERSE_MINOR_RAISE) or i is None or len(ctx.calls) < i + 7:
+        return False
+    c = [c for _, c in ctx.calls[i:i + 7]]
+    x = strain_of(c[0])
+    if suit is not None:
+        return (bool(_reverse_spot(*c[:5])) and c[6] == f"3{suit}"
+                and ctx.calls[i + 6][0] == ctx.calls[i + 2][0])
+    return (bool(_reverse_spot(*c[:5])) and x in MINORS and c[6] == f"3{x}"
+            and ctx.calls[i + 6][0] == ctx.calls[i + 2][0])
 
 
 #: A reopening double on a doubleton in their suit needs extra values.
@@ -3045,6 +3228,13 @@ def _two_nt_raise_reply(ctx: Ctx) -> tuple | None:
     return None
 
 
+#: Partner rebidding the suit partner opened is never a cuebid, even when
+#: their Michaels cuebid named it too: on 1♦ (2♦) P (2♠) P P 3♠ P 4♦ P,
+#: East read West's 4♦ as a cuebid raise of East's 3♠ (itself a cuebid) and
+#: bid 4♠ on a doubleton, -1,800 to -2,100 doubled (Nov 3 2026).
+CUE_REPLY_OWN_REBID = True
+
+
 def _cuebid_raise_reply(ctx: Ctx) -> tuple | None:
     """Partner made a cuebid raise of my suit (limit raise or better, 10+):
     go to game with extras, else sign off at the cheapest level. And when I
@@ -3061,8 +3251,9 @@ def _cuebid_raise_reply(ctx: Ctx) -> tuple | None:
     # I bid my suit, partner cuebid theirs, my turn.
     x = strain_of(mine[0])
     p = partners[-1]
+    own_rebid = CUE_REPLY_OWN_REBID and len(partners) >= 2 and strain_of(partners[0]) == strain_of(p)
     if (x in SUITS and len(mine) == 1 and strain_of(p) in theirs and strain_of(p) != x
-            and ctx.ours[-1] == (ctx.pd, p)):
+            and ctx.ours[-1] == (ctx.pd, p) and not own_rebid):
         their = strain_of(p)
         if _cue_asks(ctx, p, x):
             if h.stopper(their) and ctx.ok('3NT'):
@@ -3653,6 +3844,127 @@ def _stayman_contested(ctx: Ctx) -> tuple | None:
     return None
 
 
+#: Negative doubles with Lebensohl over 1NT (2♥/2♠) (the user's system,
+#: 2026-11-03): the double shows values, NEG_X_HCP+, not four of their
+#: major. Without it a responder with values and no five-card suit passed,
+#: so a pass didn't deny values. Opener passes with four of theirs (penalty),
+#: else bids four of the other major, 2NT/3NT with a stopper, or a minor.
+NEG_X_1NT = True
+NEG_X_HCP = 8
+
+
+def _neg_x_spot(ctx: Ctx, doubled: bool = False) -> bool:
+    """Our 1NT opening and their 2♥/2♠ straight over it: the last call, or
+    (`doubled`) followed straight away by our double."""
+    if not NEG_X_1NT or not ctx.seq or ctx.seq[0] != '1NT':
+        return False
+    i = next(k for k, (w, c) in enumerate(ctx.calls) if c == '1NT')
+    if i + 1 >= len(ctx.calls) or ctx.calls[i + 1][1] not in ('2H', '2S'):
+        return False
+    if not doubled:
+        return len(ctx.calls) == i + 2
+    return i + 2 < len(ctx.calls) and ctx.calls[i + 2][1] == 'X'
+
+
+def _answer_neg_x(ctx: Ctx, their: str) -> tuple:
+    """Opener, after 1NT (2M) X (P)."""
+    h = ctx.h
+    other = 'S' if their == 'H' else 'H'
+    if h.len[their] >= 4:
+        return 'Pass', f"4+ {SYM[their]}: defending."
+    if h.len[other] >= 4:
+        call = ctx.cheapest(other, 2)
+        if call and level_of(call) <= 3:
+            return call, f"4+ {SYM[other]}."
+    if h.stopper(their):
+        if h.hcp >= 16 and ctx.ok('3NT'):
+            return '3NT', f"{SYM[their]} stopper, 16+ HCP."
+        if ctx.ok('2NT'):
+            return '2NT', f"{SYM[their]} stopper, 15 HCP."
+    m = max(MINORS, key=lambda x: (h.len[x], SUITS.index(x)))
+    call = ctx.cheapest(m, 3)
+    if call and level_of(call) == 3:
+        return call, f"No {SYM[their]} stopper, 3+ {SYM[m]}."
+    return 'Pass', "Nothing to add."
+
+
+def _after_neg_x(ctx: Ctx, their: str, o: str) -> tuple:
+    """Responder, after 1NT (2M) X (P) and opener's answer. 10+ HCP is
+    game opposite the 1NT (NEG_X_GAME): a 4-3 major fit without a stopper,
+    a minor fit, or 3NT where opener may hold the stopper (the review of
+    PR #62, 2026-11-03: 11 HCP passed 2♠ and 3♣ with 26 between the hands)."""
+    h = ctx.h
+    if o == 'Pass':
+        return 'Pass', "Defending."
+    gf = h.hcp >= 10
+    s = strain_of(o)
+    stop = h.stopper(their)
+    if s in MAJORS and s != their:
+        if h.len[s] >= 4 or (NEG_X_GAME and gf and h.len[s] >= 3 and not stop):
+            return (f"4{s}", TO_PLAY) if gf and ctx.ok(f"4{s}") else ('Pass', "To play.")
+    elif o == '3NT' or (o == '2NT' and not gf):
+        return 'Pass', "To play."
+    elif o == '2NT':
+        return ('3NT', TO_PLAY) if ctx.ok('3NT') else ('Pass', "To play.")
+    if gf:
+        if stop and ctx.ok('3NT'):
+            return '3NT', TO_PLAY
+        if NEG_X_GAME and s in MINORS and h.len[s] >= 4:
+            game = f"5{s}" if h.hcp >= NEG_X_MINOR_GAME else f"4{s}"
+            if ctx.ok(game):
+                return game, TO_PLAY
+        if NEG_X_GAME and s in MAJORS and s != their and ctx.ok('3NT'):
+            return '3NT', TO_PLAY       # opener showed the major first: may hold a stopper
+    return 'Pass', "To play."
+
+
+#: Over their bid after our negative double, 1NT (2M) X (3M): opener bids
+#: four of the other major at the three level or doubles their bid with 4+
+#: of it; responder, after opener's pass, bids 3NT with the stoppers or
+#: doubles with 10+ (the review of PR #62: 3♥ played undoubled against 27).
+NEG_X_COMPETE = True
+#: Responder's 10+ HCP reaches game after opener's answer (above).
+NEG_X_GAME = True
+NEG_X_MINOR_GAME = 12
+
+
+def _neg_x_index(ctx: Ctx) -> int:
+    return next(k for k, (w, c) in enumerate(ctx.calls) if c == '1NT')
+
+
+def _neg_x_competed(ctx: Ctx) -> tuple | None:
+    """1NT (2M) X (bid): opener's call; 1NT (2M) X (bid) P (P): responder's;
+    1NT (2M) X (bid) P (P) X (P): opener's again."""
+    if not NEG_X_COMPETE or not _neg_x_spot(ctx, doubled=True):
+        return None
+    i = _neg_x_index(ctx)
+    after = [c for _, c in ctx.calls[i + 3:]]
+    if not after or not parse_bid(after[0]):
+        return None
+    h, orig, bid = ctx.h, strain_of(ctx.calls[i + 1][1]), after[0]
+    their = {orig, strain_of(bid)} & set(SUITS)
+    other = 'S' if orig == 'H' else 'H'
+    if ctx.i_am_opener() and len(after) == 1:
+        if other not in their and h.len[other] >= 4:
+            call = ctx.cheapest(other, 3)
+            if call and level_of(call) == 3:
+                return call, f"4+ {SYM[other]}."
+        if strain_of(bid) in SUITS and h.len[strain_of(bid)] >= 4 and ctx.ok('X'):
+            return 'X', f"Penalty: 4+ {SYM[strain_of(bid)]}."
+        return 'Pass', "Nothing to add."
+    if not ctx.i_am_opener() and after[1:] == ['Pass', 'Pass']:
+        if h.hcp >= 10:
+            if all(h.stopper(t) for t in their) and ctx.ok('3NT'):
+                return '3NT', TO_PLAY
+            if ctx.ok('X'):
+                return 'X', "Penalty: 10+ HCP."
+        return 'Pass', "Nothing more to show."
+    if (after[1:] == ['X', 'Pass'] and not ctx.i_am_opener()
+            or after[1:] == ['Pass', 'Pass', 'X', 'Pass'] and ctx.i_am_opener()):
+        return 'Pass', "Partner's double stands."
+    return None
+
+
 def _nt_interference(ctx: Ctx) -> tuple | None:
     """Our 1NT/2NT/2C was overcalled. Over 2C, a double is Stayman;
     otherwise Lebensohl: 2NT relays to 3C, a two-level suit is to play, a
@@ -3682,9 +3994,18 @@ def _nt_interference(ctx: Ctx) -> tuple | None:
         if lb == '2C' and ctx.calls[-1][1] == '2C' and ctx.ok('X') and \
                 any(h.len[m] >= 4 for m in MAJORS) and h.hcp >= 8:
             return 'X', "Stayman. Artificial."
-        if (their in SUITS and lb != '2C' and h.len[their] >= 4 and h.hcp >= 8
-                and ctx.ok('X')):
+        if (not _neg_x_spot(ctx) and their in SUITS and lb != '2C' and h.len[their] >= 4
+                and h.hcp >= 8 and ctx.ok('X')):
             return 'X', "Penalty: 8+ HCP."
+        if _neg_x_spot(ctx) and h.hcp >= NEG_X_HCP and ctx.ok('X'):
+            # 8-9 with a five-card suit bids it (Lebensohl); 10+ doubles with
+            # four of either major, or with no five-card suit and no stopper
+            # for 3NT, and else takes the game-forcing bids below.
+            five = any(h.len[x] >= 5 for x in SUITS if x != their)
+            other = 'S' if their == 'H' else 'H'
+            if (not five if h.hcp < 10 else
+                    h.len[other] >= 4 or h.len[their] >= 4 or not (five or h.stopper(their))):
+                return 'X', f"Negative: {NEG_X_HCP}+ HCP."
         if h.hcp >= 10:
             for s in sorted(SUITS, key=lambda s: h.len[s], reverse=True):
                 if s != their and h.len[s] >= 5:
@@ -3701,6 +4022,15 @@ def _nt_interference(ctx: Ctx) -> tuple | None:
                 if call and level_of(call) == 3 and h.hcp <= 9 and ctx.ok('2NT'):
                     return '2NT', "Lebensohl: relay to 3C. Artificial."
         return 'Pass', "Nothing to show."
+    competed = _neg_x_competed(ctx)
+    if competed:
+        return competed
+    if ctx.i_am_opener() and seq == ['1NT', 'X'] and ctx.calls[-1][1] == 'Pass' \
+            and _neg_x_spot(ctx, doubled=True):
+        return _answer_neg_x(ctx, their)
+    if not ctx.i_am_opener() and len(seq) == 3 and seq[1] == 'X' \
+            and _neg_x_spot(ctx, doubled=True):
+        return _after_neg_x(ctx, strain_of(ctx.calls[_neg_x_index(ctx) + 1][1]), seq[2])
     if ctx.i_am_opener() and seq[-1] == '2NT' and len(seq) == 2:
         if ctx.ok('3C'):
             return '3C', f"Completing the Lebensohl relay, {SYM['C']}."
@@ -3814,15 +4144,40 @@ BALANCE = True
 BALANCE_DISCOUNT = 4
 
 
-def _balancing(ctx: Ctx) -> int:
-    """The HCP discount in the pass-out seat after 1x P P."""
-    if not BALANCE or len(ctx.calls) < 3 or any(c != 'Pass' for _, c in ctx.calls[-2:]):
-        return 0
+#: In the pass-out seat after their weak two, 2x P P, the two-level overcall
+#: floor drops BALANCE_WEAK_TWO HCP for a six-card suit: East's QJT742 AT 92
+#: T75 passed 2♦ P P, where 2♠ led to a making 4♠ (the user's deal,
+#: 2026-11-03; experts acted on 7 of 13 such hands with 7-10 HCP, never on
+#: 6 or fewer). A three-level balance there needs six cards: South's 3♣ on
+#: AKQJ K4 42 96432 went -300 doubled, and a poor five-card suit plays badly
+#: in Second Highest. Measured together +0.04/+0.08/+0.07 a board.
+BALANCE_WEAK_TWO = 3
+BALANCE_WEAK_TWO_LEN = 6
+
+
+def _pass_out_over(ctx: Ctx) -> str | None:
+    """Their opening, a suit bid at the one or two level, when I am in the
+    pass-out seat after it (1x P P or 2x P P); else None."""
+    if len(ctx.calls) < 3 or any(c != 'Pass' for _, c in ctx.calls[-2:]):
+        return None
     bids = [(w, c) for w, c in ctx.calls if c != 'Pass']
     if (len(bids) != 1 or bids[0][0] in (ctx.me, ctx.pd)
-            or level_of(bids[0][1]) != 1 or strain_of(bids[0][1]) not in SUITS):
-        return 0
-    return BALANCE_DISCOUNT
+            or level_of(bids[0][1]) > 2 or strain_of(bids[0][1]) not in SUITS):
+        return None
+    return bids[0][1]
+
+
+def _balancing(ctx: Ctx) -> int:
+    """The HCP discount in the pass-out seat after 1x P P."""
+    opening = _pass_out_over(ctx)
+    return BALANCE_DISCOUNT if BALANCE and opening and level_of(opening) == 1 else 0
+
+
+def _weak_two_balance(ctx: Ctx) -> bool:
+    """Am I in the pass-out seat after their weak two, 2x P P?"""
+    opening = _pass_out_over(ctx)
+    return BALANCE_WEAK_TWO > 0 and opening is not None and level_of(opening) == 2 \
+        and opening != '2C'
 
 
 def they_opened(ctx: Ctx) -> tuple | None:
@@ -3843,6 +4198,9 @@ def they_opened(ctx: Ctx) -> tuple | None:
             decision = _doubler_new_suit(ctx)
             if decision:
                 return decision
+    minor = _answer_minor_ask(ctx)
+    if minor:
+        return minor
     cue = _answer_cuebid(ctx)
     if cue:
         return cue
@@ -3851,6 +4209,42 @@ def they_opened(ctx: Ctx) -> tuple | None:
     if mine and not partners and _defend_was_weak(ctx, mine[0]):
         return 'Pass', "Already described: weak."
     return _cuebid_raise_reply(ctx)
+
+
+#: (1NT) 2♥/2♠ (P) 2NT asks for the overcaller's minor (`_advance`'s
+#: alert says so), but no branch answered it: `continuation` read 2NT as
+#: natural and passed, so P P 1NT 2♥ P 2NT went two down in 2NT with
+#: 9 clubs (the user's deal, 2026-11-03). The overcaller now bids the minor.
+MINOR_ASK_ANSWER = True
+#: ...and over their double of the 2♥/2♠ too.
+MINOR_ASK_OVER_X = True
+
+
+#: Only when they have bid nothing but the 1NT: answering everywhere
+#: measured -0.15/-0.05/-0.13 a board (t -2.3/-1.4/-3.0), as after a
+#: transfer, Stayman or their double they hold the cards and 3♣/3♦ went
+#: for 800+. Even so it costs -0.02/-0.01/-0.05 (seeds 7M/8M/9M, 10,000
+#: deals): undoubled 2NT loses less. Kept by the user's choice, so the call
+#: means what its alert says (2026-11-03).
+
+
+def _answer_minor_ask(ctx: Ctx) -> tuple | None:
+    """Our 2♥/2♠ over their 1NT showed the major and a 4+ minor, and
+    partner's 2NT asked which: bid it, at the three level."""
+    if not MINOR_ASK_ANSWER or ctx.mine() not in (['2H'], ['2S']) \
+            or ctx.partners() != ['2NT'] or ctx.ours[-1][0] != ctx.pd:
+        return None
+    theirs = [c for _, c in ctx.theirs if c != 'Pass']
+    k = ctx.calls.index((ctx.me, ctx.mine()[0]))
+    doubled = MINOR_ASK_OVER_X and theirs == ['1NT', 'X'] and ctx.calls[k + 1][1] == 'X'
+    if theirs != ['1NT'] and not doubled:
+        return None
+    h = ctx.h
+    m = 'C' if h.len['C'] >= h.len['D'] else 'D'
+    call = ctx.cheapest(m, 3)
+    if call and level_of(call) == 3:
+        return call, f"4+ {SYM[m]}, answering 2NT."
+    return 'Pass', "No room."
 
 
 def _takeout_doubler(ctx: Ctx, seat: str) -> bool:
@@ -4009,6 +4403,27 @@ def _opening_bid_only(ctx: Ctx) -> str | None:
     return bids[0][1]
 
 
+#: Our first call over their one-level suit opening with an eight-card major
+#: and 9-15 HCP: game in it at once (the user's call, 2026-11-03: West's
+#: ♠AKJ86542 ♥4 ♦K95 ♣6 overcalled 1♠ over 1♣ and bid 2♠, 3♠, 4♠ in turn).
+#: Experts with eight of a major and 9-13 HCP bid game directly 82% of the
+#: time (n=59, 1996-2002 championships); weaker hands mostly pre-empt at three.
+BLAST_GAME = True
+BLAST_LEN = 8
+BLAST_HCP = (9, 15)
+
+
+def _blast_game(ctx: Ctx, opening: str | None, their: str) -> tuple | None:
+    h = ctx.h
+    if (not BLAST_GAME or not opening or level_of(opening) != 1 or their not in SUITS
+            or not BLAST_HCP[0] <= h.hcp <= BLAST_HCP[1]):
+        return None
+    for m in ('S', 'H'):
+        if m != their and h.len[m] >= BLAST_LEN and ctx.ok(f"4{m}"):
+            return f"4{m}", f"{BLAST_LEN}+ {SYM[m]}, {BLAST_HCP[0]}-{BLAST_HCP[1]} HCP. To play."
+    return None
+
+
 def _defend(ctx: Ctx) -> tuple | None:
     """Our first action after they opened."""
     h = ctx.h
@@ -4040,6 +4455,9 @@ def _defend(ctx: Ctx) -> tuple | None:
     if opening == '2C' or their == 'NT':
         return 'Pass', "No action."
 
+    blast = _blast_game(ctx, opening, their)
+    if blast:
+        return blast
     # Two-suited overcalls over a one-level opening.
     if opening and level_of(opening) == 1 and hcp >= TWO_SUITED_MIN:
         fives = {s for s in SUITS if s != their and h.len[s] >= 5}
@@ -4083,10 +4501,24 @@ def _defend(ctx: Ctx) -> tuple | None:
     if own and hcp <= 17:
         s = max(own, key=lambda s: (h.len[s], SUITS.index(s)))
         call = ctx.cheapest(s, 1)
+        weak2 = _weak_two_balance(ctx)
+        if call and weak2 and level_of(call) == 3 and h.len[s] < BALANCE_WEAK_TWO_LEN:
+            call = None                 # a poor five-card suit at the three level
         if call:
             need = OVERCALL_1 if level_of(call) == 1 else OVERCALL_2
+            if weak2:
+                # One alert for the call, whichever hand holds it.
+                n, low = BALANCE_WEAK_TWO_LEN, need[0] - BALANCE_WEAK_TWO
+                ok = (need[0] <= hcp <= need[1] if level_of(call) == 2 and h.len[s] < n
+                      else low <= hcp <= need[1] if level_of(call) == 2
+                      else 12 <= hcp <= need[1])
+                if ok:
+                    if level_of(call) == 2:
+                        return call, (f"5+ {SYM[s]} ({n}+ under {need[0]} HCP), "
+                                      f"{low}-{need[1]} HCP. Balancing.")
+                    return call, f"{n}+ {SYM[s]}, 12-{need[1]} HCP. Balancing."
             need = (need[0] - bal, need[1])
-            if level_of(call) <= 3 and need[0] <= hcp <= need[1] and \
+            if not weak2 and level_of(call) <= 3 and need[0] <= hcp <= need[1] and \
                     (level_of(call) <= 2 or hcp >= 12 - bal):
                 if bal:
                     return call, f"5+ {SYM[s]}, {need[0]}-{need[1]} HCP. Balancing."
@@ -4096,12 +4528,26 @@ def _defend(ctx: Ctx) -> tuple | None:
             and not (LEAD_DOUBLE and _their_artificial(ctx, len(ctx.calls) - 1))
             and _takeout_after_notrump(ctx)):
         shape_ok = h.len[their] <= 2 and all(h.len[s] >= 3 for s in SUITS if s != their)
+        if (MAJORS_TAKEOUT and opening in ('1C', '1D') and h.len['H'] >= 4
+                and h.len['S'] >= 4 and h.len[their] <= 3
+                and (MAJORS_TAKEOUT_BALANCE or not bal)):
+            shape_ok = True               # both majors: the other minor may be short
         need = (TAKEOUT_MIN if lvl == 1 else 13) - bal
         if (shape_ok and hcp >= need) or hcp >= 18:
             return 'X', f"Balancing takeout: {need}+ HCP." if bal else f"Takeout: {need}+ HCP."
     if lvl == 3 and h.balanced and hcp >= 16 and h.stopper(their) and ctx.ok('3NT'):
         return '3NT', f"16+ HCP, {SYM[their]} stopper."
     return 'Pass', "No action."
+
+
+#: Over a one-level minor opening, four cards in each major is enough shape
+#: for a takeout double, with three of their suit and a doubleton in the
+#: other minor (the user's call, 2026-11-03: 1♦ by West, North passed
+#: ♠AKQ7 ♥QJ92 ♦T98 ♣J4). Championship archive, 12-14 HCP 4-4 majors with
+#: three of theirs: experts doubled 24/29 over 1♦ and 13/21 over 1♣.
+MAJORS_TAKEOUT = True
+#: ... and in the balancing seat too (1♦ P P X), on BALANCE_DISCOUNT fewer HCP.
+MAJORS_TAKEOUT_BALANCE = True
 
 
 #: After their notrump opening, a takeout double of the suit they land in is

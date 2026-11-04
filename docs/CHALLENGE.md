@@ -24,16 +24,24 @@ which a single score cannot answer. Measured 2026-10-19, with every card-play ru
 (6,356 boards with a contract, 44 passed out), graded from N/S as the app
 grades, so this is what the "Robots" column of the match table averages to.
 The web app's Challenge caption quotes this table; rerun the script after a
-robot change and update both together. Measured 2026-10-28, after fourth
-hand wins with a dead card first (below), with the bidding before PR #40's
-jam rule, graded with the partner who actually
-declared (the library holds every declarer's count; par takes the better
-partner):
+robot change and update both together. Measured 2026-11-03 on PR #62
+(v0.1.0-alpha: every bidding change through the Nov 3 fixes), graded with the
+partner who actually declared (the library holds every declarer's count; par
+takes the better partner); 6,367 boards with a contract, 33 passed out:
 
 | | mean per board | median |
 |---|---|---|
-| lost in the auction | **240.8** | 200.0 |
-| lost in the card play | **20.7** | **0.0** |
+| lost in the auction | **233.1** | 200.0 |
+| lost in the card play | **5.0** | **0.0** |
+
+Graded from the declaring side: 211.4 in the auction and -4.7 in the card
+play. Main before PR #62 (PR #61's robots): 233.6 and 5.3 from N/S, 212.2 and
+-5.6 from the declaring side. All four seats bid the same way, so most of
+what one side gains the other gains back.
+
+Measured 2026-10-28, after fourth hand wins with a dead card first (below),
+with the bidding before PR #40's jam rule: 240.8 in the auction and 20.7 in
+the card play from N/S.
 
 Graded from the declaring side: 214.8 in the auction and -21.0 in the card
 play. The same robots without the dead winner (the robots of PR #32): 240.8

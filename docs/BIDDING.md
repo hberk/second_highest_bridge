@@ -653,6 +653,23 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   without the jump overcaller's pass +0.25, +0.52, +0.14. The pass costs
   about 0.17 a board, games the re-raise found; kept by the user's rule.
   Scripts and scores: the project's `agreed-suit/` folder.
+- **Partner's choice after our Michaels stands** (`ai.TWO_SUITER_CHOICE`,
+  `TWO_SUITER_RAISE_HCP = 17`, `_two_suiter_choice`; the user's deal,
+  2026-11-03: 1♠ 2♠ X 3♥ P 4♥ on ♠9 ♥Q8742 ♦AJ ♣AKJT2 opposite ♥A3, -1,700
+  doubled). `gib._owns` does not see the Michaels cuebid (`shown_suit` reads
+  2♠ as spades), so the overcaller's second call fell to `_rebid`, which
+  read partner's 3♥ as partner's own suit with 2/1 values and raised it. Now
+  a choice between my two suits (Michaels or Unusual 2NT) promises only a
+  preference: with the opponents silent since, pass unless 17+ HCP, which
+  bids game; over their bid, compete by the count with partner read as an
+  advancer (`PROMISE_ADVANCED`). Expert archives (1996-2002): the Michaels
+  bidder passes partner's choice 64-72% of the time (Unusual 2NT 77-88%);
+  with the opponents silent, 15-16 HCP 5-5 passed 8 of 9 and 17+ raised 9 of
+  14. Three sets of 3,000 fresh deals: **-0.06, +0.10, +0.21 a board**
+  (t -0.38, +0.51, +1.33), about 55 auctions each; 16 HCP +0.07, 19 HCP
+  +0.10 mean, passing only when they are silent +0.07, all noise. Handing
+  the auction to `continuation` instead (`gib.MICHAELS_OWNS`, off): +0.01.
+  Scripts and scores: the project's `michaels-raise/` folder.
 - **Double, then a new suit, shows 18+ HCP** (`DOUBLE_THEN_SUIT`,
   `_doubler_new_suit`, `_raise_doubler_suit`, `doubler_guard`; the user's
   Bidding training deal, 2026-10-28: 1♥ P P X 2♥ P P 2♠ with 22 HCP was
@@ -733,6 +750,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     +0.10 a board (t = +4.2, +0.9, +0.4). A 3 HCP discount was weaker. Those
     runs dropped the overcall ceiling too, so 14-17 HCP passed (found in
     review); keeping it added +0.27 a board (t = +2.9, seed 8M).
+  - **Balancing over a weak two** (`BALANCE_WEAK_TWO = 3`, 2026-11-03). In
+    the pass-out seat after 2♦/2♥/2♠ P P, a six-card suit balances at the two
+    level on 7-17 HCP ("5+ ♠ (6+ under 10 HCP), 7-17 HCP. Balancing."), and a three-level suit
+    balance needs six cards: a poor five-card suit plays badly in Second
+    Highest (the user's deal: 3♣ on AKQJ K4 42 96432 went -300 doubled). The
+    takeout double is unchanged. Experts acted on 7 of 13 hands with a six-card
+    suit and 7-10 HCP there, never with 6 or fewer. +0.04, +0.08, +0.07 a
+    board on three sets of 3,000 fresh deals, within noise.
   - **One level past the LoTT over their three level** (`LOTT_TOTAL = 18`).
     When they bid and raised their suit to three, and our known fit plus 8 plus
     one for my singleton (two for a void) in it reaches 18, `_total_tricks`
@@ -784,6 +809,16 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     responder passing opener's decline after 1NT, a transfer and 2NT lost
     1,620 points over 42 auctions. Bidding the game after a decline is right
     here more often than it looks.
+- **Takeout double with both majors** (2026-11-03, the user's board: 1♦ by
+  West, North passed ♠AKQ7 ♥QJ92 ♦T98 ♣J4): over a 1♣/1♦ opening, four cards
+  in each major and three or fewer of their suit is takeout shape even with a
+  doubleton in the other minor (`MAJORS_TAKEOUT`), in the balancing seat too
+  on `BALANCE_DISCOUNT` fewer HCP (`MAJORS_TAKEOUT_BALANCE`). Championship
+  archive (`/mnt/project-files/double-majors/archive.py`), 4-4 majors, three
+  of theirs, 12-14 HCP: experts doubled 24 of 29 over 1♦ and 13 of 21 over
+  1♣; with four of theirs, 0 of 20 over 1♦, so that still passes. Measured
+  neutral on three sets of 3,000 fresh deals (ROBOT_PROGRESS); kept on the
+  user's call, both seats.
 - **Four meanings from training deals** (2026-11-02, the user's calls; not
   measured head to head, they are system fixes):
   - `NT_TAKEOUT_TRANSFER_ONLY`: after their notrump opening, a takeout double
@@ -827,6 +862,19 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     auctions in 40,000 boards. Accepting at 13 or 15 measured the same or
     worse. Kept as a bug fix: the alerts promised 11-12, so the robot now
     plays the system it explains.
+
+**Eight-card overcalls and contested reverses (2026-11-03).** The user's board: 1♣ (1♠) 1NT (P)
+with South ♠— ♥AKQT2 ♦43 ♣AKQT95 passed, West's ♠AKJ86542 ♥4 ♦K95 ♣6 bid 1♠, 2♠, 3♠ and 4♠, and
+North's four clubs were never shown (5♣ makes). Experts (1996-2002 championships, 39.6k boards) bid
+game directly with eight of a major and 9-13 HCP 82% of the time (n=59), so `BLAST_GAME`: over
+their one-level suit opening, an eight-card major and 9-15 HCP bids 4M at once. It is rare (+0.05 a
+board on fresh deals) but large where it applies: +9.8 to +14.2 a board on deals filtered for such
+a hand, t ≈ 9-10. Contested reverses (`REVERSE_CONTESTED`: 2z above x after 1x (y) 1NT or a
+one-level new suit, 16+ HCP, 5+ x; responder raises a major, raises a minor with four on 8+ JP
+(`REVERSE_MINOR_RAISE`), 3NT only on 12+ JP; opener bids 5m over the raise with 10 cards in the two
+suits) are what experts play (median 18 HCP), but they lost on 3 × 4,000 filtered deals at every
+setting tried (16+, 18+, five-card reverse suit): opener passing partner's free 1NT or one-level
+suit scores better here. On by the user's choice, so the bidding box explains the reverse and the robots answer it.
 
 ## The previous system (`ai.USE_GIB = False`)
 
