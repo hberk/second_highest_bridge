@@ -219,7 +219,10 @@ describe('A robot reads your call as the robots would mean it', () => {
     });
   });
 
-  it('doubles 2♠ on deal 149 at your table too', () => {
+  it('answers your double on deal 149 at your table too', () => {
+    // West used to rebid 2♠ on five here and North doubled it; since
+    // 2026-11-04 a lone rebid shows six (REBID_ALONE_SIX_FROM), so West
+    // passes and North answers South's double, as at the robots' table.
     for (const [id, board, calls, at] of [
       [149, 4, ['1D', 'X'], 9],
     ] as const) {
@@ -227,7 +230,8 @@ describe('A robot reads your call as the robots would mean it', () => {
       t.boardNum = board - 1;
       t.newBoard(id);
       for (const c of calls) t.humanBids(c);
-      expect(t.calls[at], `training deal ${id}`).toEqual(['North', 'X']);
+      expect(t.calls[at - 1], `training deal ${id}`).toEqual(['West', 'Pass']);
+      expect(t.calls[at], `training deal ${id}`).toEqual(['North', '1NT']);
     }
   });
 });

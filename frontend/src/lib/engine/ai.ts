@@ -129,7 +129,8 @@ export const ADVANCE_JUMP_POINTS = 8;
 export const REBID_MINIMUM = 12;
 export const REBID_LENGTH = 6;
 // From this level up a lone rebid needs the sixth card, so it shows six.
-export const REBID_ALONE_SIX_FROM: number | null = 3;
+// 2 (the user's rule, 2026-11-04): every lone rebid of my own suit shows six.
+export const REBID_ALONE_SIX_FROM: number | null = 2;
 export const RAISE_POINTS = 6;
 export const JUMP_RAISE_POINTS = 10;
 export const RESPONSE_POINTS_SHOWN = 6;
@@ -656,6 +657,9 @@ export const settingsAi = { useGib: true };
  *  middle of the range partner's alerts show -- reach PENALTY_JUDGE. See ai.py. */
 export const PENALTY_DOUBLE = true;
 export const PENALTY_JUDGE = 20;
+/** My suit doubled and passed round to me (1D P P 1S X P P): pass, never the
+ *  same suit higher (the user's rule, 2026-11-04). See ai.py. */
+export const LEFT_IN = true;
 const RANGE_RE = /(\d+)-(\d+) (?:HCP|points)/g;
 const MIN_RE = /(\d+)\+ (?:HCP|points)/g;
 const MAX_RE = /Fewer than (\d+) (?:HCP|points)/g;
@@ -885,6 +889,12 @@ function penaltyOrBase(player: Seat, hand: Card[], auction: AuctionState,
     && (alerts[auction.calls.length - 1 - passesSinceDouble(auction)] ?? '').startsWith('Penalty')) {
     // Doubled for penalty in our own strain: bidding it again only goes down more.
     return ['Pass', 'Doubled: no higher in the same strain.'];
+  }
+  if (LEFT_IN && hb && auction.doubled === 'X' && hb[2] === player
+    && passesSinceDouble(auction) === 2 && bid && bid[1] === hb[1]) {
+    // My suit was doubled and the doubler's partner passed: it is for penalty
+    // now, whatever it showed. Bidding the same suit higher only goes down more.
+    return ['Pass', 'Doubled and left in: no higher in the same suit.'];
   }
   return decision;
 }

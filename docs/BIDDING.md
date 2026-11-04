@@ -733,6 +733,23 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   points, and alerts "6+ ♠"; below it, five cards and 12+ points still
   rebid ("5+"). **+0.27 a board, t = +3.8, 237 auctions**. Partner raising it
   on two cards as well: +0.28, so left out.
+- **Every lone rebid shows six; a suit doubled and left in is passed**
+  (2026-11-04, the user's board 1♦ P P 1♠ X P P 2♠ on ♠AQT82, and the user's
+  rules). `REBID_ALONE_SIX_FROM = 2`: with partner silent, repeating my own
+  suit needs the sixth card at the two level too. `ai.LEFT_IN`: when my suit is
+  doubled and the doubler's partner passes, the double is for penalty whatever
+  its alert said, so I pass rather than bid the suit higher (the guard before
+  it fired only on doubles alerted "Penalty"; this one was "18+ HCP, extra
+  values"). Championship auctions agree: a natural 5+ card suit at the one or
+  two level doubled and passed round, experts passed 150 times, ran 12,
+  redoubled 7 and rebid the suit 0; the robots rebid it 8 of 79. 20,000 fresh
+  deals (seed 14M, `/mnt/project-files/left-in/`): the pass alone **+0.14 a
+  board, t = +5.6** (85 auctions, 68 better, 13 worse); running to another 5+
+  card suit +0.13; six alone **+0.50, t = +5.1** (3,436 auctions); both
+  **+0.62, t = +6.2**. Split: after their bid +0.32, after their pass +0.25,
+  the doubled suit +0.12, and over their takeout double (1♠ P P X 2♠) five
+  cards were worth keeping, -0.09 (not refined). An SOS redouble was not
+  tried: no robot answers one.
 - **Lessons from championship auctions** (2026-10-29; the user's study). The
   robots bid the 14,016 deals of 39,586 championship auctions from
   [ContractBridge/pbn-files](https://github.com/ContractBridge/pbn-files)

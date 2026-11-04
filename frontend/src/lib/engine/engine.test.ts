@@ -188,6 +188,28 @@ describe('our 2♣ overcall is never a strong 2♣', () => {
   });
 });
 
+describe('a doubled suit left in is not rebid, and a lone rebid shows six', () => {
+  // The user's board (2026-11-04), as tests/test_bidding.py has it.
+  const five = parseHand('AS QS 10S 8S 2S AH QH 10H 8D 7D AC 10C 7C');
+  const six = parseHand('AS QS 10S 8S 3S 2S AH QH 10H 8D 7D AC 10C');
+  const after = (calls: string[]) => {
+    const a = new AuctionState('North', 'None');
+    const seats: Seat[] = ['North', 'East', 'South', 'West'];
+    calls.forEach((c, i) => a.applyCall(seats[i % 4], c));
+    return a;
+  };
+  it('passes 1♠ doubled and left in, on five or six', () => {
+    const a = after(['1D', 'Pass', 'Pass', '1S', 'X', 'Pass', 'Pass']);
+    expect(aiBidExplained('West', five, a)[0]).toBe('Pass');
+    expect(aiBidExplained('West', six, a)).toEqual(['Pass', 'Doubled and left in: no higher in the same suit.']);
+  });
+  it('rebids 2♠ alone on six, not five', () => {
+    const a = after(['1D', 'Pass', 'Pass', '1S', '2D', 'Pass', 'Pass']);
+    expect(aiBidExplained('West', five, a)).toEqual(['Pass', 'Partner has passed; not enough to bid again alone.']);
+    expect(aiBidExplained('West', six, a)).toEqual(['2S', '6+ ♠. Rebidding my own suit.']);
+  });
+});
+
 describe("partner's game stands, a three-level lone rebid shows six", () => {
   // The user's training deal (2026-10-28), as tests/test_bidding.py has it.
   const north = parseHand('AS JS 8S 4S 3S 2S QH 8H 6H 2H AC KC QC');
