@@ -2430,12 +2430,30 @@ function contested(ctx: Ctx): Decision | null {
   return theyOpened(ctx);
 }
 
+/** Their suits are the suits their bids SHOW. Over their 1NT a transfer
+ *  (1NT P 2D) shows hearts, not diamonds, and Stayman shows no suit. Read as
+ *  their suit, the diamonds were barred to us (the gap analysis,
+ *  2026-11-04). Freeing the suit for every hand lost, so it is ours only to
+ *  a hand that can bid it at the three level: 6+ cards and 12+ HCP (the
+ *  user's rule). Read as `theirArtificial` reads them: only while our side
+ *  had passed. */
+export const THEIR_SHOWN_SUITS = true;
+export const SHOWN_SUIT_LEN = 6;
+export const SHOWN_SUIT_HCP = 12;
+
 function theirSuits(ctx: Ctx): Suit[] {
   const out: Suit[] = [];
-  for (const [, c] of ctx.theirs) {
-    const s = strainOf(c);
+  const us = (w: Seat) => w === ctx.me || w === ctx.pd;
+  ctx.calls.forEach(([w, c], k) => {
+    if (us(w) || c === 'Pass') return;
+    let s: string | null = strainOf(c);
+    if (THEIR_SHOWN_SUITS && isSuit(s) && ctx.h.len[s] >= SHOWN_SUIT_LEN
+        && ctx.h.hcp >= SHOWN_SUIT_HCP && theirArtificial(ctx, k)) {
+      const seq = ctx.calls.slice(0, k + 1).filter(([v, x]) => !us(v) && x !== 'Pass').map(([, x]) => x);
+      s = shownSuit(seq, seq.length - 1);
+    }
     if (isSuit(s) && !out.includes(s)) out.push(s);
-  }
+  });
   return out;
 }
 
@@ -3821,6 +3839,8 @@ function theyOpened(ctx: Ctx): Decision | null {
   const partners = ctx.partners();
   if (wasLeadDouble(ctx, ctx.me) && !partners.length) return ['Pass', 'My double showed my suit, for the lead.'];
   if (wasLeadDouble(ctx, ctx.pd) && !mine.length) return ['Pass', "Partner's double asks for a lead."];
+  const responsive = answerResponsive(ctx);
+  if (responsive) return responsive;
   if (DOUBLE_THEN_SUIT) {
     const s = doublerSuit(ctx, ctx.pd);
     if (s && partners.length === 2 && ctx.ours[ctx.ours.length - 1][0] === ctx.pd) {
@@ -3869,6 +3889,38 @@ function answerMinorAsk(ctx: Ctx): Decision | null {
 /** Was `seat`'s first call a takeout double: they opened, its partner had
  *  not bid, and the double was of a suit bid through 4♥ (not a lead-directing
  *  double of an artificial bid)? */
+/** (1x) X (2x) X (P): partner's responsive double (`advance`) shows the two
+ *  unbid suits, and no branch answered it: the fallback read it as penalty
+ *  and passed (the gap analysis, 2026-11-04). The doubler now bids the
+ *  better of the two at its cheapest level, and never passes it. */
+export const RESPONSIVE_ANSWER = true;
+
+/** My takeout double, their new bid, partner's double of it, and only
+ *  passes since: partner's responsive double, which I must answer. */
+function partnerResponsive(ctx: Ctx): boolean {
+  const mine = ctx.mine();
+  const partners = ctx.partners();
+  if (!RESPONSIVE_ANSWER || mine.length !== 1 || mine[0] !== 'X' || partners.length !== 1
+      || partners[0] !== 'X' || !takeoutDoubler(ctx, ctx.me)) return false;
+  let at = -1;
+  ctx.calls.forEach(([w], i) => { if (w === ctx.pd) at = i; });
+  const before = at > 0 ? ctx.calls[at - 1] : null;
+  const opening = ctx.calls.find(([, c]) => c !== 'Pass')?.[1] ?? null;
+  return !!(before && before[0] !== ctx.me && before[0] !== ctx.pd && parseBid(before[1])
+    && before[1] !== opening && ctx.calls.slice(at + 1).every(([, c]) => c === 'Pass'));
+}
+
+function answerResponsive(ctx: Ctx): Decision | null {
+  if (!partnerResponsive(ctx)) return null;
+  const theirs = theirSuits(ctx);
+  const unbid = SUITS.filter((s) => !theirs.includes(s)).slice(-2);
+  if (unbid.length < 2) return null;
+  const s = maxBy(unbid, (x) => [ctx.h.len[x], idx(x)]);
+  const call = ctx.cheapest(s, 1);
+  if (!call || levelOf(call) > 4) return null;
+  return [call, `Answering the responsive double, ${SYM[s]}.`];
+}
+
 function takeoutDoubler(ctx: Ctx, seat: Seat): boolean {
   if (ctx.weOpened || wasLeadDouble(ctx, seat)) return false;
   for (let i = 0; i < ctx.calls.length; i++) {
@@ -3987,7 +4039,8 @@ export function doublerGuard(player: Seat, cards: Card[], auction: AuctionState,
   const s = strainOf(decision[0]);
   const mine = ctx.mine();
   if (!isSuit(s) || mine.length !== 1 || mine[0] !== 'X' || !takeoutDoubler(ctx, player)
-    || ctx.calls.some(([, c]) => strainOf(c) === s) || partnerCuebid(ctx)) return decision;
+    || ctx.calls.some(([, c]) => strainOf(c) === s) || partnerCuebid(ctx)
+    || partnerResponsive(ctx)) return decision;
   if (ctx.h.hcp >= DOUBLER_SUIT_HCP && ctx.h.len[s] >= 5) return [decision[0], doublerAlert(s)];
   return ['Pass', 'Doubled: a new suit would show 18+.'];
 }

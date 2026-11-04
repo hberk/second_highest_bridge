@@ -356,6 +356,48 @@ def test_support_double_then_they_raise():
     assert bid('AS 10S JH 3H KD 9D 7D 2D QC 9C 5C 4C 2C', *calls, dealer='East')[0] == '3D'
 
 
+def test_their_transfer_suit_is_ours_to_bid():
+    # 1NT P 2D P 2H P P: their 2D showed hearts, so diamonds are ours to a
+    # hand that can bid them at three: 6+ cards and 12+ HCP (the gap
+    # analysis and the user's rule, 2026-11-04).
+    calls = ('1NT', 'Pass', '2D', 'Pass', '2H', 'Pass', 'Pass')
+    strong = '9S 7S 9H AD KD QD 7D 3D 2D AC 10C 8C 3C'
+    assert bid(strong, *calls, dealer='East')[0] == '3D'
+    gib.THEIR_SHOWN_SUITS = False
+    try:
+        assert bid(strong, *calls, dealer='East')[0] == 'Pass'
+    finally:
+        gib.THEIR_SHOWN_SUITS = True
+    # Six diamonds and 9 HCP: still theirs, still a pass.
+    assert bid('9S 7S 9H AD KD 8D 7D 3D 2D QC 10C 8C 3C', *calls, dealer='East')[0] == 'Pass'
+    # The transfer's own suit stays theirs; Stayman shows none.
+    ctx = gib.Ctx('South', hand(strong), after('1NT', 'Pass', '2D', dealer='East'))
+    assert gib._their_suits(ctx) == ['H']
+    ctx = gib.Ctx('South', hand('9S 7S 9H AD KD 3D 2D AC KC QC 10C 8C 3C'),
+                  after('1NT', 'Pass', '2C', dealer='East'))
+    assert gib._their_suits(ctx) == []
+
+
+def test_doubler_answers_responsive_double():
+    # (1C) X (2C) X (P): partner's responsive double shows both majors; the
+    # doubler bids the better one, never passes (the gap analysis, 2026-11-04).
+    call, why = bid('AS 9S 7S 2S KH QH 9H 3H AD 8D 7D 3C 2C', '1C', 'X', '2C', 'X', 'Pass',
+                    dealer='East')
+    assert call == '2S' and 'responsive' in why
+    assert bid('AS 9S 7S KH QH 9H 3H 2H AD 8D 7C 3C 2C', '1D', 'X', '2D', 'X', 'Pass',
+               dealer='East')[0] == '2H'
+    # Over hearts the two unbid suits are diamonds and spades.
+    assert bid('AS 9S 7S KD QD 9D 3D 2H AC 8C 7C 3C 2D', '1H', 'X', '2H', 'X', 'Pass',
+               dealer='East')[0] == '3D'
+    # Switched off, the fallback reads it as penalty and passes.
+    gib.RESPONSIVE_ANSWER = False
+    try:
+        assert bid('AS 9S 7S 2S KH QH 9H 3H AD 8D 7D 3C 2C', '1C', 'X', '2C', 'X', 'Pass',
+                   dealer='East')[0] == 'Pass'
+    finally:
+        gib.RESPONSIVE_ANSWER = True
+
+
 def test_keycard_answer_then_they_bid():
     # 1H 2NT 4H 4NT 5C (5D): with four keycards opposite 0/3 none is missing,
     # so the slam is bid over their bid; with two, two are missing: double.

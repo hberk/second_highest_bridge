@@ -296,6 +296,9 @@ first commit (2026-10-03):
 | A lone rebid is no longer clamped to the partscore | **+3.6** | +2.92 | 26 of 300 |
 | A length bonus of 0.25 a trump past the fourth | **+5.8** | +2.40 | |
 | The UMD system card, all of it, against the pre-card AI | **+13.3** | +3.92 | 153 of 300 |
+| 11-04 | The doubler answers partner's responsive double, (1x) X (2x) X (P): the better of the two unbid suits at its cheapest level, never a pass (`RESPONSIVE_ANSWER`; the gap analysis: the fallback read it as penalty); seeds 14M, 15M, 10,000 fresh deals each (`/mnt/project-files/responsive-answer/`) | **+0.07, +0.04** | +2.59, +0.84 | 24, 39 | on (your pick) |
+| 11-04 | Their artificial bid shows the suit it shows, not its strain: over 1NT P 2♦ (a transfer) diamonds are ours, but only to 6+ cards and 12+ HCP (`THEIR_SHOWN_SUITS`, `SHOWN_SUIT_LEN`, `SHOWN_SUIT_HCP`; the gap analysis and the user's rule); seeds 14M, 15M, 10,000 fresh deals each (`/mnt/project-files/their-transfer/`) | +0.00, +0.01 | 0, +1.02 | 0, 3 | on (your rule) |
+| 11-04 | ...for every hand / only in the pass-out seat / at 14+ HCP | -0.04 / -0.02 / 0.00 | -1.31 / -0.94 / 0 | 45 / 4 / 0 | off (a direct 3♦ over the transfer went for 1,470) |
 
 ## Adding a row
 
