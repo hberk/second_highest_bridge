@@ -494,6 +494,8 @@ def _contest_alert(player: str, auction: AuctionState, call: str, why: str) -> s
             or PARTNERSHIP[hb[2]] == PARTNERSHIP[player]):
         return why
     mine = any(strain == s for _, strain in _bids_by(player, auction))
+    if not mine and gib.support_x_raise(auction.calls, player, s):
+        return gib.support_x_raise_alert(s)
     alert = gib.LOTT_ALERT if mine else gib._raise_alert(s, gib.LOTT_ALERT)
     return gib._name_the_suit(call, alert)
 

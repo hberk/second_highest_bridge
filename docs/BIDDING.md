@@ -139,6 +139,13 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   promise was. 10,000 fresh deals (`research/gib_fresh_h2h.py`, seed 7M):
   **+0.26 a board, t = +3.46, 247 auctions changed** (115 better, 84 worse);
   1.0 measured +0.26 (t = +3.12), 0.0 +0.23 (t = +2.61).
+- **A raise beside the support double shows four** (2026-11-04, the user's
+  board 1♦ P 1♥ (1♠) 2♥ on ♥KJT3, alerted "3+ ♥, competitive."). Opener
+  doubles with exactly three of responder's suit when the overcall is 2♥ or
+  lower, so opener's raise there shows 4+; `gib.support_x_raise` gives every
+  branch that bids it, the fallback included, the alert "4+ ♥ support."
+  (`SUPPORT_X_RAISE_ALERT`). Alert only: 0 of 3,000 fresh auctions changed
+  (seed 14M), and 52 such raises in 6,000 robot auctions all held four.
 - **Free bids after they bid again** (2026-10-31, the user's board
   P 1♣ P 1♦ (1♥) X (2♥) 3♦ on ♦K972, down in a seven-card fit). Two branches
   matched only our side's calls and bid as if RHO had passed:

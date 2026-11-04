@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { Ctx, doublerGuard, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert, weakJumpOvercall } from './gib';
+import { Ctx, doublerGuard, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -257,6 +257,7 @@ function contestAlert(player: Seat, auction: AuctionState, call: string, why: st
   if (!LOTT || hb === null || s === null || !isSuit(s) || auction.doubled !== 'None'
     || PARTNERSHIP[hb[2]] === PARTNERSHIP[player]) return why;
   const mine = bidsBy(player, auction).some(([, strain]) => strain === s);
+  if (!mine && supportXRaise(auction.calls, player, s)) return supportXRaiseAlert(s as Suit);
   return nameTheSuit(call, mine ? LOTT_ALERT : raiseAlert(s as Suit, LOTT_ALERT));
 }
 
