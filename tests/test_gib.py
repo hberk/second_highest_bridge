@@ -1512,3 +1512,24 @@ def test_two_suiter_competes_to_the_level_of_the_fit():
             assert call == ('4S' if on else 'Pass'), (on, call, why)
     finally:
         ai.TWO_SUITER_FIT_COMPETE = saved
+
+
+def test_no_part_score_penalty_double_after_a_strong_opening():
+    # The user's board, 2026-11-04: 2NT P 3♣ P 3♠ and West doubled with ♠K984,
+    # 10 JP. They will reach game anyway; the double only shows the trumps.
+    west = 'KS 9S 8S 4S JH 10H 6H 5H KD 10D 3D 4C 2C'
+    auction = after('2NT', 'Pass', '3C', 'Pass', '3S', dealer='South')
+    strong = {0: '20-21 HCP, balanced.'}
+    saved = ai.PENALTY_STRONG_STOP
+    try:
+        for on in (True, False):
+            ai.PENALTY_STRONG_STOP = on
+            call, why = ai.ai_bid_explained('West', hand(west), auction, strong)
+            assert call == ('Pass' if on else 'X'), (on, call, why)
+    finally:
+        ai.PENALTY_STRONG_STOP = saved
+    # A game is still doubled: 2NT P 3♣ P 3♠ P 4♠.
+    auction = after('2NT', 'Pass', '3C', 'Pass', '3S', 'Pass', '4S', dealer='South')
+    west = 'KS QS 9S 8S 4S 10H 6H 5H KD 10D 3D 4C 2C'
+    call, why = ai.ai_bid_explained('West', hand(west), auction, strong)
+    assert call == 'X', (call, why)

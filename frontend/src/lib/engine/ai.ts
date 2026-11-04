@@ -659,6 +659,20 @@ export const PENALTY_JUDGE = 20;
 const RANGE_RE = /(\d+)-(\d+) (?:HCP|points)/g;
 const MIN_RE = /(\d+)\+ (?:HCP|points)/g;
 const MAX_RE = /Fewer than (\d+) (?:HCP|points)/g;
+/** No penalty double below game once an opponent's alert showed
+ *  PENALTY_STRONG+ (a 2NT opening, a strong 2C). See ai.py. */
+export const PENALTY_STRONG_STOP = true;
+export const PENALTY_STRONG = 20;
+
+/** Has an opponent's alert shown PENALTY_STRONG or more points? */
+function oppShownStrong(player: Seat, auction: AuctionState, alerts: Record<number, string>): boolean {
+  return auction.calls.some(([who], i) => {
+    if (who === player || who === PARTNERS[player]) return false;
+    const text = alerts[i] ?? '';
+    const los = [...text.matchAll(RANGE_RE), ...text.matchAll(MIN_RE)].map((m) => Number(m[1]));
+    return los.some((lo) => lo >= PENALTY_STRONG);
+  });
+}
 
 /** The middle of the point range partner's alerts show. An open range
  *  ("8+ HCP") is taken as seven points wide; no range at all as a third of
@@ -697,6 +711,8 @@ function penaltyDouble(player: Seat, hand: Card[], auction: AuctionState,
   const n = hand.filter((c) => c.suit === suit).length;
   const need = level <= 2 ? 5 : 4;
   if (n < need) return null;
+  if (PENALTY_STRONG_STOP && level < (suit === 'H' || suit === 'S' ? 4 : 5)
+    && oppShownStrong(player, auction, alerts)) return null;
   const mine = new Hand(hand).judge;
   if (mine + partnerMiddle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE) return null;
   if (!doubleIsFree(auction)) return null;
