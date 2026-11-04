@@ -405,6 +405,33 @@ def test_a_free_bid_over_partners_preempt_needs_more_than_six():
     assert ai.ai_bid('West', _cards('K AKQ7653 K85 T'), a) == '4H'
 
 
+def test_a_suit_doubled_and_left_in_is_not_rebid():
+    """The user's board (2026-11-04): 1D P P 1S X P P, and West bid 2S on
+    AQT82. South's pass left the double in, so it is for penalty whatever it
+    showed; West passes, on six spades too (`LEFT_IN`)."""
+    import ai
+    a = AuctionState('North', 'None')
+    for who, call in [('North', '1D'), ('East', 'Pass'), ('South', 'Pass'), ('West', '1S'),
+                      ('North', 'X'), ('East', 'Pass'), ('South', 'Pass')]:
+        a.apply_call(who, call)
+    assert ai.ai_bid('West', _cards('AQT82 AQT 87 AT7'), a) == 'Pass'
+    assert ai.ai_bid_explained('West', _cards('AQT832 AQT 87 AT'), a) == (
+        'Pass', 'Doubled and left in: no higher in the same suit.')
+
+
+def test_a_two_level_lone_rebid_shows_six():
+    """The user's rule (2026-11-04): with partner silent, rebidding my own
+    suit needs a sixth card at every level, not five and 12+ points."""
+    import ai
+    a = AuctionState('North', 'None')
+    for who, call in [('North', '1D'), ('East', 'Pass'), ('South', 'Pass'), ('West', '1S'),
+                      ('North', '2D'), ('East', 'Pass'), ('South', 'Pass')]:
+        a.apply_call(who, call)
+    assert ai.ai_bid_explained('West', _cards('AQT82 AQT 87 AT7'), a) == (
+        'Pass', 'Partner has passed; not enough to bid again alone.')
+    assert ai.ai_bid_explained('West', _cards('AQT832 AQT 87 AT'), a) == (
+        '2S', '6+ \u2660. Rebidding my own suit.')
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):

@@ -345,6 +345,16 @@ def test_support_double():
     assert call == 'X' and 'Support double' in why
 
 
+def test_raise_beside_support_double_shows_four():
+    # The 2026-11-04 board: 1♦ P 1♥ (1♠) 2♥ on ♥KJT3. Three hearts would
+    # have doubled, so the raise shows four whichever branch bids it.
+    calls = ('1D', 'Pass', '1H', '1S')
+    assert bid('KS JS 8S KH JH 10H 3H KD QD JD 5D 9C 3C', *calls) == ('2H', '4+ ♥ support.')
+    assert bid('KS JS 8S KH JH 3H KD QD JD 5D 9C 3C 2C', *calls)[0] == 'X'
+    # Over 2♠ there is no support double: the raise keeps its old alert.
+    assert gib.support_x_raise(after('1D', 'Pass', '1H', '2S').calls, 'North', 'H') is False
+
+
 def test_support_double_then_they_raise():
     # The 2026-10-31 board: four diamonds opposite three is no fit to
     # compete to 3♦ once they raise; five is.
@@ -354,6 +364,63 @@ def test_support_double_then_they_raise():
     # Unopposed, the four-card suit is still bid (here an invitation).
     calls = ('Pass', '1C', 'Pass', '1D', '1H', 'X', 'Pass')
     assert bid('AS 10S JH 3H KD 9D 7D 2D QC 9C 5C 4C 2C', *calls, dealer='East')[0] == '3D'
+
+
+def test_their_transfer_suit_is_ours_to_bid():
+    # 1NT P 2D P 2H P P: their 2D showed hearts, so diamonds are ours to a
+    # hand that can bid them at three: 6+ cards and 12+ HCP (the gap
+    # analysis and the user's rule, 2026-11-04).
+    calls = ('1NT', 'Pass', '2D', 'Pass', '2H', 'Pass', 'Pass')
+    strong = '9S 7S 9H AD KD QD 7D 3D 2D AC 10C 8C 3C'
+    assert bid(strong, *calls, dealer='East')[0] == '3D'
+    gib.THEIR_SHOWN_SUITS = False
+    try:
+        assert bid(strong, *calls, dealer='East')[0] == 'Pass'
+    finally:
+        gib.THEIR_SHOWN_SUITS = True
+    # Six diamonds and 9 HCP: still theirs, still a pass.
+    assert bid('9S 7S 9H AD KD 8D 7D 3D 2D QC 10C 8C 3C', *calls, dealer='East')[0] == 'Pass'
+    # The transfer's own suit stays theirs; Stayman shows none.
+    ctx = gib.Ctx('South', hand(strong), after('1NT', 'Pass', '2D', dealer='East'))
+    assert gib._their_suits(ctx) == ['H']
+    ctx = gib.Ctx('South', hand('9S 7S 9H AD KD 3D 2D AC KC QC 10C 8C 3C'),
+                  after('1NT', 'Pass', '2C', dealer='East'))
+    assert gib._their_suits(ctx) == []
+
+
+def test_partner_reads_our_bid_in_their_transfer_suit_as_natural():
+    # The PR #63 review: partner, without six diamonds, read our natural 3D
+    # over 1NT P 2D P 2H P P as a cuebid and bid 4S "again over the cuebid"
+    # (partner never bid spades). Our side's first bid after their artificial
+    # bid, in its suit, is natural for both of us.
+    calls = ('1NT', 'Pass', '2D', 'Pass', '2H', 'Pass', 'Pass', '3D', 'Pass')
+    call, why = bid('AS KS QS 7S 4S 3S KH 5H 3D AC QC 7C 2C', *calls)
+    assert call == '4S' and 'cuebid' not in why
+    a = after(*calls)
+    assert not ai._is_cuebid('West', a, 'D')
+    assert gib._their_suits(gib.Ctx('West', hand('9S 9H 3D 2C'), a)) == ['H']
+    # Their real suit is still theirs.
+    assert ai._is_cuebid('West', a, 'H')
+
+
+def test_doubler_answers_responsive_double():
+    # (1C) X (2C) X (P): partner's responsive double shows both majors; the
+    # doubler bids the better one, never passes (the gap analysis, 2026-11-04).
+    call, why = bid('AS 9S 7S 2S KH QH 9H 3H AD 8D 7D 3C 2C', '1C', 'X', '2C', 'X', 'Pass',
+                    dealer='East')
+    assert call == '2S' and 'responsive' in why
+    assert bid('AS 9S 7S KH QH 9H 3H 2H AD 8D 7C 3C 2C', '1D', 'X', '2D', 'X', 'Pass',
+               dealer='East')[0] == '2H'
+    # Over hearts the two unbid suits are diamonds and spades.
+    assert bid('AS 9S 7S KD QD 9D 3D 2H AC 8C 7C 3C 2D', '1H', 'X', '2H', 'X', 'Pass',
+               dealer='East')[0] == '3D'
+    # Switched off, the fallback reads it as penalty and passes.
+    gib.RESPONSIVE_ANSWER = False
+    try:
+        assert bid('AS 9S 7S 2S KH QH 9H 3H AD 8D 7D 3C 2C', '1C', 'X', '2C', 'X', 'Pass',
+                   dealer='East')[0] == 'Pass'
+    finally:
+        gib.RESPONSIVE_ANSWER = True
 
 
 def test_keycard_answer_then_they_bid():
@@ -685,13 +752,18 @@ def test_competes_to_the_level_of_the_fit():
         gib.LOTT = True
     # Deal 333: (1♣) 1♠ (3♣) with ♠109875 ♥J74 ♦Q1093 ♣7, 3 HCP: ten trumps
     # and a singleton raise to 3♠, and GIB's free raise reads the same.
+    # (With five spades that is ten: the overcall jam, JAM_OVERCALL_VUL, bids
+    # 4♠ at once; this part is about the raise, so the jam is off for it.)
     weak = '10S 9S 8S 7S 5S JH 7H 4H QD 10D 9D 3D 7C'
-    assert bid(weak, '1C', '1S', '3C', dealer='West') == ('3S', '3+ ♠, competitive.')
-    gib.LOTT_SHORT = False
+    assert bid(weak, '1C', '1S', '3C', dealer='West')[0] == '4S'
+    gib.JAM_OVERCALL_VUL = None
     try:
+        assert bid(weak, '1C', '1S', '3C', dealer='West') == ('3S', '3+ ♠, competitive.')
+        gib.LOTT_SHORT = False
         assert bid(weak, '1C', '1S', '3C', dealer='West')[0] == 'Pass'
     finally:
         gib.LOTT_SHORT = True
+        gib.JAM_OVERCALL_VUL = 'any'
     # Nine trumps compete to three, not four.
     assert bid('AS 9S 8S 5S 10H 7H 9D 6D 3D 2D KC QC 4C', *auction,
                dealer='South')[0] == 'Pass'
@@ -1512,3 +1584,108 @@ def test_two_suiter_competes_to_the_level_of_the_fit():
             assert call == ('4S' if on else 'Pass'), (on, call, why)
     finally:
         ai.TWO_SUITER_FIT_COMPETE = saved
+
+
+def test_no_part_score_penalty_double_after_a_strong_opening():
+    # The user's board, 2026-11-04: 2NT P 3♣ P 3♠ and West doubled with ♠K984,
+    # 10 JP. They will reach game anyway; the double only shows the trumps.
+    west = 'KS 9S 8S 4S JH 10H 6H 5H KD 10D 3D 4C 2C'
+    auction = after('2NT', 'Pass', '3C', 'Pass', '3S', dealer='South')
+    strong = {0: '20-21 HCP, balanced.'}
+    saved = ai.PENALTY_STRONG_STOP
+    try:
+        for on in (True, False):
+            ai.PENALTY_STRONG_STOP = on
+            call, why = ai.ai_bid_explained('West', hand(west), auction, strong)
+            assert call == ('Pass' if on else 'X'), (on, call, why)
+    finally:
+        ai.PENALTY_STRONG_STOP = saved
+    # A game is still doubled: 2NT P 3♣ P 3♠ P 4♠.
+    auction = after('2NT', 'Pass', '3C', 'Pass', '3S', 'Pass', '4S', dealer='South')
+    west = 'KS QS 9S 8S 4S 10H 6H 5H KD 10D 3D 4C 2C'
+    call, why = ai.ai_bid_explained('West', hand(west), auction, strong)
+    assert call == 'X', (call, why)
+
+
+# The user's training deal 30, 2026-11-04 (dealer South, E/W vulnerable).
+_D30 = {
+    'North': 'KS QS 6S 4S 3S QD 7D 6D 3D KC QC 9C 2C',
+    'East': 'AH KH 9H 8H 5H AD KD 10D 2D 10C 7C 5C 3C',
+    'South': '10S 9S 8S QH 7H 4H 9D 8D 5D AC 8C 6C 4C',
+    'West': 'AS JS 7S 5S 2S JH 10H 6H 3H 2H JD 4D JC',
+}
+
+
+def test_jam_over_partners_simple_overcall():
+    """P P 1♠ (2♥) 2♠: West's five hearts make ten with the overcall, so 4♥
+    at once, vulnerable or not ("west should just jam 4H immediately")."""
+    for vul in ('E/W', 'None'):
+        call, why = _vul_bid(_D30['West'], vul, 'Pass', 'Pass', '1S', '2H', '2S', dealer='South')
+        assert call == '4H' and why.startswith('Game in'), (vul, call, why)
+    # Four hearts are not ten: no jam.
+    west4 = 'AS JS 7S 5S 2S 4S JH 10H 6H 3H JD 4D JC'
+    assert _vul_bid(west4, 'E/W', 'Pass', 'Pass', '1S', '2H', '2S', dealer='South')[0] != '4H'
+    saved = gib.JAM_OVERCALL_VUL
+    try:
+        gib.JAM_OVERCALL_VUL = None
+        assert _vul_bid(_D30['West'], 'E/W', 'Pass', 'Pass', '1S', '2H', '2S', dealer='South')[0] == '3H'
+    finally:
+        gib.JAM_OVERCALL_VUL = saved
+
+
+def test_no_competing_past_the_six_level():
+    """Without the jam the deal ran P P 1♠ 2♥ 2♠ 3♥ 3♠ 4♥ 4♠ 5♥ 5♠ 6♥ 6♠ 7♥:
+    each side void in the other's suit counted 13 tricks. Over their bid
+    nobody now goes past six."""
+    hands = {s: hand(t) for s, t in _D30.items()}
+    saved = gib.JAM_OVERCALL_VUL
+    try:
+        gib.JAM_OVERCALL_VUL = None
+        auction = AuctionState(dealer='South', vulnerability='E/W')
+        while not auction.is_complete:
+            p = auction.current_player()
+            call, why = ai.ai_bid_explained(p, hands[p], auction)
+            auction.apply_call(p, call)
+        calls = [c for _, c in auction.calls]
+        assert '7H' not in calls and auction.get_contract()['level'] == 6, calls
+        assert ai.COMPETE_CAP_ALERT.format(6) in ai._robot_alerts(auction).values()
+    finally:
+        gib.JAM_OVERCALL_VUL = saved
+
+
+def test_advancer_bids_game_over_a_three_level_takeout_double():
+    # The user's deal, 2026-11-04: 3♥ P P X P, West ♠KJT94 ♥AQ7 ♦8 ♣8542
+    # (10 HCP, 11 points) bid 3♠, the call 0 HCP makes too. Game.
+    west = 'KS JS 10S 9S 4S AH QH 7H 8D 8C 5C 4C 2C'
+    call, why = bid(west, '3H', 'Pass', 'Pass', 'X', 'Pass', dealer='South')
+    assert call == '4S' and why.startswith('9+ points, 5+')
+    assert bid(west, '3H', 'X', 'Pass', dealer='East')[0] == '4S'
+    # Weak (7 points): still the cheapest answer. Four spades only: 3♠.
+    assert bid('KS JS 10S 9S 4S 9H 7H 3H 8D 8C 5C 4C 2C',
+               '3H', 'X', 'Pass', dealer='East')[0] == '3S'
+    assert bid('KS JS 10S 9S AH QH 7H 3H 8D 8C 5C 4C 2C',
+               '3C', 'X', 'Pass', dealer='East')[0] in ('3S', '3H')
+
+
+def test_cuebids_over_their_unusual_2nt_are_answered():
+    """The user's board, 2026-11-04: Pass 1♠ (2NT) 3♣ (Pass), and North
+    passed the artificial limit raise, -200 in 3♣. Opener now signs off in
+    the major with a minimum, and answers the game-forcing cuebid with game."""
+    north = 'AS JS 5S 4S 3S JH 4H 2H AD 7D 4D KC 10C'
+    call, why = bid(north, 'Pass', '1S', '2NT', '3C', 'Pass', dealer='West')
+    assert call == '3S', (call, why)
+    call, why = bid(north, 'Pass', '1S', '2NT', '3D', 'Pass', dealer='West')
+    assert call == '4H', (call, why)       # 5+ hearts opposite three
+    # Responder, after opener's sign-off: game with 13+.
+    south = 'KS 10S 8S AH QH 10H 9H 8H AD JD 5D 9C 2C'
+    call, why = bid(south, 'Pass', '1S', '2NT', '3C', 'Pass', '3S', 'Pass', dealer='West')
+    assert call == '4S', (call, why)
+
+
+def test_advancer_picks_a_minor_after_our_minors_over_a_weak_two():
+    """Fresh deals, 2026-11-04: (2♠) 4♠ (both minors, 16+) P and partner
+    passed the cuebid with five diamonds; 4NT (10-15) was passed too."""
+    north = '8S 6S 5S KH QH 9H 6H QD JD 9D 5D 2D 10C'
+    for overcall in ('4S', '4NT'):
+        call, why = bid(north, 'Pass', '2S', overcall, 'Pass')
+        assert call == '5D', (overcall, call, why)

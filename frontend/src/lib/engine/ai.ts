@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { Ctx, doublerGuard, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, raiseAlert, weakJumpOvercall } from './gib';
+import { Ctx, doublerGuard, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -126,10 +126,14 @@ export const TAKEOUT_POINTS_2 = 14;
 export const TAKEOUT_MAX_THEIRS = 2;
 export const TAKEOUT_MIN_ELSEWHERE = 3;
 export const ADVANCE_JUMP_POINTS = 8;
+// Game in a five-card major over partner's takeout double of a three-level bid.
+export const ADVANCE_GAME_POINTS: number | null = 9;
+export const ADVANCE_GAME_LEN = 5;
 export const REBID_MINIMUM = 12;
 export const REBID_LENGTH = 6;
 // From this level up a lone rebid needs the sixth card, so it shows six.
-export const REBID_ALONE_SIX_FROM: number | null = 3;
+// 2 (the user's rule, 2026-11-04): every lone rebid of my own suit shows six.
+export const REBID_ALONE_SIX_FROM: number | null = 2;
 export const RAISE_POINTS = 6;
 export const JUMP_RAISE_POINTS = 10;
 export const RESPONSE_POINTS_SHOWN = 6;
@@ -175,7 +179,8 @@ function firstNamer(auction: AuctionState, strain: string): Seat | null {
 
 function isCuebid(player: Seat, auction: AuctionState, strain: string): boolean {
   const namer = firstNamer(auction, strain);
-  return namer !== null && namer !== player && namer !== PARTNERS[player];
+  return namer !== null && namer !== player && namer !== PARTNERS[player]
+    && !ourSuitAfterArtificial(player, auction, strain);
 }
 
 function partnerPromise(player: Seat, partner: Seat, auction: AuctionState, strain: string): number {
@@ -257,6 +262,7 @@ function contestAlert(player: Seat, auction: AuctionState, call: string, why: st
   if (!LOTT || hb === null || s === null || !isSuit(s) || auction.doubled !== 'None'
     || PARTNERSHIP[hb[2]] === PARTNERSHIP[player]) return why;
   const mine = bidsBy(player, auction).some(([, strain]) => strain === s);
+  if (!mine && supportXRaise(auction.calls, player, s)) return supportXRaiseAlert(s as Suit);
   return nameTheSuit(call, mine ? LOTT_ALERT : raiseAlert(s as Suit, LOTT_ALERT));
 }
 
@@ -354,12 +360,27 @@ function advanceDouble(player: Seat, auction: AuctionState, ev: HandEval, groups
       : `Longest suit other than theirs, ${sym}. Answering the double.`;
   };
 
+  const game = advanceGame(theirs, groups, pts, legal);
+  if (game) return game;
   let call = cheapest(best, start, legal);
   if (call && levelOf(call) <= Math.max(ceiling, PARTSCORE_LEVEL)) return [call, answer(call)];
   call = lowest;
   if (call && strong) return [call, answer(call)];
   if (call) return [call, answer(call)];
   return ['Pass', 'No legal suit to answer the double.'];
+}
+
+function advanceGame(theirs: string | null, groups: Groups, pts: number,
+  legal: string[]): Decision | null {
+  if (ADVANCE_GAME_POINTS === null || pts < ADVANCE_GAME_POINTS) return null;
+  const majors = (['S', 'H'] as Suit[]).filter((s) => s !== theirs
+    && groups[s].length >= ADVANCE_GAME_LEN);
+  if (!majors.length) return null;
+  // Longer major; spades on a tie (the Python's max over [S, H]).
+  const m = majors.length === 2 && groups.H.length > groups.S.length ? 'H' : majors[0];
+  // Only where the cheapest answer is the three level (3♠ X P: 4♥ is cheapest).
+  if (cheapest(m, 1, legal) !== `3${m}` || !legal.includes(`4${m}`)) return null;
+  return [`4${m}`, `${ADVANCE_GAME_POINTS}+ points, ${ADVANCE_GAME_LEN}+ ${SUIT_SYM[m]}. Game over the double.`];
 }
 
 function rebidAlone(player: Seat, auction: AuctionState, ev: HandEval, groups: Groups,
@@ -656,9 +677,26 @@ export const settingsAi = { useGib: true };
  *  middle of the range partner's alerts show -- reach PENALTY_JUDGE. See ai.py. */
 export const PENALTY_DOUBLE = true;
 export const PENALTY_JUDGE = 20;
+/** My suit doubled and passed round to me (1D P P 1S X P P): pass, never the
+ *  same suit higher (the user's rule, 2026-11-04). See ai.py. */
+export const LEFT_IN = true;
 const RANGE_RE = /(\d+)-(\d+) (?:HCP|points)/g;
 const MIN_RE = /(\d+)\+ (?:HCP|points)/g;
 const MAX_RE = /Fewer than (\d+) (?:HCP|points)/g;
+/** No penalty double below game once an opponent's alert showed
+ *  PENALTY_STRONG+ (a 2NT opening, a strong 2C). See ai.py. */
+export const PENALTY_STRONG_STOP = true;
+export const PENALTY_STRONG = 20;
+
+/** Has an opponent's alert shown PENALTY_STRONG or more points? */
+function oppShownStrong(player: Seat, auction: AuctionState, alerts: Record<number, string>): boolean {
+  return auction.calls.some(([who], i) => {
+    if (who === player || who === PARTNERS[player]) return false;
+    const text = alerts[i] ?? '';
+    const los = [...text.matchAll(RANGE_RE), ...text.matchAll(MIN_RE)].map((m) => Number(m[1]));
+    return los.some((lo) => lo >= PENALTY_STRONG);
+  });
+}
 
 /** The middle of the point range partner's alerts show. An open range
  *  ("8+ HCP") is taken as seven points wide; no range at all as a third of
@@ -697,6 +735,8 @@ function penaltyDouble(player: Seat, hand: Card[], auction: AuctionState,
   const n = hand.filter((c) => c.suit === suit).length;
   const need = level <= 2 ? 5 : 4;
   if (n < need) return null;
+  if (PENALTY_STRONG_STOP && level < (suit === 'H' || suit === 'S' ? 4 : 5)
+    && oppShownStrong(player, auction, alerts)) return null;
   const mine = new Hand(hand).judge;
   if (mine + partnerMiddle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE) return null;
   if (!doubleIsFree(auction)) return null;
@@ -851,9 +891,23 @@ export function aiBidExplained(player: Seat, hand: Card[], auction: AuctionState
   const decision = preemptorPasses(player, hand, auction, known)
     ?? leadDoublerPasses(player, hand, auction, known)
     ?? penaltyOrBase(player, hand, auction, known);
+  const capped = competeCap(player, auction, decision);
   if (!robotSaid.has(auction)) robotSaid.set(auction, new Map());
-  robotSaid.get(auction)!.set(auction.calls.length, decision);
-  return decision;
+  robotSaid.get(auction)!.set(auction.calls.length, capped);
+  return capped;
+}
+
+/** The ceiling on competing over their bid (the user's training deal 30,
+ *  2026-11-04): a bid over theirs never goes past this level; null leaves it
+ *  alone. See ai.py. */
+export const COMPETE_MAX: number | null = 6;
+export const COMPETE_CAP_ALERT = 'Not past the {} level in competition.';
+
+function competeCap(player: Seat, auction: AuctionState, decision: Decision): Decision {
+  const bid = parseBid(decision[0]);
+  const hb = auction.highestBid;
+  if (COMPETE_MAX === null || !bid || !hb || PARTNERSHIP[hb[2]] === PARTNERSHIP[player]) return decision;
+  return bid[0] > COMPETE_MAX ? ['Pass', COMPETE_CAP_ALERT.replace('{}', String(COMPETE_MAX))] : decision;
 }
 
 /** What this function said on each auction object, by call index. Left out,
@@ -885,6 +939,12 @@ function penaltyOrBase(player: Seat, hand: Card[], auction: AuctionState,
     && (alerts[auction.calls.length - 1 - passesSinceDouble(auction)] ?? '').startsWith('Penalty')) {
     // Doubled for penalty in our own strain: bidding it again only goes down more.
     return ['Pass', 'Doubled: no higher in the same strain.'];
+  }
+  if (LEFT_IN && hb && auction.doubled === 'X' && hb[2] === player
+    && passesSinceDouble(auction) === 2 && bid && bid[1] === hb[1]) {
+    // My suit was doubled and the doubler's partner passed: it is for penalty
+    // now, whatever it showed. Bidding the same suit higher only goes down more.
+    return ['Pass', 'Doubled and left in: no higher in the same suit.'];
   }
   return decision;
 }

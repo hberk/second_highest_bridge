@@ -47,6 +47,28 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   open candidates are listed in [ROADMAP.md](ROADMAP.md). Tools:
   `research/gib_handoffs.py` (the survey) and `research/gib_h2h.py` (head to
   head for a new branch).
+- **Passes with no meaning** (the gap analysis, 2026-11-04, on v0.1.0-alpha;
+  [reports/2026-11-04-gap-analysis.md](../reports/2026-11-04-gap-analysis.md)).
+  Every contested robot Pass was tagged with the line that returned it: 70%
+  come from an explicit GIB rule, 26% from the fallback, 4% from
+  `continuation`'s catch-all. On hands with values the natural alternatives
+  (X, own suit, raise, NT) mostly lose on fresh deals, so most passes are
+  right. Two had no meaning and are now answered:
+  - **The doubler answers a responsive double** (`RESPONSIVE_ANSWER`,
+    `_answer_responsive`): (1x) X (2x) X (P) bids the better of the two
+    unbid suits partner showed, at its cheapest level; `doubler_guard` lets
+    it through like an answer to a cuebid. +0.07 and +0.04 a board.
+  - **Their artificial bid shows its shown suit** (`THEIR_SHOWN_SUITS` in
+    `_their_suits`): over 1NT P 2♦, diamonds are not theirs, but only to a
+    hand that can bid them at the three level, 6+ cards and 12+ HCP
+    (`SHOWN_SUIT_LEN`, `SHOWN_SUIT_HCP`, the user's rule). Freed for every
+    hand it lost -0.04 a board: 3♦ straight over the transfer went for 1,470.
+    Partner reads it from the auction (`SHOWN_SUIT_PARTNER`, the PR #63
+    review): when our side's first bid after their artificial bid is in its
+    suit, that suit is ours for both of us, in `_their_suits` and in
+    `ai._is_cuebid` (via `gib.our_suit_after_artificial`). Before, partner
+    read our natural 3♦ as a cuebid and bid 4♠ "again over the cuebid" with
+    no spades shown. No auction changed in 36,000 fresh boards.
 - **Systems on over our 1NT overcall** (`Ctx.nt_overcall`): after (1x)-1NT,
   both partners play the 1NT opening's whole structure, every round, at the
   overcall's 15-18, while the opponents pass. Before, only advancer's first
@@ -139,6 +161,13 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   promise was. 10,000 fresh deals (`research/gib_fresh_h2h.py`, seed 7M):
   **+0.26 a board, t = +3.46, 247 auctions changed** (115 better, 84 worse);
   1.0 measured +0.26 (t = +3.12), 0.0 +0.23 (t = +2.61).
+- **A raise beside the support double shows four** (2026-11-04, the user's
+  board 1♦ P 1♥ (1♠) 2♥ on ♥KJT3, alerted "3+ ♥, competitive."). Opener
+  doubles with exactly three of responder's suit when the overcall is 2♥ or
+  lower, so opener's raise there shows 4+; `gib.support_x_raise` gives every
+  branch that bids it, the fallback included, the alert "4+ ♥ support."
+  (`SUPPORT_X_RAISE_ALERT`). Alert only: 0 of 3,000 fresh auctions changed
+  (seed 14M), and 52 such raises in 6,000 robot auctions all held four.
 - **Free bids after they bid again** (2026-10-31, the user's board
   P 1♣ P 1♦ (1♥) X (2♥) 3♦ on ♦K972, down in a seven-card fit). Two branches
   matched only our side's calls and bid as if RHO had passed:
@@ -516,6 +545,18 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     is also takeout or negative, +7.30 (off, above); before the doubled side
     stopped raising, +10.95: the incumbent's runouts were part of that. The
     robots don't run from a penalty double; a person might.
+  - **Not below game after an opponent showed 20+** (`PENALTY_STRONG_STOP`,
+    `PENALTY_STRONG`; the user's call, 2026-11-04, on 2NT P 3♣ P 3♠ X with
+    ♠K984: they reach game anyway, and the double only shows the trumps).
+    An opponent's alert with a range or minimum of 20+ (2NT, strong 2♣)
+    stops the double of any part score. In the championship archive a
+    defender sat over a Stayman answer with 4+ of the major 169 times and
+    never doubled. Head to head it measured -0.13, -0.39, -0.05 a board
+    (seeds 7M, 8M, 9M, 3,000 fresh deals each; t -3.1, -3.4, -2.0; 38
+    auctions), kept by choice: no doubled part score ever stood. Every
+    "gain" was the robots on the strong side running from the double into
+    a game that was doubled and failed, which a person would not do
+    (`/mnt/project-files/penalty-partscore/`).
 - **A cuebid raise shows support to the LoTT** (`CUE_RAISE_FIT`, the user's
   deal 338): 1♦ 1♠ X 2♦ (3+ ♠, 10+) - 2♠ 3♥ was passed out with ten spades,
   because `_partner_length` and `_total_tricks` read only natural bids and
@@ -571,6 +612,32 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   175 worse). The same length for the pre-emptive jump raise over their
   bid (5+ ♦ / 6+ ♣, not 4+) measured -0.02, t = -0.1, and with 1♣-3♣ on 6+
   -0.03; left off (the user's call: weak raises stay where they were).
+- **Answers to responder's cuebids over their Unusual 2NT**
+  (`UNUSUAL_CUE_REPLY`, `_unusual_cue_reply`; the user's board, 2026-11-04:
+  Pass 1♠ (2NT) 3♣ P, North passed the artificial limit raise on ♠AJ543
+  ♥J42 ♦A74 ♣KT, -200 in 3♣). `_their_suits` reads suit bids only, so their
+  2NT showed no suits, `_cuebid_raise_reply` never fired and the fallback
+  passed. After the cheaper cuebid (limit raise or better) opener bids game
+  with extras, as over any cuebid raise, else signs off in the suit; after
+  the dearer one (5+ of the fourth suit, game forcing) opener bids four of
+  the fourth suit with three, four of a six-card major, 3NT with both their
+  suits stopped, else four of the major or 3NT. Responder bids game with
+  13+ after opener's sign-off and passes opener's game. `_partner_length`
+  reads the cuebids the same way, so the LoTT and 4M-over-3NT layers no
+  longer take 3♥ for hearts. 20,000 fresh deals (seed 41M,
+  `/mnt/project-files/unusual-cue/`): **+0.15, t = +5.0, 85 auctions
+  changed** (63 better, 16 worse).
+- **Advancer picks a minor after our minors over their weak two**
+  (`WEAK_TWO_MINORS_ADVANCE`, `_two_suits_shown`; found by the same survey of
+  passes of partner's artificial bids). Over (2♥)/(2♠) our 4M (16+) and 4NT
+  (10-15) show both minors, but advancer passed both. Now advancer bids the
+  longer minor at the five level. The same deals: **+0.21, t = +6.4, 97
+  auctions changed** (73 better, 10 worse); with the cuebid answers **+0.36,
+  t = +8.1**. The runaway test exempts this forced choice. Also measured on
+  them: treating our calls over their 1NT as the defence only when they come
+  straight over it (so no 2NT minor ask after a natural overcall of their
+  Stayman or transfer) -0.09, t = -3.3; dropped, the fallback did worse than
+  the unanswered 2NT.
 - **Runouts after our 1NT is penalty-doubled** (`NT_RUNOUTS`, `_nt_runout`,
   `_runout_choice`; the user's system, 2026-10-28, from training board 25,
   where 1NT (X) P (P) had the opener bid Stayman: systems on read the
@@ -653,6 +720,23 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   without the jump overcaller's pass +0.25, +0.52, +0.14. The pass costs
   about 0.17 a board, games the re-raise found; kept by the user's rule.
   Scripts and scores: the project's `agreed-suit/` folder.
+- **Jam over partner's simple major overcall** (`gib.JAM_OVERCALL_VUL`, in
+  `_jam_spot`; the user's training deal 30, 2026-11-04: P P 1♠ (2♥) 2♠ with
+  ♠AJ752 ♥JT632 ♦J4 ♣J, "west should just jam 4H immediately"). With five
+  cards in partner's one- or two-level major overcall my first call is game,
+  at any vulnerability ('any', the user's pick). 2,000 fresh deals x 3:
+  **+0.14, +0.33, +0.58 a board** (t +1.1, +1.7, +3.0); not vulnerable
+  only +0.06, +0.20, +0.23; only after they bid again +0.05, +0.10.
+- **No competing past the six level** (`ai.COMPETE_MAX = 6`,
+  `_compete_cap`, the last word in `ai_bid_explained`). The same deal
+  without the jam ran 2♠ 3♥ 3♠ 4♥ 4♠ 5♥ 5♠ 6♥ 6♠ 7♥: North and East each
+  held a void in the other's suit, the fallback's `_place` counted it at
+  `SHORT_VOID_TRICKS` (5) and has no ceiling over their bid (`LOTT_MAX`
+  caps only GIB's LoTT). Over their bid no call now goes past six:
+  -0.08, +0.15, +0.03 a board, ending seven-level runaways (about one
+  board in 3,000). A ceiling at five measured -0.39, -0.41; at game -1.06,
+  -0.70. A void worth less, to the user's question (3, 2, 1 tricks):
+  -0.93, -1.46, -1.71 on seed 7, so it stays 5. Scripts: `runaway-7h/`.
 - **Partner's choice after our Michaels stands** (`ai.TWO_SUITER_CHOICE`,
   `TWO_SUITER_RAISE_HCP = 17`, `_two_suiter_choice`; the user's deal,
   2026-11-03: 1♠ 2♠ X 3♥ P 4♥ on ♠9 ♥Q8742 ♦AJ ♣AKJT2 opposite ♥A3, -1,700
@@ -733,6 +817,23 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   points, and alerts "6+ ♠"; below it, five cards and 12+ points still
   rebid ("5+"). **+0.27 a board, t = +3.8, 237 auctions**. Partner raising it
   on two cards as well: +0.28, so left out.
+- **Every lone rebid shows six; a suit doubled and left in is passed**
+  (2026-11-04, the user's board 1♦ P P 1♠ X P P 2♠ on ♠AQT82, and the user's
+  rules). `REBID_ALONE_SIX_FROM = 2`: with partner silent, repeating my own
+  suit needs the sixth card at the two level too. `ai.LEFT_IN`: when my suit is
+  doubled and the doubler's partner passes, the double is for penalty whatever
+  its alert said, so I pass rather than bid the suit higher (the guard before
+  it fired only on doubles alerted "Penalty"; this one was "18+ HCP, extra
+  values"). Championship auctions agree: a natural 5+ card suit at the one or
+  two level doubled and passed round, experts passed 150 times, ran 12,
+  redoubled 7 and rebid the suit 0; the robots rebid it 8 of 79. 20,000 fresh
+  deals (seed 14M, `/mnt/project-files/left-in/`): the pass alone **+0.14 a
+  board, t = +5.6** (85 auctions, 68 better, 13 worse); running to another 5+
+  card suit +0.13; six alone **+0.50, t = +5.1** (3,436 auctions); both
+  **+0.62, t = +6.2**. Split: after their bid +0.32, after their pass +0.25,
+  the doubled suit +0.12, and over their takeout double (1♠ P P X 2♠) five
+  cards were worth keeping, -0.09 (not refined). An SOS redouble was not
+  tried: no robot answers one.
 - **Lessons from championship auctions** (2026-10-29; the user's study). The
   robots bid the 14,016 deals of 39,586 championship auctions from
   [ContractBridge/pbn-files](https://github.com/ContractBridge/pbn-files)
@@ -783,7 +884,10 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   overcalling a five-card suit (-0.32), suit quality for three-level pre-empts
   (-0.23 to -0.27), weak jumps only to the two level (-0.53), and sounder
   three-level overcalls of a weak two or five-card minor jump raises (-0.04
-  each). Where the robots compete more than experts, the stronger Law of
+  each). A suit-quality gate on the five-card two-level overcall
+  (2026-11-04: judgement points, two of AKQ, or six cards) lost too, -0.10 to
+  -0.43 a board on 9,000 fresh deals, though experts overcall a poor five-card
+  suit on 10-12 HCP only 3% of the time (`/mnt/project-files/overcall-suit/`). Where the robots compete more than experts, the stronger Law of
   Total Tricks here rewards it; what transferred were the spots where the
   robots competed less. The study, scripts and data are in
   `/mnt/project-files/championship-study/`.
@@ -862,6 +966,20 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     auctions in 40,000 boards. Accepting at 13 or 15 measured the same or
     worse. Kept as a bug fix: the alerts promised 11-12, so the robot now
     plays the system it explains.
+- **Game over a three-level takeout double** (2026-11-04; the user's deal).
+  3♥ P P X P with ♠KJT94 ♥AQ7 ♦8 ♣8542: West bid 3♠ and 4♠ made. GIB has no
+  note here, so `_advance_double` answers, and its 8+ jump is moot when the
+  cheapest answer is already at the three level: 0 HCP and 12 bid the same
+  3♠. In the championship archives an advancer over a doubled three-level
+  pre-empt, with a five-card unbid major and 8-10 HCP, bid 4M 16 times in 19
+  and 3M never (four cards: 3M 11, 4M 6, a cuebid 5). `ADVANCE_GAME_POINTS =
+  9` (HCP + length, so 8 HCP and the fifth card) and `ADVANCE_GAME_LEN = 5`:
+  bid four of the major wherever its cheapest answer is the three level
+  (after 2♠ X P too). Alert "9+ points, 5+ ♠. Game over the double." Fresh
+  deals, seeds 7M/8M/9M, 10,000 each: 9 points **+0.06, +0.04, +0.06** (t =
+  +2.6, +1.6, +2.5, about 38 auctions a set); 10 points +0.04, +0.02, +0.05;
+  11 points +0.05, +0.01, +0.05. The user's request, an exception to staying
+  low; 9 picked (`/mnt/project-files/advance-3level-x/`).
 
 **Eight-card overcalls and contested reverses (2026-11-03).** The user's board: 1♣ (1♠) 1NT (P)
 with South ♠— ♥AKQT2 ♦43 ♣AKQT95 passed, West's ♠AKJ86542 ♥4 ♦K95 ♣6 bid 1♠, 2♠, 3♠ and 4♠, and

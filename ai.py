@@ -275,7 +275,8 @@ def _is_cuebid(player: str, auction: AuctionState, strain: str) -> bool:
     the opponents' suit and the pair plays in it.
     """
     namer = _first_namer(auction, strain)
-    return namer is not None and namer not in (player, PARTNERS[player])
+    return (namer is not None and namer not in (player, PARTNERS[player])
+            and not gib.our_suit_after_artificial(player, auction, strain))
 
 
 def _partner_promise(player: str, partner: str, auction: AuctionState,
@@ -407,6 +408,13 @@ TAKEOUT_POINTS_2 = 14          # guide: X over a 2-level opening
 TAKEOUT_MAX_THEIRS = 2         # guide: 2 or fewer cards in their suit
 TAKEOUT_MIN_ELSEWHERE = 3      # guide: 3-4 cards in every other suit
 ADVANCE_JUMP_POINTS = 8        # guide: 0-7 cheapest, 8-12 a level higher
+#: Partner's takeout double of a three-level preempt (3♥ X P, or 3♥ P P X P):
+#: the cheapest answer, 3♠, is made on nothing, so a hand with values and a
+#: five-card major bids game itself. Championship advancers with a five-card
+#: unbid major and 8-10 HCP bid 4M 16 times in 19, 3M never. ADVANCE_GAME_POINTS
+#: is in `_points` (HCP + length); None turns it off.
+ADVANCE_GAME_POINTS = 9
+ADVANCE_GAME_LEN = 5
 
 # The guide's opener-rebid tiers. Partner passing has already denied a response,
 # so these decide whether to speak again at all, not how high to go.
@@ -418,8 +426,9 @@ REBID_LENGTH = 6               # extra length is its own reason to bid again
 #: From this level up a lone rebid needs the sixth card whatever the points,
 #: so it shows six (the user's rule, 2026-10-28: no 3♠ on five after a jump
 #: overcall; +0.27 a board, t = +3.8). None: five cards and 12+ points
-#: rebid at any level.
-REBID_ALONE_SIX_FROM = 3
+#: rebid at any level. 2 (the user's rule, 2026-11-04): every lone rebid of my
+#: own suit shows six. 20,000 fresh deals: +0.50 a board, t = +5.1 (BIDDING.md).
+REBID_ALONE_SIX_FROM = 2
 
 # The cuebid -- advancer bidding the OPPONENTS' suit to show a good raise of
 # partner's overcall -- has no threshold constant because the AI does not make the
@@ -494,6 +503,8 @@ def _contest_alert(player: str, auction: AuctionState, call: str, why: str) -> s
             or PARTNERSHIP[hb[2]] == PARTNERSHIP[player]):
         return why
     mine = any(strain == s for _, strain in _bids_by(player, auction))
+    if not mine and gib.support_x_raise(auction.calls, player, s):
+        return gib.support_x_raise_alert(s)
     alert = gib.LOTT_ALERT if mine else gib._raise_alert(s, gib.LOTT_ALERT)
     return gib._name_the_suit(call, alert)
 
@@ -636,6 +647,9 @@ def _advance_double(player: str, partner: str, auction: AuctionState, ev: dict,
             return f"{ADVANCE_JUMP_POINTS}+ points, longest suit, {sym}. Answering the double."
         return f"Longest suit other than theirs, {sym}. Answering the double."
 
+    game = _advance_game(theirs, groups, pts, legal)
+    if game:
+        return game
     call = _cheapest(best, start, legal)
     if call and parse_bid(call)[0] <= max(ceiling, PARTSCORE_LEVEL):
         return call, answer(call)
@@ -656,6 +670,24 @@ def _advance_double(player: str, partner: str, auction: AuctionState, ev: dict,
     if call:
         return call, answer(call)
     return 'Pass', "No legal suit to answer the double."
+
+
+def _advance_game(theirs: str | None, groups: dict, pts: int,
+                  legal: list[str]) -> tuple | None:
+    """Game in a major over partner's takeout double of a three-level bid."""
+    if ADVANCE_GAME_POINTS is None or pts < ADVANCE_GAME_POINTS:
+        return None
+    majors = [s for s in ('S', 'H') if s != theirs
+              and len(groups[s]) >= ADVANCE_GAME_LEN]
+    if not majors:
+        return None
+    m = max(majors, key=lambda s: (len(groups[s]), s == 'S'))
+    # Only where the cheapest answer is the three level: game is then a call
+    # of its own, not the only way to name the suit (3♠ X P: 4♥ is cheapest).
+    if _cheapest(m, 1, legal) != f"3{m}" or f"4{m}" not in legal:
+        return None
+    return f"4{m}", (f"{ADVANCE_GAME_POINTS}+ points, {ADVANCE_GAME_LEN}+ "
+                     f"{SUIT_SYM[m]}. Game over the double.")
 
 
 def _rebid_alone(player: str, auction: AuctionState, ev: dict, groups: dict,
@@ -1055,10 +1087,21 @@ USE_GIB = True
 #: deals, head to head: +10.95 a board, t = +13.4 (BIDDING.md).
 PENALTY_DOUBLE = True
 PENALTY_JUDGE = 20
+#: My suit doubled and passed round to me (1D P P 1S X P P): pass, never the
+#: same suit higher (the user's rule, 2026-11-04). 20,000 fresh deals: +0.14 a
+#: board, t = +5.6; running to another 5+ card suit measured +0.13 (BIDDING.md).
+LEFT_IN = True
 _RANGE_RE = re.compile(r'(\d+)-(\d+) (?:HCP|points)')
 _MIN_RE = re.compile(r'(\d+)\+ (?:HCP|points)')
 _MAX_RE = re.compile(r'Fewer than (\d+) (?:HCP|points)')
 PENALTY_ALERT = "Penalty: {n}+ {sym}."
+#: No penalty double below game once an opponent's alert showed
+#: PENALTY_STRONG+ (a 2NT opening, a strong 2C). The user, 2026-11-04, on
+#: 2NT P 3C P 3S X with K984: they will reach game anyway, so doubling the
+#: part score only shows them where the trumps are. Experts doubled none of
+#: 169 Stayman answers with 4+ trumps behind them (BIDDING.md).
+PENALTY_STRONG_STOP = True
+PENALTY_STRONG = 20
 
 
 def _partner_middle(partner: str, auction: AuctionState, alerts: dict, mine: int) -> float:
@@ -1083,6 +1126,18 @@ def _partner_middle(partner: str, auction: AuctionState, alerts: dict, mine: int
     return (lo + max(lo, hi)) / 2
 
 
+def _opp_shown_strong(player: str, auction: AuctionState, alerts: dict) -> bool:
+    """Has an opponent's alert shown PENALTY_STRONG or more points?"""
+    for i, (who, _) in enumerate(auction.calls):
+        if who in (player, PARTNERS[player]):
+            continue
+        text = alerts.get(i, '')
+        los = [int(a) for a, _ in _RANGE_RE.findall(text)] + [int(a) for a in _MIN_RE.findall(text)]
+        if any(lo >= PENALTY_STRONG for lo in los):
+            return True
+    return False
+
+
 def _penalty_double(player: str, hand: list[Card], auction: AuctionState,
                     alerts: dict) -> tuple | None:
     hb = auction.highest_bid
@@ -1097,6 +1152,9 @@ def _penalty_double(player: str, hand: list[Card], auction: AuctionState,
     n = sum(1 for c in hand if c.suit == suit)
     need = 5 if level <= 2 else 4
     if n < need:
+        return None
+    if (PENALTY_STRONG_STOP and level < (4 if suit in ('H', 'S') else 5)
+            and _opp_shown_strong(player, auction, alerts)):
         return None
     mine = gib.Hand(hand).judge
     if mine + _partner_middle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE:
@@ -1274,7 +1332,28 @@ def ai_bid_explained(player: str, hand: list[Card], auction: AuctionState,
     decision = (_preemptor_passes(player, hand, auction, alerts)
                 or _lead_doubler_passes(player, hand, auction, alerts)
                 or _penalty_or_base(player, hand, auction, alerts))
+    decision = _compete_cap(player, auction, decision)
     auction.__dict__.setdefault('_robot_said', {})[len(auction.calls)] = decision
+    return decision
+
+
+#: The ceiling on competing over their bid (the user's training deal 30,
+#: 2026-11-04: P P 1S 2H 2S 3H 3S 4H 4S 5H 5S 6H 6S 7H, both sides void in
+#: the other's suit, so each counted 13-14 tricks and bid one more). A bid
+#: over theirs never goes past this level; None leaves it alone. Fresh
+#: deals, 3 x 2,000: -0.08, +0.15, +0.03 a board, ending the seven-level
+#: runaways (about one board in 3,000). Five measured -0.4, game -0.7 to -1.1.
+COMPETE_MAX: int | None = 6
+COMPETE_CAP_ALERT = "Not past the {} level in competition."
+
+
+def _compete_cap(player: str, auction: AuctionState, decision: tuple) -> tuple:
+    bid = parse_bid(decision[0])
+    hb = auction.highest_bid
+    if COMPETE_MAX is None or not bid or not hb or PARTNERSHIP[hb[2]] == PARTNERSHIP[player]:
+        return decision
+    if bid[0] > COMPETE_MAX:
+        return 'Pass', COMPETE_CAP_ALERT.format(COMPETE_MAX)
     return decision
 
 
@@ -1299,6 +1378,14 @@ def _penalty_or_base(player: str, hand: list[Card], auction: AuctionState,
         # down more. The branches that raise a fit were written when no robot
         # doubled for penalty.
         return 'Pass', "Doubled: no higher in the same strain."
+    if (LEFT_IN and hb and auction.doubled == 'X' and hb[2] == player
+            and _passes_since_double(auction) == 2
+            and parse_bid(decision[0]) and parse_bid(decision[0])[1] == hb[1]):
+        # My suit was doubled and the doubler's partner passed: the double is
+        # for penalty now, whatever it showed. Bidding the same suit higher
+        # only invites the same double one level up. Experts never do it
+        # (championship archive: 150 pass, 12 new suit, 7 XX, 0 same suit).
+        return 'Pass', "Doubled and left in: no higher in the same suit."
     return decision
 
 
