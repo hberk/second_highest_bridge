@@ -2068,6 +2068,26 @@ export function raiseAlert(x: Suit, text: string): string {
   return LOTT && LOTT_SHORT ? `3+ ${SYM[x]}, competitive.` : text;
 }
 
+/** Opener after 1x .. 1y (z), z no higher than 2♥: exactly three of y is the
+ *  support double, so a raise of y shows four (2026-11-04). See gib.py. */
+export const SUPPORT_X_RAISE_ALERT = true;
+
+export function supportXRaise(calls: readonly (readonly [Seat, string])[], player: Seat, s: string): boolean {
+  if (!SUPPORT_X_RAISE_ALERT || calls.length === 0) return false;
+  const pd = PARTNERS[player];
+  const ours = calls.filter(([w, c]) => (w === player || w === pd) && c !== 'Pass');
+  const [lastWho, last] = calls[calls.length - 1];
+  return !(ours.length !== 2 || ours[0][0] !== player || ours[1][0] !== pd
+    || levelOf(ours[0][1]) !== 1 || !isSuit(strainOf(ours[0][1]))
+    || levelOf(ours[1][1]) !== 1 || strainOf(ours[1][1]) !== s
+    || lastWho === player || lastWho === pd || !levelOf(last)
+    || rankOf(last) > rankOf('2H'));
+}
+
+export function supportXRaiseAlert(s: Suit): string {
+  return `4+ ${SYM[s]} support.`;
+}
+
 /** A cuebid raise (our bid in their suit after the other partner bid a suit)
  *  shows 3+ of that suit to the LoTT, both for the partner who cuebid and for
  *  the one who reads it (2026-10-24, deal 338). See gib.py. */
@@ -2151,6 +2171,7 @@ function totalTricks(ctx: Ctx, decision: Decision | null): Decision | null {
   const mine = ctx.ours.some(([w], i) => w === ctx.me
     && (shownSuit(ctx.seq, i, ctx.natural) === s || cueRaise(ctx, i) === s));
   const alert = best[2] ? LOTT_TOTAL_ALERT : LOTT_ALERT;
+  if (!mine && supportXRaise(ctx.calls, ctx.me, s)) return [best[1], supportXRaiseAlert(s)];
   if (!mine && ctx.h.len[s] >= 3) return [best[1], raiseAlert(s, alert)];
   return [best[1], alert];
 }

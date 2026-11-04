@@ -345,6 +345,16 @@ def test_support_double():
     assert call == 'X' and 'Support double' in why
 
 
+def test_raise_beside_support_double_shows_four():
+    # The 2026-11-04 board: 1♦ P 1♥ (1♠) 2♥ on ♥KJT3. Three hearts would
+    # have doubled, so the raise shows four whichever branch bids it.
+    calls = ('1D', 'Pass', '1H', '1S')
+    assert bid('KS JS 8S KH JH 10H 3H KD QD JD 5D 9C 3C', *calls) == ('2H', '4+ ♥ support.')
+    assert bid('KS JS 8S KH JH 3H KD QD JD 5D 9C 3C 2C', *calls)[0] == 'X'
+    # Over 2♠ there is no support double: the raise keeps its old alert.
+    assert gib.support_x_raise(after('1D', 'Pass', '1H', '2S').calls, 'North', 'H') is False
+
+
 def test_support_double_then_they_raise():
     # The 2026-10-31 board: four diamonds opposite three is no fit to
     # compete to 3♦ once they raise; five is.

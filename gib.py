@@ -2239,6 +2239,38 @@ def _raise_alert(x: str, text: str) -> str:
     return f"3+ {SYM[x]}, competitive." if LOTT and LOTT_SHORT else text
 
 
+#: Opener after 1x .. 1y (z), z no higher than 2♥: exactly three of y is the
+#: support double, so a raise of y shows four (the user's board, 2026-11-04:
+#: 1♦ P 1♥ (1♠) 2♥ on ♥KJT3 was alerted "3+ ♥, competitive."). The raise
+#: comes from whichever branch bids it, the fallback included; its alert
+#: depends only on the auction.
+SUPPORT_X_RAISE_ALERT = True
+
+
+def support_x_raise(calls: list, player: str, s: str) -> bool:
+    """Would a bid of `s` by `player` raise partner's suit where the support
+    double shows three? True when `player` opened at the one level, partner's
+    only call is a one-level bid of `s`, and the last call is the opponents'
+    bid at 2♥ or below -- the auction in which `_competitive` doubles with
+    exactly three."""
+    if not SUPPORT_X_RAISE_ALERT or not calls:
+        return False
+    pd = PARTNERS[player]
+    ours = [(w, c) for w, c in calls if w in (player, pd) and c != 'Pass']
+    last_who, last = calls[-1]
+    if (len(ours) != 2 or ours[0][0] != player or ours[1][0] != pd
+            or level_of(ours[0][1]) != 1 or strain_of(ours[0][1]) not in SUITS
+            or level_of(ours[1][1]) != 1 or strain_of(ours[1][1]) != s
+            or last_who in (player, pd) or not level_of(last)
+            or rank_of(last) > rank_of('2H')):
+        return False
+    return True
+
+
+def support_x_raise_alert(s: str) -> str:
+    return f"4+ {SYM[s]} support."
+
+
 #: A cuebid raise (our bid in their suit after the other partner bid a suit)
 #: shows 3+ of that suit to the LoTT, both for the partner who cuebid and for
 #: the one who reads it (2026-10-24, deal 338: 1♦ 1♠ X 2♦ - 2♠ 3♥ passed
@@ -2332,6 +2364,8 @@ def _total_tricks(ctx: Ctx, decision: tuple | None) -> tuple | None:
     s = strain_of(best[1])
     mine = any(w == ctx.me and s in (shown_suit(ctx.seq, i, ctx.natural), _cue_raise(ctx, i))
                for i, (w, _) in enumerate(ctx.ours))
+    if not mine and support_x_raise(ctx.calls, ctx.me, s):
+        return best[1], support_x_raise_alert(s)
     if not mine and ctx.h.len[s] >= 3:
         return best[1], _raise_alert(s, LOTT_TOTAL_ALERT if best[2] else LOTT_ALERT)
     return best[1], LOTT_TOTAL_ALERT if best[2] else LOTT_ALERT
