@@ -289,6 +289,7 @@ from the variant's side; t as above.
 | 11-04 | No call over their bid past the six level (`COMPETE_MAX = 6`; deal 30 ran to 7♥ on two voids) | -0.08, +0.15, +0.03 | -1.00, +2.76, +1.00 | 2, 11, 1 | on (your pick; ends 7-level runaways) |
 | 11-04 | ...past five / past game | -0.39, -0.41 / -1.06, -0.70 | -2.03, -2.16 / -3.94, -2.06 | 17, 22 / 86, 71 | off |
 | 11-04 | A void worth 3 / 2 / 1 tricks once a fit is agreed, not 5 (`SHORT_VOID_TRICKS`); seed 7 | -0.93 / -1.46 / -1.71 | -3.71 / -3.73 / -4.34 | 69 / 104 / 130 | off |
+| 11-04 | Advancer bids game in a five-card major over partner's takeout double when the cheapest answer is the three level (`ADVANCE_GAME_POINTS`; your deal, 3♥ P P X P 3♠ with 10 HCP; experts 4M 16 of 19); seeds 7M, 8M, 9M, 10,000 deals each; 9 / 10 / 11 points | **+0.06, +0.04, +0.06** / +0.04, +0.02, +0.05 / +0.05, +0.01, +0.05 | +2.56, +1.58, +2.46 / +2.40, +0.95, +2.53 / +3.15, +0.39, +2.58 | 36, 34, 46 / 23, 23, 28 / 11, 13, 18 | 9 on |
 
 ### The previous system (`ai_bid`)
 
