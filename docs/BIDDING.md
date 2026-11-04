@@ -827,6 +827,20 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     auctions in 40,000 boards. Accepting at 13 or 15 measured the same or
     worse. Kept as a bug fix: the alerts promised 11-12, so the robot now
     plays the system it explains.
+- **Game over a three-level takeout double** (2026-11-04; the user's deal).
+  3♥ P P X P with ♠KJT94 ♥AQ7 ♦8 ♣8542: West bid 3♠ and 4♠ made. GIB has no
+  note here, so `_advance_double` answers, and its 8+ jump is moot when the
+  cheapest answer is already at the three level: 0 HCP and 12 bid the same
+  3♠. In the championship archives an advancer over a doubled three-level
+  pre-empt, with a five-card unbid major and 8-10 HCP, bid 4M 16 times in 19
+  and 3M never (four cards: 3M 11, 4M 6, a cuebid 5). `ADVANCE_GAME_POINTS =
+  9` (HCP + length, so 8 HCP and the fifth card) and `ADVANCE_GAME_LEN = 5`:
+  bid four of the major wherever its cheapest answer is the three level
+  (after 2♠ X P too). Alert "9+ points, 5+ ♠. Game over the double." Fresh
+  deals, seeds 7M/8M/9M, 10,000 each: 9 points **+0.06, +0.04, +0.06** (t =
+  +2.6, +1.6, +2.5, about 38 auctions a set); 10 points +0.04, +0.02, +0.05;
+  11 points +0.05, +0.01, +0.05. The user's request, an exception to staying
+  low; 9 picked (`/mnt/project-files/advance-3level-x/`).
 
 ## The previous system (`ai.USE_GIB = False`)
 

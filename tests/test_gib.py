@@ -1344,3 +1344,17 @@ def test_advancer_names_a_long_suit_with_a_jump():
     assert bid('KS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 7D 2D', '1C', '1D', '1S', dealer='South')[0] == '3H'
     # Too weak (3 HCP): pass, as before.
     assert bid('JS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 7D 2D', '1C', '1D', '1S', dealer='South')[0] == 'Pass'
+
+
+def test_advancer_bids_game_over_a_three_level_takeout_double():
+    # The user's deal, 2026-11-04: 3♥ P P X P, West ♠KJT94 ♥AQ7 ♦8 ♣8542
+    # (10 HCP, 11 points) bid 3♠, the call 0 HCP makes too. Game.
+    west = 'KS JS 10S 9S 4S AH QH 7H 8D 8C 5C 4C 2C'
+    call, why = bid(west, '3H', 'Pass', 'Pass', 'X', 'Pass', dealer='South')
+    assert call == '4S' and why.startswith('9+ points, 5+')
+    assert bid(west, '3H', 'X', 'Pass', dealer='East')[0] == '4S'
+    # Weak (7 points): still the cheapest answer. Four spades only: 3♠.
+    assert bid('KS JS 10S 9S 4S 9H 7H 3H 8D 8C 5C 4C 2C',
+               '3H', 'X', 'Pass', dealer='East')[0] == '3S'
+    assert bid('KS JS 10S 9S AH QH 7H 3H 8D 8C 5C 4C 2C',
+               '3C', 'X', 'Pass', dealer='East')[0] in ('3S', '3H')

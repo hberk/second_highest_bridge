@@ -407,6 +407,13 @@ TAKEOUT_POINTS_2 = 14          # guide: X over a 2-level opening
 TAKEOUT_MAX_THEIRS = 2         # guide: 2 or fewer cards in their suit
 TAKEOUT_MIN_ELSEWHERE = 3      # guide: 3-4 cards in every other suit
 ADVANCE_JUMP_POINTS = 8        # guide: 0-7 cheapest, 8-12 a level higher
+#: Partner's takeout double of a three-level preempt (3♥ X P, or 3♥ P P X P):
+#: the cheapest answer, 3♠, is made on nothing, so a hand with values and a
+#: five-card major bids game itself. Championship advancers with a five-card
+#: unbid major and 8-10 HCP bid 4M 16 times in 19, 3M never. ADVANCE_GAME_POINTS
+#: is in `_points` (HCP + length); None turns it off.
+ADVANCE_GAME_POINTS = 9
+ADVANCE_GAME_LEN = 5
 
 # The guide's opener-rebid tiers. Partner passing has already denied a response,
 # so these decide whether to speak again at all, not how high to go.
@@ -636,6 +643,9 @@ def _advance_double(player: str, partner: str, auction: AuctionState, ev: dict,
             return f"{ADVANCE_JUMP_POINTS}+ points, longest suit, {sym}. Answering the double."
         return f"Longest suit other than theirs, {sym}. Answering the double."
 
+    game = _advance_game(theirs, groups, pts, legal)
+    if game:
+        return game
     call = _cheapest(best, start, legal)
     if call and parse_bid(call)[0] <= max(ceiling, PARTSCORE_LEVEL):
         return call, answer(call)
@@ -656,6 +666,24 @@ def _advance_double(player: str, partner: str, auction: AuctionState, ev: dict,
     if call:
         return call, answer(call)
     return 'Pass', "No legal suit to answer the double."
+
+
+def _advance_game(theirs: str | None, groups: dict, pts: int,
+                  legal: list[str]) -> tuple | None:
+    """Game in a major over partner's takeout double of a three-level bid."""
+    if ADVANCE_GAME_POINTS is None or pts < ADVANCE_GAME_POINTS:
+        return None
+    majors = [s for s in ('S', 'H') if s != theirs
+              and len(groups[s]) >= ADVANCE_GAME_LEN]
+    if not majors:
+        return None
+    m = max(majors, key=lambda s: (len(groups[s]), s == 'S'))
+    # Only where the cheapest answer is the three level: game is then a call
+    # of its own, not the only way to name the suit (3♠ X P: 4♥ is cheapest).
+    if _cheapest(m, 1, legal) != f"3{m}" or f"4{m}" not in legal:
+        return None
+    return f"4{m}", (f"{ADVANCE_GAME_POINTS}+ points, {ADVANCE_GAME_LEN}+ "
+                     f"{SUIT_SYM[m]}. Game over the double.")
 
 
 def _rebid_alone(player: str, auction: AuctionState, ev: dict, groups: dict,

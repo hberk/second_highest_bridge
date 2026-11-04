@@ -126,6 +126,9 @@ export const TAKEOUT_POINTS_2 = 14;
 export const TAKEOUT_MAX_THEIRS = 2;
 export const TAKEOUT_MIN_ELSEWHERE = 3;
 export const ADVANCE_JUMP_POINTS = 8;
+// Game in a five-card major over partner's takeout double of a three-level bid.
+export const ADVANCE_GAME_POINTS: number | null = 9;
+export const ADVANCE_GAME_LEN = 5;
 export const REBID_MINIMUM = 12;
 export const REBID_LENGTH = 6;
 // From this level up a lone rebid needs the sixth card, so it shows six.
@@ -354,12 +357,27 @@ function advanceDouble(player: Seat, auction: AuctionState, ev: HandEval, groups
       : `Longest suit other than theirs, ${sym}. Answering the double.`;
   };
 
+  const game = advanceGame(theirs, groups, pts, legal);
+  if (game) return game;
   let call = cheapest(best, start, legal);
   if (call && levelOf(call) <= Math.max(ceiling, PARTSCORE_LEVEL)) return [call, answer(call)];
   call = lowest;
   if (call && strong) return [call, answer(call)];
   if (call) return [call, answer(call)];
   return ['Pass', 'No legal suit to answer the double.'];
+}
+
+function advanceGame(theirs: string | null, groups: Groups, pts: number,
+  legal: string[]): Decision | null {
+  if (ADVANCE_GAME_POINTS === null || pts < ADVANCE_GAME_POINTS) return null;
+  const majors = (['S', 'H'] as Suit[]).filter((s) => s !== theirs
+    && groups[s].length >= ADVANCE_GAME_LEN);
+  if (!majors.length) return null;
+  // Longer major; spades on a tie (the Python's max over [S, H]).
+  const m = majors.length === 2 && groups.H.length > groups.S.length ? 'H' : majors[0];
+  // Only where the cheapest answer is the three level (3♠ X P: 4♥ is cheapest).
+  if (cheapest(m, 1, legal) !== `3${m}` || !legal.includes(`4${m}`)) return null;
+  return [`4${m}`, `${ADVANCE_GAME_POINTS}+ points, ${ADVANCE_GAME_LEN}+ ${SUIT_SYM[m]}. Game over the double.`];
 }
 
 function rebidAlone(player: Seat, auction: AuctionState, ev: HandEval, groups: Groups,
