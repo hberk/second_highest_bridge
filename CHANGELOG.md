@@ -6,6 +6,27 @@ Releases are tagged on main, and the tag matches the version in
 what it was measured to be worth is in
 [docs/ROBOT_PROGRESS.md](docs/ROBOT_PROGRESS.md).
 
+## v0.1.1-alpha (2026-11-04)
+
+The Nov 4 fixes from played boards and the gap analysis, measured together
+at +1.18 points a board against v0.1.0-alpha (3 x 1,000 fresh deals).
+
+**The robots**
+- A suit doubled and passed round is passed, never rebid; every lone rebid of
+  one's own suit shows six cards.
+- No penalty double of a part score once an opponent has shown 20+.
+- Opener's raise beside a support double is alerted as 4+ cards.
+- A five-card fit bids game at once over partner's simple major overcall, at
+  any vulnerability; nobody competes past the six level.
+- Advancer bids game in a five-card major over a three-level takeout double
+  with 9+ points.
+- Our cuebids over their Unusual 2NT are answered; advancer picks a minor
+  after our 4M/4NT minors over their weak two.
+- The doubler answers partner's responsive double; the suit their transfer shows is
+  ours to bid only with 6+ cards and 12+ HCP.
+- Measured and left as is: a five-card two-level overcall needs no particular
+  suit quality.
+
 ## v0.1.0-alpha (2026-11-03)
 
 The first tagged release: everything up to and including PR #62.

@@ -294,7 +294,10 @@ from the variant's side; t as above.
 | 11-04 | Answers to responder's cuebids over their Unusual 2NT: opener signs off or bids game, responder bids game on 13+ (`UNUSUAL_CUE_REPLY`; the user's board, 1♠ (2NT) 3♣ passed for -200); seed 41M, 20,000 fresh deals (`/mnt/project-files/unusual-cue/`) | **+0.15** | +5.02 | 85 (63 better, 16 worse) | on (bug fix, your pick) |
 | 11-04 | Advancer picks a minor after our 4M / 4NT (both minors) over their weak two, which were passed (`WEAK_TWO_MINORS_ADVANCE`); the same deals | **+0.21** | +6.42 | 97 (73 better, 10 worse) | on (your pick) |
 | 11-04 | ...both together / our calls over their 1NT read as the defence only when straight over it (`NT_ADVANCE_DIRECT_ONLY`) | **+0.36** / -0.09 | +8.12 / -3.29 | 182 / 89 | on / removed |
-| 11-04 | **The Nov 4 fixes together** (every 11-04 row above that is on), against all of them off (which bids 2,000 of 2,000 auctions exactly as main); seeds 7M, 8M, 9M, 1,000 fresh deals each (`/mnt/project-files/nov4-combined/REPORT.md`, with each fix taken out on top of the rest: none turns negative except the penalty stop, which cost a little alone too) | +0.24, +1.68, +1.58 (mean **+1.17**) | +0.45, +3.20, +2.61 | 244, 217, 237 | on |
+| 11-04 | The doubler answers partner's responsive double, (1x) X (2x) X (P): the better of the two unbid suits at its cheapest level, never a pass (`RESPONSIVE_ANSWER`; the gap analysis: the fallback read it as penalty); seeds 14M, 15M, 10,000 fresh deals each (`/mnt/project-files/responsive-answer/`) | **+0.07, +0.04** | +2.59, +0.84 | 24, 39 | on (your pick) |
+| 11-04 | Their artificial bid shows the suit it shows, not its strain: over 1NT P 2♦ (a transfer) diamonds are ours, but only to 6+ cards and 12+ HCP (`THEIR_SHOWN_SUITS`, `SHOWN_SUIT_LEN`, `SHOWN_SUIT_HCP`; the gap analysis and the user's rule); seeds 14M, 15M, 10,000 fresh deals each (`/mnt/project-files/their-transfer/`) | +0.00, +0.01 | 0, +1.02 | 0, 3 | on (your rule) |
+| 11-04 | ...for every hand / only in the pass-out seat / at 14+ HCP | -0.04 / -0.02 / 0.00 | -1.31 / -0.94 / 0 | 45 / 4 / 0 | off (a direct 3♦ over the transfer went for 1,470) |
+| 11-04 | **The Nov 4 fixes together (v0.1.1-alpha)**: every 11-04 row above that is on, the gap analysis's two included, against all of them off (which bids 2,000 of 2,000 auctions exactly as main); seeds 7M, 8M, 9M, 1,000 fresh deals each (`/mnt/project-files/nov4-combined/REPORT.md`, with each fix taken out on top of the rest: none turns negative except the penalty stop, which cost a little alone too) | +0.24, +2.15, +1.14 (mean **+1.18**) | +0.46, +3.64, +1.87 | 245, 220, 243 | on |
 
 ### The previous system (`ai_bid`)
 
@@ -310,9 +313,6 @@ first commit (2026-10-03):
 | A lone rebid is no longer clamped to the partscore | **+3.6** | +2.92 | 26 of 300 |
 | A length bonus of 0.25 a trump past the fourth | **+5.8** | +2.40 | |
 | The UMD system card, all of it, against the pre-card AI | **+13.3** | +3.92 | 153 of 300 |
-| 11-04 | The doubler answers partner's responsive double, (1x) X (2x) X (P): the better of the two unbid suits at its cheapest level, never a pass (`RESPONSIVE_ANSWER`; the gap analysis: the fallback read it as penalty); seeds 14M, 15M, 10,000 fresh deals each (`/mnt/project-files/responsive-answer/`) | **+0.07, +0.04** | +2.59, +0.84 | 24, 39 | on (your pick) |
-| 11-04 | Their artificial bid shows the suit it shows, not its strain: over 1NT P 2♦ (a transfer) diamonds are ours, but only to 6+ cards and 12+ HCP (`THEIR_SHOWN_SUITS`, `SHOWN_SUIT_LEN`, `SHOWN_SUIT_HCP`; the gap analysis and the user's rule); seeds 14M, 15M, 10,000 fresh deals each (`/mnt/project-files/their-transfer/`) | +0.00, +0.01 | 0, +1.02 | 0, 3 | on (your rule) |
-| 11-04 | ...for every hand / only in the pass-out seat / at 14+ HCP | -0.04 / -0.02 / 0.00 | -1.31 / -0.94 / 0 | 45 / 4 / 0 | off (a direct 3♦ over the transfer went for 1,470) |
 
 ## Adding a row
 
