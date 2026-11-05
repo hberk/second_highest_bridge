@@ -2063,11 +2063,12 @@ def _located_suit_plan(player: str, hand: list[Card], legal: list[Card],
 #: picks the ace on the user's board and measured +0.081 and +0.059.
 SECOND_HAND_COVER = True
 #: ...and also when dummy led, declarer third and partner last, both unseen
-#: (measurement switch): the suit is played out over the layouts of its unseen
+#: (measurement switch; seated +0.045 and +0.051 tricks a board, library and
+#: fresh deals, gross defence mistakes 2.41 -> 2.29): the suit is played out over the layouts of its unseen
 #: cards between declarer and partner. On a user's board dummy led the 9♣ to
 #: East's K T 7 4 3 over declarer's A Q 8 5 2: the T saves two tricks double
 #: dummy, and `_middle_play` played the 3.
-SECOND_HAND_COVER_DUMMY_LED = False
+SECOND_HAND_COVER_DUMMY_LED = True
 
 
 def _unseen_partner_plan(player: str, hand: list[Card], cards: list[Card],

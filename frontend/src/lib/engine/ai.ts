@@ -1218,7 +1218,8 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     choice = coverForPartner(player, hand, legal, trick, trump, played, visible, choice, history, shown);
   }
   else if (SECOND_HAND_COVER && trick.length === 1 && Object.keys(visible).length && legal.length > 1
-    && PLAYERS[(PLAYERS.indexOf(player) + 1) % 4] in visible) {
+    && (PLAYERS[(PLAYERS.indexOf(player) + 1) % 4] in visible
+      || (SECOND_HAND_COVER_DUMMY_LED && trick[0][0] in visible && !(player in visible)))) {
     choice = coverUnseenPartner(player, hand, legal, trick, trump, played, visible, history, choice, shown);
   }
 
@@ -1429,6 +1430,8 @@ function locatedSuitPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPl
 // ── Second hand, dummy third and partner last, unseen (see ai.py) ───────────
 
 export const SECOND_HAND_COVER = true;
+/** ...and also when dummy led, declarer third and partner last (see ai.py). */
+export const SECOND_HAND_COVER_DUMMY_LED = true;
 
 /** Our tricks in the led suit after each of `cards`, summed over the layouts of
  *  its unseen cards between partner and declarer, or null (see ai.py `_unseen_partner_plan`). */
@@ -1440,8 +1443,10 @@ function unseenPartnerPlan(player: Seat, hand: Card[], cards: Card[], trick: Any
   if (history === null || cards.some((c) => c.suit !== led)) return null;
   const i = PLAYERS.indexOf(player);
   const seat = (p: Seat) => (PLAYERS.indexOf(p) - i + 4) % 4;
-  const left = PLAYERS[(i + 1) % 4], right = PLAYERS[(i + 3) % 4];
-  if (!(left in visible) || right in visible || partner in visible) return null;
+  const left = PLAYERS[(i + 1) % 4];
+  if (partner in visible || (left in visible) === (PLAYERS[(i + 3) % 4] in visible)) return null;
+  const [shownSeat, right] = left in visible
+    ? [left, PLAYERS[(i + 3) % 4]] : [PLAYERS[(i + 3) % 4], left];
   const seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
   for (const cs of Object.values(visible)) for (const c of cs!) seen.add(cardKey(c));
   const unseenSuit = FULL_DECK.filter((c) => c.suit === led && !seen.has(cardKey(c)))
@@ -1458,7 +1463,7 @@ function unseenPartnerPlan(player: Seat, hand: Card[], cards: Card[], trick: Any
     return [...vals, ...(d && d.suit === led ? [value(d)] : [])].sort((a, b) => a - b);
   };
   const own = held(player, hand.filter((c) => c.suit === led).map(value));
-  const dummy = held(left, visible[left]!.filter((c) => c.suit === led).map(value));
+  const dummy = held(shownSeat, visible[shownSeat]!.filter((c) => c.suit === led).map(value));
   const plays: [number, PlanCard][] = trick.map(([p, c]) => [seat(p as Seat), c.suit === led ? value(c) : null]);
   const downSeats = new Set(plays.map(([k]) => k));
   const order = [...plays.map(([k]) => k), 0, ...[1, 2, 3].filter((k) => !downSeats.has(k))];
@@ -1475,7 +1480,9 @@ function unseenPartnerPlan(player: Seat, hand: Card[], cards: Card[], trick: Any
       if (toPartner.length < floor(partner) || toRight.length < floor(right)) continue;
       const weight = choose(others, size(partner) - toPartner.length);
       if (!weight) continue;
-      const hands = [own, dummy, held(partner, toPartner), held(right, toRight)] as unknown as PlanHands;
+      const hands = (shownSeat === left
+        ? [own, dummy, held(partner, toPartner), held(right, toRight)]
+        : [own, held(right, toRight), held(partner, toPartner), dummy]) as unknown as PlanHands;
       weights += weight;
       for (const c of cards) {
         totals.set(cardKey(c), totals.get(cardKey(c))!
@@ -1495,7 +1502,10 @@ function coverUnseenPartner(player: Seat, hand: Card[], legal: Card[], trick: An
   if (legal.every((c) => c.suit === led)) {
     scores = unseenPartnerPlan(player, hand, legal, trick, trump, played, visible, history, shown);
   }
-  if (scores === null) scores = partnerChances(player, hand, legal, trick, trump, played, visible, history);
+  if (scores === null) {
+    if (!(PLAYERS[(PLAYERS.indexOf(player) + 1) % 4] in visible)) return choice;
+    scores = partnerChances(player, hand, legal, trick, trump, played, visible, history);
+  }
   const best = Math.max(...scores.values());
   if (scores.get(cardKey(choice))! >= best - 1e-9) return choice;
   return minBy(legal.filter((c) => scores!.get(cardKey(c))! >= best - 1e-9), (c) => [value(c)]);

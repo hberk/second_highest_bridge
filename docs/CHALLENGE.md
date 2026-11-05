@@ -602,6 +602,23 @@ West declaring led the T♠ at trick 7, North held ♠A J 8 3, dummy ♠9 6).
   and a margin before changing the card (`/mnt/project-files/second-hand-cover/`,
   `REPORT.md`). `tests/test_card_play_rules.py` holds the board.
 
+**...and when dummy led** (2026-11-05, the user's board: trick 3, dummy led
+the 9♣, East held ♣K T 7 4 3 over declarer's unseen ♣A Q 8 5 2, partner ♣J 6).
+
+- East played the 3, which gives away two tricks double dummy; the T was best.
+  The cover above only ran with dummy third, so with dummy leading,
+  `_middle_play` judged the card against declarer alone and ducked.
+- `ai.SECOND_HAND_COVER_DUMMY_LED`: the same suit plan (`_unseen_partner_plan`)
+  with dummy the leader, declarer third and partner last, the suit's unseen
+  cards laid out between declarer and partner. No `_partner_chances` fallback:
+  where the plan doesn't apply, the old card stands. On the board it plays the T.
+- Seated head to head: library **+0.045 tricks, t = +2.53, +5.3 points**;
+  400 fresh deals (seed 1105) **+0.051, t = +2.81, +6.4 points**; about 1,370
+  boards changed of 6,350. Mistakes added up, 199 deals: declaring side 2.74 ->
+  2.66, opening lead 0.40 -> 0.40, defence after the lead 2.41 -> 2.29
+  (`/mnt/project-files/dummy-led-cover/`). `tests/test_card_play_rules.py`
+  holds the board.
+
 **Every card of the suit located** (2026-11-04, the user's 4♥: trick 5, South
 led the 8♥, West showed out, dummy's 9♥ won whatever East played; East ♥T5,
 dummy ♥42, South ♥AQ6).
