@@ -589,6 +589,28 @@ West declaring led the T♠ at trick 7, North held ♠A J 8 3, dummy ♠9 6).
   and a margin before changing the card (`/mnt/project-files/second-hand-cover/`,
   `REPORT.md`). `tests/test_card_play_rules.py` holds the board.
 
+**Every card of the suit located** (2026-11-04, the user's 4♥: trick 5, South
+led the 8♥, West showed out, dummy's 9♥ won whatever East played; East ♥T5,
+dummy ♥42, South ♥AQ6).
+
+- East played the 5: `_play_last` dumps the lowest card when nothing keeps the
+  trick. The 5, between South's honour and dummy's small heart, is always
+  second-highest later; the ten can be beaten by South's six. Once the other
+  hidden hand has shown out, every card of the suit is placed.
+- `ai.LOCATED_SUIT_PLAN` (`_located_suit_plan`): second, third and fourth hand,
+  following suit, with every card of the led suit located (the hand, the
+  visible hands, and one hidden hand that hasn't shown out holding the rest),
+  play the suit out exactly (`_plan_trick`, this trick included) and play the
+  card that takes the most tricks in it; the old card when it ties, else the
+  lowest of the best. 1 = the trump suit or notrump only (nobody can ruff), 2 =
+  any suit with later ruffs ignored, 0 off. Shipped at 1.
+- Seated head to head, 3 × 1,000 fresh deals (seeds 1104-1106): **+0.016,
+  +0.014, +0.010 tricks a board, t = +3.74, +3.63, +3.53; +2.3, +1.7, +1.6
+  points**; about 300 of 15,800 boards changed. Any suit (2) on seed 1104:
+  +0.019, t = +3.93, +2.6 points, 521 boards; not finished on the other seeds
+  (`/mnt/project-files/located-suit/`). `tests/test_card_play_rules.py` holds
+  the board.
+
 **A cuebid raise that forces the three level needs four trumps or 12+
 judgement points** (`gib.CUE_LIMIT_AT_3`), a small tightening of GIB's "limit
 raise or better"; weaker hands with three trumps raise to the two level. The
