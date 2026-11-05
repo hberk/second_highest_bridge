@@ -1747,7 +1747,9 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                                     visible, choice, history, shown)
 
     elif (SECOND_HAND_COVER and len(trick) == 1 and visible and len(legal) > 1
-            and PLAYERS[(PLAYERS.index(player) + 1) % 4] in visible):
+            and (PLAYERS[(PLAYERS.index(player) + 1) % 4] in visible
+                 or (SECOND_HAND_COVER_DUMMY_LED
+                     and trick[0][0] in visible and player not in visible))):
         choice = _cover_unseen_partner(player, hand, legal, trick, trump, played,
                                        visible, history, choice, shown)
 
@@ -2060,6 +2062,12 @@ def _located_suit_plan(player: str, hand: list[Card], legal: list[Card],
 #: +0.041 tricks a board seated (library, fresh deals); playing the suit out
 #: picks the ace on the user's board and measured +0.081 and +0.059.
 SECOND_HAND_COVER = True
+#: ...and also when dummy led, declarer third and partner last, both unseen
+#: (measurement switch): the suit is played out over the layouts of its unseen
+#: cards between declarer and partner. On a user's board dummy led the 9♣ to
+#: East's K T 7 4 3 over declarer's A Q 8 5 2: the T saves two tricks double
+#: dummy, and `_middle_play` played the 3.
+SECOND_HAND_COVER_DUMMY_LED = False
 
 
 def _unseen_partner_plan(player: str, hand: list[Card], cards: list[Card],
@@ -2077,8 +2085,9 @@ def _unseen_partner_plan(player: str, hand: list[Card], cards: list[Card],
     i = PLAYERS.index(player)
     seat = {PLAYERS[(i + k) % 4]: k for k in range(4)}
     left, right = PLAYERS[(i + 1) % 4], PLAYERS[(i + 3) % 4]
-    if left not in visible or right in visible or partner in visible:
+    if partner in visible or (left in visible) == (right in visible):
         return None
+    shown_seat, right = (left, right) if left in visible else (right, left)
     seen = set(played) | {c for _, c in trick} | set(hand)
     for cs in visible.values():
         seen |= set(cs)
@@ -2098,7 +2107,7 @@ def _unseen_partner_plan(player: str, hand: list[Card], cards: list[Card],
         return tuple(sorted(tuple(vals) + extra))
 
     own = held(player, (c.value() for c in hand if c.suit == led))
-    dummy = held(left, (c.value() for c in visible[left] if c.suit == led))
+    dummy = held(shown_seat, (c.value() for c in visible[shown_seat] if c.suit == led))
     plays = [(seat[p], c.value() if c.suit == led else None) for p, c in trick]
     order = [seat[p] for p, _ in trick] + [0] + [k for k in range(1, 4)
                                                  if k not in {seat[p] for p, _ in trick}]
@@ -2120,7 +2129,9 @@ def _unseen_partner_plan(player: str, hand: list[Card], cards: list[Card],
             weight = _choose(others, size[partner] - len(to_partner))
             if not weight:
                 continue
-            hands = (own, dummy, held(partner, to_partner), held(right, to_right))
+            hands = ((own, dummy, held(partner, to_partner), held(right, to_right))
+                     if shown_seat == left else
+                     (own, held(right, to_right), held(partner, to_partner), dummy))
             weights += weight
             for c in cards:
                 totals[c] += weight * _plan_trick(hands, ruffs, plays + [(0, c.value())],
@@ -2141,6 +2152,8 @@ def _cover_unseen_partner(player: str, hand: list[Card], legal: list[Card],
         scores = _unseen_partner_plan(player, hand, legal, trick, trump, played, visible,
                                       history, shown)
     if scores is None:
+        if PLAYERS[(PLAYERS.index(player) + 1) % 4] not in visible:
+            return choice
         scores = _partner_chances(player, hand, legal, trick, trump, played, visible, history)
     best = max(scores.values())
     if scores[choice] >= best - 1e-9:
