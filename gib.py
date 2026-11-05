@@ -4635,7 +4635,7 @@ def they_opened(ctx: Ctx) -> tuple | None:
         return 'Pass', "My double showed my suit, for the lead."
     if _was_lead_double(ctx, ctx.pd) and not mine:
         return 'Pass', "Partner's double asks for a lead."
-    responsive = _answer_responsive(ctx)
+    responsive = _answer_responsive(ctx) or _responsive_game(ctx)
     if responsive:
         return responsive
     if DOUBLE_THEN_SUIT:
@@ -4727,6 +4727,29 @@ def _answer_responsive(ctx: Ctx) -> tuple | None:
     if not call or level_of(call) > 4:
         return None
     return call, f"Answering the responsive double, {SYM[s]}."
+
+
+#: My responsive double, partner's answer in a major I hold four of: game
+#: with RESPONSIVE_GAME_HCP+ (None: off), whether they compete or not. The
+#: responsive double shows 8+ HCP, so partner's minimum answer can't bid it.
+RESPONSIVE_GAME_HCP: int | None = 11
+
+
+def _responsive_game(ctx: Ctx) -> tuple | None:
+    if RESPONSIVE_GAME_HCP is None or ctx.mine() != ['X'] or len(ctx.partners()) != 2 \
+            or ctx.partners()[0] != 'X' or not _takeout_doubler(ctx, ctx.pd):
+        return None
+    mine = max(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.me)
+    answer = max(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.pd)
+    if answer < mine:
+        return None
+    s = strain_of(ctx.calls[answer][1])
+    if s not in MAJORS or ctx.h.len[s] < 4 or ctx.h.hcp < RESPONSIVE_GAME_HCP:
+        return None
+    game = f"4{s}"
+    if not ctx.ok(game):
+        return None
+    return game, f"4+ {SYM[s]}, {RESPONSIVE_GAME_HCP}+ HCP. Game after the responsive double."
 
 
 def _takeout_doubler(ctx: Ctx, seat: str) -> bool:

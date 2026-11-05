@@ -463,6 +463,20 @@ def test_answer_to_responsive_double_is_not_raised_to_game():
         gib.DOUBLER_SUIT_NOT_ANSWER = True
 
 
+def test_responsive_doubler_bids_game_with_extras():
+    # (1S) P (P) X (2S) X (P) 3H (3S): the responsive doubler with 11+ HCP and
+    # four of partner's answered major bids game, even over their competition.
+    calls = ('1S', 'Pass', 'Pass', 'X', '2S', 'X', 'Pass', '3H', '3S')
+    east = 'JS 8S 5S AH KH QH 7H QD 8D 7D 2D JC 9C'
+    call, why = bid(east, *calls, dealer='North')
+    assert call == '4H' and why.startswith('4+ ')
+    gib.RESPONSIVE_GAME_HCP = None
+    try:
+        assert bid(east, *calls, dealer='North')[0] == 'Pass'
+    finally:
+        gib.RESPONSIVE_GAME_HCP = 11
+
+
 def test_keycard_answer_then_they_bid():
     # 1H 2NT 4H 4NT 5C (5D): with four keycards opposite 0/3 none is missing,
     # so the slam is bid over their bid; with two, two are missing: double.

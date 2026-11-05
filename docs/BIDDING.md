@@ -58,6 +58,12 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     `_answer_responsive`): (1x) X (2x) X (P) bids the better of the two
     unbid suits partner showed, at its cheapest level; `doubler_guard` lets
     it through like an answer to a cuebid. +0.07 and +0.04 a board.
+    That answer is not the 18+ double-then-suit (`DOUBLER_SUIT_NOT_ANSWER`,
+    the user's deal, 2026-11-05: 1♦ P 1♥ X 2♥ X P 2♠ P 4♠ on an 8-count,
+    read as 18+ opposite): flat, -0.01, +0.02, -0.02. Instead the responsive
+    doubler bids 4M itself on four of the answered major and 11+ HCP
+    (`RESPONSIVE_GAME_HCP`, `_responsive_game`), even over their bid: +0.06,
+    +0.00, +0.01 (15 auctions in 30,000 deals; 12+ and 13+ fewer, also up).
   - **Their artificial bid shows its shown suit** (`THEIR_SHOWN_SUITS` in
     `_their_suits`): over 1NT P 2♦, diamonds are not theirs, but only to a
     hand that can bid them at the three level, 6+ cards and 12+ HCP

@@ -4216,7 +4216,7 @@ function theyOpened(ctx: Ctx): Decision | null {
   const partners = ctx.partners();
   if (wasLeadDouble(ctx, ctx.me) && !partners.length) return ['Pass', 'My double showed my suit, for the lead.'];
   if (wasLeadDouble(ctx, ctx.pd) && !mine.length) return ['Pass', "Partner's double asks for a lead."];
-  const responsive = answerResponsive(ctx);
+  const responsive = answerResponsive(ctx) ?? responsiveGame(ctx);
   if (responsive) return responsive;
   if (DOUBLE_THEN_SUIT) {
     const s = doublerSuit(ctx, ctx.pd);
@@ -4296,6 +4296,26 @@ function answerResponsive(ctx: Ctx): Decision | null {
   const call = ctx.cheapest(s, 1);
   if (!call || levelOf(call) > 4) return null;
   return [call, `Answering the responsive double, ${SYM[s]}.`];
+}
+
+/** My responsive double, partner's answer in a major I hold four of: game
+ *  with RESPONSIVE_GAME_HCP+ (null: off), whether they compete or not. */
+export const RESPONSIVE_GAME_HCP: number | null = 11;
+
+function responsiveGame(ctx: Ctx): Decision | null {
+  const partners = ctx.partners();
+  const mine = ctx.mine();
+  if (RESPONSIVE_GAME_HCP === null || mine.length !== 1 || mine[0] !== 'X'
+      || partners.length !== 2 || partners[0] !== 'X' || !takeoutDoubler(ctx, ctx.pd)) return null;
+  let me = -1;
+  let answer = -1;
+  ctx.calls.forEach(([w], i) => { if (w === ctx.me) me = i; if (w === ctx.pd) answer = i; });
+  if (answer < me) return null;
+  const s = strainOf(ctx.calls[answer][1]);
+  if (!isSuit(s) || !MAJORS.includes(s) || ctx.h.len[s] < 4 || ctx.h.hcp < RESPONSIVE_GAME_HCP) return null;
+  const game = `4${s}`;
+  if (!ctx.ok(game)) return null;
+  return [game, `4+ ${SYM[s]}, ${RESPONSIVE_GAME_HCP}+ HCP. Game after the responsive double.`];
 }
 
 function takeoutDoubler(ctx: Ctx, seat: Seat): boolean {
