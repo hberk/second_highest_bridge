@@ -911,6 +911,9 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
         if call != 'Pass':
             why = _contest_alert(player, auction, call,
                                  f"{SUPPORT_LENGTH}+ {SUIT_SYM[p_strain]} support, agreeing the suit.")
+            if (gib.SUPPORT_XX and auction.doubled == 'X' and parse_bid(call)[1] == p_strain
+                    and gib.support_x_raise(auction.calls, player, p_strain)):
+                why = gib.support_x_raise_alert(p_strain)
         return call, why
 
     if p_strain == my_first:
