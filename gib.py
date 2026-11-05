@@ -2295,8 +2295,10 @@ def support_x_raise(calls: list, player: str, s: str) -> bool:
     if (len(ours) != 2 or ours[0][0] != player or ours[1][0] != pd
             or level_of(ours[0][1]) != 1 or strain_of(ours[0][1]) not in SUITS
             or level_of(ours[1][1]) != 1 or strain_of(ours[1][1]) != s
-            or last_who in (player, pd) or not level_of(last)
-            or rank_of(last) > rank_of('2H')):
+            or last_who in (player, pd)
+            or not (level_of(last) and rank_of(last) <= rank_of('2H')
+                    or SUPPORT_XX and last == 'X'
+                    and [c for w, c in calls if w not in (player, pd) and c != 'Pass'] == ['X'])):
         return False
     return True
 
@@ -2872,6 +2874,9 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
         lead = _lead_double(ctx)
         if lead:
             return lead
+    sxx = _support_redouble(ctx) or _after_support_pass(ctx)
+    if sxx:
+        return sxx
     hb = ctx.auction.highest_bid
     if (ctx.i_am_opener() and level_of(first) == 1 and len(seq) == 1 and not artificial
             and h.hcp >= 18 and ctx.ok('X') and hb and hb[2] not in (ctx.me, ctx.pd)):
@@ -2884,6 +2889,48 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
                 and ctx.calls[-1][1] == lb):
             return 'X', f"Support double: exactly 3 {SYM[y]}."
     return _rebid_over_their_overcall(ctx)
+
+
+#: Support redouble (the user's board, 2026-11-04): after 1x (P) 1y (X),
+#: opener redoubles with exactly three of y, so a raise of y shows four and
+#: any other call denies three. Responder answers it as a support double.
+SUPPORT_XX = True
+
+
+def _support_redouble(ctx: Ctx) -> tuple | None:
+    seq = ctx.seq
+    if (not SUPPORT_XX or not ctx.i_am_opener() or len(seq) != 2
+            or level_of(seq[0]) != 1 or level_of(seq[1]) != 1
+            or [c for _, c in ctx.theirs] != ['X'] or ctx.calls[-1][1] != 'X'
+            or ctx.ours[1][0] != ctx.pd):
+        return None
+    y = strain_of(seq[1])
+    if y in SUITS and strain_of(seq[0]) in SUITS and ctx.h.len[y] == 3 and ctx.ok('XX'):
+        return 'XX', f"Support redouble: exactly 3 {SYM[y]}."
+    return None
+
+
+#: ...and when they bid over it and partner passes (no five, SUPPORT_X_FREE),
+#: the fit is seven cards: opener with three and a minimum passes too.
+#: 'xx' after the support redouble only, 'both' after the double too, None off.
+SUPPORT_X_PASS: str | None = 'xx'
+SUPPORT_X_PASS_HCP = 15
+
+
+def _after_support_pass(ctx: Ctx) -> tuple | None:
+    seq = ctx.seq
+    if (not SUPPORT_X_PASS or not SUPPORT_X_FREE or not ctx.i_am_opener() or len(seq) != 3
+            or seq[2] not in (('XX',) if SUPPORT_X_PASS == 'xx' else ('X', 'XX'))
+            or level_of(seq[0]) != 1 or level_of(seq[1]) != 1 or ctx.ours[2][0] != ctx.me):
+        return None
+    y = strain_of(seq[1])
+    at = max(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.me and c == seq[2])
+    after = ctx.calls[at + 1:]
+    if (y not in SUITS or len(after) != 3 or not level_of(after[0][1])
+            or after[1][1] != 'Pass' or after[2][1] != 'Pass'
+            or ctx.h.len[y] != 3 or ctx.h.hcp >= SUPPORT_X_PASS_HCP):
+        return None
+    return 'Pass', f"No fifth {SYM[y]} opposite."
 
 
 #: Opener after 1x (P) 1y (2z): a new suit shows extras; 2NT is 18-19.
@@ -3278,7 +3325,7 @@ SUPPORT_X_FREE = 5
 def _after_support_double(ctx: Ctx) -> tuple | None:
     """Partner (opener) showed exactly three of my suit with a double."""
     seq = ctx.seq
-    if (ctx.i_am_opener() or len(seq) != 3 or seq[2] != 'X'
+    if (ctx.i_am_opener() or len(seq) != 3 or seq[2] not in ('X', 'XX')
             or ctx.ours[2][0] != ctx.pd or level_of(seq[1]) != 1):
         return None
     y = strain_of(seq[1])

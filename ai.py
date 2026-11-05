@@ -902,7 +902,8 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
         if choice:
             return choice
 
-    if p_strain in SUITS and len(groups[p_strain]) >= SUPPORT_LENGTH:
+    if p_strain in SUITS and len(groups[p_strain]) >= SUPPORT_LENGTH \
+            and not _thin_minor_raise(partner, auction, groups, p_strain):
         held = len(groups[p_strain])
         promise = _partner_promise(player, partner, auction, p_strain)
         combined = _with_shortness(ev['suit_pts'][p_strain] + promise, groups, p_strain)
@@ -910,6 +911,9 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
         if call != 'Pass':
             why = _contest_alert(player, auction, call,
                                  f"{SUPPORT_LENGTH}+ {SUIT_SYM[p_strain]} support, agreeing the suit.")
+            if (gib.SUPPORT_XX and auction.doubled == 'X' and parse_bid(call)[1] == p_strain
+                    and gib.support_x_raise(auction.calls, player, p_strain)):
+                why = gib.support_x_raise_alert(p_strain)
         return call, why
 
     if p_strain == my_first:
@@ -928,6 +932,26 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
             why = f"6+ {SUIT_SYM[best_suit]}, rebidding the suit."
         return call, why
     return 'Pass', "No fit, nothing more to show."
+
+
+#: Partner opened one of a minor and has not bid it again: that promises
+#: three or four, so three of mine need not be a fit (the user's board,
+#: 2026-11-04: 1♦ P 1♠ X P 2♣ 2♦ on ♠QT853 ♥A863 ♦Q72 ♣T). Raise with
+#: exactly three only holding a side singleton or void. Off, three is support.
+MINOR_RAISE_SHORT = True
+
+
+def _thin_minor_raise(partner: str, auction: AuctionState, groups: dict, strain: str) -> bool:
+    """Would raising partner's one-level minor opening rest on three cards
+    and no shortness?"""
+    if not MINOR_RAISE_SHORT or strain not in ('C', 'D') or len(groups[strain]) != SUPPORT_LENGTH:
+        return False
+    if _bids_by(partner, auction) != [(1, strain)] or _first_namer(auction, strain) != partner:
+        return False
+    first = next(i for i, (w, c) in enumerate(auction.calls) if c != 'Pass')
+    if auction.calls[first][0] != partner:
+        return False
+    return min(len(cards) for s, cards in groups.items() if s != strain) > 1
 
 
 #: Partner has raised the suit I bid first (the user's boards, 2026-11-01:

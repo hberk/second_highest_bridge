@@ -2113,8 +2113,56 @@ export function supportXRaise(calls: readonly (readonly [Seat, string])[], playe
   return !(ours.length !== 2 || ours[0][0] !== player || ours[1][0] !== pd
     || levelOf(ours[0][1]) !== 1 || !isSuit(strainOf(ours[0][1]))
     || levelOf(ours[1][1]) !== 1 || strainOf(ours[1][1]) !== s
-    || lastWho === player || lastWho === pd || !levelOf(last)
-    || rankOf(last) > rankOf('2H'));
+    || lastWho === player || lastWho === pd
+    || !((levelOf(last) && rankOf(last) <= rankOf('2H'))
+      || (SUPPORT_XX && last === 'X'
+        && calls.filter(([w, c]) => w !== player && w !== pd && c !== 'Pass').length === 1)));
+}
+
+/** Support redouble (the user's board, 2026-11-04): after 1x (P) 1y (X),
+ *  opener redoubles with exactly three of y, so a raise of y shows four and
+ *  any other call denies three. Responder answers it as a support double.
+ *  See gib.py. */
+export const SUPPORT_XX = true;
+
+function supportRedouble(ctx: Ctx): Decision | null {
+  const seq = ctx.seq;
+  if (!SUPPORT_XX || !ctx.iAmOpener() || seq.length !== 2
+    || levelOf(seq[0]) !== 1 || levelOf(seq[1]) !== 1
+    || ctx.theirs.length !== 1 || ctx.theirs[0][1] !== 'X'
+    || ctx.calls[ctx.calls.length - 1][1] !== 'X' || ctx.ours[1][0] !== ctx.pd) {
+    return null;
+  }
+  const y = strainOf(seq[1]);
+  if (isSuit(y) && isSuit(strainOf(seq[0])) && ctx.h.len[y] === 3 && ctx.ok('XX')) {
+    return ['XX', `Support redouble: exactly 3 ${SYM[y]}.`];
+  }
+  return null;
+}
+
+/** ...and when they bid over it and partner passes (no five, SUPPORT_X_FREE),
+ *  the fit is seven cards: opener with three and a minimum passes too.
+ *  'xx' after the support redouble only, 'both' after the double too. */
+export const SUPPORT_X_PASS: 'xx' | 'both' | null = 'xx';
+export const SUPPORT_X_PASS_HCP = 15;
+
+function afterSupportPass(ctx: Ctx): Decision | null {
+  const seq = ctx.seq;
+  if (!SUPPORT_X_PASS || !SUPPORT_X_FREE || !ctx.iAmOpener() || seq.length !== 3
+    || !(seq[2] === 'XX' || (SUPPORT_X_PASS === 'both' && seq[2] === 'X'))
+    || levelOf(seq[0]) !== 1 || levelOf(seq[1]) !== 1 || ctx.ours[2][0] !== ctx.me) {
+    return null;
+  }
+  const y = strainOf(seq[1]);
+  let at = -1;
+  ctx.calls.forEach(([w, c], i) => { if (w === ctx.me && c === seq[2]) at = i; });
+  const after = ctx.calls.slice(at + 1);
+  if (!isSuit(y) || after.length !== 3 || !levelOf(after[0][1])
+    || after[1][1] !== 'Pass' || after[2][1] !== 'Pass'
+    || ctx.h.len[y] !== 3 || ctx.h.hcp >= SUPPORT_X_PASS_HCP) {
+    return null;
+  }
+  return ['Pass', `No fifth ${SYM[y]} opposite.`];
 }
 
 export function supportXRaiseAlert(s: Suit): string {
@@ -2604,6 +2652,8 @@ function weOpenedContested(ctx: Ctx): Decision | null {
     const lead = leadDouble(ctx);
     if (lead) return lead;
   }
+  const sxx = supportRedouble(ctx) ?? afterSupportPass(ctx);
+  if (sxx) return sxx;
   const hb = ctx.auction.highestBid;
   if (ctx.iAmOpener() && levelOf(first) === 1 && seq.length === 1 && !artificial
     && h.hcp >= 18 && ctx.ok('X') && hb && hb[2] !== ctx.me && hb[2] !== ctx.pd) {
@@ -2981,7 +3031,7 @@ export const SUPPORT_X_FREE: number | null = 5;
 
 function afterSupportDouble(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
-  if (ctx.iAmOpener() || seq.length !== 3 || seq[2] !== 'X'
+  if (ctx.iAmOpener() || seq.length !== 3 || (seq[2] !== 'X' && seq[2] !== 'XX')
     || ctx.ours[2][0] !== ctx.pd || levelOf(seq[1]) !== 1) {
     return null;
   }

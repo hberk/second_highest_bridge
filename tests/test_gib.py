@@ -366,6 +366,32 @@ def test_support_double_then_they_raise():
     assert bid('AS 10S JH 3H KD 9D 7D 2D QC 9C 5C 4C 2C', *calls, dealer='East')[0] == '3D'
 
 
+def test_support_redouble():
+    # 1D P 1S (X): exactly three spades redoubles; four raise, alerted 4+.
+    calls = ('1D', 'Pass', '1S', 'X')
+    assert bid('KS 9S 4S KH QH 5H AD 9D 5D 3D QC 8C 7C', *calls, dealer='South') == \
+        ('XX', 'Support redouble: exactly 3 ♠.')
+    assert bid('KS 9S 4S 2S KH QH 5H AD 9D 5D 3D QC 8C', *calls, dealer='South') == \
+        ('2S', '4+ ♠ support.')
+    # Responder answers it as a support double: four spades pass over their
+    # bid, five compete; opener with three and a minimum then passes.
+    four = 'QS 10S 8S 5S AH 8H 6H 3H QD 7D 2D 10C 3C'
+    assert bid(four, '1D', 'Pass', '1S', 'X', 'XX', '2C', dealer='South')[0] == 'Pass'
+    assert bid('QS 10S 8S 5S 3S AH 8H 6H QD 7D 2D 10C 3C',
+               '1D', 'Pass', '1S', 'X', 'XX', '2C', dealer='South')[0] == '2S'
+    assert bid('KS 9S 4S KH QH 5H AD 9D 5D 3D QC 8C 7C',
+               '1D', 'Pass', '1S', 'X', 'XX', '2C', 'Pass', 'Pass', dealer='South')[0] == 'Pass'
+
+
+def test_three_card_minor_raise_needs_shortness():
+    # The user's board, 2026-11-04: 1D P 1S X P 2C. Partner's 1D can be
+    # four, so three diamonds raise only with a side singleton or void.
+    calls = ('1D', 'Pass', '1S', 'X', 'Pass', '2C')
+    assert bid('QS 10S 8S 5S 3S AH 8H 6H 3H QD 7D 2D 10C', *calls, dealer='South')[0] == '2D'
+    assert bid('QS 10S 8S 5S 3S AH 8H 6H QD 7D 2D 10C 3C', *calls, dealer='South')[0] == 'Pass'
+    assert bid('QS 10S 8S 5S 3S AH 8H QD 7D 6D 2D 10C 3C', *calls, dealer='South')[0] == '2D'
+
+
 def test_their_transfer_suit_is_ours_to_bid():
     # 1NT P 2D P 2H P P: their 2D showed hearts, so diamonds are ours to a
     # hand that can bid them at three: 6+ cards and 12+ HCP (the gap
