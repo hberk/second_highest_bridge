@@ -114,6 +114,7 @@ four seats, which nets out a change both declarer and defenders use.
 | 10-30 | Second hand, dummy third and partner unseen, plays the suit out over partner's and declarer's layouts and plays the card that takes most: the A♠ over T♠ led with dummy 9-6 (your board, `SECOND_HAND_COVER`). Library | **+0.081** | +3.46 | **+8.72** | 1,967 of 6,367 | on (400 fresh deals: +0.059, t +2.79, +5.27 points. Each changed card double dummy: library 147 better / 27 worse, net +170; fresh 140 / 33, net +147) |
 | 10-30 | ...judged on this trick alone: the chance partner holds a winning card after dummy's best reply (library; fresh) | +0.061; +0.041 | +3.30; +2.07 | +4.93; -0.88 | 1,220; 1,097 | off (the plan above gains more; it stays as the fallback when the plan can't run) |
 | 10-31 | ...this trick's chance with the plan vetoing a worse card (library; fresh) | +0.054; +0.036 | +3.03; +2.11 | +3.72; +2.22 | 1,084; 1,007 | off |
+| 11-04 | Fourth hand, out of the led suit with partner already winning, discards instead of ruffing: East ruffed dummy's winning 5♣ with the Q♥ (your board, `PARTNER_WINS_NO_RUFF`). Seated, 3 × 1,000 fresh deals (seeds 1104-1106) | **+0.015** | +3.45; +4.28; +2.63 | **+2.15** | 2,469 of 47,576 | on |
 
 The three information rules together: +0.55 points a board, t = +0.48, 556
 boards changed. None is distinguishable from zero; they are kept because a

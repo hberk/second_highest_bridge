@@ -1340,7 +1340,11 @@ function lastSuitPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[
   played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
   shown: Shown | null, choice: Card): Card {
   const ours = new Set<string>([player, PARTNERS[player]]);
-  const winning = legal.filter((c) => ours.has(resolveTrick([...trick, [player, c]], trump)));
+  let winning = legal.filter((c) => ours.has(resolveTrick([...trick, [player, c]], trump)));
+  if (PARTNER_WINS_NO_RUFF && trump !== null && isSuit(trump) && choice.suit !== trump
+      && !legal.some((c) => c.suit === trick[0][1].suit)) {
+    winning = winning.filter((c) => c.suit !== trump);   // no ruff of partner's trick
+  }
   if (!winning.some((c) => cardKey(c) === cardKey(choice)) || winning.length < 2) return choice;
   const planned = coverSuitPlan(player, hand, winning, trick, trump, played, visible, history, shown);
   if (!planned) return choice;
@@ -2623,12 +2627,23 @@ function middlePlay(player: Seat, legal: Card[], trick: AnyPlay[], trump: string
 /** Fourth hand counts partner's winning as its own (see ai.py). */
 export const settingsPlay = { lastHandForPartner: true };
 
+/** Fourth hand, out of the led suit with partner already winning, discards
+ * rather than ruff (see ai.py). */
+export const PARTNER_WINS_NO_RUFF = true;
+
 function playLast(legal: Card[], trick: AnyPlay[], trump: string | null,
   hand: Card[] | null = null, played: Card[] | null = null): Card {
   const partner = trick[1][0];
   const ours = settingsPlay.lastHandForPartner ? [AI_TAG, partner] : [AI_TAG];
   const winning = legal.filter((c) => ours.includes(resolveTrick([...trick, [AI_TAG, c]], trump)));
   if (winning.length) {
+    if (PARTNER_WINS_NO_RUFF && trump !== null && isSuit(trump)) {
+      const side = winning.filter((c) => c.suit !== trump);
+      if (side.length < winning.length && !legal.some((c) => c.suit === trick[0][1].suit)
+          && side.length) {
+        return shed(side, trump);
+      }
+    }
     if (DEAD_WINNER_FIRST && hand !== null) {
       const gone = new Set([...(played ?? []), ...trick.map(([, c]) => c)].map(cardKey));
       const deadOnes = winning.filter((c) => dead(c, hand, gone));

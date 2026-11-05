@@ -1924,6 +1924,9 @@ def _last_suit_plan(player: str, hand: list[Card], legal: list[Card],
     (`choice` when it is among them)."""
     ours = (player, PARTNERS[player])
     winning = [c for c in legal if resolve_trick(trick + [(player, c)], trump) in ours]
+    if (PARTNER_WINS_NO_RUFF and trump in SUITS and choice.suit != trump
+            and not any(c.suit == trick[0][1].suit for c in legal)):
+        winning = [c for c in winning if c.suit != trump]   # no ruff of partner's trick
     if choice not in winning or len(winning) < 2:
         return choice
     planned = _cover_suit_plan(player, hand, winning, trick, trump, played, visible,
@@ -3729,6 +3732,10 @@ LAST_HAND_FOR_PARTNER = True
 #: Seated, 800 fresh deals: +0.029 tricks, +4.98 points a board (t 2.83). For
 #: ruffs alone it measured even: the gain is in following suit.
 DEAD_WINNER_FIRST = True
+#: Fourth hand, out of the led suit with partner already winning, discards rather
+#: than ruff (measurement switch). On a user's 4H East ruffed dummy's winning 5C
+#: with the QH: the cheapest (or dead) winner was a trump, since every card won.
+PARTNER_WINS_NO_RUFF = True
 
 
 def _play_last(legal: list[Card], trick: list[tuple[str, Card]], trump: str | None,
@@ -3752,6 +3759,11 @@ def _play_last(legal: list[Card], trick: list[tuple[str, Card]], trump: str | No
         if resolve_trick(trick + [(_AI_TAG, c)], trump) in ours
     ]
     if winning:
+        if PARTNER_WINS_NO_RUFF and trump in SUITS:
+            side = [c for c in winning if c.suit != trump]
+            if len(side) < len(winning) and not any(c.suit == trick[0][1].suit for c in legal) \
+                    and side:
+                return _shed(side, trump)
         if DEAD_WINNER_FIRST and hand is not None:
             gone = set(played or []) | {c for _, c in trick}
             dead = [c for c in winning if _dead(c, hand, gone)]
