@@ -649,6 +649,18 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   straight over it (so no 2NT minor ask after a natural overcall of their
   Stayman or transfer) -0.09, t = -3.3; dropped, the fallback did worse than
   the unanswered 2NT.
+- **Systems on over our penalty double of their 1NT** (`NT_X_SYSTEMS`,
+  `_nt_x_systems`; the user's system, 2026-11-04). While they bid nothing
+  more, the doubler's partner answers as over a 1NT opening but pulls only
+  with a Jacoby or Texas transfer; every other hand leaves the double in. If
+  they bid after the transfer, the doubler doubles notrump or completes with
+  3+, and a weak transferer passes (`NT_X_INTERFERED`). Once the doubler has
+  bid again, advancer stops passing automatically (`NT_X_ADVANCE_FIX`).
+  0.00 a board on 60,000 fresh boards.
+- **Systems on over their 2♣ overcall of our 1NT** (`NT_2C_SYSTEMS`,
+  `_nt_2c_systems`; the user's system, 2026-11-04): X is Stayman, 2♦/2♥
+  transfer, and the uncontested continuations run while they pass. A long
+  diamond suit relays through 2NT. +0.00 a board on 60,000 fresh boards.
 - **Runouts after our 1NT is penalty-doubled** (`NT_RUNOUTS`, `_nt_runout`,
   `_runout_choice`; the user's system, 2026-10-28, from training board 25,
   where 1NT (X) P (P) had the opener bid Stayman: systems on read the
