@@ -366,6 +366,32 @@ def test_support_double_then_they_raise():
     assert bid('AS 10S JH 3H KD 9D 7D 2D QC 9C 5C 4C 2C', *calls, dealer='East')[0] == '3D'
 
 
+def test_support_redouble():
+    # 1D P 1S (X): exactly three spades redoubles; four raise, alerted 4+.
+    calls = ('1D', 'Pass', '1S', 'X')
+    assert bid('KS 9S 4S KH QH 5H AD 9D 5D 3D QC 8C 7C', *calls, dealer='South') == \
+        ('XX', 'Support redouble: exactly 3 ♠.')
+    assert bid('KS 9S 4S 2S KH QH 5H AD 9D 5D 3D QC 8C', *calls, dealer='South') == \
+        ('2S', '4+ ♠ support.')
+    # Responder answers it as a support double: four spades pass over their
+    # bid, five compete; opener with three and a minimum then passes.
+    four = 'QS 10S 8S 5S AH 8H 6H 3H QD 7D 2D 10C 3C'
+    assert bid(four, '1D', 'Pass', '1S', 'X', 'XX', '2C', dealer='South')[0] == 'Pass'
+    assert bid('QS 10S 8S 5S 3S AH 8H 6H QD 7D 2D 10C 3C',
+               '1D', 'Pass', '1S', 'X', 'XX', '2C', dealer='South')[0] == '2S'
+    assert bid('KS 9S 4S KH QH 5H AD 9D 5D 3D QC 8C 7C',
+               '1D', 'Pass', '1S', 'X', 'XX', '2C', 'Pass', 'Pass', dealer='South')[0] == 'Pass'
+
+
+def test_three_card_minor_raise_needs_shortness():
+    # The user's board, 2026-11-04: 1D P 1S X P 2C. Partner's 1D can be
+    # four, so three diamonds raise only with a side singleton or void.
+    calls = ('1D', 'Pass', '1S', 'X', 'Pass', '2C')
+    assert bid('QS 10S 8S 5S 3S AH 8H 6H 3H QD 7D 2D 10C', *calls, dealer='South')[0] == '2D'
+    assert bid('QS 10S 8S 5S 3S AH 8H 6H QD 7D 2D 10C 3C', *calls, dealer='South')[0] == 'Pass'
+    assert bid('QS 10S 8S 5S 3S AH 8H QD 7D 6D 2D 10C 3C', *calls, dealer='South')[0] == '2D'
+
+
 def test_their_transfer_suit_is_ours_to_bid():
     # 1NT P 2D P 2H P P: their 2D showed hearts, so diamonds are ours to a
     # hand that can bid them at three: 6+ cards and 12+ HCP (the gap
@@ -989,6 +1015,15 @@ def test_no_crash_or_illegal_call_with_a_human_at_the_table():
             auction.apply_call(who, call)
         assert auction.is_complete
     assert not gib.ILLEGAL, f"illegal calls caught by the guard: {gib.ILLEGAL[:3]}"
+
+
+def test_smolen_only_over_the_stayman_denial():
+    """The human-at-the-table sweep, 2026-11-05: a human opened 2NT and
+    answered Stayman 4♦, doubled; the robot tried 3♥ Smolen below it."""
+    west = 'QS JS 9S 6S 5S AH JH 6H 5H JD 6D QC 10C'
+    call, why = bid(west, '2NT', 'Pass', '3C', 'Pass', '4D', 'X', dealer='East')
+    assert call == 'Pass', (call, why)
+    assert bid(west, '2NT', 'Pass', '3C', 'Pass', '3D', 'Pass', dealer='East')[0] == '3H'
 
 
 if __name__ == '__main__':
@@ -1689,3 +1724,88 @@ def test_advancer_picks_a_minor_after_our_minors_over_a_weak_two():
     for overcall in ('4S', '4NT'):
         call, why = bid(north, 'Pass', '2S', overcall, 'Pass')
         assert call == '5D', (overcall, call, why)
+
+
+def test_a_two_club_rebid_shows_six_clubs():
+    """Board 53, 2026-11-04: 1♣ 1NT 2♣ was alerted 4+ clubs; it shows six,
+    five only with a singleton or void (or 15+ HCP and no other bid). Other
+    five-club minimums pass 1NT or rebid 1NT."""
+    five = 'QS 5S QH 8H 3H KD JD 4D AC JC 8C 6C 4C'           # 2-3-3-5, 13 HCP
+    six = 'KS 5S QH 8H 3H KD 2D AC JC 8C 6C 4C 3C'
+    short = '5S QH 8H 3H KD JD 4D 2D AC JC 8C 6C 4C'         # 1-3-4-5
+    major = 'JS 5S KH QH 8H 3H KD 4D AC JC 8C 6C 4C'          # 2-4-2-5, 14 HCP
+    assert bid(five, '1C', 'Pass', '1NT', 'Pass')[0] == 'Pass'
+    assert bid(major, '1C', 'Pass', '1NT', 'Pass')[0] == 'Pass'
+    assert bid(major, '1C', 'Pass', '1S', 'Pass') == ('1NT', '11-14 HCP.')
+    single = '5S KH QH 8H 3H KD JD 4D AC JC 8C 6C 4C'         # 1-4-3-5
+    for cards in (six, short, single):
+        call, why = bid(cards, '1C', 'Pass', '1NT', 'Pass')
+        assert (call, why) == ('2C', '5+ ♣, usually 6. 11-15 HCP.'), (cards, call, why)
+    call, why = bid(six, '1C', 'Pass', '1H', 'Pass')
+    assert (call, why) == ('2C', '5+ ♣, usually 6. 11-18 HCP.')
+    gib.CLUB_REBID_LEN = None
+    try:
+        assert bid(major, '1C', 'Pass', '1NT', 'Pass')[0] == '2C'
+    finally:
+        gib.CLUB_REBID_LEN = 6
+
+
+def test_systems_on_over_our_double_of_their_1nt():
+    """The user's deal, 2026-11-04: 1NT P P (X) P and West passed with six
+    spades; then 2♣ (their runout) 2♥ and West passed again with ♥72."""
+    west = 'AS 10S 6S 5S 4S 3S 7H 2H JD 9D QC 5C 4C'
+    call, why = bid(west, '1NT', 'Pass', 'Pass', 'X', 'Pass', dealer='South')
+    assert call == '2H' and 'Transfer' in why, (call, why)
+    east = 'KS JS 7S QH 9H 5H 4H 3H KD QD 6D KC JC'
+    call, _ = bid(east, '1NT', 'Pass', 'Pass', 'X', 'Pass', '2H', 'Pass', dealer='South')
+    assert call == '2S', call
+    # A hand without a five-card major still leaves the double in.
+    call, why = bid('AS 10S 6S 5S 7H 2H JD 9D 8D QC 5C 4C 3C',
+                    '1NT', 'Pass', 'Pass', 'X', 'Pass', dealer='South')
+    assert call == 'Pass' and 'Penalty' in why, (call, why)
+    # Once partner bids again, the double no longer makes me pass.
+    call, _ = bid(west, '1NT', 'Pass', 'Pass', 'X', 'Pass', 'Pass', '2C', '2H', 'Pass',
+                  dealer='South')
+    assert call == '2S', call
+
+
+def test_systems_on_over_their_2c():
+    """The user's deal, 2026-11-04: 1NT (2♣) X (Stayman) P 2♦ P and East
+    passed with ♠JT762 ♥A93 ♦A42 ♣KT. Now 2♥ transfers; after Stayman's
+    denial, 2NT invites."""
+    east = 'JS 10S 7S 6S 2S AH 9H 3H AD 4D 2D KC 10C'
+    call, why = bid(east, '1NT', '2C', dealer='West')
+    assert call == '2H' and 'Transfer' in why, (call, why)
+    west = 'KS 8S 4S KH JH KD QD 10D 7D AC 7C 5C 4C'
+    call, _ = bid(west, '1NT', '2C', '2H', 'Pass', dealer='West')
+    assert call == '2S', call
+    call, why = bid(east, '1NT', '2C', 'X', 'Pass', '2D', 'Pass', dealer='West')
+    assert call == '2NT', (call, why)
+    # A long diamond suit can't bid 2♦ (a transfer): it relays through 2NT.
+    call, _ = bid('8S 5S 3S 7H 4H JD 9D 7D 6D 4D 2D 5C 2C', '1NT', '2C', dealer='West')
+    assert call == '2NT', call
+
+
+TRANSFER_INTERFERED_CASES = [
+    # (dealer, calls, hand, call): the review of PR #65, 2026-11-05.
+    ('West', ('1NT', '2C', '2H', 'X'), 'KS 8S 4S KH JH 4H QD 10D 7D AC 7C 5C 4C', '2S'),
+    ('West', ('1NT', '2C', '2H', 'X'), 'KS 8S KH JH 4H 3H QD 10D 7D AC 7C 5C 4C', 'Pass'),
+    ('West', ('1NT', '2C', '2H', 'X', 'Pass', 'Pass'),
+     'JS 10S 7S 6S 2S 9H 3H 8D 4D 2D KC 10C 9C', '2S'),
+    ('West', ('1NT', '2C', '2H', '3C'), 'KS 8S 4S KH JH 4H QD 10D 7D AC 7C 5C 4C', '3S'),
+    ('West', ('1NT', '2C', '2D', 'X', 'Pass', 'Pass'),
+     'JS 10S 7S 6H 2H 9H 3H 8H 4D 2D KC 10C 9C', '2H'),
+    ('South', ('1NT', 'Pass', 'Pass', 'X', 'Pass', '2H', 'X', 'Pass', 'Pass'),
+     '10S 9S 6S 5S 4S 3S 7H 2H JD 9D 8C 5C 4C', '2S'),
+    ('North', ('1NT', 'X', 'Pass', '2H', 'X', 'Pass', 'Pass'),
+     'AS 10S 6S 5S 4S 3S 7H 2H JD 9D QC 5C 4C', '2S'),
+]
+
+
+def test_a_doubled_transfer_is_still_a_transfer():
+    """Systems on over their 2♣ and over our double of their 1NT: when they
+    double the transfer or bid over it, opener completes with three, and
+    the transfer bidder runs to the suit when the transfer is left doubled."""
+    for dealer, calls, cards, want in TRANSFER_INTERFERED_CASES:
+        call, why = bid(cards, *calls, dealer=dealer)
+        assert call == want, (calls, call, why)

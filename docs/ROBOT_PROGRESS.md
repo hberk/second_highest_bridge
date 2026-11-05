@@ -35,15 +35,47 @@ Points a board against par, split by the identity par - actual = bidding loss +
 play loss. From 2026-10-23 the grade uses the partner who actually declared
 and par the better partner, so the rows above it measured something slightly
 different: about 11 points of their card-play loss was the wrong declarer's
-count. The card play is close to double dummy now; the auction is where the
+count. The card-play column is net, so it looks close to double dummy, but it
+isn't: see "Card play, mistakes added up" below. The auction is where the
 points are. The 2026-10-22 bidding changes moved the auction figure by
 nothing (235.4 against 234.9) although each wins +4.66 a board head to head:
 all four seats use them here, so what N/S gain E/W gain back; from the
 declaring side the auction loss fell from 215.8 to 211.9. (An older figure, 143.7 / 31.8, was one auction per deal before any
 card-play change below, so it isn't comparable.)
 
-The robot declarer against double dummy, before the head-to-head metric
-existed (397 library boards, GIB auctions, tricks below double dummy a board):
+### Card play, mistakes added up
+
+The figure to quote for card play. `research/robot_line_report.py` scores
+every card the all-robot table plays against double dummy and adds each
+side's costly cards: tricks given away a board, the share of real choices
+(the legal cards don't all score the same) that cost a trick, and the share of
+boards with at least one costly card. Lower is better. A fix is reported as
+the change in these, before and after, on the same deals
+(`robot_line_report.py --compare`), next to its head-to-head gain.
+
+| measured | robots | deals | declaring side | opening lead | defence after the lead | boards with a costly card | net (cancels) |
+|---|---|---|---|---|---|---|---|
+| 2026-11-05 | the Nov 4 evening fixes together (v0.1.2-alpha; `/mnt/project-files/nov4-evening-combined/line_report.txt`) | 199 | **2.74** (19%, 91%) | **0.40** (36%, 33%) | **2.41** (22%, 88%) | 97% | -0.07 |
+| 2026-11-05 | main after PR #63 (v0.1.1-alpha) | 199 | **2.81** (19%, 91%) | **0.40** (36%, 34%) | **2.48** (22%, 89%) | 97% | -0.07 |
+| 2026-11-05 | the same robots, first 100 deals | 100 | 2.69 (18%, 90%) | 0.39 (36%, 34%) | 2.40 (22%, 87%) | 97% | -0.11 |
+| 2026-10-18 | before the trump-drawing fix and every play rule after it (`robot_lines_2026-10-18.jsonl`) | 100 | 3.94 (25%, 96%) | 0.41 (38%, 36%) | 3.85 (30%, 96%) | 97% | -0.32 |
+
+Tricks given away a board (share of real choices that cost, share of boards
+with one). Where it goes today: tricks 10-13, which the robots search over
+every layout, 2% of cards cost a trick; tricks 5-9 about 15%, the largest
+share for both sides; leads cost most (18% of declaring-side leads, 1.5 of
+its 2.8 tricks). Double dummy sees all four hands, so part of each figure is a
+guess no player could make, the opening lead most of all.
+
+**Why not the net figure.** "Below double dummy" (the table next) is double
+dummy minus declarer's tricks with robots defending: a trick the defence gives
+away cancels one declarer gave away, so a board where each side drops two
+tricks scores 0. In 2026-11-05's lines, 60% of the boards where declarer made
+a costly card still finished at or above double dummy.
+
+The robot declarer against double dummy, net, before the head-to-head metric
+existed (397 library boards, GIB auctions, tricks below double dummy a board;
+superseded by the table above):
 
 | change | below double dummy |
 |---|---|
@@ -114,6 +146,10 @@ four seats, which nets out a change both declarer and defenders use.
 | 10-30 | Second hand, dummy third and partner unseen, plays the suit out over partner's and declarer's layouts and plays the card that takes most: the A♠ over T♠ led with dummy 9-6 (your board, `SECOND_HAND_COVER`). Library | **+0.081** | +3.46 | **+8.72** | 1,967 of 6,367 | on (400 fresh deals: +0.059, t +2.79, +5.27 points. Each changed card double dummy: library 147 better / 27 worse, net +170; fresh 140 / 33, net +147) |
 | 10-30 | ...judged on this trick alone: the chance partner holds a winning card after dummy's best reply (library; fresh) | +0.061; +0.041 | +3.30; +2.07 | +4.93; -0.88 | 1,220; 1,097 | off (the plan above gains more; it stays as the fallback when the plan can't run) |
 | 10-31 | ...this trick's chance with the plan vetoing a worse card (library; fresh) | +0.054; +0.036 | +3.03; +2.11 | +3.72; +2.22 | 1,084; 1,007 | off |
+| 11-04 | Fourth hand, out of the led suit with partner already winning, discards instead of ruffing: East ruffed dummy's winning 5♣ with the Q♥ (your board, `PARTNER_WINS_NO_RUFF`). Seated, 3 × 1,000 fresh deals (seeds 1104-1106) | **+0.015** | +3.45; +4.28; +2.63 | **+2.15** | 2,469 of 47,576 | on |
+| 11-04 | Second to fourth hand play a trump or notrump suit out exactly once every card of it is located: T♥ from T5 with dummy 42 and South AQ6 (your 4♥, `LOCATED_SUIT_PLAN`). 3 × 1,000 fresh deals | **+0.016; +0.014; +0.010** | +3.74; +3.63; +3.53 | **+2.34; +1.72; +1.65** | 376; 322; 267 of ~15,800 | on (your call) |
+| 11-04 | ...any suit, later ruffs ignored (seed 1104 only) | +0.019 | +3.93 | +2.55 | 521 of 15,816 | off (not finished on the other seeds) |
+| 11-05 | `PARTNER_WINS_NO_RUFF` and `LOCATED_SUIT_PLAN` together on one side against neither (v0.1.2-alpha). Seated, 3 × 1,000 fresh deals (seeds 1104-1106, `/mnt/project-files/nov4-evening-combined/play_*.txt`) | **+0.034; +0.032; +0.021** | +5.08; +5.57; +4.18 | **+4.70; +5.30; +2.46** | 1,351; 1,073; 1,010 of ~15,850 | on |
 
 The three information rules together: +0.55 points a board, t = +0.48, 556
 boards changed. None is distinguishable from zero; they are kept because a
@@ -299,6 +335,14 @@ from the variant's side; t as above.
 | 11-04 | ...for every hand / only in the pass-out seat / at 14+ HCP | -0.04 / -0.02 / 0.00 | -1.31 / -0.94 / 0 | 45 / 4 / 0 | off (a direct 3♦ over the transfer went for 1,470) |
 | 11-04 | ...and partner reads it the same way: our side's first bid in their artificial suit is natural for both of us, never a cuebid (`SHOWN_SUIT_PARTNER`; the PR #63 review: partner bid 4♠ "again over the cuebid"); seeds 7M, 8M, 9M, 3,000 fresh deals each (`/mnt/project-files/pr63-review/measure/`) | +0.00, +0.00, +0.00 | 0 | 0 | on (bug fix, your pick) |
 | 11-04 | **The Nov 4 fixes together (v0.1.1-alpha)**: every 11-04 row above that is on, the gap analysis's two included, against all of them off (which bids 2,000 of 2,000 auctions exactly as main); seeds 7M, 8M, 9M, 1,000 fresh deals each (`/mnt/project-files/nov4-combined/REPORT.md`, with each fix taken out on top of the rest: none turns negative except the penalty stop, which cost a little alone too) | +0.24, +2.15, +1.14 (mean **+1.18**) | +0.46, +3.64, +1.87 | 245, 220, 243 | on |
+| 11-04 | A 2♣ rebid shows six clubs, five only with a singleton or void (`CLUB_REBID_LEN`; the user's board 53); seeds 7M, 8M, 9M, 1,000 fresh deals each (`/mnt/project-files/club-rebid/REPORT.md`) | -0.04, +0.02, -0.07 | -1.39, +1.94, -0.88 | 6, 14, 6 | on (your pick) |
+| 11-04 | ...five only with 5-4 in the minors and shortness | -0.04, -0.24, -0.07 | -1.39, -2.55, -0.85 | 10, 22, 11 | off |
+| 11-04 | Systems on over our penalty double of their 1NT: the doubler's partner pulls only with a Jacoby/Texas transfer, as over a 1NT opening; the doubler doubles a notrump runout or completes with 3+, a weak transferer then passes; and advancer no longer passes everything once the doubler bids again (`NT_X_SYSTEMS`, `NT_X_INTERFERED`, `NT_X_ADVANCE_FIX`; the user's system); seeds 17M, 18M, 19M, 5,000 fresh deals each (`/mnt/project-files/nt-x-systems/`). Pulling only with 7- HCP: 0.00; only with six: -0.03 | -0.06, +0.02, +0.04 | -1.26, +0.46, +0.64 | 34, 28, 26 | on (your system) |
+| 11-04 | Systems on over their 2♣ overcall of our 1NT: X Stayman, 2♦/2♥ transfers, the uncontested continuations while they pass (2NT invites after the 2♦ denial); a long-diamond hand relays through 2NT (`NT_2C_SYSTEMS`; the user's system); same seeds and deals | +0.04, -0.01, -0.02 | +0.98, -0.55, -0.73 | 62, 45, 72 | on (your system) |
+| 11-05 | A doubled or overcalled systems-on transfer is still a transfer: opener completes with three, and a transfer left doubled is run to the suit (`TRANSFER_INTERFERED`; the review of PR #65). 240,000 robot deals, seeds 11-14 (`/mnt/project-files/pr65-review/`): robots never doubled or bid over these transfers, so no robot auction changed; it fixes play against a person | 0.00 | 0.00 | 0 | on (your pick) |
+| 11-04 | Responder's three-card raise of partner's 1♣/1♦ opening needs a side singleton or void; flat hands bid elsewhere (`MINOR_RAISE_SHORT`; the user's board, 1♦ P 1♠ X P 2♣ 2♦ on ♠QT853 ♥A863 ♦Q72 ♣T); seeds 7M, 8M, 9M, 1,000 fresh deals each (`/mnt/project-files/minor-raise-short/`) | +0.05, +0.58, +0.31 | +0.96, +1.95, +3.17 | 4, 6, 14 | on (your pick) |
+| 11-04 | Support redouble: after 1x (P) 1y (X) opener redoubles with exactly three of y, so the raise shows four; over their bid after it, opener with three and a minimum passes (`SUPPORT_XX`, `SUPPORT_X_PASS='xx'`); seeds 7M-12M, 3,000 fresh deals each (`/mnt/project-files/support-xx/`) | +0.02, -0.02, -0.01, +0.20, -0.04, +0.10 | +1.82, -0.97, -0.52, +0.86, -1.40, +1.01 | 9, 9, 14, 6, 2, 5 | on (your pick; neutral) |
+| 11-05 | **The Nov 4 evening bidding fixes together (v0.1.2-alpha)**: `CLUB_REBID_LEN`, the two systems-on fixes, `MINOR_RAISE_SHORT` and the support redouble, against all of them off (which bids 2,000 of 2,000 auctions exactly as main); seeds 7M, 8M, 9M, 1,000 fresh deals each (`/mnt/project-files/nov4-evening-combined/`; each fix taken out on top of the rest is in its `loo_score*.txt`: on the mean of the three seeds only the 2♣ rebid is negative, -0.04, +0.02, -0.07, as it was alone) | +0.72, +0.53, +0.44 (mean **+0.56**) | +2.32, +1.71, +2.36 | 33, 40, 43 | on |
 
 ### The previous system (`ai_bid`)
 

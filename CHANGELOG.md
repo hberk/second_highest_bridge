@@ -6,6 +6,37 @@ Releases are tagged on main, and the tag matches the version in
 what it was measured to be worth is in
 [docs/ROBOT_PROGRESS.md](docs/ROBOT_PROGRESS.md).
 
+## v0.1.2-alpha (2026-11-05)
+
+The Nov 4 evening fixes from played boards. The bidding fixes together
+measure +0.56 points a board against v0.1.1-alpha (3 x 1,000 fresh deals);
+the two card-play fixes together +0.03 tricks and +4.15 points a board to the
+side that uses them (seated, 3 x 1,000 fresh deals). Card play, tricks given away a
+board on the same 199 deals: declaring side 2.81 to 2.74, opening lead 0.40
+to 0.40, defence 2.48 to 2.41.
+
+**The game**
+- When you declare a suit contract, your own hand sorts like dummy's: trumps
+  on the left.
+
+**The robots**
+- A 2♣ rebid shows six clubs, five only with a singleton or void.
+- Systems on over our penalty double of their 1NT (transfers to run, the
+  doubler completes or doubles their runout) and over their 2♣ overcall of
+  our 1NT (X is Stayman, 2♦/2♥ transfer). If they double the transfer or
+  bid over it, it is still completed (the review's fix).
+- A three-card raise of partner's 1♣/1♦ opening needs a side singleton or
+  void.
+- Support redoubles: after 1x (P) 1y (X), opener redoubles with exactly three.
+- Fourth hand doesn't ruff partner's winning trick.
+- Second to fourth hand plays a trump or notrump suit out exactly once every
+  card in it is located.
+- Smolen is bid only over the Stayman denial (a human's 4♦ answer isn't one).
+
+**Research**
+- `robot_line_report.py` reports card play as mistakes added up per side,
+  with `--compare` for a change's before and after.
+
 ## v0.1.1-alpha (2026-11-04)
 
 The Nov 4 fixes from played boards and the gap analysis, measured together
@@ -47,8 +78,10 @@ The first tagged release: everything up to and including PR #62.
 - GIB 2/1 bidding, with the competitive rules from the championship study
   (balancing, the Law of Total Tricks, penalty doubles, pre-empts, Stayman and
   negative doubles over interference).
-- Card play close to double dummy: declarer 0.025 tricks a board below it on
-  the library.
+- Card play: declarer 0.025 tricks a board below double dummy on the
+  library. (Corrected 2026-11-05: that is a net figure, in which declarer's
+  and the defence's mistakes cancel. Added up, each side gave away about 2.8
+  tricks a board; see docs/ROBOT_PROGRESS.md.)
 
 **In this release (PR #62)**
 - A takeout double of 1♣/1♦ with both majors, direct and balancing seat.

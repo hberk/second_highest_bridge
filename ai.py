@@ -902,7 +902,8 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
         if choice:
             return choice
 
-    if p_strain in SUITS and len(groups[p_strain]) >= SUPPORT_LENGTH:
+    if p_strain in SUITS and len(groups[p_strain]) >= SUPPORT_LENGTH \
+            and not _thin_minor_raise(partner, auction, groups, p_strain):
         held = len(groups[p_strain])
         promise = _partner_promise(player, partner, auction, p_strain)
         combined = _with_shortness(ev['suit_pts'][p_strain] + promise, groups, p_strain)
@@ -910,6 +911,9 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
         if call != 'Pass':
             why = _contest_alert(player, auction, call,
                                  f"{SUPPORT_LENGTH}+ {SUIT_SYM[p_strain]} support, agreeing the suit.")
+            if (gib.SUPPORT_XX and auction.doubled == 'X' and parse_bid(call)[1] == p_strain
+                    and gib.support_x_raise(auction.calls, player, p_strain)):
+                why = gib.support_x_raise_alert(p_strain)
         return call, why
 
     if p_strain == my_first:
@@ -928,6 +932,26 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
             why = f"6+ {SUIT_SYM[best_suit]}, rebidding the suit."
         return call, why
     return 'Pass', "No fit, nothing more to show."
+
+
+#: Partner opened one of a minor and has not bid it again: that promises
+#: three or four, so three of mine need not be a fit (the user's board,
+#: 2026-11-04: 1♦ P 1♠ X P 2♣ 2♦ on ♠QT853 ♥A863 ♦Q72 ♣T). Raise with
+#: exactly three only holding a side singleton or void. Off, three is support.
+MINOR_RAISE_SHORT = True
+
+
+def _thin_minor_raise(partner: str, auction: AuctionState, groups: dict, strain: str) -> bool:
+    """Would raising partner's one-level minor opening rest on three cards
+    and no shortness?"""
+    if not MINOR_RAISE_SHORT or strain not in ('C', 'D') or len(groups[strain]) != SUPPORT_LENGTH:
+        return False
+    if _bids_by(partner, auction) != [(1, strain)] or _first_namer(auction, strain) != partner:
+        return False
+    first = next(i for i, (w, c) in enumerate(auction.calls) if c != 'Pass')
+    if auction.calls[first][0] != partner:
+        return False
+    return min(len(cards) for s, cards in groups.items() if s != strain) > 1
 
 
 #: Partner has raised the suit I bid first (the user's boards, 2026-11-01:
@@ -1727,6 +1751,10 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         choice = _cover_unseen_partner(player, hand, legal, trick, trump, played,
                                        visible, history, choice, shown)
 
+    if LOCATED_SUIT_PLAN and trick:
+        choice = _located_suit_plan(player, hand, legal, trick, trump, played, visible,
+                                    history, choice)
+
     if (history is not None and visible and len(legal) > 1
             and len(hand) <= (DEEP_ENDGAME_CARDS if DEEP_ENDGAME else ENDGAME_CARDS)):
         totals = _endgame_totals(player, hand, trick, trump, played, visible,
@@ -1924,6 +1952,9 @@ def _last_suit_plan(player: str, hand: list[Card], legal: list[Card],
     (`choice` when it is among them)."""
     ours = (player, PARTNERS[player])
     winning = [c for c in legal if resolve_trick(trick + [(player, c)], trump) in ours]
+    if (PARTNER_WINS_NO_RUFF and trump in SUITS and choice.suit != trump
+            and not any(c.suit == trick[0][1].suit for c in legal)):
+        winning = [c for c in winning if c.suit != trump]   # no ruff of partner's trick
     if choice not in winning or len(winning) < 2:
         return choice
     planned = _cover_suit_plan(player, hand, winning, trick, trump, played, visible,
@@ -1934,6 +1965,80 @@ def _last_suit_plan(player: str, hand: list[Card], legal: list[Card],
     if planned[choice] == top:
         return choice
     return min((c for c in winning if planned[c] == top), key=lambda c: c.value())
+
+
+# ── Every card of the suit located ───────────────────────────────────────────
+#
+# Once a hidden hand has shown out of a suit, a player who sees dummy knows
+# where every remaining card of it lies, and can play the suit out exactly. On
+# a user's 4H, trick 5, South led the 8H, West showed out and dummy's 9H took
+# the trick whatever East played; East held T5 with dummy 42 and South AQ6
+# still to come. The rules played the 5 (lowest, no card wins), but the five
+# sandwiched between South's honour and dummy's small heart always becomes
+# second-highest: the ten keeps a trump trick and the five gives it up. So with
+# the suit's cards all placed and nobody able to ruff it (the trump suit, or
+# notrump), each card is scored by the suit played out (`_plan_trick`), this
+# trick included, and the card that takes the most tricks in it is played.
+
+#: Second, third and fourth hand play a suit whose cards are all located by
+#: playing it out (measurement switch): 0 off, 1 trumps and notrump only,
+#: 2 any suit (a later ruff is ignored).
+LOCATED_SUIT_PLAN = 1
+
+
+def _located_suit_plan(player: str, hand: list[Card], legal: list[Card],
+                       trick: list[tuple[str, Card]], trump: str | None,
+                       played: list[Card], visible: dict[str, list[Card]] | None,
+                       history: list | None, choice: Card) -> Card:
+    """The card of `legal` that takes the most tricks in the led suit when every
+    card of it is located; `choice` when it is among the best, or the plan
+    doesn't apply."""
+    if not trick or not visible or history is None or len(legal) < 2:
+        return choice
+    led = trick[0][1].suit
+    if any(c.suit != led for c in legal):
+        return choice
+    if LOCATED_SUIT_PLAN < 2 and trump in SUITS and led != trump:
+        return choice
+    if any(c.suit == trump and c.suit != led for _, c in trick[1:]):
+        return choice                   # a ruff already down decides the trick
+    seen = set(played) | {c for _, c in trick} | set(hand)
+    for cards in visible.values():
+        seen |= set(cards)
+    unseen = tuple(sorted(c.value() for c in _FULL_DECK if c.suit == led and c not in seen))
+    out = _shown_out(history, trick)
+    hidden = [p for p in PLAYERS if p != player and p not in visible and led not in out[p]]
+    if unseen and len(hidden) != 1:
+        return choice
+    i = PLAYERS.index(player)
+    seat = {PLAYERS[(i + k) % 4]: k for k in range(4)}
+    down = dict(trick)
+
+    def held(p: str) -> tuple:
+        if p == player:
+            vals = [c.value() for c in hand if c.suit == led]
+        elif p in visible:
+            vals = [c.value() for c in visible[p] if c.suit == led]
+        else:
+            vals = list(unseen) if p in hidden else []
+        if p in down and down[p].suit == led:
+            vals.append(down[p].value())
+        return tuple(sorted(vals))
+
+    hands = tuple(held(PLAYERS[(i + k) % 4]) for k in range(4))
+    ruffs = (False, False, False, False)
+    plays = [(seat[p], c.value() if c.suit == led else None) for p, c in trick]
+    order = [seat[p] for p, _ in trick] + [0] + [k for k in range(1, 4)
+                                                 if k not in {seat[p] for p, _ in trick}]
+    memo = _SUIT_PLAN_MEMO
+    if len(memo) > _TRUMP_MEMO_MAX:
+        memo.clear()
+    score = {c: _plan_trick(hands, ruffs, plays + [(0, c.value())], order, memo)
+             for c in legal}
+    best = max(score.values())
+    if score[choice] == best:
+        return choice
+    return min((c for c in legal if score[c] == best), key=lambda c: c.value())
 
 
 # ── Second hand, dummy third and partner last, unseen ────────────────────────
@@ -3729,6 +3834,10 @@ LAST_HAND_FOR_PARTNER = True
 #: Seated, 800 fresh deals: +0.029 tricks, +4.98 points a board (t 2.83). For
 #: ruffs alone it measured even: the gain is in following suit.
 DEAD_WINNER_FIRST = True
+#: Fourth hand, out of the led suit with partner already winning, discards rather
+#: than ruff (measurement switch). On a user's 4H East ruffed dummy's winning 5C
+#: with the QH: the cheapest (or dead) winner was a trump, since every card won.
+PARTNER_WINS_NO_RUFF = True
 
 
 def _play_last(legal: list[Card], trick: list[tuple[str, Card]], trump: str | None,
@@ -3752,6 +3861,11 @@ def _play_last(legal: list[Card], trick: list[tuple[str, Card]], trump: str | No
         if resolve_trick(trick + [(_AI_TAG, c)], trump) in ours
     ]
     if winning:
+        if PARTNER_WINS_NO_RUFF and trump in SUITS:
+            side = [c for c in winning if c.suit != trump]
+            if len(side) < len(winning) and not any(c.suit == trick[0][1].suit for c in legal) \
+                    and side:
+                return _shed(side, trump)
         if DEAD_WINNER_FIRST and hand is not None:
             gone = set(played or []) | {c for _, c in trick}
             dead = [c for c in winning if _dead(c, hand, gone)]

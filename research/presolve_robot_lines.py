@@ -173,10 +173,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     deal_ids = challenge.deal_ids()[:args.deals] if args.deals else challenge.deal_ids()
     version = robot_version()
     started = time.perf_counter()
-    lines = plan(deal_ids)
+    workers = args.workers or safe_workers()
+    if workers > 1:
+        # Playing 16 boards a deal is a few seconds of Python; spread it too.
+        with multiprocessing.Pool(workers) as pool:
+            lines = [line for found in pool.map(plan, [[d] for d in deal_ids], chunksize=1)
+                     for line in found]
+    else:
+        lines = plan(deal_ids)
     done = completed(args.out, version)
     todo = [line for line in lines if line['key'] not in done]
-    workers = args.workers or safe_workers()
     print(f"{len(deal_ids)} deals, {len(lines)} distinct robot lines "
           f"(planned in {time.perf_counter() - started:.0f}s), {len(lines) - len(todo)} already done, "
           f"{len(todo)} to solve, {workers} worker(s), robot version {version}", flush=True)

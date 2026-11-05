@@ -2,7 +2,8 @@
 
 Each is a switch in ai.py (SURE_LEAD_DECLARER, RUFF_LEAD, FORCE_DUMMY,
 DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT, DEFENDER_SUIT_PLAN, DEAD_WINNER_FIRST, RUFF_IF_FOLLOWS,
-PARTNER_HONOUR_LEAD, COVER_SUIT_PLAN, COVER_PLAN_LOW, LAST_SUIT_PLAN, SECOND_HAND_COVER). Every test sets the switches it needs and puts them back, so
+PARTNER_HONOUR_LEAD, COVER_SUIT_PLAN, COVER_PLAN_LOW, LAST_SUIT_PLAN, SECOND_HAND_COVER,
+PARTNER_WINS_NO_RUFF, LOCATED_SUIT_PLAN). Every test sets the switches it needs and puts them back, so
 the result doesn't depend on which rules are adopted.
 """
 from __future__ import annotations
@@ -22,7 +23,7 @@ RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'SHORT_LEAD_RETURN', 'DEAD_WINNER_FIRST', 'RUFF_IF_FOLLOWS',
          'NT_DEFENCE_SUIT', 'IDLE_TRUMP_FOR_RUFF', 'PARTNER_HONOUR_LEAD',
          'COVER_SUIT_PLAN', 'COVER_PLAN_LOW', 'LAST_SUIT_PLAN', 'COVER_KEEP_MASTER',
-         'SECOND_HAND_COVER')
+         'SECOND_HAND_COVER', 'PARTNER_WINS_NO_RUFF', 'LOCATED_SUIT_PLAN')
 
 
 @contextmanager
@@ -298,6 +299,49 @@ def test_dead_winner_first_only_chooses_among_winning_cards():
         assert ai._play_last(hand, trick, 'S', hand, []) == C('9C')
 
 
+# A user's 4H by East, trick 2: South led the 3C, dummy's 5C is second-highest
+# of 7 5 3, and East, out of clubs, ruffed with the QH.
+EAST_4H = ['AS', '8S', '5S', 'AH', 'KH', 'QH', '9H', '6H', '3H', 'QD', '6D', '5D']
+WEST_4H = ['KS', '10S', '3S', '10D', '9D', '8D', '7D', '4D', 'AC', '6C', '2C']
+
+
+def _last_4h() -> Card:
+    east, west = [C(t) for t in EAST_4H], [C(t) for t in WEST_4H]
+    trick = [('South', C('3C')), ('West', C('5C')), ('North', C('7C'))]
+    return ai.ai_play('East', east, trick, 'H', [], {'East': east, 'West': west})
+
+
+def test_4h_board_ruffed_dummys_winning_club():
+    with rules(DEAD_WINNER_FIRST=True, LAST_SUIT_PLAN=True):
+        assert _last_4h() == C('QH')
+
+
+def test_4h_board_partner_wins_no_ruff_discards():
+    with rules(DEAD_WINNER_FIRST=True, LAST_SUIT_PLAN=True, PARTNER_WINS_NO_RUFF=True):
+        assert _last_4h().suit != 'H'
+
+
+def test_partner_wins_no_ruff_still_ruffs_when_partner_is_losing():
+    """North's 7C would be second-highest under a 9C: East must ruff."""
+    trick = [('South', C('3C')), ('West', C('5C')), ('North', C('7C'))]
+    hand = [C('QH'), C('3H'), C('5D')]
+    trick[0] = ('South', C('9C'))
+    with rules(PARTNER_WINS_NO_RUFF=True):
+        assert ai._play_last(hand, trick, 'H', hand, []) == C('3H')
+
+
+def test_5d_board_partner_wins_no_ruff_keeps_the_ace_of_trumps():
+    """A user's 5D by West, trick 7: North led the 6C and dummy's 5C is
+    second-highest of 6 5 4. West, out of clubs, ruffed with the dead AD."""
+    west = [C(t) for t in ['JS', '6H', '4H', 'AD', '4D', '3D', '2D']]
+    east = [C(t) for t in ['AS', 'AH', 'KH', 'QH', '9H', '10C']]
+    trick = [('North', C('6C')), ('East', C('5C')), ('South', C('4C'))]
+    with rules(DEAD_WINNER_FIRST=True, LAST_SUIT_PLAN=True):
+        assert ai.ai_play('West', west, trick, 'D', [], {'West': west, 'East': east}) == C('AD')
+    with rules(DEAD_WINNER_FIRST=True, LAST_SUIT_PLAN=True, PARTNER_WINS_NO_RUFF=True):
+        assert ai.ai_play('West', west, trick, 'D', [], {'West': west, 'East': east}) == C('4H')
+
+
 # Deal 276, 4C by West, dummy East. Tricks 1-3 rebuilt to fit the user's
 # board (the cards left in each hand, N/S 1 trick, E/W 2). At trick 4 dummy
 # leads the JS, South plays the KS, and West is void in spades.
@@ -523,6 +567,52 @@ def test_ten_led_one_trick_chance_covers_with_the_jack():
                           visible={'East': hands['East']})
     assert card == C('JS'), card
 
+
+# A user's 4H, trick 5: South led the 8H, West showed out and dummy's 9H wins
+# whatever East plays. Every heart is placed: East T5, dummy 42, South AQ6.
+def _hearts_located():
+    def hand(text):
+        return [C(t) for t in text.split()]
+    tricks = ['W:KC N:7C E:4C S:5C', 'W:QC N:6C E:3C S:8C',
+              'S:3H W:7H N:KH E:JH', 'N:2D E:3D S:4D W:8D']
+    seats = {'N': 'North', 'E': 'East', 'S': 'South', 'W': 'West'}
+    history = [[(seats[t[0]], C(t[2:])) for t in line.split()] for line in tricks]
+    played = [c for trick in history for _, c in trick]
+    east = hand('8S 7S 5S 3S 10H 5H 6D 10C 2C')
+    dummy = hand('AS 9S 4H 2H AD JD 10D 9D')
+    trick = [('South', C('8H')), ('West', C('2S')), ('North', C('9H'))]
+    return east, dummy, trick, played, history
+
+
+def test_hearts_located_east_played_the_five():
+    east, dummy, trick, played, history = _hearts_located()
+    with rules():
+        card = ai.ai_play('East', east, trick, 'H', played, visible={'North': dummy},
+                          history=history)
+    assert card == C('5H'), card
+
+
+def test_hearts_located_east_keeps_the_five_and_a_trump_trick():
+    # The five, between South's honour and dummy's small heart, is always
+    # second-highest later; the ten can be beaten by South's six.
+    east, dummy, trick, played, history = _hearts_located()
+    with rules(LOCATED_SUIT_PLAN=1):
+        card = ai.ai_play('East', east, trick, 'H', played, visible={'North': dummy},
+                          history=history)
+    assert card == C('10H'), card
+
+
+def test_located_suit_plan_needs_every_card_placed():
+    # West follows with the 3H instead: South's AQ6 could be West's, the hearts
+    # are not all located, and the rule stays out.
+    east, dummy, trick, played, history = _hearts_located()
+    history[2] = [('South', C('4S')), ('West', C('7H')), ('North', C('KH')), ('East', C('JH'))]
+    played = [c for t in history for _, c in t]
+    trick = [('South', C('8H')), ('West', C('3H')), ('North', C('9H'))]
+    with rules(LOCATED_SUIT_PLAN=1):
+        card = ai.ai_play('East', east, trick, 'H', played, visible={'North': dummy},
+                          history=history)
+    assert card == C('5H'), card
 
 if __name__ == '__main__':
     failed = 0

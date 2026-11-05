@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { Ctx, doublerGuard, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
+import { Ctx, doublerGuard, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -494,6 +494,24 @@ function response(player: Seat, partner: Seat, auction: AuctionState, ev: HandEv
   return ['Pass', `Fewer than ${SUPPORT_LENGTH} ${SUIT_SYM[pStrain]} and no five-card suit.`];
 }
 
+/** Partner opened one of a minor and has not bid it again: three or four,
+ *  so three of mine need not be a fit (the user's board, 2026-11-04: 1D P 1S
+ *  X P 2C 2D on QT853 A863 Q72 T). Raise with exactly three only holding a
+ *  side singleton or void. See ai.py. */
+export const MINOR_RAISE_SHORT = true;
+
+function thinMinorRaise(partner: Seat, auction: AuctionState, groups: Groups, strain: Suit): boolean {
+  if (!MINOR_RAISE_SHORT || (strain !== 'C' && strain !== 'D') || groups[strain].length !== SUPPORT_LENGTH) {
+    return false;
+  }
+  const bids = bidsBy(partner, auction);
+  if (bids.length !== 1 || bids[0][0] !== 1 || bids[0][1] !== strain
+      || firstNamer(auction, strain) !== partner) return false;
+  const first = auction.calls.find(([, c]) => c !== 'Pass');
+  if (!first || first[0] !== partner) return false;
+  return Math.min(...SUITS.filter(s => s !== strain).map(s => groups[s].length)) > 1;
+}
+
 /** Partner has raised the suit I bid first (the user's boards, 2026-11-01):
  *  the suit is agreed. With the opponents silent since partner's raise our
  *  side holds the contract, so the only call worth making is game; over
@@ -641,14 +659,18 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
     if (choice) return choice;
   }
 
-  if (isSuit(pStrain) && groups[pStrain].length >= SUPPORT_LENGTH) {
+  if (isSuit(pStrain) && groups[pStrain].length >= SUPPORT_LENGTH
+      && !thinMinorRaise(partner, auction, groups, pStrain)) {
     const combined = withShortness(
       ev.suit_pts[pStrain] + partnerPromise(player, partner, auction, pStrain), groups, pStrain as Suit);
     const [call, why] = place(pStrain, combined, legal);
-    return call !== 'Pass'
-      ? [call, contestAlert(player, auction, call,
-        `${SUPPORT_LENGTH}+ ${SUIT_SYM[pStrain]} support, agreeing the suit.`)]
-      : [call, why];
+    if (call === 'Pass') return [call, why];
+    if (SUPPORT_XX && auction.doubled === 'X' && parseBid(call)?.[1] === pStrain
+      && supportXRaise(auction.calls, player, pStrain)) {
+      return [call, supportXRaiseAlert(pStrain as Suit)];
+    }
+    return [call, contestAlert(player, auction, call,
+      `${SUPPORT_LENGTH}+ ${SUIT_SYM[pStrain]} support, agreeing the suit.`)];
   }
 
   if (pStrain === myFirst) {
@@ -1200,6 +1222,10 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     choice = coverUnseenPartner(player, hand, legal, trick, trump, played, visible, history, choice, shown);
   }
 
+  if (LOCATED_SUIT_PLAN && trick.length) {
+    choice = locatedSuitPlan(player, hand, legal, trick, trump, played, visible, history, choice);
+  }
+
   if (history !== null && Object.keys(visible).length && legal.length > 1
     && hand.length <= (DEEP_ENDGAME ? DEEP_ENDGAME_CARDS : ENDGAME_CARDS)) {
     const totals = endgameTotals(player, hand, trick, trump, played, visible, history, legal, shown);
@@ -1340,13 +1366,64 @@ function lastSuitPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[
   played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
   shown: Shown | null, choice: Card): Card {
   const ours = new Set<string>([player, PARTNERS[player]]);
-  const winning = legal.filter((c) => ours.has(resolveTrick([...trick, [player, c]], trump)));
+  let winning = legal.filter((c) => ours.has(resolveTrick([...trick, [player, c]], trump)));
+  if (PARTNER_WINS_NO_RUFF && trump !== null && isSuit(trump) && choice.suit !== trump
+      && !legal.some((c) => c.suit === trick[0][1].suit)) {
+    winning = winning.filter((c) => c.suit !== trump);   // no ruff of partner's trick
+  }
   if (!winning.some((c) => cardKey(c) === cardKey(choice)) || winning.length < 2) return choice;
   const planned = coverSuitPlan(player, hand, winning, trick, trump, played, visible, history, shown);
   if (!planned) return choice;
   const top = Math.max(...planned.values());
   if (planned.get(cardKey(choice)) === top) return choice;
   return minBy(winning.filter((c) => planned.get(cardKey(c)) === top), (c) => [value(c)]);
+}
+
+// ── Every card of the suit located (see ai.py) ───────────────────────────────
+
+/** 0 off, 1 trumps and notrump only, 2 any suit (see ai.py). */
+export const LOCATED_SUIT_PLAN: number = 1;
+
+/** The card of `legal` that takes the most tricks in the led suit when every card
+ *  of it is located, else `choice` (see ai.py `_located_suit_plan`). */
+function locatedSuitPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[], trump: string | null,
+  played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null, choice: Card): Card {
+  if (!trick.length || !Object.keys(visible).length || history === null || legal.length < 2) return choice;
+  const led = trick[0][1].suit;
+  if (legal.some((c) => c.suit !== led)) return choice;
+  if (LOCATED_SUIT_PLAN < 2 && isSuit(trump) && led !== trump) return choice;
+  if (trick.slice(1).some(([, c]) => c.suit === trump && c.suit !== led)) return choice;
+  const seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
+  for (const cs of Object.values(visible)) for (const c of cs!) seen.add(cardKey(c));
+  const unseen = FULL_DECK.filter((c) => c.suit === led && !seen.has(cardKey(c)))
+    .map(value).sort((a, b) => a - b);
+  const out = shownOut(history, trick);
+  const hidden = PLAYERS.filter((p) => p !== player && !(p in visible) && !out[p].has(led));
+  if (unseen.length && hidden.length !== 1) return choice;
+  const i = PLAYERS.indexOf(player);
+  const seat = (p: Seat) => (PLAYERS.indexOf(p) - i + 4) % 4;
+  const down = new Map<Seat, Card>(trick as [Seat, Card][]);
+  const held = (p: Seat): Trumps => {
+    let vals: number[];
+    if (p === player) vals = hand.filter((c) => c.suit === led).map(value);
+    else if (p in visible) vals = visible[p]!.filter((c) => c.suit === led).map(value);
+    else vals = hidden.includes(p) ? [...unseen] : [];
+    const d = down.get(p);
+    if (d && d.suit === led) vals.push(value(d));
+    return vals.sort((a, b) => a - b);
+  };
+  const hands = [0, 1, 2, 3].map((k) => held(PLAYERS[(i + k) % 4])) as unknown as PlanHands;
+  const ruffs = [false, false, false, false];
+  const plays: [number, PlanCard][] = trick.map(([p, c]) => [seat(p as Seat), c.suit === led ? value(c) : null]);
+  const downSeats = new Set(plays.map(([k]) => k));
+  const order = [...plays.map(([k]) => k), 0, ...[1, 2, 3].filter((k) => !downSeats.has(k))];
+  const memo = SUIT_PLAN_MEMO;
+  if (memo.size > POSITION_MEMO_MAX) memo.clear();
+  const score = new Map(legal.map((c) => [cardKey(c),
+    planTrick(hands, ruffs, [...plays, [0, value(c)]], order, memo)]));
+  const best = Math.max(...score.values());
+  if (score.get(cardKey(choice)) === best) return choice;
+  return minBy(legal.filter((c) => score.get(cardKey(c)) === best), (c) => [value(c)]);
 }
 
 // ── Second hand, dummy third and partner last, unseen (see ai.py) ───────────
@@ -2623,12 +2700,23 @@ function middlePlay(player: Seat, legal: Card[], trick: AnyPlay[], trump: string
 /** Fourth hand counts partner's winning as its own (see ai.py). */
 export const settingsPlay = { lastHandForPartner: true };
 
+/** Fourth hand, out of the led suit with partner already winning, discards
+ * rather than ruff (see ai.py). */
+export const PARTNER_WINS_NO_RUFF = true;
+
 function playLast(legal: Card[], trick: AnyPlay[], trump: string | null,
   hand: Card[] | null = null, played: Card[] | null = null): Card {
   const partner = trick[1][0];
   const ours = settingsPlay.lastHandForPartner ? [AI_TAG, partner] : [AI_TAG];
   const winning = legal.filter((c) => ours.includes(resolveTrick([...trick, [AI_TAG, c]], trump)));
   if (winning.length) {
+    if (PARTNER_WINS_NO_RUFF && trump !== null && isSuit(trump)) {
+      const side = winning.filter((c) => c.suit !== trump);
+      if (side.length < winning.length && !legal.some((c) => c.suit === trick[0][1].suit)
+          && side.length) {
+        return shed(side, trump);
+      }
+    }
     if (DEAD_WINNER_FIRST && hand !== null) {
       const gone = new Set([...(played ?? []), ...trick.map(([, c]) => c)].map(cardKey));
       const deadOnes = winning.filter((c) => dead(c, hand, gone));

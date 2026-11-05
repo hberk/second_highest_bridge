@@ -213,7 +213,10 @@ only from cards the robot cannot see -- leave partner a winning reply. On a
 user's 3NT East ducked the 8C holding K64 with dummy's 9C to come; covering
 makes the nine win. Library: **0.199 -> 0.025 tricks below double dummy per
 board (22.0 -> 6.2 points)**; "below double dummy" also credits weak robot
-defence, so treat it as a ceiling on the gain. Until 2026-10-18 "cards the
+defence, so treat it as a ceiling on the gain. It is a net figure: declarer's
+and the defence's mistakes cancel, and added up card by card each side still
+gave away about 2.8 tricks a board on 2026-11-05 (ROBOT_PROGRESS.md, "Card
+play, mistakes added up"). Until 2026-10-18 "cards the
 robot cannot see" left out its own cards outside the led suit (it passed the
 legal cards, not the hand), so its own trumps could be the third player's
 ruff. Fixed; measured head to head it changed **0 of 6,356 boards** (the
@@ -255,8 +258,18 @@ and robot declarers took 8.32 tricks a deal against 7.94 double dummy (8.08
 before). "Gross" because costly cards offset: a trick one side gives away often
 comes back from the other.
 
+Its summary adds each side's costly cards up (tricks given away a board by
+the declaring side, on the opening lead and by the defence); that, not the
+net figure, is what to quote for card play, and `--compare before.jsonl`
+gives a fix's before and after on the same deals. Planning runs on every
+worker too; 200 deals take about 45 minutes on four.
+
     python research/presolve_robot_lines.py --deals 100
     python research/robot_line_report.py
+    python research/robot_line_report.py --compare research/data/robot_lines_2026-10-18.jsonl
+
+`research/data/robot_lines.jsonl` holds main's lines after PR #63 (the first
+200 deals, 2026-11-05): the "before" for the next change.
 
 **Declarer draws trumps** (`ai.DRAW_TRUMPS`, `_draw_trump`). `_lead` is one rule
 for every seat and ranks trumps last, so the declaring side kept leading side
@@ -588,6 +601,28 @@ West declaring led the T♠ at trick 7, North held ♠A J 8 3, dummy ♠9 6).
   seated), odds from hand sizes and the auction, skipping dummy-void tricks,
   and a margin before changing the card (`/mnt/project-files/second-hand-cover/`,
   `REPORT.md`). `tests/test_card_play_rules.py` holds the board.
+
+**Every card of the suit located** (2026-11-04, the user's 4♥: trick 5, South
+led the 8♥, West showed out, dummy's 9♥ won whatever East played; East ♥T5,
+dummy ♥42, South ♥AQ6).
+
+- East played the 5: `_play_last` dumps the lowest card when nothing keeps the
+  trick. The 5, between South's honour and dummy's small heart, is always
+  second-highest later; the ten can be beaten by South's six. Once the other
+  hidden hand has shown out, every card of the suit is placed.
+- `ai.LOCATED_SUIT_PLAN` (`_located_suit_plan`): second, third and fourth hand,
+  following suit, with every card of the led suit located (the hand, the
+  visible hands, and one hidden hand that hasn't shown out holding the rest),
+  play the suit out exactly (`_plan_trick`, this trick included) and play the
+  card that takes the most tricks in it; the old card when it ties, else the
+  lowest of the best. 1 = the trump suit or notrump only (nobody can ruff), 2 =
+  any suit with later ruffs ignored, 0 off. Shipped at 1.
+- Seated head to head, 3 × 1,000 fresh deals (seeds 1104-1106): **+0.016,
+  +0.014, +0.010 tricks a board, t = +3.74, +3.63, +3.53; +2.3, +1.7, +1.6
+  points**; about 300 of 15,800 boards changed. Any suit (2) on seed 1104:
+  +0.019, t = +3.93, +2.6 points, 521 boards; not finished on the other seeds
+  (`/mnt/project-files/located-suit/`). `tests/test_card_play_rules.py` holds
+  the board.
 
 **A cuebid raise that forces the three level needs four trumps or 12+
 judgement points** (`gib.CUE_LIMIT_AT_3`), a small tightening of GIB's "limit

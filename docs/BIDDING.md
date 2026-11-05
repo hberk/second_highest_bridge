@@ -161,6 +161,17 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   promise was. 10,000 fresh deals (`research/gib_fresh_h2h.py`, seed 7M):
   **+0.26 a board, t = +3.46, 247 auctions changed** (115 better, 84 worse);
   1.0 measured +0.26 (t = +3.12), 0.0 +0.23 (t = +2.61).
+- **A 2♣ rebid shows six clubs** (2026-11-04, the user's board 53: 1♣ P 1NT
+  P 2♣ alerted "4+ ♣"; "a rebid of 2♣ should show 6, only 5 in very unusual
+  circumstances"). After 1♣-1y or 1♣-1NT, 2♣ was the fallback on four or five
+  (51% of 165 such rebids in 12,000 robot auctions held five). Now
+  (`CLUB_REBID_LEN`) five clubs rebid 2♣ only with a singleton or void, or on
+  15-18 HCP with no other bid; other five-club hands rebid 1NT (11-14, its
+  alert after 1♣ drops "balanced") or pass 1NT. The alert reads "5+ ♣,
+  usually 6." Fresh deals, seeds 7M/8M/9M, 1,000 each: -0.04, +0.02, -0.07
+  (6, 14, 6 auctions); keeping only 5-4 minors with shortness cost -0.04,
+  -0.24, -0.07 (singleton hands went down in 1NT where 2♣ made nine)
+  (`/mnt/project-files/club-rebid/REPORT.md`).
 - **A raise beside the support double shows four** (2026-11-04, the user's
   board 1♦ P 1♥ (1♠) 2♥ on ♥KJT3, alerted "3+ ♥, competitive."). Opener
   doubles with exactly three of responder's suit when the overcall is 2♥ or
@@ -638,6 +649,27 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   straight over it (so no 2NT minor ask after a natural overcall of their
   Stayman or transfer) -0.09, t = -3.3; dropped, the fallback did worse than
   the unanswered 2NT.
+- **Systems on over our penalty double of their 1NT** (`NT_X_SYSTEMS`,
+  `_nt_x_systems`; the user's system, 2026-11-04). While they bid nothing
+  more, the doubler's partner answers as over a 1NT opening but pulls only
+  with a Jacoby or Texas transfer; every other hand leaves the double in. If
+  they bid after the transfer, the doubler doubles notrump or completes with
+  3+, and a weak transferer passes (`NT_X_INTERFERED`). Once the doubler has
+  bid again, advancer stops passing automatically (`NT_X_ADVANCE_FIX`).
+  0.00 a board on 60,000 fresh boards.
+- **Systems on over their 2♣ overcall of our 1NT** (`NT_2C_SYSTEMS`,
+  `_nt_2c_systems`; the user's system, 2026-11-04): X is Stayman, 2♦/2♥
+  transfer, and the uncontested continuations run while they pass. A long
+  diamond suit relays through 2NT. +0.00 a board on 60,000 fresh boards.
+- **A doubled or overcalled systems-on transfer** (`TRANSFER_INTERFERED`,
+  `_transfer_interfered`; the review of PR #65, 2026-11-05). Over their 2♣ and
+  over our double of their 1NT, when they double our 2♦/2♥ transfer or bid
+  over it, opener (or the doubler) completes with three, and if the transfer
+  is left doubled the transfer bidder runs to the suit, as over 1NT P 2♥ (X).
+  Before, 1NT (2♣) 2♥ (X) was passed out by both of us with ♥93. Over 2♣,
+  opener without three keeps the old answers (a penalty double of their
+  suit). Robots never doubled or bid over these transfers in 240,000 robot
+  deals; it is a person at the table who does.
 - **Runouts after our 1NT is penalty-doubled** (`NT_RUNOUTS`, `_nt_runout`,
   `_runout_choice`; the user's system, 2026-10-28, from training board 25,
   where 1NT (X) P (P) had the opener bid Stayman: systems on read the

@@ -287,6 +287,14 @@ export function gibBid(player: Seat, cards: Card[], auction: AuctionState): Deci
   const runout = ntRunout(ctx);
   if (runout) return [runout[0], nameTheSuit(runout[0], runout[1])];
   let decision = decide(ctx);
+  if (decision) {
+    // Systems on over our double of their 1NT: the transfer's suit is
+    // not shown until it is completed, so total tricks can't read it.
+    const systems = ntXSystems(ctx);
+    if (systems && systems[0] === decision[0] && systems[1] === decision[1]) {
+      return [decision[0], nameTheSuit(decision[0], decision[1])];
+    }
+  }
   const placedByJam = afterJam(ctx);
   if (placedByJam && JAM_NEVER_AGAIN && (!decision || decision[0] !== 'X')) return placedByJam;
   if (placedByJam && !JAM_NEVER_AGAIN) decision = placedByJam;
@@ -732,6 +740,7 @@ function rebidOver1nt(ctx: Ctx, x: Suit, passedResp: boolean): Decision {
     }
   }
   if ((h.len[x] >= 5 || (isMinor(x) && h.len[x] >= 4)) && hcp <= 15) {
+    if (x === 'C' && CLUB_REBID_LEN && !clubRebidFive(h)) return ['Pass', 'Minimum, no six-card suit.'];
     return [`2${x}`, rebid1ntAlert(x)];
   }
   const minors = MINORS.filter((m) => m !== x && h.len[m] >= 3);
@@ -743,7 +752,22 @@ function rebidOver1nt(ctx: Ctx, x: Suit, passedResp: boolean): Decision {
   return ['Pass', 'Minimum, balanced.'];
 }
 
+/** Opener's 2♣ rebid after 1♣-1y or 1♣-1NT shows six clubs, five only with
+ * a singleton or void (the user's call, 2026-11-04, board 53). A 15-18 HCP
+ * hand with five clubs and no other bid still rebids 2♣; any other five-club
+ * hand rebids 1NT (11-14) or passes 1NT. */
+export const CLUB_REBID_LEN: number | null = 6;
+
+function clubRebidFive(h: Hand): boolean {
+  return h.len.C === 5 && Math.min(...SUITS.map((s) => h.len[s])) <= 1;
+}
+
+function clubRebidAlert(lo: number, hi: number): string {
+  return `5+ ${SYM.C}, usually 6. ${lo}-${hi} HCP.`;
+}
+
 function rebid1ntAlert(x: Suit): string {
+  if (x === 'C' && CLUB_REBID_LEN) return clubRebidAlert(11, 15);
   return `${isMajor(x) ? 5 : 4}+ ${SYM[x]}, 11-15 HCP.`;
 }
 
@@ -764,11 +788,14 @@ function rebidOverNewSuit(ctx: Ctx, x: Suit, y: Suit): Decision {
       return [`1${z}`, `4+ ${SYM[z]}, 11-18 HCP.`];
     }
   }
-  if (h.balanced && hcp <= 14) return ['1NT', '11-14 HCP, balanced.'];
+  if (h.balanced && hcp <= 14) {
+    return ['1NT', x === 'C' && CLUB_REBID_LEN ? '11-14 HCP.' : '11-14 HCP, balanced.'];
+  }
   if (h.balanced && hcp >= 18 && hcp <= 19) return ['2NT', '18-19 HCP, balanced.'];
   if (y === 'D' && x === 'C' && h.len.D >= 4 && hcp <= 14) return ['2D', `4+ ${SYM.D}, 11-14 HCP.`];
   if (h.len[x] >= 6) {
     if (hcp >= 17 && ctx.ok(`3${x}`)) return [`3${x}`, `6+ ${SYM[x]}, 17-21 HCP.`];
+    if (x === 'C' && CLUB_REBID_LEN) return ['2C', clubRebidAlert(11, 18)];
     return [`2${x}`, `5+ ${SYM[x]}, 11-18 HCP.`];
   }
   for (const z of sortedBy(SUITS, (s) => [h.len[s], idx(s)], true)) {
@@ -780,7 +807,13 @@ function rebidOverNewSuit(ctx: Ctx, x: Suit, y: Suit): Decision {
       return [`2${z}`, `4+ ${SYM[z]}, 16+ HCP. Reverse.`];
     }
   }
-  if (hcp <= 18) return [`2${x}`, `5+ ${SYM[x]}, 11-18 HCP.`];
+  if (hcp <= 18) {
+    if (x === 'C' && CLUB_REBID_LEN) {
+      if (hcp <= 14 && !clubRebidFive(h)) return ['1NT', '11-14 HCP.'];
+      return ['2C', clubRebidAlert(11, 18)];
+    }
+    return [`2${x}`, `5+ ${SYM[x]}, 11-18 HCP.`];
+  }
   return ['3NT', TO_PLAY];
 }
 
@@ -1403,7 +1436,8 @@ function ntResponderSecond(ctx: Ctx, base: number, seq: string[], lo: number, hi
     }
     if (hcp + lo >= NT_GAME) {
       const sm = smolenShape(h);
-      if (sm && strainOf(o) === 'D') {
+      // Over the denial only: a human's 4♦ answer isn't one (2NT 3♣ 4♦).
+      if (sm && o === `${levelOf(r)}D` && ctx.ok(`3${sm[1]}`)) {
         const [five, four] = sm;
         return [`3${four}`, `Smolen: 5 ${SYM[five]}, 4 ${SYM[four]}, game forcing. Artificial.`];
       }
@@ -2080,8 +2114,56 @@ export function supportXRaise(calls: readonly (readonly [Seat, string])[], playe
   return !(ours.length !== 2 || ours[0][0] !== player || ours[1][0] !== pd
     || levelOf(ours[0][1]) !== 1 || !isSuit(strainOf(ours[0][1]))
     || levelOf(ours[1][1]) !== 1 || strainOf(ours[1][1]) !== s
-    || lastWho === player || lastWho === pd || !levelOf(last)
-    || rankOf(last) > rankOf('2H'));
+    || lastWho === player || lastWho === pd
+    || !((levelOf(last) && rankOf(last) <= rankOf('2H'))
+      || (SUPPORT_XX && last === 'X'
+        && calls.filter(([w, c]) => w !== player && w !== pd && c !== 'Pass').length === 1)));
+}
+
+/** Support redouble (the user's board, 2026-11-04): after 1x (P) 1y (X),
+ *  opener redoubles with exactly three of y, so a raise of y shows four and
+ *  any other call denies three. Responder answers it as a support double.
+ *  See gib.py. */
+export const SUPPORT_XX = true;
+
+function supportRedouble(ctx: Ctx): Decision | null {
+  const seq = ctx.seq;
+  if (!SUPPORT_XX || !ctx.iAmOpener() || seq.length !== 2
+    || levelOf(seq[0]) !== 1 || levelOf(seq[1]) !== 1
+    || ctx.theirs.length !== 1 || ctx.theirs[0][1] !== 'X'
+    || ctx.calls[ctx.calls.length - 1][1] !== 'X' || ctx.ours[1][0] !== ctx.pd) {
+    return null;
+  }
+  const y = strainOf(seq[1]);
+  if (isSuit(y) && isSuit(strainOf(seq[0])) && ctx.h.len[y] === 3 && ctx.ok('XX')) {
+    return ['XX', `Support redouble: exactly 3 ${SYM[y]}.`];
+  }
+  return null;
+}
+
+/** ...and when they bid over it and partner passes (no five, SUPPORT_X_FREE),
+ *  the fit is seven cards: opener with three and a minimum passes too.
+ *  'xx' after the support redouble only, 'both' after the double too. */
+export const SUPPORT_X_PASS: 'xx' | 'both' | null = 'xx';
+export const SUPPORT_X_PASS_HCP = 15;
+
+function afterSupportPass(ctx: Ctx): Decision | null {
+  const seq = ctx.seq;
+  if (!SUPPORT_X_PASS || !SUPPORT_X_FREE || !ctx.iAmOpener() || seq.length !== 3
+    || !(seq[2] === 'XX' || (SUPPORT_X_PASS === 'both' && seq[2] === 'X'))
+    || levelOf(seq[0]) !== 1 || levelOf(seq[1]) !== 1 || ctx.ours[2][0] !== ctx.me) {
+    return null;
+  }
+  const y = strainOf(seq[1]);
+  let at = -1;
+  ctx.calls.forEach(([w, c], i) => { if (w === ctx.me && c === seq[2]) at = i; });
+  const after = ctx.calls.slice(at + 1);
+  if (!isSuit(y) || after.length !== 3 || !levelOf(after[0][1])
+    || after[1][1] !== 'Pass' || after[2][1] !== 'Pass'
+    || ctx.h.len[y] !== 3 || ctx.h.hcp >= SUPPORT_X_PASS_HCP) {
+    return null;
+  }
+  return ['Pass', `No fifth ${SYM[y]} opposite.`];
 }
 
 export function supportXRaiseAlert(s: Suit): string {
@@ -2571,6 +2653,8 @@ function weOpenedContested(ctx: Ctx): Decision | null {
     const lead = leadDouble(ctx);
     if (lead) return lead;
   }
+  const sxx = supportRedouble(ctx) ?? afterSupportPass(ctx);
+  if (sxx) return sxx;
   const hb = ctx.auction.highestBid;
   if (ctx.iAmOpener() && levelOf(first) === 1 && seq.length === 1 && !artificial
     && h.hcp >= 18 && ctx.ok('X') && hb && hb[2] !== ctx.me && hb[2] !== ctx.pd) {
@@ -2948,7 +3032,7 @@ export const SUPPORT_X_FREE: number | null = 5;
 
 function afterSupportDouble(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
-  if (ctx.iAmOpener() || seq.length !== 3 || seq[2] !== 'X'
+  if (ctx.iAmOpener() || seq.length !== 3 || (seq[2] !== 'X' && seq[2] !== 'XX')
     || ctx.ours[2][0] !== ctx.pd || levelOf(seq[1]) !== 1) {
     return null;
   }
@@ -3804,6 +3888,46 @@ function negXCompeted(ctx: Ctx): Decision | null {
   return null;
 }
 
+// Systems on over their 2♣ overcall of our 1NT (the user, 2026-11-04):
+// double is Stayman, 2♦ and 2♥ transfer, Texas stays. 1NT (2♣) X P 2♦ P P
+// passed on ♠JT762 ♥A93 ♦A42 ♣KT, 10 HCP: a transfer to spades, and after
+// the denial 2NT. While they only pass after the 2♣, the auction runs as
+// 1NT 2♣ would uncontested; other hands keep Lebensohl (below).
+// Measured on 60,000 fresh boards: +0.00 a board. Kept as the user's system.
+export const NT_2C_SYSTEMS = true;
+
+/** `ctx` with our calls read as `seq`, for the uncontested notrump system. */
+function withSeq(ctx: Ctx, seq: string[]): Ctx {
+  return Object.assign(Object.create(Object.getPrototypeOf(ctx)), ctx, { seq }) as Ctx;
+}
+
+function nt2CSystems(ctx: Ctx): Decision | null {
+  const seq = ctx.seq;
+  if (!NT_2C_SYSTEMS || !seq.length || seq[0] !== '1NT'
+      || ctx.theirs.length !== 1 || ctx.theirs[0][1] !== '2C') return null;
+  const i = ctx.calls.findIndex(([, c]) => c === '1NT');
+  if (i + 1 >= ctx.calls.length || ctx.calls[i + 1][1] !== '2C') return null;
+  const asOpened = withSeq(ctx, seq.map((c, k) => (k === 1 && c === 'X' ? '2C' : c)));
+  if (seq.length === 1) {
+    if (ctx.iAmOpener() || ctx.calls[ctx.calls.length - 1][1] !== '2C') return null;
+    const decision = ntResponse(asOpened, 1, NT1[0], NT1[1]);
+    if (decision[0] === '2C' && ctx.ok('X')) return ['X', 'Stayman. Artificial.'];
+    if (['2D', '2H', '4D', '4H'].includes(decision[0]) && ctx.ok(decision[0])) return decision;
+    return null;
+  }
+  if (!['X', '2D', '2H'].includes(seq[1])) return null;
+  if (seq.length === 2 && ctx.iAmOpener() && seq[1] !== 'X') {
+    return ntOpenerAnswer(asOpened, 1, seq[1], NT1[0], NT1[1]);
+  }
+  if (seq.length === 3 && !ctx.iAmOpener()) {
+    return placed(ctx, ntResponderSecond(asOpened, 1, asOpened.seq, NT1[0], NT1[1]));
+  }
+  if (seq.length === 4 && ctx.iAmOpener()) {
+    return placed(ctx, ntOpenerThird(asOpened, 1, asOpened.seq, NT1[0], NT1[1]));
+  }
+  return null;
+}
+
 function ntInterference(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
   const h = ctx.h;
@@ -3811,6 +3935,13 @@ function ntInterference(ctx: Ctx): Decision | null {
   if (!lb) return uncontested(ctx);
   const first = seq[0];
   const lastCall = ctx.calls[ctx.calls.length - 1];
+  if (NT_2C_SYSTEMS && TRANSFER_INTERFERED && first === '1NT') {
+    const interfered = transferInterfered(ctx, '1NT', '2C');
+    // Opener without a fit keeps the old answers (a penalty double).
+    if (interfered && !(ctx.iAmOpener() && interfered[0] === 'Pass')) return interfered;
+  }
+  const systems = nt2CSystems(ctx);
+  if (systems) return systems;
   if (STAYMAN_CONTESTED && (first === '1NT' || first === '2NT')) {
     const stayman = staymanContested(ctx);
     if (stayman) return stayman;
@@ -3854,7 +3985,8 @@ function ntInterference(ctx: Ctx): Decision | null {
     }
     for (const s of sortedBy(SUITS, (t) => [h.len[t]], true)) {
       if (s !== their && h.len[s] >= 5) {
-        const call = ctx.cheapest(s, 2);
+        let call = ctx.cheapest(s, 2);
+        if (NT_2C_SYSTEMS && lb === '2C' && (call === '2D' || call === '2H')) call = `3${s}`;   // transfers
         if (call && levelOf(call) === 2) return [call, `5+ ${SYM[s]}, to play.`];
         if (call && levelOf(call) === 3 && h.hcp <= 9 && ctx.ok('2NT')) {
           return ['2NT', 'Lebensohl: relay to 3C. Artificial.'];
@@ -3993,9 +4125,90 @@ function weakTwoBalance(ctx: Ctx): boolean {
   return BALANCE_WEAK_TWO > 0 && opening !== null && levelOf(opening) === 2 && opening !== '2C';
 }
 
+// Systems on over our penalty double of their 1NT opening (the user's
+// call, 2026-11-04): 1NT P P X P with ♠AT6543 ♥72 ♦J9 ♣Q54 passed, and
+// transferring to spades would have found the better fit. While they bid
+// nothing more, the doubler's partner answers as over a 1NT opening, but
+// pulls the double only with a transfer (Jacoby or Texas) to a 5+ major;
+// every other hand leaves it in. Measured with the two below, 60,000 fresh
+// boards: 0.00 a board. Kept as the user's system.
+export const NT_X_SYSTEMS = true;
+// Once partner has bid again after doubling their 1NT, their bid is not
+// the double: I answer it (ai.py does), no longer "Penalty double: passing".
+export const NT_X_ADVANCE_FIX = true;
+// They bid again after our transfer: the doubler doubles a notrump bid
+// (we hold the balance), else completes the transfer with 3+ cards up to
+// the three level; the transfer bidder without game values has said all.
+export const NT_X_INTERFERED = true;
+const NT_X_TRANSFERS: Record<string, Suit> = { '2D': 'H', '2H': 'S', '4D': 'H', '4H': 'S' };
+
+/** Their only bid is a 1NT opening and our first call doubled it. */
+function penaltyXOf1NT(ctx: Ctx): boolean {
+  return !ctx.weOpened && ctx.seq.length > 0 && ctx.seq[0] === 'X'
+    && ctx.theirs.length === 1 && ctx.theirs[0][1] === '1NT';
+}
+
+// ...and when they double the transfer and partner passes it (fewer than
+// three), the transfer bidder bids the suit himself, as over 1NT P 2♥ (X).
+// All of this holds for the transfers over their 2♣ of our 1NT too (the
+// review of PR #65, 2026-11-05: 1NT (2♣) 2♥ (X) P (P) P played 2♥ doubled
+// on ♥93; opener passed with three spades, reading 2♥ as natural).
+export const TRANSFER_INTERFERED = true;
+
+/** Our first call was `lead` over their `theirFirst`, partner then made a
+ *  systems-on transfer, and they have called over it. */
+function transferInterfered(ctx: Ctx, lead: string, theirFirst: string): Decision | null {
+  const seq = ctx.seq;
+  const us = (w: Seat) => w === ctx.me || w === ctx.pd;
+  if (seq.length < 2 || seq[0] !== lead || !(seq[1] in NT_X_TRANSFERS)
+      || !ctx.theirs.length || ctx.theirs[0][1] !== theirFirst) return null;
+  const at = ctx.calls.map(([w, c], k) => [w, c, k] as const)
+    .filter(([w, c]) => us(w) && c !== 'Pass')[1][2];
+  const before = ctx.calls.slice(0, at).filter(([w, c]) => !us(w) && c !== 'Pass');
+  if (ctx.calls[at][0] === ctx.opener || before.length !== 1 || before[0][1] !== theirFirst) return null;
+  if (!ctx.calls.slice(at + 1).some(([w, c]) => !us(w) && c !== 'Pass')) return null;
+  const s = NT_X_TRANSFERS[seq[1]];
+  const last = ctx.calls[ctx.calls.length - 1];
+  if (ctx.me === ctx.opener && seq.length === 2) {
+    if (last[1] !== 'Pass' && strainOf(last[1]) === 'NT' && ctx.ok('X')) return ['X', 'Penalty.'];
+    const call = ctx.cheapest(s, 2);
+    if (ctx.h.len[s] >= 3 && call && levelOf(call) <= 3) return [call, `Completing the transfer to ${SYM[s]}.`];
+    return ['Pass', 'Nothing to add.'];
+  }
+  if (ctx.me !== ctx.opener) {
+    const hb = ctx.auction.highestBid;
+    if (TRANSFER_INTERFERED && seq.length === 2 && hb && hb[2] === ctx.me && `${hb[0]}${hb[1]}` === seq[1]) {
+      const call = ctx.cheapest(s, 2);
+      if (call && ctx.ok(call)) return [call, `5+ ${SYM[s]}, to play.`];
+    }
+    if (ctx.h.judge + NT1[0] < GAME_MAJOR) return ['Pass', 'Weak: transfer to play.'];
+  }
+  return null;
+}
+
+function ntXInterfered(ctx: Ctx): Decision | null {
+  if (!NT_X_INTERFERED || ctx.weOpened) return null;
+  return transferInterfered(ctx, 'X', '1NT');
+}
+
+function ntXSystems(ctx: Ctx): Decision | null {
+  if (!NT_X_SYSTEMS) return null;
+  if (!penaltyXOf1NT(ctx)) return ntXInterfered(ctx);
+  const asOpened = withSeq(ctx, ['1NT', ...ctx.seq.slice(1)]);
+  if (ctx.seq.length === 1) {
+    if (ctx.me === ctx.opener) return null;
+    const decision = ntResponse(asOpened, 1, NT1[0], NT1[1]);
+    if (decision[0] in NT_X_TRANSFERS) return decision;
+    return ['Pass', 'Penalty double: passing.'];
+  }
+  return notrump(asOpened, 0);
+}
+
 function theyOpened(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
   if (!seq.length) return defend(ctx);
+  const systems = ntXSystems(ctx);
+  if (systems) return systems;
   const mine = ctx.mine();
   const partners = ctx.partners();
   if (wasLeadDouble(ctx, ctx.me) && !partners.length) return ['Pass', 'My double showed my suit, for the lead.'];
@@ -4394,7 +4607,10 @@ function advance(ctx: Ctx): Decision | null {
     // haven't, is `contested`'s): ai.py answers it.
     return null;
   }
-  if (p === 'X' && opening === '1NT') return ['Pass', 'Penalty double: passing.'];
+  if (p === 'X' && opening === '1NT') {
+    if (NT_X_ADVANCE_FIX && !(ctx.partners().length === 1 && ctx.partners()[0] === 'X')) return null;
+    return ['Pass', 'Penalty double: passing.'];
+  }
   if (opening === '1NT') {
     if (p === '2C') return ctx.ok('2D') ? ['2D', 'Relay. Artificial.'] : ['Pass', 'No room.'];
     if (p === '2D') {
