@@ -1751,6 +1751,10 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         choice = _cover_unseen_partner(player, hand, legal, trick, trump, played,
                                        visible, history, choice, shown)
 
+    if LOCATED_SUIT_PLAN and trick:
+        choice = _located_suit_plan(player, hand, legal, trick, trump, played, visible,
+                                    history, choice)
+
     if (history is not None and visible and len(legal) > 1
             and len(hand) <= (DEEP_ENDGAME_CARDS if DEEP_ENDGAME else ENDGAME_CARDS)):
         totals = _endgame_totals(player, hand, trick, trump, played, visible,
@@ -1961,6 +1965,80 @@ def _last_suit_plan(player: str, hand: list[Card], legal: list[Card],
     if planned[choice] == top:
         return choice
     return min((c for c in winning if planned[c] == top), key=lambda c: c.value())
+
+
+# ── Every card of the suit located ───────────────────────────────────────────
+#
+# Once a hidden hand has shown out of a suit, a player who sees dummy knows
+# where every remaining card of it lies, and can play the suit out exactly. On
+# a user's 4H, trick 5, South led the 8H, West showed out and dummy's 9H took
+# the trick whatever East played; East held T5 with dummy 42 and South AQ6
+# still to come. The rules played the 5 (lowest, no card wins), but the five
+# sandwiched between South's honour and dummy's small heart always becomes
+# second-highest: the ten keeps a trump trick and the five gives it up. So with
+# the suit's cards all placed and nobody able to ruff it (the trump suit, or
+# notrump), each card is scored by the suit played out (`_plan_trick`), this
+# trick included, and the card that takes the most tricks in it is played.
+
+#: Second, third and fourth hand play a suit whose cards are all located by
+#: playing it out (measurement switch): 0 off, 1 trumps and notrump only,
+#: 2 any suit (a later ruff is ignored).
+LOCATED_SUIT_PLAN = 1
+
+
+def _located_suit_plan(player: str, hand: list[Card], legal: list[Card],
+                       trick: list[tuple[str, Card]], trump: str | None,
+                       played: list[Card], visible: dict[str, list[Card]] | None,
+                       history: list | None, choice: Card) -> Card:
+    """The card of `legal` that takes the most tricks in the led suit when every
+    card of it is located; `choice` when it is among the best, or the plan
+    doesn't apply."""
+    if not trick or not visible or history is None or len(legal) < 2:
+        return choice
+    led = trick[0][1].suit
+    if any(c.suit != led for c in legal):
+        return choice
+    if LOCATED_SUIT_PLAN < 2 and trump in SUITS and led != trump:
+        return choice
+    if any(c.suit == trump and c.suit != led for _, c in trick[1:]):
+        return choice                   # a ruff already down decides the trick
+    seen = set(played) | {c for _, c in trick} | set(hand)
+    for cards in visible.values():
+        seen |= set(cards)
+    unseen = tuple(sorted(c.value() for c in _FULL_DECK if c.suit == led and c not in seen))
+    out = _shown_out(history, trick)
+    hidden = [p for p in PLAYERS if p != player and p not in visible and led not in out[p]]
+    if unseen and len(hidden) != 1:
+        return choice
+    i = PLAYERS.index(player)
+    seat = {PLAYERS[(i + k) % 4]: k for k in range(4)}
+    down = dict(trick)
+
+    def held(p: str) -> tuple:
+        if p == player:
+            vals = [c.value() for c in hand if c.suit == led]
+        elif p in visible:
+            vals = [c.value() for c in visible[p] if c.suit == led]
+        else:
+            vals = list(unseen) if p in hidden else []
+        if p in down and down[p].suit == led:
+            vals.append(down[p].value())
+        return tuple(sorted(vals))
+
+    hands = tuple(held(PLAYERS[(i + k) % 4]) for k in range(4))
+    ruffs = (False, False, False, False)
+    plays = [(seat[p], c.value() if c.suit == led else None) for p, c in trick]
+    order = [seat[p] for p, _ in trick] + [0] + [k for k in range(1, 4)
+                                                 if k not in {seat[p] for p, _ in trick}]
+    memo = _SUIT_PLAN_MEMO
+    if len(memo) > _TRUMP_MEMO_MAX:
+        memo.clear()
+    score = {c: _plan_trick(hands, ruffs, plays + [(0, c.value())], order, memo)
+             for c in legal}
+    best = max(score.values())
+    if score[choice] == best:
+        return choice
+    return min((c for c in legal if score[c] == best), key=lambda c: c.value())
 
 
 # ── Second hand, dummy third and partner last, unseen ────────────────────────

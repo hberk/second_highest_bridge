@@ -146,6 +146,8 @@ four seats, which nets out a change both declarer and defenders use.
 | 10-30 | ...judged on this trick alone: the chance partner holds a winning card after dummy's best reply (library; fresh) | +0.061; +0.041 | +3.30; +2.07 | +4.93; -0.88 | 1,220; 1,097 | off (the plan above gains more; it stays as the fallback when the plan can't run) |
 | 10-31 | ...this trick's chance with the plan vetoing a worse card (library; fresh) | +0.054; +0.036 | +3.03; +2.11 | +3.72; +2.22 | 1,084; 1,007 | off |
 | 11-04 | Fourth hand, out of the led suit with partner already winning, discards instead of ruffing: East ruffed dummy's winning 5♣ with the Q♥ (your board, `PARTNER_WINS_NO_RUFF`). Seated, 3 × 1,000 fresh deals (seeds 1104-1106) | **+0.015** | +3.45; +4.28; +2.63 | **+2.15** | 2,469 of 47,576 | on |
+| 11-04 | Second to fourth hand play a trump or notrump suit out exactly once every card of it is located: T♥ from T5 with dummy 42 and South AQ6 (your 4♥, `LOCATED_SUIT_PLAN`). 3 × 1,000 fresh deals | **+0.016; +0.014; +0.010** | +3.74; +3.63; +3.53 | **+2.34; +1.72; +1.65** | 376; 322; 267 of ~15,800 | on (your call) |
+| 11-04 | ...any suit, later ruffs ignored (seed 1104 only) | +0.019 | +3.93 | +2.55 | 521 of 15,816 | off (not finished on the other seeds) |
 
 The three information rules together: +0.55 points a board, t = +0.48, 556
 boards changed. None is distinguishable from zero; they are kept because a
