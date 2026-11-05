@@ -23,7 +23,8 @@ RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'SHORT_LEAD_RETURN', 'DEAD_WINNER_FIRST', 'RUFF_IF_FOLLOWS',
          'NT_DEFENCE_SUIT', 'IDLE_TRUMP_FOR_RUFF', 'PARTNER_HONOUR_LEAD',
          'COVER_SUIT_PLAN', 'COVER_PLAN_LOW', 'LAST_SUIT_PLAN', 'COVER_KEEP_MASTER',
-         'SECOND_HAND_COVER', 'PARTNER_WINS_NO_RUFF', 'LOCATED_SUIT_PLAN')
+         'SECOND_HAND_COVER', 'PARTNER_WINS_NO_RUFF', 'LOCATED_SUIT_PLAN',
+         'TRUMP_FOLLOW_PLAN')
 
 
 @contextmanager
@@ -613,6 +614,39 @@ def test_located_suit_plan_needs_every_card_placed():
         card = ai.ai_play('East', east, trick, 'H', played, visible={'North': dummy},
                           history=history)
     assert card == C('5H'), card
+
+
+def _dummy_spades():
+    """The user's 4♠ doubled (2026-11-05), trick 3: East led the 10♠ from AJ10,
+    South played the 5, and dummy (West, Q832) is to play; North has the 4."""
+    def hand(text):
+        return [C(t) for t in text.split()]
+    history = [[('South', C('JH')), ('West', C('3H')), ('North', C('8H')), ('East', C('2H'))],
+               [('North', C('10H')), ('East', C('7S')), ('South', C('AH')), ('West', C('KH'))]]
+    played = [c for trick in history for _, c in trick]
+    west = hand('QS 8S 3S 2S JD 10D QC 10C 7C 5C 2C')
+    east = hand('AS JS AD 9D 8D 5D 4D KC 4C 3C')
+    trick = [('East', C('10S')), ('South', C('5S'))]
+    return west, east, trick, played, history
+
+
+def test_dummy_spades_middle_play_wins_with_the_queen():
+    west, east, trick, played, history = _dummy_spades()
+    with rules():
+        card = ai.ai_play('West', west, trick, 'S', played, visible={'East': east},
+                          history=history)
+    assert card == C('QS'), card
+
+
+def test_dummy_spades_trump_follow_plan_plays_low():
+    # Double dummy the 2, 3 and 8 are a trick better than the Q: the Q makes
+    # the 10 win now and costs a trump trick later.
+    west, east, trick, played, history = _dummy_spades()
+    with rules(TRUMP_FOLLOW_PLAN=True):
+        card = ai.ai_play('West', west, trick, 'S', played, visible={'East': east},
+                          history=history)
+    assert card in (C('2S'), C('3S'), C('8S')), card
+
 
 if __name__ == '__main__':
     failed = 0

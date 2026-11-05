@@ -1740,6 +1740,9 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                              out or _shown_out(history, trick))
                 if RUFF_IF_FOLLOWS and history is not None and len(trick) == 2 else 1.0)
         choice = _middle_play(player, legal, trick, trump, later, void)
+        if TRUMP_FOLLOW_PLAN:
+            choice = _trump_follow(player, hand, trick, trump, played, visible,
+                                   history, shown, choice)
 
     partner = PARTNERS[player]
     if len(trick) == 1 and visible and partner in visible and len(legal) > 1:
@@ -3392,6 +3395,83 @@ def _after_lead(led: int, rest: tuple, partner: tuple, left: tuple, right: tuple
         if worst is None or ours_best > worst:
             worst = ours_best
     return worst
+
+
+# ── Third hand follows the trump plan ────────────────────────────────────────
+#
+# `_draw_trump` picks the lead by playing the trump suit out for every layout,
+# partner's card included, but partner then followed by `_middle_play`, which
+# judges the trick alone. On the user's 4♠ doubled (2026-11-05) East led the
+# 10♠ from AJ10 with dummy Q832 against K965 and 4: South played the 5 and
+# dummy the Q won the trick, where the 2 lets South's 5 win and saves a trump
+# trick (double dummy, down one became down two). Over 199 challenge deals the
+# declaring side's third-hand card on its own trump lead gave away 0.22 tricks
+# a deal. So third hand scores each trump the same way: the rest of this trick
+# and then the trump suit played out, averaged over the layouts it can't see.
+
+#: Partner of a trump leader on the declaring side follows the trump plan.
+TRUMP_FOLLOW_PLAN = True
+
+
+def _trump_follow(player: str, hand: list[Card], trick: list[tuple[str, Card]],
+                  trump: str | None, played: list[Card],
+                  visible: dict[str, list[Card]] | None, history: list | None,
+                  shown: dict[str, dict[str, int]] | None, choice: Card) -> Card:
+    """Third hand's trump when partner, in view, led a trump; else `choice`."""
+    partner = PARTNERS[player]
+    if (trump not in SUITS or len(trick) != 2 or trick[0][0] != partner
+            or trick[0][1].suit != trump or not visible or partner not in visible):
+        return choice
+    mine = [c for c in hand if c.suit == trump]
+    if len(mine) < 2:
+        return choice
+    led = trick[0][1].value()
+    second = trick[1][1]
+    b = second.value() if second.suit == trump else None
+    partner_rest = tuple(sorted(c.value() for c in visible[partner] if c.suit == trump))
+    seen = set(played) | set(hand) | set(visible[partner]) | {c for _, c in trick}
+    outstanding = [c.value() for c in _FULL_DECK if c.suit == trump and c not in seen]
+    so_far = list(history or []) + [trick]
+    layouts = [(left, right, w) for left, right, w in
+               _splits(player, hand, trump, outstanding, seen, so_far, shown)
+               if len(right) < len(hand)]       # second hand has played
+    if not layouts:
+        return choice
+    memo = _trump_memo()
+    values = sorted(c.value() for c in mine)
+    scored = {}
+    for card in mine:
+        c = card.value()
+        rest = tuple(v for v in values if v != c)
+        total = weights = worst = 0
+        for left, right, weight in layouts:
+            # Seats as in `_after_lead`: 0 partner (led), 1 second hand,
+            # 2 this hand, 3 fourth hand (my left).
+            defence_best = None
+            table = (led, c) + ((b,) if b is not None else ())
+            for d in _options(left, table + partner_rest + rest + right):
+                plays = [(0, led), (1, b), (2, c), (3, d)]
+                trumps = sorted((v, who) for who, v in plays if v is not None)
+                winner = trumps[0][1] if len(trumps) == 1 else trumps[-2][1]
+                new_ours = (partner_rest, rest)
+                new_theirs = (right, tuple(x for x in left if x != d))
+                if winner in (0, 2):
+                    value = _trump_losers(new_ours, new_theirs, 0 if winner == 0 else 1, memo)
+                elif new_ours[0] or new_ours[1]:
+                    value = 1 + min(_trump_losers(new_ours, new_theirs, h, memo)
+                                    for h in (0, 1) if new_ours[h])
+                else:
+                    value = 1 + len(new_theirs[0]) + len(new_theirs[1])
+                if defence_best is None or value > defence_best:
+                    defence_best = value
+            total += defence_best * weight
+            weights += weight
+            worst = max(worst, defence_best)
+        scored[card] = (total / weights, worst)
+    best = min(scored.values())
+    if scored.get(choice) == best:
+        return choice
+    return min((c for c in mine if scored[c] == best), key=lambda c: c.value())
 
 
 #: `_ruff_first`'s answer when ruffs come first but this hand can't start one.
