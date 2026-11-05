@@ -47,8 +47,10 @@ The first tagged release: everything up to and including PR #62.
 - GIB 2/1 bidding, with the competitive rules from the championship study
   (balancing, the Law of Total Tricks, penalty doubles, pre-empts, Stayman and
   negative doubles over interference).
-- Card play close to double dummy: declarer 0.025 tricks a board below it on
-  the library.
+- Card play: declarer 0.025 tricks a board below double dummy on the
+  library. (Corrected 2026-11-05: that is a net figure, in which declarer's
+  and the defence's mistakes cancel. Added up, each side gave away about 2.8
+  tricks a board; see docs/ROBOT_PROGRESS.md.)
 
 **In this release (PR #62)**
 - A takeout double of 1♣/1♦ with both majors, direct and balancing seat.

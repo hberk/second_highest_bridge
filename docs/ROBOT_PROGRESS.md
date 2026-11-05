@@ -35,15 +35,46 @@ Points a board against par, split by the identity par - actual = bidding loss +
 play loss. From 2026-10-23 the grade uses the partner who actually declared
 and par the better partner, so the rows above it measured something slightly
 different: about 11 points of their card-play loss was the wrong declarer's
-count. The card play is close to double dummy now; the auction is where the
+count. The card-play column is net, so it looks close to double dummy, but it
+isn't: see "Card play, mistakes added up" below. The auction is where the
 points are. The 2026-10-22 bidding changes moved the auction figure by
 nothing (235.4 against 234.9) although each wins +4.66 a board head to head:
 all four seats use them here, so what N/S gain E/W gain back; from the
 declaring side the auction loss fell from 215.8 to 211.9. (An older figure, 143.7 / 31.8, was one auction per deal before any
 card-play change below, so it isn't comparable.)
 
-The robot declarer against double dummy, before the head-to-head metric
-existed (397 library boards, GIB auctions, tricks below double dummy a board):
+### Card play, mistakes added up
+
+The figure to quote for card play. `research/robot_line_report.py` scores
+every card the all-robot table plays against double dummy and adds each
+side's costly cards: tricks given away a board, the share of real choices
+(the legal cards don't all score the same) that cost a trick, and the share of
+boards with at least one costly card. Lower is better. A fix is reported as
+the change in these, before and after, on the same deals
+(`robot_line_report.py --compare`), next to its head-to-head gain.
+
+| measured | robots | deals | declaring side | opening lead | defence after the lead | boards with a costly card | net (cancels) |
+|---|---|---|---|---|---|---|---|
+| 2026-11-05 | main after PR #63 (v0.1.1-alpha) | 199 | **2.81** (19%, 91%) | **0.40** (36%, 34%) | **2.48** (22%, 89%) | 97% | -0.07 |
+| 2026-11-05 | the same robots, first 100 deals | 100 | 2.69 (18%, 90%) | 0.39 (36%, 34%) | 2.40 (22%, 87%) | 97% | -0.11 |
+| 2026-10-18 | before the trump-drawing fix and every play rule after it (`robot_lines_2026-10-18.jsonl`) | 100 | 3.94 (25%, 96%) | 0.41 (38%, 36%) | 3.85 (30%, 96%) | 97% | -0.32 |
+
+Tricks given away a board (share of real choices that cost, share of boards
+with one). Where it goes today: tricks 10-13, which the robots search over
+every layout, 2% of cards cost a trick; tricks 5-9 about 15%, the largest
+share for both sides; leads cost most (18% of declaring-side leads, 1.5 of
+its 2.8 tricks). Double dummy sees all four hands, so part of each figure is a
+guess no player could make, the opening lead most of all.
+
+**Why not the net figure.** "Below double dummy" (the table next) is double
+dummy minus declarer's tricks with robots defending: a trick the defence gives
+away cancels one declarer gave away, so a board where each side drops two
+tricks scores 0. In 2026-11-05's lines, 60% of the boards where declarer made
+a costly card still finished at or above double dummy.
+
+The robot declarer against double dummy, net, before the head-to-head metric
+existed (397 library boards, GIB auctions, tricks below double dummy a board;
+superseded by the table above):
 
 | change | below double dummy |
 |---|---|

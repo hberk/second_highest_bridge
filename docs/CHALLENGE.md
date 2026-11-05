@@ -213,7 +213,10 @@ only from cards the robot cannot see -- leave partner a winning reply. On a
 user's 3NT East ducked the 8C holding K64 with dummy's 9C to come; covering
 makes the nine win. Library: **0.199 -> 0.025 tricks below double dummy per
 board (22.0 -> 6.2 points)**; "below double dummy" also credits weak robot
-defence, so treat it as a ceiling on the gain. Until 2026-10-18 "cards the
+defence, so treat it as a ceiling on the gain. It is a net figure: declarer's
+and the defence's mistakes cancel, and added up card by card each side still
+gave away about 2.8 tricks a board on 2026-11-05 (ROBOT_PROGRESS.md, "Card
+play, mistakes added up"). Until 2026-10-18 "cards the
 robot cannot see" left out its own cards outside the led suit (it passed the
 legal cards, not the hand), so its own trumps could be the third player's
 ruff. Fixed; measured head to head it changed **0 of 6,356 boards** (the
@@ -255,8 +258,18 @@ and robot declarers took 8.32 tricks a deal against 7.94 double dummy (8.08
 before). "Gross" because costly cards offset: a trick one side gives away often
 comes back from the other.
 
+Its summary adds each side's costly cards up (tricks given away a board by
+the declaring side, on the opening lead and by the defence); that, not the
+net figure, is what to quote for card play, and `--compare before.jsonl`
+gives a fix's before and after on the same deals. Planning runs on every
+worker too; 200 deals take about 45 minutes on four.
+
     python research/presolve_robot_lines.py --deals 100
     python research/robot_line_report.py
+    python research/robot_line_report.py --compare research/data/robot_lines_2026-10-18.jsonl
+
+`research/data/robot_lines.jsonl` holds main's lines after PR #63 (the first
+200 deals, 2026-11-05): the "before" for the next change.
 
 **Declarer draws trumps** (`ai.DRAW_TRUMPS`, `_draw_trump`). `_lead` is one rule
 for every seat and ranks trumps last, so the declaring side kept leading side
