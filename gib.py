@@ -4277,6 +4277,8 @@ def _nt_interference(ctx: Ctx) -> tuple | None:
         for s in sorted(SUITS, key=lambda s: h.len[s], reverse=True):
             if s != their and h.len[s] >= 5:
                 call = ctx.cheapest(s, 2)
+                if NT_2C_SYSTEMS and lb == '2C' and call in ('2D', '2H'):
+                    call = '3' + s                   # 2♦ and 2♥ are transfers
                 if call and level_of(call) == 2:
                     return call, f"5+ {SYM[s]}, to play."
                 if call and level_of(call) == 3 and h.hcp <= 9 and ctx.ok('2NT'):
