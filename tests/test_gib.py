@@ -1017,6 +1017,15 @@ def test_no_crash_or_illegal_call_with_a_human_at_the_table():
     assert not gib.ILLEGAL, f"illegal calls caught by the guard: {gib.ILLEGAL[:3]}"
 
 
+def test_smolen_only_over_the_stayman_denial():
+    """The human-at-the-table sweep, 2026-11-05: a human opened 2NT and
+    answered Stayman 4♦, doubled; the robot tried 3♥ Smolen below it."""
+    west = 'QS JS 9S 6S 5S AH JH 6H 5H JD 6D QC 10C'
+    call, why = bid(west, '2NT', 'Pass', '3C', 'Pass', '4D', 'X', dealer='East')
+    assert call == 'Pass', (call, why)
+    assert bid(west, '2NT', 'Pass', '3C', 'Pass', '3D', 'Pass', dealer='East')[0] == '3H'
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_') and callable(fn):

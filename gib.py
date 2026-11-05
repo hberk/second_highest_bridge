@@ -1549,7 +1549,8 @@ def _nt_responder_second(ctx: Ctx, base: int, seq: list[str], lo: int, hi: int) 
             return placed(ctx, (f"3{s}", "Invitational."))
         if hcp + lo >= NT_GAME:
             smolen = _smolen_shape(h)
-            if smolen and strain_of(o) == 'D':
+            # Over the denial only: a human's 4♦ answer isn't one (2NT 3♣ 4♦).
+            if smolen and o == f"{level_of(r)}D" and ctx.ok(f"3{smolen[1]}"):
                 five, four = smolen
                 return f"3{four}", (f"Smolen: 5 {SYM[five]}, 4 {SYM[four]}, "
                                     "game forcing. Artificial.")

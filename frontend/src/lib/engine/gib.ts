@@ -1436,7 +1436,8 @@ function ntResponderSecond(ctx: Ctx, base: number, seq: string[], lo: number, hi
     }
     if (hcp + lo >= NT_GAME) {
       const sm = smolenShape(h);
-      if (sm && strainOf(o) === 'D') {
+      // Over the denial only: a human's 4♦ answer isn't one (2NT 3♣ 4♦).
+      if (sm && o === `${levelOf(r)}D` && ctx.ok(`3${sm[1]}`)) {
         const [five, four] = sm;
         return [`3${four}`, `Smolen: 5 ${SYM[five]}, 4 ${SYM[four]}, game forcing. Artificial.`];
       }
