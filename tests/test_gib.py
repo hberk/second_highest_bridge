@@ -1784,3 +1784,28 @@ def test_systems_on_over_their_2c():
     # A long diamond suit can't bid 2♦ (a transfer): it relays through 2NT.
     call, _ = bid('8S 5S 3S 7H 4H JD 9D 7D 6D 4D 2D 5C 2C', '1NT', '2C', dealer='West')
     assert call == '2NT', call
+
+
+TRANSFER_INTERFERED_CASES = [
+    # (dealer, calls, hand, call): the review of PR #65, 2026-11-05.
+    ('West', ('1NT', '2C', '2H', 'X'), 'KS 8S 4S KH JH 4H QD 10D 7D AC 7C 5C 4C', '2S'),
+    ('West', ('1NT', '2C', '2H', 'X'), 'KS 8S KH JH 4H 3H QD 10D 7D AC 7C 5C 4C', 'Pass'),
+    ('West', ('1NT', '2C', '2H', 'X', 'Pass', 'Pass'),
+     'JS 10S 7S 6S 2S 9H 3H 8D 4D 2D KC 10C 9C', '2S'),
+    ('West', ('1NT', '2C', '2H', '3C'), 'KS 8S 4S KH JH 4H QD 10D 7D AC 7C 5C 4C', '3S'),
+    ('West', ('1NT', '2C', '2D', 'X', 'Pass', 'Pass'),
+     'JS 10S 7S 6H 2H 9H 3H 8H 4D 2D KC 10C 9C', '2H'),
+    ('South', ('1NT', 'Pass', 'Pass', 'X', 'Pass', '2H', 'X', 'Pass', 'Pass'),
+     '10S 9S 6S 5S 4S 3S 7H 2H JD 9D 8C 5C 4C', '2S'),
+    ('North', ('1NT', 'X', 'Pass', '2H', 'X', 'Pass', 'Pass'),
+     'AS 10S 6S 5S 4S 3S 7H 2H JD 9D QC 5C 4C', '2S'),
+]
+
+
+def test_a_doubled_transfer_is_still_a_transfer():
+    """Systems on over their 2♣ and over our double of their 1NT: when they
+    double the transfer or bid over it, opener completes with three, and
+    the transfer bidder runs to the suit when the transfer is left doubled."""
+    for dealer, calls, cards, want in TRANSFER_INTERFERED_CASES:
+        call, why = bid(cards, *calls, dealer=dealer)
+        assert call == want, (calls, call, why)

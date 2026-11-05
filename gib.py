@@ -4309,6 +4309,11 @@ def _nt_interference(ctx: Ctx) -> tuple | None:
     if not lb:
         return uncontested(ctx)
     first = seq[0]
+    if NT_2C_SYSTEMS and TRANSFER_INTERFERED and first == '1NT':
+        interfered = _transfer_interfered(ctx, '1NT', '2C')
+        # Opener without a fit keeps the old answers (a penalty double).
+        if interfered and not (ctx.i_am_opener() and interfered[0] == 'Pass'):
+            return interfered
     systems = _nt_2c_systems(ctx)
     if systems:
         return systems
@@ -4546,28 +4551,53 @@ def _penalty_x_of_1nt(ctx: Ctx) -> bool:
 #: the three level; the transfer bidder without game values has said all.
 NT_X_INTERFERED = True
 NT_X_TRANSFERS = {'2D': 'H', '2H': 'S', '4D': 'H', '4H': 'S'}
+#: ...and when they double the transfer and partner passes it (fewer than
+#: three), the transfer bidder bids the suit himself, as over 1NT P 2♥ (X).
+#: All of this holds for the transfers over their 2♣ of our 1NT too (the
+#: review of PR #65, 2026-11-05: 1NT (2♣) 2♥ (X) P (P) P played 2♥ doubled
+#: on ♥93; opener passed with three spades, reading 2♥ as natural).
+TRANSFER_INTERFERED = True
 
 
-def _nt_x_interfered(ctx: Ctx) -> tuple | None:
-    if (not NT_X_INTERFERED or ctx.we_opened or len(ctx.seq) < 2 or ctx.seq[0] != 'X'
-            or not ctx.theirs or ctx.theirs[0][1] != '1NT'
-            or ctx.seq[1] not in NT_X_TRANSFERS):
+def _transfer_interfered(ctx: Ctx, lead: str, their_first: str) -> tuple | None:
+    """Our first call was `lead` over their `their_first`, partner then made a
+    systems-on transfer, and they have called over it."""
+    seq, us = ctx.seq, (ctx.me, ctx.pd)
+    if (len(seq) < 2 or seq[0] != lead or seq[1] not in NT_X_TRANSFERS
+            or not ctx.theirs or ctx.theirs[0][1] != their_first):
         return None
-    s = NT_X_TRANSFERS[ctx.seq[1]]
-    at = next(k for k, (w, c) in enumerate(ctx.calls) if w in (ctx.me, ctx.pd) and c == ctx.seq[1])
-    if not any(w not in (ctx.me, ctx.pd) and c != 'Pass' for w, c in ctx.calls[at + 1:]):
+    at = [k for k, (w, c) in enumerate(ctx.calls) if w in us and c != 'Pass'][1]
+    if (ctx.calls[at][0] == ctx.opener
+            or [c for w, c in ctx.calls[:at] if w not in us and c != 'Pass'] != [their_first]):
         return None
+    later = [c for w, c in ctx.calls[at + 1:] if w not in us and c != 'Pass']
+    if not later:
+        return None
+    s = NT_X_TRANSFERS[seq[1]]
     last = ctx.calls[-1]
-    if ctx.me == ctx.opener and ctx.seq == ['X', ctx.seq[1]]:
+    if ctx.me == ctx.opener and len(seq) == 2:
         if last[1] != 'Pass' and strain_of(last[1]) == 'NT' and ctx.ok('X'):
             return 'X', "Penalty."
         call = ctx.cheapest(s, 2)
         if ctx.h.len[s] >= 3 and call and level_of(call) <= 3:
             return call, f"Completing the transfer to {SYM[s]}."
         return 'Pass', "Nothing to add."
-    if ctx.me != ctx.opener and ctx.h.judge + NT1[0] < GAME_MAJOR:
-        return 'Pass', "Weak: transfer to play."
+    if ctx.me != ctx.opener:
+        hb = ctx.auction.highest_bid
+        if (TRANSFER_INTERFERED and len(seq) == 2 and hb and hb[2] == ctx.me
+                and f"{hb[0]}{hb[1]}" == seq[1]):
+            call = ctx.cheapest(s, 2)
+            if call and ctx.ok(call):
+                return call, f"5+ {SYM[s]}, to play."
+        if ctx.h.judge + NT1[0] < GAME_MAJOR:
+            return 'Pass', "Weak: transfer to play."
     return None
+
+
+def _nt_x_interfered(ctx: Ctx) -> tuple | None:
+    if not NT_X_INTERFERED or ctx.we_opened:
+        return None
+    return _transfer_interfered(ctx, 'X', '1NT')
 
 
 def _nt_x_systems(ctx: Ctx) -> tuple | None:

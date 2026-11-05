@@ -23,7 +23,8 @@ to 0.40, defence 2.48 to 2.41.
 - A 2♣ rebid shows six clubs, five only with a singleton or void.
 - Systems on over our penalty double of their 1NT (transfers to run, the
   doubler completes or doubles their runout) and over their 2♣ overcall of
-  our 1NT (X is Stayman, 2♦/2♥ transfer).
+  our 1NT (X is Stayman, 2♦/2♥ transfer). If they double the transfer or
+  bid over it, it is still completed (the review's fix).
 - A three-card raise of partner's 1♣/1♦ opening needs a side singleton or
   void.
 - Support redoubles: after 1x (P) 1y (X), opener redoubles with exactly three.

@@ -661,6 +661,15 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   `_nt_2c_systems`; the user's system, 2026-11-04): X is Stayman, 2♦/2♥
   transfer, and the uncontested continuations run while they pass. A long
   diamond suit relays through 2NT. +0.00 a board on 60,000 fresh boards.
+- **A doubled or overcalled systems-on transfer** (`TRANSFER_INTERFERED`,
+  `_transfer_interfered`; the review of PR #65, 2026-11-05). Over their 2♣ and
+  over our double of their 1NT, when they double our 2♦/2♥ transfer or bid
+  over it, opener (or the doubler) completes with three, and if the transfer
+  is left doubled the transfer bidder runs to the suit, as over 1NT P 2♥ (X).
+  Before, 1NT (2♣) 2♥ (X) was passed out by both of us with ♥93. Over 2♣,
+  opener without three keeps the old answers (a penalty double of their
+  suit). Robots never doubled or bid over these transfers in 240,000 robot
+  deals; it is a person at the table who does.
 - **Runouts after our 1NT is penalty-doubled** (`NT_RUNOUTS`, `_nt_runout`,
   `_runout_choice`; the user's system, 2026-10-28, from training board 25,
   where 1NT (X) P (P) had the opener bid Stayman: systems on read the

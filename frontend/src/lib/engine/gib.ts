@@ -3935,6 +3935,11 @@ function ntInterference(ctx: Ctx): Decision | null {
   if (!lb) return uncontested(ctx);
   const first = seq[0];
   const lastCall = ctx.calls[ctx.calls.length - 1];
+  if (NT_2C_SYSTEMS && TRANSFER_INTERFERED && first === '1NT') {
+    const interfered = transferInterfered(ctx, '1NT', '2C');
+    // Opener without a fit keeps the old answers (a penalty double).
+    if (interfered && !(ctx.iAmOpener() && interfered[0] === 'Pass')) return interfered;
+  }
   const systems = nt2CSystems(ctx);
   if (systems) return systems;
   if (STAYMAN_CONTESTED && (first === '1NT' || first === '2NT')) {
@@ -4143,22 +4148,47 @@ function penaltyXOf1NT(ctx: Ctx): boolean {
     && ctx.theirs.length === 1 && ctx.theirs[0][1] === '1NT';
 }
 
-function ntXInterfered(ctx: Ctx): Decision | null {
-  if (!NT_X_INTERFERED || ctx.weOpened || ctx.seq.length < 2 || ctx.seq[0] !== 'X'
-      || !ctx.theirs.length || ctx.theirs[0][1] !== '1NT' || !(ctx.seq[1] in NT_X_TRANSFERS)) return null;
-  const s = NT_X_TRANSFERS[ctx.seq[1]];
+// ...and when they double the transfer and partner passes it (fewer than
+// three), the transfer bidder bids the suit himself, as over 1NT P 2♥ (X).
+// All of this holds for the transfers over their 2♣ of our 1NT too (the
+// review of PR #65, 2026-11-05: 1NT (2♣) 2♥ (X) P (P) P played 2♥ doubled
+// on ♥93; opener passed with three spades, reading 2♥ as natural).
+export const TRANSFER_INTERFERED = true;
+
+/** Our first call was `lead` over their `theirFirst`, partner then made a
+ *  systems-on transfer, and they have called over it. */
+function transferInterfered(ctx: Ctx, lead: string, theirFirst: string): Decision | null {
+  const seq = ctx.seq;
   const us = (w: Seat) => w === ctx.me || w === ctx.pd;
-  const at = ctx.calls.findIndex(([w, c]) => us(w) && c === ctx.seq[1]);
+  if (seq.length < 2 || seq[0] !== lead || !(seq[1] in NT_X_TRANSFERS)
+      || !ctx.theirs.length || ctx.theirs[0][1] !== theirFirst) return null;
+  const at = ctx.calls.map(([w, c], k) => [w, c, k] as const)
+    .filter(([w, c]) => us(w) && c !== 'Pass')[1][2];
+  const before = ctx.calls.slice(0, at).filter(([w, c]) => !us(w) && c !== 'Pass');
+  if (ctx.calls[at][0] === ctx.opener || before.length !== 1 || before[0][1] !== theirFirst) return null;
   if (!ctx.calls.slice(at + 1).some(([w, c]) => !us(w) && c !== 'Pass')) return null;
+  const s = NT_X_TRANSFERS[seq[1]];
   const last = ctx.calls[ctx.calls.length - 1];
-  if (ctx.me === ctx.opener && ctx.seq.length === 2) {
+  if (ctx.me === ctx.opener && seq.length === 2) {
     if (last[1] !== 'Pass' && strainOf(last[1]) === 'NT' && ctx.ok('X')) return ['X', 'Penalty.'];
     const call = ctx.cheapest(s, 2);
     if (ctx.h.len[s] >= 3 && call && levelOf(call) <= 3) return [call, `Completing the transfer to ${SYM[s]}.`];
     return ['Pass', 'Nothing to add.'];
   }
-  if (ctx.me !== ctx.opener && ctx.h.judge + NT1[0] < GAME_MAJOR) return ['Pass', 'Weak: transfer to play.'];
+  if (ctx.me !== ctx.opener) {
+    const hb = ctx.auction.highestBid;
+    if (TRANSFER_INTERFERED && seq.length === 2 && hb && hb[2] === ctx.me && `${hb[0]}${hb[1]}` === seq[1]) {
+      const call = ctx.cheapest(s, 2);
+      if (call && ctx.ok(call)) return [call, `5+ ${SYM[s]}, to play.`];
+    }
+    if (ctx.h.judge + NT1[0] < GAME_MAJOR) return ['Pass', 'Weak: transfer to play.'];
+  }
   return null;
+}
+
+function ntXInterfered(ctx: Ctx): Decision | null {
+  if (!NT_X_INTERFERED || ctx.weOpened) return null;
+  return transferInterfered(ctx, 'X', '1NT');
 }
 
 function ntXSystems(ctx: Ctx): Decision | null {
