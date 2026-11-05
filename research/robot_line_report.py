@@ -11,7 +11,17 @@ here may have been the right play on what the defender could see, so treat
 these as places to look, not a verdict; check a pattern single dummy before
 changing the robots for it.
 
+The summary at the top is the card-play figure to quote. It ADDS each side's
+costly cards: tricks given away a board by the declaring side, on the opening
+lead and by the defence after it, the share of real choices (decisions where
+the legal cards don't all score the same) that cost a trick, and the share of
+boards with at least one costly card. Never quote the net figure alone
+(double dummy minus declarer's tricks): with robots in all four seats a trick
+the defence gives away cancels one declarer gave away, so a board with two
+mistakes a side scores as perfect.
+
     python research/robot_line_report.py
+    python research/robot_line_report.py --compare before.jsonl   # before/after, same deals
 """
 from __future__ import annotations
 
@@ -69,6 +79,74 @@ def mistakes(record: dict) -> List[dict]:
     return out
 
 
+#: The three groups the summary adds up separately.
+GROUPS = (('declarer side', 'declarer side'), ('opening lead', 'opening lead'),
+          ('defence', 'defence after the lead'))
+
+
+def summary(records: List[dict], deal_ids=None) -> Dict[str, Dict[str, float]]:
+    """Gross card-play figures a board, every deal weighing the same.
+
+    For each group: 'given' tricks given away a board, 'costly' costly cards a
+    board, 'rate' the share of real choices that cost, 'boards' the share of
+    boards with at least one costly card. 'all' holds 'net' (double dummy minus
+    declarer's tricks, signed) and 'boards' (a costly card from either side)."""
+    sums: Dict[str, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    total = 0.0
+    for record in records:
+        if deal_ids is not None and record['deal_id'] not in deal_ids:
+            continue
+        weight = len(record['boards']) / BOARDS
+        total += weight
+        contract = record['contract']
+        declaring = NS if contract['side'] == 'N/S' else ('East', 'West')
+        start = best(record['decisions'][0])
+        dd = start if contract['side'] == 'N/S' else 13 - start
+        actual = record['ns_tricks'] if contract['side'] == 'N/S' else 13 - record['ns_tricks']
+        sums['all']['net'] += (dd - actual) * weight
+        erred = set()
+        for k, decision in enumerate(record['decisions']):
+            values = dict(decision['values'])
+            group = ('declarer side' if decision['seat'] in declaring
+                     else 'opening lead' if k == 0 else 'defence')
+            lost = abs(best(decision) - values[decision['played']])
+            if len(set(values.values())) > 1:
+                sums[group]['choices'] += weight
+            if lost:
+                sums[group]['costly'] += weight
+                sums[group]['given'] += lost * weight
+                erred.add(group)
+        for group in erred:
+            sums[group]['boards'] += weight
+        if erred:
+            sums['all']['boards'] += weight
+    out: Dict[str, Dict[str, float]] = {}
+    for group, _ in GROUPS:
+        g = sums[group]
+        out[group] = {'given': g['given'] / total, 'costly': g['costly'] / total,
+                      'rate': g['costly'] / g['choices'] if g['choices'] else 0.0,
+                      'boards': g['boards'] / total}
+    out['all'] = {'net': sums['all']['net'] / total, 'boards': sums['all']['boards'] / total,
+                  'deals': total}
+    return out
+
+
+def print_summary(now: Dict[str, Dict[str, float]], before=None) -> None:
+    print(f"\nCard play, mistakes added up per side ({now['all']['deals']:.0f} deals):")
+    head = f"  {'':<24}{'tricks given/board':>19}{'costly share':>14}{'boards with one':>17}"
+    print(head + (f"{'tricks given before':>21}{'change':>9}" if before else ''))
+    for group, name in GROUPS:
+        g = now[group]
+        line = f"  {name:<24}{g['given']:>19.2f}{g['rate']:>14.1%}{g['boards']:>17.0%}"
+        if before:
+            b = before[group]['given']
+            line += f"{b:>21.2f}{g['given'] - b:>+9.2f}"
+        print(line)
+    print(f"  boards with a costly card from either side: {now['all']['boards']:.0%}")
+    print(f"  net (double dummy minus declarer's tricks, mistakes cancel; never quote alone): "
+          f"{now['all']['net']:+.3f}" + (f" (before {before['all']['net']:+.3f})" if before else ''))
+
+
 def table(title: str, rows: Dict[str, List[float]], decisions: Dict[str, float], deals: int) -> None:
     print(f"\n{title}")
     print(f"  {'':<26}{'cards played':>13}{'costly':>9}{'rate':>8}{'tricks lost':>13}{'per deal':>10}")
@@ -82,6 +160,8 @@ def table(title: str, rows: Dict[str, List[float]], decisions: Dict[str, float],
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--in', dest='path', type=Path, default=DEFAULT_IN)
+    parser.add_argument('--compare', type=Path, default=None,
+                        help="lines from the robots before a change: before/after on the deals both cover")
     parser.add_argument('--worst', type=int, default=10, help="deals to list, most tricks given away first")
     args = parser.parse_args(argv)
 
@@ -94,6 +174,14 @@ def main(argv=None) -> int:
     print(f"{len(records)} robot lines on {deals} deals; robot version {', '.join(sorted(versions))}")
     if len(versions) > 1:
         print("WARNING: more than one robot version; rerun the presolve so all lines match the current robots")
+
+    if args.compare:
+        older = [json.loads(line) for line in args.compare.read_text(encoding='utf-8').splitlines() if line.strip()]
+        common = {r['deal_id'] for r in records} & {r['deal_id'] for r in older}
+        print(f"compared with {args.compare.name}: {len(common)} deals in both")
+        print_summary(summary(records, common), summary(older, common))
+    else:
+        print_summary(summary(records))
 
     by: Dict[str, Dict[str, List[float]]] = defaultdict(lambda: defaultdict(lambda: [0.0, 0.0]))
     seen: Dict[str, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
