@@ -1200,6 +1200,10 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     choice = coverUnseenPartner(player, hand, legal, trick, trump, played, visible, history, choice, shown);
   }
 
+  if (LOCATED_SUIT_PLAN && trick.length) {
+    choice = locatedSuitPlan(player, hand, legal, trick, trump, played, visible, history, choice);
+  }
+
   if (history !== null && Object.keys(visible).length && legal.length > 1
     && hand.length <= (DEEP_ENDGAME ? DEEP_ENDGAME_CARDS : ENDGAME_CARDS)) {
     const totals = endgameTotals(player, hand, trick, trump, played, visible, history, legal, shown);
@@ -1347,6 +1351,53 @@ function lastSuitPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[
   const top = Math.max(...planned.values());
   if (planned.get(cardKey(choice)) === top) return choice;
   return minBy(winning.filter((c) => planned.get(cardKey(c)) === top), (c) => [value(c)]);
+}
+
+// ── Every card of the suit located (see ai.py) ───────────────────────────────
+
+/** 0 off, 1 trumps and notrump only, 2 any suit (see ai.py). */
+export const LOCATED_SUIT_PLAN: number = 1;
+
+/** The card of `legal` that takes the most tricks in the led suit when every card
+ *  of it is located, else `choice` (see ai.py `_located_suit_plan`). */
+function locatedSuitPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[], trump: string | null,
+  played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null, choice: Card): Card {
+  if (!trick.length || !Object.keys(visible).length || history === null || legal.length < 2) return choice;
+  const led = trick[0][1].suit;
+  if (legal.some((c) => c.suit !== led)) return choice;
+  if (LOCATED_SUIT_PLAN < 2 && isSuit(trump) && led !== trump) return choice;
+  if (trick.slice(1).some(([, c]) => c.suit === trump && c.suit !== led)) return choice;
+  const seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
+  for (const cs of Object.values(visible)) for (const c of cs!) seen.add(cardKey(c));
+  const unseen = FULL_DECK.filter((c) => c.suit === led && !seen.has(cardKey(c)))
+    .map(value).sort((a, b) => a - b);
+  const out = shownOut(history, trick);
+  const hidden = PLAYERS.filter((p) => p !== player && !(p in visible) && !out[p].has(led));
+  if (unseen.length && hidden.length !== 1) return choice;
+  const i = PLAYERS.indexOf(player);
+  const seat = (p: Seat) => (PLAYERS.indexOf(p) - i + 4) % 4;
+  const down = new Map<Seat, Card>(trick as [Seat, Card][]);
+  const held = (p: Seat): Trumps => {
+    let vals: number[];
+    if (p === player) vals = hand.filter((c) => c.suit === led).map(value);
+    else if (p in visible) vals = visible[p]!.filter((c) => c.suit === led).map(value);
+    else vals = hidden.includes(p) ? [...unseen] : [];
+    const d = down.get(p);
+    if (d && d.suit === led) vals.push(value(d));
+    return vals.sort((a, b) => a - b);
+  };
+  const hands = [0, 1, 2, 3].map((k) => held(PLAYERS[(i + k) % 4])) as unknown as PlanHands;
+  const ruffs = [false, false, false, false];
+  const plays: [number, PlanCard][] = trick.map(([p, c]) => [seat(p as Seat), c.suit === led ? value(c) : null]);
+  const downSeats = new Set(plays.map(([k]) => k));
+  const order = [...plays.map(([k]) => k), 0, ...[1, 2, 3].filter((k) => !downSeats.has(k))];
+  const memo = SUIT_PLAN_MEMO;
+  if (memo.size > POSITION_MEMO_MAX) memo.clear();
+  const score = new Map(legal.map((c) => [cardKey(c),
+    planTrick(hands, ruffs, [...plays, [0, value(c)]], order, memo)]));
+  const best = Math.max(...score.values());
+  if (score.get(cardKey(choice)) === best) return choice;
+  return minBy(legal.filter((c) => score.get(cardKey(c)) === best), (c) => [value(c)]);
 }
 
 // ── Second hand, dummy third and partner last, unseen (see ai.py) ───────────
