@@ -121,6 +121,11 @@ DOUBLER_SUIT_HCP = 18
 DOUBLER_SUIT_JUDGE = 14
 DOUBLER_RAISE_HCP = 6
 DOUBLER_SUIT_LEVEL = 2
+#: The doubler's suit answering partner's responsive double, (1x) X (2x) X
+#: (P) 2y, is forced, not the 18+ double-then-suit, so advancer does not
+#: raise it on DOUBLER_SUIT_JUDGE (the user's deal, 2026-11-05: 1♦ P 1♥ X
+#: 2♥ X P 2♠ P 4♠ on an 8-count, doubled and down two).
+DOUBLER_SUIT_NOT_ANSWER = True
 #: Slam on points (6NT, quantitative 4NT, keycard) needs 37 judgement points,
 #: not GIB's 33 (the user's call, 2026-10-31, from the championship study of
 #: uncontested auctions: the robots' 2NT-6NT and 2C-2D-3NT-6NT on 33 went
@@ -4754,7 +4759,14 @@ def _doubler_suit(ctx: Ctx, seat: str) -> str | None:
     if not _takeout_doubler(ctx, seat):
         return None
     bids = [i for i, (w, c) in enumerate(ctx.calls) if w == seat and c != 'Pass']
-    return _new_suit_at(ctx, bids[1]) if len(bids) >= 2 else None
+    if len(bids) < 2:
+        return None
+    if DOUBLER_SUIT_NOT_ANSWER and any(w == PARTNERS[seat] and c == 'X'
+                                       for w, c in ctx.calls[bids[0]:bids[1]]):
+        # Partner's responsive double asked for this suit: it is an answer
+        # at any strength, not the 18+ double-then-suit.
+        return None
+    return _new_suit_at(ctx, bids[1])
 
 
 def _doubler_alert(s: str) -> str:

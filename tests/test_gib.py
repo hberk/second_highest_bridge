@@ -449,6 +449,20 @@ def test_doubler_answers_responsive_double():
         gib.RESPONSIVE_ANSWER = True
 
 
+def test_answer_to_responsive_double_is_not_raised_to_game():
+    # The user's deal, 2026-11-05: 1D P 1H X 2H X P 2S P. East's 2S only
+    # answered the responsive double; read as the 18+ double-then-suit, it
+    # took West's 8-count to 4S, doubled and down two.
+    calls = ('1D', 'Pass', '1H', 'X', '2H', 'X', 'Pass', '2S', 'Pass')
+    west = 'QS 8S 3S 2S KH 3H JD 10D QC 10C 7C 5C 2C'
+    assert bid(west, *calls, dealer='South')[0] == 'Pass'
+    gib.DOUBLER_SUIT_NOT_ANSWER = False
+    try:
+        assert bid(west, *calls, dealer='South')[0] == '4S'
+    finally:
+        gib.DOUBLER_SUIT_NOT_ANSWER = True
+
+
 def test_keycard_answer_then_they_bid():
     # 1H 2NT 4H 4NT 5C (5D): with four keycards opposite 0/3 none is missing,
     # so the slam is bid over their bid; with two, two are missing: double.

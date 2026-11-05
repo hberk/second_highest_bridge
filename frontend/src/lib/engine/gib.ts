@@ -67,6 +67,9 @@ const DOUBLER_SUIT_HCP = 18;
 const DOUBLER_SUIT_JUDGE = 14;
 const DOUBLER_RAISE_HCP = 6;
 const DOUBLER_SUIT_LEVEL = 2;
+/** The doubler's suit answering partner's responsive double is forced, not
+ *  the 18+ double-then-suit, so advancer does not raise it to game. */
+export const DOUBLER_SUIT_NOT_ANSWER = true;
 /** Slam on points needs 37 judgement points, not 33 (the user's call, 2026-10-31). See gib.py. */
 export const SLAM = 37;
 const GRAND = 37;
@@ -4321,7 +4324,12 @@ function doublerSuit(ctx: Ctx, seat: Seat): Suit | null {
   if (!takeoutDoubler(ctx, seat)) return null;
   const bids: number[] = [];
   ctx.calls.forEach(([w, c], i) => { if (w === seat && c !== 'Pass') bids.push(i); });
-  return bids.length >= 2 ? newSuitAt(ctx, bids[1]) : null;
+  if (bids.length < 2) return null;
+  // Partner's responsive double asked for this suit: it is an answer at any
+  // strength, not the 18+ double-then-suit.
+  if (DOUBLER_SUIT_NOT_ANSWER && ctx.calls.slice(bids[0], bids[1])
+    .some(([w, c]) => w === PARTNERS[seat] && c === 'X')) return null;
+  return newSuitAt(ctx, bids[1]);
 }
 
 const doublerAlert = (s: Suit) =>
