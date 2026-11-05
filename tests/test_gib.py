@@ -1689,3 +1689,39 @@ def test_advancer_picks_a_minor_after_our_minors_over_a_weak_two():
     for overcall in ('4S', '4NT'):
         call, why = bid(north, 'Pass', '2S', overcall, 'Pass')
         assert call == '5D', (overcall, call, why)
+
+
+def test_systems_on_over_our_double_of_their_1nt():
+    """The user's deal, 2026-11-04: 1NT P P (X) P and West passed with six
+    spades; then 2♣ (their runout) 2♥ and West passed again with ♥72."""
+    west = 'AS 10S 6S 5S 4S 3S 7H 2H JD 9D QC 5C 4C'
+    call, why = bid(west, '1NT', 'Pass', 'Pass', 'X', 'Pass', dealer='South')
+    assert call == '2H' and 'Transfer' in why, (call, why)
+    east = 'KS JS 7S QH 9H 5H 4H 3H KD QD 6D KC JC'
+    call, _ = bid(east, '1NT', 'Pass', 'Pass', 'X', 'Pass', '2H', 'Pass', dealer='South')
+    assert call == '2S', call
+    # A hand without a five-card major still leaves the double in.
+    call, why = bid('AS 10S 6S 5S 7H 2H JD 9D 8D QC 5C 4C 3C',
+                    '1NT', 'Pass', 'Pass', 'X', 'Pass', dealer='South')
+    assert call == 'Pass' and 'Penalty' in why, (call, why)
+    # Once partner bids again, the double no longer makes me pass.
+    call, _ = bid(west, '1NT', 'Pass', 'Pass', 'X', 'Pass', 'Pass', '2C', '2H', 'Pass',
+                  dealer='South')
+    assert call == '2S', call
+
+
+def test_systems_on_over_their_2c():
+    """The user's deal, 2026-11-04: 1NT (2♣) X (Stayman) P 2♦ P and East
+    passed with ♠JT762 ♥A93 ♦A42 ♣KT. Now 2♥ transfers; after Stayman's
+    denial, 2NT invites."""
+    east = 'JS 10S 7S 6S 2S AH 9H 3H AD 4D 2D KC 10C'
+    call, why = bid(east, '1NT', '2C', dealer='West')
+    assert call == '2H' and 'Transfer' in why, (call, why)
+    west = 'KS 8S 4S KH JH KD QD 10D 7D AC 7C 5C 4C'
+    call, _ = bid(west, '1NT', '2C', '2H', 'Pass', dealer='West')
+    assert call == '2S', call
+    call, why = bid(east, '1NT', '2C', 'X', 'Pass', '2D', 'Pass', dealer='West')
+    assert call == '2NT', (call, why)
+    # A long diamond suit can't bid 2♦ (a transfer): it relays through 2NT.
+    call, _ = bid('8S 5S 3S 7H 4H JD 9D 7D 6D 4D 2D 5C 2C', '1NT', '2C', dealer='West')
+    assert call == '2NT', call

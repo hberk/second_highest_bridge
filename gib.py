@@ -4190,7 +4190,8 @@ def _neg_x_competed(ctx: Ctx) -> tuple | None:
 #: passed on ♠JT762 ♥A93 ♦A42 ♣KT, 10 HCP: a transfer to spades, and after
 #: the denial 2NT. While they only pass after the 2♣, the auction runs as
 #: 1NT 2♣ would uncontested; other hands keep Lebensohl (below).
-NT_2C_SYSTEMS = False
+#: Measured on 60,000 fresh boards: +0.00 a board. Kept as the user's system.
+NT_2C_SYSTEMS = True
 
 
 def _nt_2c_systems(ctx: Ctx) -> tuple | None:
@@ -4448,15 +4449,14 @@ def _weak_two_balance(ctx: Ctx) -> bool:
 #: nothing more, the doubler's partner answers as over a 1NT opening, but
 #: pulls the double only with a transfer (Jacoby or Texas) to a 5+ major;
 #: every other hand leaves it in.
-NT_X_SYSTEMS = False
-#: Which transfer hands pull: 'all' (every one `_nt_response` would make),
-#: 'weak' (at most NT_X_PULL_HCP HCP) or 'six' (a six-card major).
-NT_X_PULL = 'all'
-NT_X_PULL_HCP = 7
+NT_X_SYSTEMS = True
+#: Measured with fix and interference rules on, 60,000 fresh boards: 0.00 a
+#: board (pulling only with 7- HCP 0.00, only with a six-card major -0.03).
+#: Kept as the user's system.
 #: Once partner has bid again after doubling their 1NT, their bid is not
 #: the double: I answer it (ai.py does), no longer "Penalty double: passing"
 #: (the same deal: 1NT P P X P P 2♣ 2♥ P, and West passed 2♥ with ♥72).
-NT_X_ADVANCE_FIX = False
+NT_X_ADVANCE_FIX = True
 
 
 def _penalty_x_of_1nt(ctx: Ctx) -> bool:
@@ -4505,10 +4505,7 @@ def _nt_x_systems(ctx: Ctx) -> tuple | None:
         if ctx.me == ctx.opener:
             return None
         decision = _nt_response(as_opened, 1, *NT1)
-        s = {'2D': 'H', '2H': 'S', '4D': 'H', '4H': 'S'}.get(decision[0])
-        if s and (NT_X_PULL == 'all'
-                  or (NT_X_PULL == 'weak' and ctx.h.hcp <= NT_X_PULL_HCP)
-                  or (NT_X_PULL == 'six' and ctx.h.len[s] >= 6)):
+        if decision[0] in NT_X_TRANSFERS:
             return decision
         return 'Pass', "Penalty double: passing."
     return notrump(as_opened, 0)
