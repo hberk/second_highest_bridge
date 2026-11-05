@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { Ctx, doublerGuard, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
+import { Ctx, doublerGuard, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -664,10 +664,13 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
     const combined = withShortness(
       ev.suit_pts[pStrain] + partnerPromise(player, partner, auction, pStrain), groups, pStrain as Suit);
     const [call, why] = place(pStrain, combined, legal);
-    return call !== 'Pass'
-      ? [call, contestAlert(player, auction, call,
-        `${SUPPORT_LENGTH}+ ${SUIT_SYM[pStrain]} support, agreeing the suit.`)]
-      : [call, why];
+    if (call === 'Pass') return [call, why];
+    if (SUPPORT_XX && auction.doubled === 'X' && parseBid(call)?.[1] === pStrain
+      && supportXRaise(auction.calls, player, pStrain)) {
+      return [call, supportXRaiseAlert(pStrain as Suit)];
+    }
+    return [call, contestAlert(player, auction, call,
+      `${SUPPORT_LENGTH}+ ${SUIT_SYM[pStrain]} support, agreeing the suit.`)];
   }
 
   if (pStrain === myFirst) {
