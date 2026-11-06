@@ -1299,6 +1299,18 @@ def test_double_then_a_new_suit_shows_18():
     assert call in ('3S', '4S') and '3+' in why, (call, why)
 
 
+def test_double_then_a_long_suit_at_the_three_level():
+    """The user's deal, 2026-11-06: 2♦ X P 2♠ P, and North passed a 20-count
+    with seven hearts. With 6+ cards the doubler's suit goes to the three
+    level, and the alert says six; with five it stays a pass."""
+    north = 'KS 6S 4S AH KH JH 10H 7H 4H 2H KD QD AC'
+    call, why = bid(north, '2D', 'X', 'Pass', '2S', 'Pass', dealer='West')
+    assert call == '3H' and why.startswith('6+ ♥, 18+ HCP'), (call, why)
+    five = 'KS 6S 4S AH KH JH 10H 7H KD QD AC 3C 2C'
+    call, _ = bid(five, '2D', 'X', 'Pass', '2S', 'Pass', dealer='West')
+    assert call != '3H', call
+
+
 def test_a_takeout_doubler_answers_partners_cuebid():
     # The cuebid forces an answer; passing it left us in their suit (review
     # of the combined bidding PR, 2026-10-29). Main bid 2S here.

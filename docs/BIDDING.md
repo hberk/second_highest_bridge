@@ -808,6 +808,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   t = -0.2 (388 changed: the extra three-level suits get doubled); the
   meaning and the pass alone +0.01, t = +1.9. Game at judge 12 instead of
   14 changed nothing.
+  At the three level the suit needs 6+ cards (`DOUBLER_SUIT_LEN3`, the
+  user's deal, 2026-11-06: 2♦ X P 2♠ passed out with ♠K64 ♥AKJT742 ♦KQ ♣A),
+  and the alert says 6+; `doubler_guard` passes a shorter three-level suit.
+  3 x 10,000 fresh deals: +0.01/+0.03/0.00 (t +0.18/+1.41/-0.12, 159
+  auctions), noise; 7+ cards 0.00, 5+ +0.03/+0.11/-0.15. The losses are
+  doublers who used to jump to 4♥ and now stop in 3♥. On the user's own
+  deal the pass was double dummy best: ♥AKJT742 opposite a singleton takes
+  7 tricks under the second-highest rule.
 - **A five-card major is bid, not doubled** (`NEG_BIDS_FIVE`, the user's
   Bidding training deal, 2026-10-28: 1♦ (1♥) X on ♠AKJT53 ♥8 ♦J83 ♣T62,
   and the spade fit was lost). Over a minor opening the negative double was
