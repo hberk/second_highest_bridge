@@ -55,6 +55,7 @@ the change in these, before and after, on the same deals
 
 | measured | robots | deals | declaring side | opening lead | defence after the lead | boards with a costly card | net (cancels) |
 |---|---|---|---|---|---|---|---|
+| 2026-11-06 | main + `SURE_LEAD_UNRUFFED` alone (deal 157's K♥; `/mnt/project-files/sure-lead-unruffed/report.txt`) | 199 | **2.71** (18%, 90%) | **0.40** (36%, 33%) | **2.38** (21%, 88%) | 96% | -0.07 |
 | 2026-11-05 | the Nov 4 evening fixes together (v0.1.2-alpha; `/mnt/project-files/nov4-evening-combined/line_report.txt`) | 199 | **2.74** (19%, 91%) | **0.40** (36%, 33%) | **2.41** (22%, 88%) | 97% | -0.07 |
 | 2026-11-05 | main after PR #63 (v0.1.1-alpha) | 199 | **2.81** (19%, 91%) | **0.40** (36%, 34%) | **2.48** (22%, 89%) | 97% | -0.07 |
 | 2026-11-05 | the same robots, first 100 deals | 100 | 2.69 (18%, 90%) | 0.39 (36%, 34%) | 2.40 (22%, 87%) | 97% | -0.11 |

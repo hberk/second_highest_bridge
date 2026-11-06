@@ -383,6 +383,15 @@ both sides netted; see below for one side at a time).
   ruffed in the long trump hand (deal 4). Card choice within the side suit
   the lead rules chose is the version measured above. The user's point, in the end:
   the 9♣ is plain good planning, not part of a ruffing plan.
+- **Unless it's ruffed** (`SURE_LEAD_UNRUFFED`, on; deal 157, spades by
+  North, user's review 2026-11-06): dummy's K♥ 4♥ 2♥ to North's bare A♥, East
+  out of hearts. No heart was sure, since East might ruff, so the fallback 4♥
+  went and lost to West's 9♥; under the ace the K♥ is second-highest and wins.
+  A ruff beats every card of the suit alike, so with no sure card a second
+  pass leaves the ruffs out and leads the lowest card that wins whenever
+  nobody ruffs. Gross double dummy losses on 199 deals: declaring side 2.74 to
+  2.71, defence 2.41 to 2.38, opening lead 0.40 unchanged; the robot table's
+  tricks on the 405 boards whose play changed: -1 in all (flat).
 - **Dead card in fourth seat** (deal 156, 1H by North): on 10♣ 3♣ 9♣ North
   dumped the 5♣, keeping A♣ K♣ that could never win a trick. Double dummy
   over 199 deals the lowest card lost 43.5 tricks where the lowest dead card

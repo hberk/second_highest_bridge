@@ -3193,6 +3193,12 @@ def _sure_lead(player: str, hand: list[Card], trump: str | None,
 #: card that wins the trick for sure, partner's card chosen by partner's own
 #: rules (measurement switch).
 SURE_LEAD_DECLARER = True
+#: When no card of the suit is sure because an opponent might ruff, the
+#: declaring side leads the lowest card that wins whenever nobody ruffs: the
+#: ruff beats every card alike (deal 157, 3S by North: dummy's K-4-2 of hearts
+#: to North's bare ace, East out of hearts; the 4 lost to West's 9, the K wins
+#: under the ace) (measurement switch).
+SURE_LEAD_UNRUFFED = True
 #: The declaring side, with the defence out of trumps, leads a suit its visible
 #: partner is void in and can ruff (measurement switch).
 RUFF_LEAD = False
@@ -3266,6 +3272,9 @@ def _sure_lead_declarer(player: str, hand: list[Card], trump: str | None,
     in view, so partner's card is the one partner's own rules would play after
     the left-hand opponent's card, and each opponent's play is every card the
     split allows it (a void one ruffs with any unseen trump, or discards).
+
+    With `SURE_LEAD_UNRUFFED`, when no card is sure, a second pass leaves the
+    ruffs out: the lowest card that wins whenever the suit isn't ruffed.
     """
     partner = PARTNERS[player]
     if not visible or partner not in visible:
@@ -3280,60 +3289,64 @@ def _sure_lead_declarer(player: str, hand: list[Card], trump: str | None,
     slots = len(hand)                     # every hand holds this many at a lead
     ruffing = trump if trump in SUITS else None
 
-    for card in sorted((c for c in hand if c.suit == suit), key=lambda c: c.value()):
-        led = card.suit
-        # Trumps are `_draw_trump`'s. A "sure" trump trick with the defence
-        # out of trumps spends two of ours on one trick: on deal 6, 4C by
-        # South, the J♣ led to dummy's Q♣ cost four tricks over the hand.
-        if led == ruffing:
-            continue
-        follows = [c for c in unseen if c.suit == led]
-        trumps = ([c for c in unseen if c.suit == ruffing]
-                  if ruffing and ruffing != led else [])
-        # A discard never wins; any unseen card of another side suit stands for all.
-        spare = [c for c in unseen if c.suit not in (led, ruffing)]
-        discard = spare[:1]
-        rest = [c for c in hand if c != card]
-        partner_view = {player: rest, partner: partner_hand}
-        replies: dict = {}
+    # The second pass, without ruffs, only when a trump suit makes it differ.
+    passes = (True, False) if SURE_LEAD_UNRUFFED and ruffing else (True,)
+    for allow_ruff in passes:
+        for card in sorted((c for c in hand if c.suit == suit), key=lambda c: c.value()):
+            led = card.suit
+            # Trumps are `_draw_trump`'s. A "sure" trump trick with the defence
+            # out of trumps spends two of ours on one trick: on deal 6, 4C by
+            # South, the J♣ led to dummy's Q♣ cost four tricks over the hand.
+            if led == ruffing:
+                continue
+            follows = [c for c in unseen if c.suit == led]
+            trumps = ([c for c in unseen if c.suit == ruffing]
+                      if ruffing and ruffing != led else [])
+            # A discard never wins; any unseen card of another side suit stands for all.
+            spare = [c for c in unseen if c.suit not in (led, ruffing)]
+            discard = spare[:1]
+            rest = [c for c in hand if c != card]
+            partner_view = {player: rest, partner: partner_hand}
+            replies: dict = {}
 
-        def partner_card(b: Card) -> Card:
-            if b not in replies:
-                trick = [(player, card), (left, b)]
-                legal = legal_plays(partner_hand, led)
-                later = _later_holdings(partner, partner_hand, trick, played, partner_view)
-                replies[b] = _middle_play(partner, legal, trick, trump, later)
-            return replies[b]
+            def partner_card(b: Card) -> Card:
+                if b not in replies:
+                    trick = [(player, card), (left, b)]
+                    legal = legal_plays(partner_hand, led)
+                    later = _later_holdings(partner, partner_hand, trick, played, partner_view)
+                    replies[b] = _middle_play(partner, legal, trick, trump, later)
+                return replies[b]
 
-        sure = True
-        for n in range(len(follows) + 1):
-            for picked in combinations(range(len(follows)), n):
-                held = {left: [follows[k] for k in picked],
-                        right: [c for k, c in enumerate(follows) if k not in picked]}
-                if any(held[p] and led in out[p] for p in (left, right)):
-                    continue
-                if any(len(held[p]) > slots for p in (left, right)):
-                    continue
-                options = {}
-                for p in (left, right):
-                    options[p] = held[p] or (discard + (trumps if ruffing not in out[p] else []))
-                for b in options[left]:
-                    c = partner_card(b)
-                    for d in options[right]:
-                        if d == b and d in trumps:
-                            continue      # both hidden seats can't ruff with the same trump
-                        plays = [(player, card), (left, b), (partner, c), (right, d)]
-                        if resolve_trick(plays, trump) not in ours:
-                            sure = False
+            sure = True
+            for n in range(len(follows) + 1):
+                for picked in combinations(range(len(follows)), n):
+                    held = {left: [follows[k] for k in picked],
+                            right: [c for k, c in enumerate(follows) if k not in picked]}
+                    if any(held[p] and led in out[p] for p in (left, right)):
+                        continue
+                    if any(len(held[p]) > slots for p in (left, right)):
+                        continue
+                    options = {}
+                    for p in (left, right):
+                        ruffs = trumps if allow_ruff and ruffing not in out[p] else []
+                        options[p] = held[p] or (discard + ruffs)
+                    for b in options[left]:
+                        c = partner_card(b)
+                        for d in options[right]:
+                            if d == b and d in trumps:
+                                continue      # both hidden seats can't ruff with the same trump
+                            plays = [(player, card), (left, b), (partner, c), (right, d)]
+                            if resolve_trick(plays, trump) not in ours:
+                                sure = False
+                                break
+                        if not sure:
                             break
                     if not sure:
                         break
                 if not sure:
                     break
-            if not sure:
-                break
-        if sure:
-            return card
+            if sure:
+                return card
     return None
 
 

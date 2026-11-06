@@ -3,7 +3,7 @@
 Each is a switch in ai.py (SURE_LEAD_DECLARER, RUFF_LEAD, FORCE_DUMMY,
 DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT, DEFENDER_SUIT_PLAN, DEAD_WINNER_FIRST, RUFF_IF_FOLLOWS,
 PARTNER_HONOUR_LEAD, COVER_SUIT_PLAN, COVER_PLAN_LOW, LAST_SUIT_PLAN, SECOND_HAND_COVER,
-PARTNER_WINS_NO_RUFF, LOCATED_SUIT_PLAN). Every test sets the switches it needs and puts them back, so
+PARTNER_WINS_NO_RUFF, LOCATED_SUIT_PLAN, SURE_LEAD_UNRUFFED). Every test sets the switches it needs and puts them back, so
 the result doesn't depend on which rules are adopted.
 """
 from __future__ import annotations
@@ -23,7 +23,8 @@ RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'SHORT_LEAD_RETURN', 'DEAD_WINNER_FIRST', 'RUFF_IF_FOLLOWS',
          'NT_DEFENCE_SUIT', 'IDLE_TRUMP_FOR_RUFF', 'PARTNER_HONOUR_LEAD',
          'COVER_SUIT_PLAN', 'COVER_PLAN_LOW', 'LAST_SUIT_PLAN', 'COVER_KEEP_MASTER',
-         'SECOND_HAND_COVER', 'PARTNER_WINS_NO_RUFF', 'LOCATED_SUIT_PLAN')
+         'SECOND_HAND_COVER', 'PARTNER_WINS_NO_RUFF', 'LOCATED_SUIT_PLAN',
+         'SURE_LEAD_UNRUFFED')
 
 
 @contextmanager
@@ -613,6 +614,36 @@ def test_located_suit_plan_needs_every_card_placed():
         card = ai.ai_play('East', east, trick, 'H', played, visible={'North': dummy},
                           history=history)
     assert card == C('5H'), card
+
+
+# Deal 157, spades by North, dummy South. After trick 4 dummy holds K♥4♥2♥,
+# North the bare A♥, and East has shown out of hearts (but not of spades).
+DEAL_157 = ['E:QD S:5D W:9D N:JD', 'N:3C E:7C S:3S W:AC',
+            'S:8H W:3H N:10H E:5H', 'S:7H W:6H N:JH E:3D']
+
+
+def _south_157():
+    hands, played, history = replay(157, DEAL_157)
+    view = {'North': hands['North'], 'South': hands['South']}
+    return ai.ai_play('South', hands['South'], [], 'S', played, view, history)
+
+
+def test_deal_157_led_the_four_into_the_bare_ace():
+    with rules(SURE_LEAD_DECLARER=True):
+        assert _south_157() == C('4H')
+
+
+def test_deal_157_sure_lead_unruffed_leads_the_king():
+    # East might ruff whichever heart goes; unruffed, only the K wins (K under
+    # the A is second-highest), the 4 loses to West's 9 or Q.
+    with rules(SURE_LEAD_DECLARER=True, SURE_LEAD_UNRUFFED=True):
+        assert _south_157() == C('KH')
+
+
+def test_sure_lead_unruffed_needs_sure_lead_declarer():
+    with rules(SURE_LEAD_UNRUFFED=True):
+        assert _south_157() == C('4H')
+
 
 if __name__ == '__main__':
     failed = 0
