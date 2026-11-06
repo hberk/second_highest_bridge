@@ -140,7 +140,7 @@
           </div>
           <div class="bt-sub">
             {#if recap.contract}{recap.contract.side === 'N/S' ? recap.tricks : 13 - recap.tricks} tricks double dummy · {/if}
-            <b>par {#if recap.par.strain}<Strain level={recap.par.level} strain={recap.par.strain} />{:else}pass{/if} {signed(recap.par.score)}</b>
+            <b>par {#if recap.par.strain}<Strain level={recap.par.level} strain={recap.par.strain} />{recap.par.doubled === 'X' ? 'X' : ''} {recap.par.side}{:else}pass{/if} {signed(recap.par.score)}</b>
           </div>
           <div class="bt-sub">
             Robots bid {@render contractText(recap.robotContract)} ({signed(recap.robotScore)})
@@ -258,11 +258,11 @@
           <span class="bt-dd-l">makes</span>
           {#each ['C', 'D', 'H', 'S', 'NT'] as s (s)}
             {@const n = recap.dd[s as StrainT]}
-            <span class:best={recap.par.strain === s}>{#if n >= 7}<Strain level={n - 6} strain={s as StrainT} />{:else}—{/if}</span>
+            <span class:best={recap.par.side === 'N/S' && recap.par.strain === s}>{#if n >= 7}<Strain level={n - 6} strain={s as StrainT} />{:else}—{/if}</span>
           {/each}
           <span class="bt-dd-l">tricks</span>
           {#each ['C', 'D', 'H', 'S', 'NT'] as s (s)}
-            <span class:best={recap.par.strain === s}>{recap.dd[s as StrainT]}</span>
+            <span class:best={recap.par.side === 'N/S' && recap.par.strain === s}>{recap.dd[s as StrainT]}</span>
           {/each}
         </div>
         <p class="bt-note">N/S tricks double dummy, the better declarer.</p>

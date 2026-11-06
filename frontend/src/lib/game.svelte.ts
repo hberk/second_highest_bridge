@@ -14,7 +14,7 @@ import * as challenge from './engine/challenge';
 import type { Grade, RobotTable, TrickLog } from './engine/challenge';
 import {
   SAVE_KEY, askPersistence, boardKey, browserStorage, clearGames, loadGames, mergeGames, saveGames,
-  type ChallengeLogEntry, type HistoryRecord,
+  type ChallengeLogEntry, type HistoryRecord, type SavedGames,
 } from './saves';
 import { liveAlerts as liveAlertsFor, robotReadings, robotShown, type Readings } from './alerts';
 import { partnerOf } from './seats';
@@ -38,6 +38,22 @@ export interface ChallengeResult {
 }
 
 export { ALERT_MAX, cleanAlert };
+
+/** A logged challenge board against today's par. Par was once N/S's best
+ *  contract alone; scores and play losses stand, so only the auction's share
+ *  is worked out again: par - actual = bidding_loss + play_loss. */
+function repriced(e: ChallengeLogEntry): ChallengeLogEntry {
+  if (!challenge.dealIds().includes(e.deal_id) || e.board_num < 1) return e;
+  const par = challenge.par(e.deal_id, 'N/S', VUL_ROTATION[(e.board_num - 1) % 16]).score;
+  return { ...e, your_bidding_loss: par - e.you - e.your_play_loss,
+    robot_bidding_loss: par - e.robot - e.robot_play_loss };
+}
+
+/** The saved games, logged boards repriced, so a save merges like with like. */
+function loadRepriced(storage: Storage | null): SavedGames | null {
+  const saved = loadGames(storage);
+  return saved && { ...saved, challengeLog: saved.challengeLog.map(repriced) };
+}
 
 const copyHands = (h: Record<Seat, Card[]>) =>
   Object.fromEntries(Object.entries(h).map(([s, cs]) => [s, [...cs]])) as Record<Seat, Card[]>;
@@ -129,7 +145,7 @@ export class Game {
   constructor(private storage: Storage | null = browserStorage(),
               private random: () => number = Math.random, mySeat: Seat = 'South') {
     this.mySeat = mySeat;
-    const saved = loadGames(storage);
+    const saved = loadRepriced(storage);
     if (saved) {
       this.boardNum = saved.boardNum;
       this.adopt(saved);
@@ -139,7 +155,7 @@ export class Game {
     if (storage && typeof window !== 'undefined') {
       window.addEventListener('storage', (e) => {
         if (e.storageArea !== storage || (e.key !== SAVE_KEY && e.key !== null)) return;
-        const now = loadGames(storage);
+        const now = loadRepriced(storage);
         this.adopt(now ?? { history: [], challengeLog: [], passedOut: 0 });
       });
     }
@@ -162,7 +178,7 @@ export class Game {
     if (!this.storage) return;
     // Merge with what's stored first: another tab may have saved boards
     // since this one last looked, and writing our copy alone would drop them.
-    const merged = mergeGames(loadGames(this.storage), {
+    const merged = mergeGames(loadRepriced(this.storage), {
       version: 1,
       boardNum: this.boardNum,
       history: $state.snapshot(this.history) as HistoryRecord[],
