@@ -1755,6 +1755,9 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         choice = _located_suit_plan(player, hand, legal, trick, trump, played, visible,
                                     history, choice)
 
+    if DISCARD_EQUALS and trick and choice.suit not in (trick[0][1].suit, trump):
+        choice = _free_discard(hand, trick, trump, played, choice)
+
     if (history is not None and visible and len(legal) > 1
             and len(hand) <= (DEEP_ENDGAME_CARDS if DEEP_ENDGAME else ENDGAME_CARDS)):
         totals = _endgame_totals(player, hand, trick, trump, played, visible,
@@ -1764,6 +1767,51 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
             tied = [c for c in legal if totals[c] == best]
             if choice not in tied:
                 choice = min(tied, key=lambda c: c.value())
+    return choice
+
+
+# ── Which card to discard ────────────────────────────────────────────────────
+#
+# A discard never changes who wins the trick it is thrown on (it is neither the
+# led suit nor trump), so it can be chosen on its own. The fallbacks threw the
+# lowest card by value. On challenge deal 113 East threw the 2D from Q872 and
+# West the 3C from J983, each costing a trick double dummy: in this game a low
+# card is a position in the suit like any other, and the 2 or the 3 was the only
+# card of its hand at that position. Over 199 deals of robot lines a discard of
+# a card with no equal in its own hand cost a trick 16-20% of the time, a
+# discard from equals (no unplayed card of another hand ranks between them) 5%,
+# and a singleton 1-2%.
+
+#: Discard from equals (1), or from equals and then a singleton (2), before the
+#: lowest card (measurement switch).
+DISCARD_EQUALS = 0
+
+
+def _free_discard(hand: list[Card], trick: list[tuple[str, Card]], trump: str | None,
+                  played: list[Card], choice: Card) -> Card:
+    """The lowest side-suit card that has an equal in this hand (or, with
+    DISCARD_EQUALS = 2, is a singleton), else `choice`."""
+    led = trick[0][1].suit
+    gone = set(played) | {c for _, c in trick} | set(hand)
+    side = [c for c in hand if c.suit not in (led, trump)]
+
+    def has_equal(card: Card) -> bool:
+        for other in hand:
+            if other.suit != card.suit or other == card:
+                continue
+            lo, hi = sorted((card.value(), other.value()))
+            if not any(Card(card.suit, r) not in gone and lo < Card(card.suit, r).value() < hi
+                       for r in RANKS):
+                return True
+        return False
+
+    equal = [c for c in side if has_equal(c)]
+    if equal:
+        return min(equal, key=lambda c: c.value())
+    if DISCARD_EQUALS >= 2:
+        single = [c for c in side if sum(1 for d in hand if d.suit == c.suit) == 1]
+        if single:
+            return min(single, key=lambda c: c.value())
     return choice
 
 
