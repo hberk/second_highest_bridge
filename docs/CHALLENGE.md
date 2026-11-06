@@ -641,6 +641,37 @@ dummy ♥42, South ♥AQ6).
   (`/mnt/project-files/located-suit/`). `tests/test_card_play_rules.py` holds
   the board.
 
+**Third hand on defence plays the suit out** (2026-11-06, two user boards).
+Deal 319, 4♥ by South, trick 7: East led the 5♦, South played the 9♦, West held
+♦A Q 4 2 with dummy's lone K♦ to come, and played the 2. Deal 58, 2♠ by South,
+trick 2: East led the 6♦, South played the 10♦, West held ♦A J 9 7 3 2 with
+dummy's K Q to come, and played the 2.
+
+- `_middle_play` asks who holds the trick now and which later cards could take
+  it away, never which later card hands it back. The 2 "keeps" partner's card
+  winning until dummy's honour makes declarer's card second-highest; the queen
+  (the jack) loses for now, but dummy's honour pushes it into second place.
+- `ai.THIRD_SEES_LAST` (`_third_sees_last`): third hand with the last hand in
+  view plays the cheapest card that wins whatever that hand plays, unless the
+  old card already does.
+- `ai.THIRD_HAND_PLAN` (`_third_hand_plan`): third hand on defence, following
+  suit, plays the led suit out over every layout of its unseen cards between
+  partner and declarer (as `_unseen_partner_plan`; who has shown out, the
+  auction's floors, declarer's and dummy's ruffs in a side suit of a trump
+  contract) and plays the card that takes the most tricks in it; the old card
+  when it ties, else the lowest of the best. 1 = declarer last, 2 = dummy last
+  too, 0 off. Shipped at 2. Both boards: the queen, the jack (double dummy 8
+  tricks for declarer against 9).
+- Seated head to head: the sure-winner rule alone **+0.012 tricks, t = +2.77,
+  +1.4 points**, 108 boards. With the plan: library **+0.052, t = +3.11, +4.0
+  points**; 400 fresh deals (seed 1106) **+0.053, t = +3.06, +6.1 points**;
+  about 1,000 of 6,370 boards changed. Gross mistakes, 199 deals: the defence
+  2.41 -> 2.25 tricks a board (third hand 0.43 -> 0.31), the declaring side
+  2.74 -> 2.68 (it meets different positions). Card by card against the old
+  card on the same 199 deals: +0.060 a board; declarer last only +0.038, side
+  suits left out +0.049, ruffs ignored +0.057 (`/mnt/project-files/third-sees-last/`,
+  `variants.py`). `tests/test_card_play_rules.py` holds both boards.
+
 **A cuebid raise that forces the three level needs four trumps or 12+
 judgement points** (`gib.CUE_LIMIT_AT_3`), a small tightening of GIB's "limit
 raise or better"; weaker hands with three trumps raise to the two level. The

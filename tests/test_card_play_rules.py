@@ -3,8 +3,8 @@
 Each is a switch in ai.py (SURE_LEAD_DECLARER, RUFF_LEAD, FORCE_DUMMY,
 DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT, DEFENDER_SUIT_PLAN, DEAD_WINNER_FIRST, RUFF_IF_FOLLOWS,
 PARTNER_HONOUR_LEAD, COVER_SUIT_PLAN, COVER_PLAN_LOW, LAST_SUIT_PLAN, SECOND_HAND_COVER,
-SECOND_HAND_COVER_DUMMY_LED, PARTNER_WINS_NO_RUFF, LOCATED_SUIT_PLAN). Every test sets the
-switches it needs and puts them back, so
+SECOND_HAND_COVER_DUMMY_LED, PARTNER_WINS_NO_RUFF, LOCATED_SUIT_PLAN, THIRD_SEES_LAST,
+THIRD_HAND_PLAN). Every test sets the switches it needs and puts them back, so
 the result doesn't depend on which rules are adopted.
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'NT_DEFENCE_SUIT', 'IDLE_TRUMP_FOR_RUFF', 'PARTNER_HONOUR_LEAD',
          'COVER_SUIT_PLAN', 'COVER_PLAN_LOW', 'LAST_SUIT_PLAN', 'COVER_KEEP_MASTER',
          'SECOND_HAND_COVER', 'SECOND_HAND_COVER_DUMMY_LED', 'PARTNER_WINS_NO_RUFF',
-         'LOCATED_SUIT_PLAN')
+         'LOCATED_SUIT_PLAN', 'THIRD_SEES_LAST', 'THIRD_HAND_PLAN')
 
 
 @contextmanager
@@ -644,6 +644,72 @@ def test_located_suit_plan_needs_every_card_placed():
         card = ai.ai_play('East', east, trick, 'H', played, visible={'North': dummy},
                           history=history)
     assert card == C('5H'), card
+
+
+def _deal_319_trick_7():
+    # 4H by South, trumps drawn. East leads the 5D, South plays his last
+    # diamond, the 9D; West holds AQ42 with dummy's lone KD still to come.
+    hands, played, history = replay(319, [
+        'W:6D N:JD E:10D S:8D', 'E:3C S:10C W:8C N:JC', 'S:KS W:4S N:QS E:2S',
+        'S:QH W:3H N:AH E:6H', 'N:7H E:5S S:9H W:JH', 'E:10S S:JS W:9S N:AS'])
+    for seat, card in (('East', '5D'), ('South', '9D')):
+        hands[seat].remove(C(card))
+    trick = [('East', C('5D')), ('South', C('9D'))]
+    return hands['West'], hands['North'], trick, played, history
+
+
+def test_deal_319_west_plays_the_queen_under_dummys_king():
+    # The king makes the queen second-highest: the queen wins whatever dummy
+    # does, the two lets the king make the nine win.
+    west, dummy, trick, played, history = _deal_319_trick_7()
+    with rules(THIRD_SEES_LAST=True):
+        card = ai.ai_play('West', west, trick, 'H', played, visible={'North': dummy},
+                          history=history)
+    assert card == C('QD'), card
+
+
+def test_deal_319_the_suit_plan_finds_the_queen_too():
+    west, dummy, trick, played, history = _deal_319_trick_7()
+    with rules(THIRD_HAND_PLAN=2):
+        card = ai.ai_play('West', west, trick, 'H', played, visible={'North': dummy},
+                          history=history)
+    assert card == C('QD'), card
+
+
+def test_deal_58_the_suit_plan_finds_the_jack():
+    hands, played, history = replay(58, ['W:8C N:AC E:JC S:2C'])
+    for seat, card in (('East', '6D'), ('South', '10D')):
+        hands[seat].remove(C(card))
+    trick = [('East', C('6D')), ('South', C('10D'))]
+    with rules(THIRD_HAND_PLAN=2):
+        card = ai.ai_play('West', hands['West'], trick, 'S', played,
+                          visible={'North': hands['North']}, history=history)
+    assert card == C('JD'), card
+
+
+def test_deal_319_without_the_rule_west_plays_low():
+    west, dummy, trick, played, history = _deal_319_trick_7()
+    with rules():
+        card = ai.ai_play('West', west, trick, 'H', played, visible={'North': dummy},
+                          history=history)
+    assert card == C('2D'), card
+
+
+
+def test_deal_58_west_wins_under_dummys_king_queen():
+    # 2S by South, trick 2: East leads the 6D, South plays the 10D, West holds
+    # AJ9732 with dummy's KQ to come. The jack wins whichever honour dummy
+    # plays (it is then second-highest); the two lets the ten win. Double dummy
+    # the jack holds declarer to 8 tricks, every other card gives 9.
+    hands, played, history = replay(58, ['W:8C N:AC E:JC S:2C'])
+    for seat, card in (('East', '6D'), ('South', '10D')):
+        hands[seat].remove(C(card))
+    trick = [('East', C('6D')), ('South', C('10D'))]
+    with rules(THIRD_SEES_LAST=True):
+        card = ai.ai_play('West', hands['West'], trick, 'S', played,
+                          visible={'North': hands['North']}, history=history)
+    assert card == C('JD'), card
+
 
 if __name__ == '__main__':
     failed = 0
