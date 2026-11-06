@@ -121,6 +121,12 @@ DOUBLER_SUIT_HCP = 18
 DOUBLER_SUIT_JUDGE = 14
 DOUBLER_RAISE_HCP = 6
 DOUBLER_SUIT_LEVEL = 2
+#: Past DOUBLER_SUIT_LEVEL, the doubler bids the suit at the three level with
+#: DOUBLER_SUIT_LEN3+ cards, a strong one-suiter, and the alert says so (the
+#: user's call, 2026-11-06: 2♦ X P 2♠ and North passed ♠K64 ♥AKJT742 ♦KQ ♣A).
+#: 0 keeps three-level suits out. Fresh deals, head to head (3 x 10,000):
+#: +0.01 a board (+0.01/+0.03/0.00), noise; 7+ 0.00, 5+ +0.03/+0.11/-0.15.
+DOUBLER_SUIT_LEN3 = 6
 #: Slam on points (6NT, quantitative 4NT, keycard) needs 37 judgement points,
 #: not GIB's 33 (the user's call, 2026-10-31, from the championship study of
 #: uncontested auctions: the robots' 2NT-6NT and 2C-2D-3NT-6NT on 33 went
@@ -4757,8 +4763,15 @@ def _doubler_suit(ctx: Ctx, seat: str) -> str | None:
     return _new_suit_at(ctx, bids[1]) if len(bids) >= 2 else None
 
 
-def _doubler_alert(s: str) -> str:
-    return f"5+ {SYM[s]}, {DOUBLER_SUIT_HCP}+ HCP. Doubled first: too strong to overcall."
+def _doubler_len(call: str) -> int:
+    """The length the doubler's new suit shows at this call's level."""
+    return DOUBLER_SUIT_LEN3 if DOUBLER_SUIT_LEN3 and level_of(call) >= 3 else 5
+
+
+def _doubler_alert(call: str) -> str:
+    s = strain_of(call)
+    return (f"{_doubler_len(call)}+ {SYM[s]}, {DOUBLER_SUIT_HCP}+ HCP. "
+            "Doubled first: too strong to overcall.")
 
 
 def _doubler_new_suit(ctx: Ctx) -> tuple | None:
@@ -4777,7 +4790,10 @@ def _doubler_new_suit(ctx: Ctx) -> tuple | None:
     s = max(own, key=lambda s: (h.len[s], SUITS.index(s)))
     call = ctx.cheapest(s, 1)
     if call and level_of(call) <= DOUBLER_SUIT_LEVEL:
-        return call, _doubler_alert(s)
+        return call, _doubler_alert(call)
+    if (call and DOUBLER_SUIT_LEN3 and level_of(call) == 3
+            and h.len[s] >= DOUBLER_SUIT_LEN3):
+        return call, _doubler_alert(call)
     return None
 
 
@@ -4856,8 +4872,8 @@ def doubler_guard(player: str, cards: list[Card], auction: AuctionState,
             or any(strain_of(c) == s for _, c in ctx.calls)
             or _partner_cuebid(ctx) or _partner_responsive(ctx)):
         return decision
-    if ctx.h.hcp >= DOUBLER_SUIT_HCP and ctx.h.len[s] >= 5:
-        return decision[0], _doubler_alert(s)
+    if ctx.h.hcp >= DOUBLER_SUIT_HCP and ctx.h.len[s] >= _doubler_len(decision[0]):
+        return decision[0], _doubler_alert(decision[0])
     return 'Pass', "Doubled: a new suit would show 18+."
 
 
