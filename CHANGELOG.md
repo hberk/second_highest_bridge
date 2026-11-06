@@ -12,6 +12,8 @@ The Nov 6 fixes from played boards. (Measurements to follow.)
 
 **The game**
 - Par is now true duplicate par (both sides bid; sacrifices count), and its ⓘ opens on tap.
+- Double dummy results are kept per board when you switch between the Your
+  board and Robots' board tabs or pick another board in History.
 
 **The robots**
 - An answer to partner's responsive double is not read as the 18+
