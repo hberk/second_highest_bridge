@@ -57,6 +57,7 @@ the change in these, before and after, on the same deals
 |---|---|---|---|---|---|---|---|
 | 2026-11-06 | main plus the third-hand plan (`THIRD_SEES_LAST`, `THIRD_HAND_PLAN`; `/mnt/project-files/third-sees-last/report_wide.txt`, against main measured the same day) | 199 | **2.68** (18%, 90%) | **0.40** (36%, 33%) | **2.25** (20%, 87%) | 97% | +0.03 |
 | 2026-11-05 | v0.1.2-alpha with `SECOND_HAND_COVER_DUMMY_LED` (`/mnt/project-files/dummy-led-cover/gross_mistakes.txt`) | 199 | **2.66** (18%, 90%) | **0.40** (36%, 33%) | **2.29** (21%, 86%) | 95% | -0.03 |
+| 2026-11-06 | main + `SURE_LEAD_UNRUFFED` alone (deal 157's K♥; `/mnt/project-files/sure-lead-unruffed/report.txt`) | 199 | **2.71** (18%, 90%) | **0.40** (36%, 33%) | **2.38** (21%, 88%) | 96% | -0.07 |
 | 2026-11-05 | the Nov 4 evening fixes together (v0.1.2-alpha; `/mnt/project-files/nov4-evening-combined/line_report.txt`) | 199 | **2.74** (19%, 91%) | **0.40** (36%, 33%) | **2.41** (22%, 88%) | 97% | -0.07 |
 | 2026-11-05 | main after PR #63 (v0.1.1-alpha) | 199 | **2.81** (19%, 91%) | **0.40** (36%, 34%) | **2.48** (22%, 89%) | 97% | -0.07 |
 | 2026-11-05 | the same robots, first 100 deals | 100 | 2.69 (18%, 90%) | 0.39 (36%, 34%) | 2.40 (22%, 87%) | 97% | -0.11 |

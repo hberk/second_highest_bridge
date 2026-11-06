@@ -21,6 +21,8 @@ The Nov 6 fixes from played boards. (Measurements to follow.)
 - The responsive doubler bids game in a major partner answers with 11+ HCP
   and four cards in it.
 - A takeout doubler's new suit at the three level shows six or more cards.
+- Declarer leads the card that wins unless the suit is ruffed (the K♥ from
+  dummy's K 4 2 over the bare ace).
 - Second hand covers when dummy leads too (East's T♣ from K T 7 4 3 under
   dummy's 9♣).
 - Third hand on defence plays the led suit out over partner's and declarer's

@@ -2330,6 +2330,8 @@ function sureLead(player: Seat, hand: Card[], trump: string | null, played: Card
 // ── Four rules from the user's review of deals 92, 156 and 174 (see ai.py) ───
 
 export const SURE_LEAD_DECLARER = true;
+/** With no sure card, lead the lowest that wins whenever nobody ruffs (see ai.py). */
+export const SURE_LEAD_UNRUFFED = true;
 export const RUFF_LEAD = false;
 export const FORCE_DUMMY = false;
 export const DEAD_CARD_LAST = true;
@@ -2390,55 +2392,59 @@ function sureLeadDeclarer(player: Seat, hand: Card[], trump: string | null, play
   const ruffing = isSuit(trump) ? trump : null;
 
   const candidates = hand.filter((c) => c.suit === suit).sort((a, b) => value(a) - value(b));
-  for (const c of candidates) {
-    const led = c.suit;
-    if (led === ruffing) continue;      // trumps are drawTrump's
-    const follows = unseen.filter((x) => x.suit === led);
-    const trumps = ruffing && ruffing !== led ? unseen.filter((x) => x.suit === ruffing) : [];
-    const trumpKeys = new Set(trumps.map(cardKey));
-    const discard = unseen.filter((x) => x.suit !== led && x.suit !== ruffing).slice(0, 1);
-    const rest = hand.filter((x) => cardKey(x) !== cardKey(c));
-    const partnerView: Partial<Record<Seat, Card[]>> = { [player]: rest, [partner]: partnerHand };
-    const replies = new Map<string, Card>();
-    const partnerCard = (b: Card): Card => {
-      if (!replies.has(cardKey(b))) {
-        const trick: AnyPlay[] = [[player, c], [left, b]];
-        const legal = legalPlays(partnerHand, led);
-        const later = laterHoldings(partner, partnerHand, trick, played, partnerView);
-        replies.set(cardKey(b), middlePlay(partner, legal, trick, trump, later));
-      }
-      return replies.get(cardKey(b))!;
-    };
-
-    let sure = true;
-    for (let n = 0; n <= follows.length && sure; n++) {
-      for (const picked of combinations(follows.length, n)) {
-        const chosen = new Set(picked);
-        const held: Record<string, Card[]> = {
-          [left]: follows.filter((_, k) => chosen.has(k)),
-          [right]: follows.filter((_, k) => !chosen.has(k)),
-        };
-        if ([left, right].some((p) => held[p].length && out[p].has(led))) continue;
-        if ([left, right].some((p) => held[p].length > slots)) continue;
-        const options: Record<string, Card[]> = {};
-        for (const p of [left, right]) {
-          options[p] = held[p].length ? held[p]
-            : [...discard, ...(ruffing && !out[p].has(ruffing) ? trumps : [])];
+  // The second pass, without ruffs, only when a trump suit makes it differ.
+  const passes = SURE_LEAD_UNRUFFED && ruffing ? [true, false] : [true];
+  for (const allowRuff of passes) {
+    for (const c of candidates) {
+      const led = c.suit;
+      if (led === ruffing) continue;      // trumps are drawTrump's
+      const follows = unseen.filter((x) => x.suit === led);
+      const trumps = ruffing && ruffing !== led ? unseen.filter((x) => x.suit === ruffing) : [];
+      const trumpKeys = new Set(trumps.map(cardKey));
+      const discard = unseen.filter((x) => x.suit !== led && x.suit !== ruffing).slice(0, 1);
+      const rest = hand.filter((x) => cardKey(x) !== cardKey(c));
+      const partnerView: Partial<Record<Seat, Card[]>> = { [player]: rest, [partner]: partnerHand };
+      const replies = new Map<string, Card>();
+      const partnerCard = (b: Card): Card => {
+        if (!replies.has(cardKey(b))) {
+          const trick: AnyPlay[] = [[player, c], [left, b]];
+          const legal = legalPlays(partnerHand, led);
+          const later = laterHoldings(partner, partnerHand, trick, played, partnerView);
+          replies.set(cardKey(b), middlePlay(partner, legal, trick, trump, later));
         }
-        for (const b of options[left]) {
-          const pc = partnerCard(b);
-          for (const d of options[right]) {
-            // Both hidden seats can't ruff with the same trump.
-            if (cardKey(d) === cardKey(b) && trumpKeys.has(cardKey(d))) continue;
-            const plays: AnyPlay[] = [[player, c], [left, b], [partner, pc], [right, d]];
-            if (!ours.includes(resolveTrick(plays, trump))) { sure = false; break; }
+        return replies.get(cardKey(b))!;
+      };
+
+      let sure = true;
+      for (let n = 0; n <= follows.length && sure; n++) {
+        for (const picked of combinations(follows.length, n)) {
+          const chosen = new Set(picked);
+          const held: Record<string, Card[]> = {
+            [left]: follows.filter((_, k) => chosen.has(k)),
+            [right]: follows.filter((_, k) => !chosen.has(k)),
+          };
+          if ([left, right].some((p) => held[p].length && out[p].has(led))) continue;
+          if ([left, right].some((p) => held[p].length > slots)) continue;
+          const options: Record<string, Card[]> = {};
+          for (const p of [left, right]) {
+            options[p] = held[p].length ? held[p]
+              : [...discard, ...(allowRuff && ruffing && !out[p].has(ruffing) ? trumps : [])];
+          }
+          for (const b of options[left]) {
+            const pc = partnerCard(b);
+            for (const d of options[right]) {
+              // Both hidden seats can't ruff with the same trump.
+              if (cardKey(d) === cardKey(b) && trumpKeys.has(cardKey(d))) continue;
+              const plays: AnyPlay[] = [[player, c], [left, b], [partner, pc], [right, d]];
+              if (!ours.includes(resolveTrick(plays, trump))) { sure = false; break; }
+            }
+            if (!sure) break;
           }
           if (!sure) break;
         }
-        if (!sure) break;
       }
+      if (sure) return c;
     }
-    if (sure) return c;
   }
   return null;
 }
