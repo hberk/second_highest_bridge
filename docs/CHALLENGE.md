@@ -15,6 +15,16 @@ the mode exists for:
 
     par - actual = bidding_loss + play_loss
 
+**Par is duplicate par (2026-11-06)**: both sides bid perfectly, each seeing
+every card (`challenge.par_from_tricks`, searched over the whole auction, a
+failing contract doubled). Before, par was the grading side's best contract on
+its own; on board 76 (deal 169, N/S vulnerable) the app showed N/S par +90 for
+2♦ while E/W make 4♠+1, so a user who scored exactly par (-450) was told the
+auction cost 540. The two differ on 997 of the 1,600 deal and vulnerability
+pairs. The one-sided figure stays as `challenge.ceiling`, used only by
+`research/challenge_losses.py`, so the table below and ROBOT_PROGRESS stay
+comparable; with robots in every seat, two-sided par is zero sum and averages out.
+
 `bidding_loss` is par minus the double-dummy value of the contract reached;
 `play_loss` is that value minus what was actually scored. The identity is exact
 and `tests/test_challenge.py` asserts it on every deal in the library. It makes
@@ -691,9 +701,9 @@ dummy on 3,944 of 6,356 boards (graded from N/S; 4,744 from the declaring
 side); the auction is at or above par on 1,603 (measured 2026-10-23, every
 declarer's count). (One auction per deal, before
 the card-play changes: 197 and 137 of 372, and the worst single auction gave
-away 1,260, deal 346: E/W stopped in 2S with 7NT available.) Note the caveat baked into `par()`: it is
-the best contract available to ONE side ignoring whether the opponents would
-compete, so it is a ceiling and overstates the true bidding gap — but the ratio
+away 1,260, deal 346: E/W stopped in 2S with 7NT available.) Note the caveat baked into this par (now
+`challenge.ceiling`): it is the best contract available to ONE side ignoring
+whether the opponents would compete, so it is a ceiling and overstates the true bidding gap — but the ratio
 between the two columns is what matters and is robust.
 
 **Every declarer is solved (2026-10-23).** The opening lead comes from

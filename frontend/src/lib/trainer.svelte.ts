@@ -9,11 +9,11 @@
 // 2026-10-27). Like the library, every deal is solved in all five strains for
 // all four declarers, so any contract the auction reaches has an exact count.
 import training from '$root/data/training_deals.json';
-import { STRAINS, parseHand, type Card, type Seat, type Strain, type Suit, type Vulnerability } from './engine/card';
+import { STRAINS, parseHand, type Card, type Seat, type Side, type Strain, type Suit, type Vulnerability } from './engine/card';
 import { AuctionState, DEALER_ROTATION, PLAYERS, VUL_ROTATION, cleanAlert, type CallRecord, type Contract } from './engine/auction';
 import { aiBidExplained } from './engine/ai';
 import { Hand } from './engine/gib';
-import { scoreFor, type Par } from './engine/challenge';
+import { parFromTricks, scoreFor, type Par } from './engine/challenge';
 import { callMeanings } from './meanings';
 import { robotReadings, type Readings } from './alerts';
 import { browserStorage } from './saves';
@@ -53,20 +53,12 @@ export function nsTricks(dealId: number, strain: Strain, declarer?: Seat): numbe
   return Math.max(...seats.map((s) => (s === 'East' || s === 'West' ? 13 - t[`${strain}:${s}`] : t[`${strain}:${s}`])));
 }
 
-/** N/S's best contract, double dummy: challenge.ts's `par`, on these deals. */
+/** Duplicate par from N/S, both sides bidding: challenge.ts's `par`, on these deals. */
 export function trainingPar(dealId: number, vulnerability: Vulnerability): Par {
-  let best: Par | null = null;
-  for (const strain of STRAINS) {
-    const taken = nsTricks(dealId, strain);
-    for (let level = 1; level < 8; level++) {
-      if (level + 6 > taken) break;
-      const points = scoreFor('N/S', {
-        level, strain, side: 'N/S', tricks_needed: level + 6, doubled: 'None', vulnerability,
-      }, taken);
-      if (best === null || points > best.score) best = { score: points, level, strain, tricks: taken };
-    }
-  }
-  return best ?? { score: 0, level: 0, strain: null, tricks: 0 };
+  const t = DEALS.get(dealId)!.tricks;
+  const seats: Record<Side, Seat[]> = { 'N/S': ['North', 'South'], 'E/W': ['East', 'West'] };
+  return parFromTricks((strain, side) => Math.max(...seats[side].map((s) => t[`${strain}:${s}`])),
+    'N/S', vulnerability);
 }
 
 /** The double dummy score from N/S of a contract on a training deal. */
@@ -159,6 +151,14 @@ const isCount = (v: unknown): boolean => Number.isInteger(v) && (v as number) >=
 function isLogEntry(v: unknown): v is TrainingLogEntry {
   return isObject(v) && isCount(v.deal_id) && isCount(v.board_num)
     && Number.isFinite(v.score) && Number.isFinite(v.par) && Number.isFinite(v.diff);
+}
+
+/** A saved board against today's par. Par was once N/S's best contract
+ *  alone; the score stands, so only par and the gap are worked out again. */
+function repriced(e: TrainingLogEntry): TrainingLogEntry {
+  if (!DEALS.has(e.deal_id) || e.board_num < 1) return e;
+  const par = trainingPar(e.deal_id, VUL_ROTATION[(e.board_num - 1) % 16]).score;
+  return { ...e, par, diff: e.score - par };
 }
 
 function isCurrent(v: unknown): v is CurrentBoard {
@@ -282,7 +282,7 @@ export class Trainer {
       return {
         version: 1,
         boardNum: v.boardNum as number,
-        log: v.log.filter(isLogEntry),
+        log: v.log.filter(isLogEntry).map(repriced),
         scoreFrom: isCount(v.scoreFrom) ? v.scoreFrom as number : 0,
         current: isCurrent(v.current) ? v.current : undefined,
       };
