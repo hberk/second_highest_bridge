@@ -55,6 +55,7 @@ the change in these, before and after, on the same deals
 
 | measured | robots | deals | declaring side | opening lead | defence after the lead | boards with a costly card | net (cancels) |
 |---|---|---|---|---|---|---|---|
+| 2026-11-06 | main plus the third-hand plan (`THIRD_SEES_LAST`, `THIRD_HAND_PLAN`; `/mnt/project-files/third-sees-last/report_wide.txt`, against main measured the same day) | 199 | **2.68** (18%, 90%) | **0.40** (36%, 33%) | **2.25** (20%, 87%) | 97% | +0.03 |
 | 2026-11-05 | the Nov 4 evening fixes together (v0.1.2-alpha; `/mnt/project-files/nov4-evening-combined/line_report.txt`) | 199 | **2.74** (19%, 91%) | **0.40** (36%, 33%) | **2.41** (22%, 88%) | 97% | -0.07 |
 | 2026-11-05 | main after PR #63 (v0.1.1-alpha) | 199 | **2.81** (19%, 91%) | **0.40** (36%, 34%) | **2.48** (22%, 89%) | 97% | -0.07 |
 | 2026-11-05 | the same robots, first 100 deals | 100 | 2.69 (18%, 90%) | 0.39 (36%, 34%) | 2.40 (22%, 87%) | 97% | -0.11 |
@@ -150,6 +151,8 @@ four seats, which nets out a change both declarer and defenders use.
 | 11-04 | Second to fourth hand play a trump or notrump suit out exactly once every card of it is located: T♥ from T5 with dummy 42 and South AQ6 (your 4♥, `LOCATED_SUIT_PLAN`). 3 × 1,000 fresh deals | **+0.016; +0.014; +0.010** | +3.74; +3.63; +3.53 | **+2.34; +1.72; +1.65** | 376; 322; 267 of ~15,800 | on (your call) |
 | 11-04 | ...any suit, later ruffs ignored (seed 1104 only) | +0.019 | +3.93 | +2.55 | 521 of 15,816 | off (not finished on the other seeds) |
 | 11-05 | `PARTNER_WINS_NO_RUFF` and `LOCATED_SUIT_PLAN` together on one side against neither (v0.1.2-alpha). Seated, 3 × 1,000 fresh deals (seeds 1104-1106, `/mnt/project-files/nov4-evening-combined/play_*.txt`) | **+0.034; +0.032; +0.021** | +5.08; +5.57; +4.18 | **+4.70; +5.30; +2.46** | 1,351; 1,073; 1,010 of ~15,850 | on |
+| 11-06 | Third hand, dummy last, plays the cheapest card that wins whatever dummy does: Q♦ from AQ42 under dummy's lone K♦ (your board, deal 319, `THIRD_SEES_LAST`). Library | +0.012 | +2.77 | +1.40 | 108 of 6,367 | on (gross mistakes, 199 deals: defence 2.41 -> 2.39) |
+| 11-06 | Third hand on defence plays the led suit out over partner's and declarer's layouts, ruffs counted, dummy or declarer last; also J♦ from AJ9732 under dummy's KQ (your board, deal 58, `THIRD_HAND_PLAN = 2`), with `THIRD_SEES_LAST`. Library | **+0.052** | +3.11 | **+4.01** | 992 of 6,367 | on (400 fresh deals, seed 1106: +0.053, t +3.06, +6.06 points; card by card on 199 solved deals +0.060 tricks a board: declarer last only +0.038, side suits off +0.049, ruffs ignored +0.057) |
 
 The three information rules together: +0.55 points a board, t = +0.48, 556
 boards changed. None is distinguishable from zero; they are kept because a
