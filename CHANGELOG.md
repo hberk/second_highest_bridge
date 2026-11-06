@@ -6,6 +6,24 @@ Releases are tagged on main, and the tag matches the version in
 what it was measured to be worth is in
 [docs/ROBOT_PROGRESS.md](docs/ROBOT_PROGRESS.md).
 
+## v0.1.3-alpha (unreleased)
+
+The Nov 6 fixes from played boards. (Measurements to follow.)
+
+**The game**
+- Par is now true duplicate par (both sides bid; sacrifices count), and its ⓘ opens on tap.
+
+**The robots**
+- An answer to partner's responsive double is not read as the 18+
+  double-then-suit, so advancer doesn't raise it.
+- The responsive doubler bids game in a major partner answers with 11+ HCP
+  and four cards in it.
+- Second hand covers when dummy leads too (East's T♣ from K T 7 4 3 under
+  dummy's 9♣).
+- Third hand on defence plays the led suit out over partner's and declarer's
+  possible holdings, and with dummy last plays the cheapest card that wins
+  whatever dummy does.
+
 ## v0.1.2-alpha (2026-11-05)
 
 The Nov 4 evening fixes from played boards. The bidding fixes together
