@@ -3,7 +3,8 @@
 Each is a switch in ai.py (SURE_LEAD_DECLARER, RUFF_LEAD, FORCE_DUMMY,
 DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT, DEFENDER_SUIT_PLAN, DEAD_WINNER_FIRST, RUFF_IF_FOLLOWS,
 PARTNER_HONOUR_LEAD, COVER_SUIT_PLAN, COVER_PLAN_LOW, LAST_SUIT_PLAN, SECOND_HAND_COVER,
-PARTNER_WINS_NO_RUFF, LOCATED_SUIT_PLAN). Every test sets the switches it needs and puts them back, so
+SECOND_HAND_COVER_DUMMY_LED, PARTNER_WINS_NO_RUFF, LOCATED_SUIT_PLAN). Every test sets the
+switches it needs and puts them back, so
 the result doesn't depend on which rules are adopted.
 """
 from __future__ import annotations
@@ -23,7 +24,8 @@ RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'SHORT_LEAD_RETURN', 'DEAD_WINNER_FIRST', 'RUFF_IF_FOLLOWS',
          'NT_DEFENCE_SUIT', 'IDLE_TRUMP_FOR_RUFF', 'PARTNER_HONOUR_LEAD',
          'COVER_SUIT_PLAN', 'COVER_PLAN_LOW', 'LAST_SUIT_PLAN', 'COVER_KEEP_MASTER',
-         'SECOND_HAND_COVER', 'PARTNER_WINS_NO_RUFF', 'LOCATED_SUIT_PLAN')
+         'SECOND_HAND_COVER', 'SECOND_HAND_COVER_DUMMY_LED', 'PARTNER_WINS_NO_RUFF',
+         'LOCATED_SUIT_PLAN')
 
 
 @contextmanager
@@ -566,6 +568,35 @@ def test_ten_led_one_trick_chance_covers_with_the_jack():
         card = ai.ai_play('North', hands['North'], [('West', C('10S'))], None, played,
                           visible={'East': hands['East']})
     assert card == C('JS'), card
+
+
+# A user's board, trick 3: dummy (North, void in clubs after it) led the 9C;
+# East holds K T 7 4 3 over declarer's unseen A Q 8 5 2 and partner's J 6. The
+# T saves two tricks double dummy; `_middle_play` played the 3.
+def _dummy_led_club():
+    def hand(text):
+        return [C(t) for t in text.split()]
+    north = hand('AS KS JS 9S 8S 7H 5H 4H AD 9D')
+    east = hand('6S 5S 3S JH 10H 10D KC 10C 7C 4C 3C')
+    names = {'N': 'North', 'E': 'East', 'S': 'South', 'W': 'West'}
+    tricks = ['W:7D N:QD E:4D S:JD', 'S:8H W:3H N:9H E:AH']
+    history = [[(names[t[0]], C(t[2:])) for t in line.split()] for line in tricks]
+    played = [c for trick in history for _, c in trick]
+    return north, east, played, history
+
+
+def test_dummy_led_second_hand_covers_with_the_ten():
+    north, east, played, history = _dummy_led_club()
+    trick = [('North', C('9C'))]
+    for trump in (None, 'S'):
+        with rules(SECOND_HAND_COVER=True):
+            low = ai.ai_play('East', east, trick, trump, played,
+                             visible={'North': north}, history=history)
+        with rules(SECOND_HAND_COVER=True, SECOND_HAND_COVER_DUMMY_LED=True):
+            cover = ai.ai_play('East', east, trick, trump, played,
+                               visible={'North': north}, history=history)
+        assert low == C('3C'), low
+        assert cover == C('10C'), cover
 
 
 # A user's 4H, trick 5: South led the 8H, West showed out and dummy's 9H wins
