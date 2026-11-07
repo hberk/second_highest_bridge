@@ -1704,7 +1704,7 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                       if SURE_LEAD else None)
                   or (_fit_lead(player, hand, trump, shown, history, visible)
                       if shown and PARTNERS[player] not in (visible or {}) else None)
-                  or (_nt_defence_suit(player, hand, trump, history, visible)
+                  or (_nt_defence_suit(player, hand, trump, history, visible, shown)
                       if NT_DEFENCE_SUIT else None)
                   or (_nt_long_lead(player, hand, trump, played, visible)
                       if NT_LONG_LEAD else None))
@@ -1714,7 +1714,9 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
             choice = _defender_suit_plan(player, hand, trump, played, visible, history,
                                          shown, choice) or choice
         if choice is None:
-            choice = _lead(hand, trump, played)
+            choice = ((_lead_seeing_dummy(player, hand, trump, played, visible, history, shown)
+                       if LEAD_SEES_DUMMY and visible else None)
+                      or _lead(hand, trump, played))
             if IDLE_TRUMP_FOR_RUFF and choice.suit == trump:
                 ruff = _ruff_for_idle_trump(player, hand, trump, played, visible)
                 if ruff is not None:
@@ -3687,6 +3689,148 @@ def _defender_suit_plan(player: str, hand: list[Card], trump: str | None,
     return max((c for c in mine if totals[c] == best), key=lambda c: c.value())
 
 
+# ── Whose suit is it? ────────────────────────────────────────────────────────
+#
+# The user's board (challenge deal 113, 2NT by East, 2026-11-06): West opened
+# 1S and went down with KQJ53; South led a spade, and at trick 3 North went
+# back to it with the TS because `_nt_defence_suit` returns the opening lead's
+# suit. That habit sets up the DEFENCE's suit. Here the suit was dummy's, and
+# returning it cleared it for West without West spending a tempo or an entry.
+# The user's rule: ask whose suit it is before going back to it.
+
+#: The defence doesn't go back to the opening lead's suit when it is the
+#: declaring side's: bid by declarer or dummy, or four or more in dummy.
+WHOSE_SUIT = True
+
+
+def _declaring_sides_suit(suit: str, visible: dict[str, list[Card]] | None,
+                          history: list | None, shown: dict | None) -> bool:
+    """True when a defender can tell `suit` belongs to the declaring side."""
+    if not visible:
+        return False
+    dummy = next(iter(visible))
+    declarer = PARTNERS[dummy]
+    length = sum(1 for c in visible[dummy] if c.suit == suit)
+    length += sum(1 for plays in (history or []) for seat, c in plays
+                  if seat == dummy and c.suit == suit)
+    if length >= 4:
+        return True
+    shown = shown or {}
+    return any(shown.get(p, {}).get(suit, 0) >= 4 for p in (dummy, declarer))
+
+
+# ── The fallback lead reads dummy ────────────────────────────────────────────
+#
+# `_lead` picks the suit with no gap between the leader's OWN top two cards and
+# leads the second-highest, "positioned to be 2nd in the trick". On deal 113 it
+# chose three of the six costly cards: West led the QS from KQ53 (the K stays
+# in hand, so the Q is the TOP card of the trick and the defenders' best spade
+# comes second; East had only the 2S); East led the 8D with dummy void in
+# diamonds (two defenders' cards to his one: they choose the second); North
+# chose hearts over diamonds on suit order, with dummy void in diamonds and
+# dummy's AH sitting last in hearts. The user's rule: always decide with dummy
+# in view.
+#
+# Declaring side: a trick is ours when the second-highest card is, so a suit is
+# judged by the PAIR of cards the two hands will play to it, one each: no
+# opponents' card between them (one would be second), then as few above them
+# as possible (two above beat us). A suit partner can neither follow nor ruff
+# is a three-card trick with two defenders' cards in it: last resort.
+#
+# Defence, dummy in view: a suit dummy can neither follow nor ruff is a
+# three-card trick with two of OUR cards in it: first choice. A suit where
+# dummy plays last holding its top card and another is dummy's to decide:
+# avoided. Otherwise the old gap rule.
+
+#: The fallback lead uses dummy's (and for declarer, both hands') cards.
+LEAD_SEES_DUMMY = True
+LEAD_DUMMY_VOID = False
+LEAD_DUMMY_LAST = False
+LEAD_DUMMY_VOID_RHO = True
+LEAD_DUMMY_VOID_WHOSE = True
+
+
+def _lead_seeing_dummy(player: str, hand: list[Card], trump: str | None,
+                       played: list[Card], visible: dict[str, list[Card]],
+                       history: list | None, shown: dict | None = None) -> Card | None:
+    partner = PARTNERS[player]
+    gone = set(played)
+    groups: dict[str, list[Card]] = {}
+    for c in hand:
+        groups.setdefault(c.suit, []).append(c)
+    out = _shown_out(history or [], [])
+    trump_suit = trump if trump in SUITS else None
+
+    def cant_play(seat_cards: list[Card], s: str) -> bool:
+        """Holds none of `s` and can't ruff it."""
+        if any(c.suit == s for c in seat_cards):
+            return False
+        return trump_suit is None or s == trump_suit or not any(
+            c.suit == trump_suit for c in seat_cards)
+
+    def second_card(cards: list[Card]) -> Card:
+        cards = sorted(cards, key=lambda c: c.value(), reverse=True)
+        return cards[min(1, len(cards) - 1)]
+
+    if partner in visible:
+        ours = set(hand) | set(visible[partner])
+        best = None
+        for s, mine in groups.items():
+            theirs = [c for c in _FULL_DECK if c.suit == s and c not in ours and c not in gone]
+            opp_values = [c.value() for c in theirs]
+            pc = [c for c in visible[partner] if c.suit == s]
+            dead = 1 if LIVE_LEAD and _dead(second_card(mine), hand, gone) else 0
+            trump_pen = 1 if trump_suit and s == trump_suit else 0
+            if not theirs:
+                key, card = (0, 0, 0), second_card(mine)       # nobody else can win it
+            elif not pc:
+                if cant_play(visible[partner], s):
+                    key, card = (1, 99, 99), second_card(mine)  # three cards, two theirs
+                else:
+                    key, card = (0, 0, 1), second_card(mine)   # partner ruffs
+            else:
+                pairs = []
+                for m in mine:
+                    for q in pc:
+                        lo, hi = sorted((m.value(), q.value()))
+                        between = sum(1 for v in opp_values if lo < v < hi)
+                        above = sum(1 for v in opp_values if v > hi)
+                        pairs.append(((0, between, above), -m.value(), m))
+                k, _, card = min(pairs, key=lambda t: (t[0], t[1]))
+                key = k
+            score = (dead, trump_pen, key, -len(mine), -SUITS.index(s))
+            if best is None or score < best[0]:
+                best = (score, card)
+        return best[1]
+
+    dummy = next((p for p in visible if p != partner), None)
+    if dummy is None:
+        return None
+    rho = PLAYERS[(PLAYERS.index(player) + 3) % 4]
+    best = None
+    for s, mine in groups.items():
+        unplayed = [c for c in _FULL_DECK if c.suit == s and c not in gone]
+        dummy_cards = [c for c in visible[dummy] if c.suit == s]
+        others = [c for c in unplayed if c not in hand and c not in dummy_cards]
+        dead = 1 if LIVE_LEAD and _dead(second_card(mine), hand, gone) else 0
+        # Two of our cards against declarer's one: dummy out, and the unseen
+        # cards in the suit could still be partner's (partner hasn't shown out).
+        # Partner plays last to it (dummy is on our right) and can choose.
+        ours_two = (cant_play(visible[dummy], s) and others and s not in out[partner]
+                    and (dummy == rho or not LEAD_DUMMY_VOID_RHO)
+                    and not (LEAD_DUMMY_VOID_WHOSE
+                             and _declaring_sides_suit(s, visible, history, shown)))
+        top = max(unplayed, key=lambda c: c.value())
+        dummy_decides = (dummy == rho and top in dummy_cards and len(dummy_cards) >= 2)
+        trump_pen = 1 if trump_suit and s == trump_suit else 0
+        score = (dead, 0 if (ours_two and LEAD_DUMMY_VOID) else 1,
+                 1 if (dummy_decides and LEAD_DUMMY_LAST) else 0,
+                 _gap(s, hand, played), trump_pen, -len(mine), -SUITS.index(s))
+        if best is None or score < best[0]:
+            best = (score, second_card(mine))
+    return best[1]
+
+
 # ── Notrump defence goes back to the opening-lead suit ──────────────────────
 #
 # From championship play records (regular bridge, 1996-2002, 36,756 boards):
@@ -3701,7 +3845,8 @@ NT_DEFENCE_SUIT = True
 
 
 def _nt_defence_suit(player: str, hand: list[Card], trump: str | None,
-                     history: list | None, visible: dict[str, list[Card]] | None) -> Card | None:
+                     history: list | None, visible: dict[str, list[Card]] | None,
+                     shown: dict | None = None) -> Card | None:
     """In notrump, the defence's opening-lead suit led again, or None."""
     if trump in SUITS or not history or (visible and PARTNERS[player] in visible):
         return None
@@ -3709,6 +3854,8 @@ def _nt_defence_suit(player: str, hand: list[Card], trump: str | None,
     if leader not in (player, PARTNERS[player]):
         return None
     if card.suit in _shown_out(history, [])[leader]:
+        return None
+    if WHOSE_SUIT and _declaring_sides_suit(card.suit, visible, history, shown):
         return None
     cards = sorted((c for c in hand if c.suit == card.suit), key=lambda c: c.value(), reverse=True)
     return cards[min(1, len(cards) - 1)] if cards else None
