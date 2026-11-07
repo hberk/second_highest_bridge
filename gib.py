@@ -4749,8 +4749,19 @@ def _responsive_game(ctx: Ctx) -> tuple | None:
     answer = max(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.pd)
     if answer < mine:
         return None
+    # Responsive only: my double came straight over their new suit bid. Not a
+    # penalty double of 1NT (1D X 1NT X P 2H: partner ran, weak), nor a late
+    # double after passing.
+    at = next(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.me and c == 'X')
+    before = ctx.calls[at - 1] if at else None
+    opening = next((c for _, c in ctx.calls if c != 'Pass'), None)
+    if (not before or before[0] == ctx.pd or not parse_bid(before[1])
+            or strain_of(before[1]) not in SUITS or before[1] == opening):
+        return None
     s = strain_of(ctx.calls[answer][1])
-    if s not in MAJORS or ctx.h.len[s] < 4 or ctx.h.hcp < RESPONSIVE_GAME_HCP:
+    # A major they bid is partner's cuebid (1H X 2H X P 3H), not a suit to play.
+    if (s not in MAJORS or s in _their_suits(ctx) or ctx.h.len[s] < 4
+            or ctx.h.hcp < RESPONSIVE_GAME_HCP):
         return None
     game = f"4{s}"
     if not ctx.ok(game):

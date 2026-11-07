@@ -24,7 +24,8 @@ away a board on the same 199 deals: declaring side 2.74 to 2.59, opening lead
 - An answer to partner's responsive double is not read as the 18+
   double-then-suit, so advancer doesn't raise it.
 - The responsive doubler bids game in a major partner answers with 11+ HCP
-  and four cards in it.
+  and four cards in it (only after a real responsive double, and never in
+  their suit).
 - A takeout doubler's new suit at the three level shows six or more cards.
 - Declarer leads the card that wins unless the suit is ruffed (the K♥ from
   dummy's K 4 2 over the bare ace).

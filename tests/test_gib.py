@@ -477,6 +477,21 @@ def test_responsive_doubler_bids_game_with_extras():
         gib.RESPONSIVE_GAME_HCP = 11
 
 
+def test_responsive_game_needs_a_responsive_double():
+    # The review of PR #66: the game rule fired on any lone X of mine. Partner's
+    # 3H over their hearts is a cuebid, not a suit to play; my X of 1NT was for
+    # penalties and partner's 2H ran from it; a late X after passing is not
+    # responsive either. Each is a pass; the switch's own case still bids game.
+    south = 'KS 8S 5S AH QH 7H 2H QD 8D 7D JC 9C 2C'
+    assert bid(south, '1H', 'X', '2H', 'X', 'Pass', '3H', 'Pass', dealer='West')[0] == 'Pass'
+    assert bid(south, '1D', 'X', '1NT', 'X', 'Pass', '2H', 'Pass', dealer='West')[0] == 'Pass'
+    late = 'KS QS 5S 2S QH 7H 2H QD 8D 7D AC 9C 2C'
+    assert bid(late, '1C', 'X', '1H', 'Pass', '2H', 'Pass', 'Pass', 'X', 'Pass', '2S', 'Pass',
+               dealer='West')[0] == 'Pass'
+    east = 'JS 8S 5S AH KH QH 7H QD 8D 7D 2D JC 9C'
+    assert bid(east, '1S', 'Pass', 'Pass', 'X', '2S', 'X', 'Pass', '3H', '3S')[0] == '4H'
+
+
 def test_keycard_answer_then_they_bid():
     # 1H 2NT 4H 4NT 5C (5D): with four keycards opposite 0/3 none is missing,
     # so the slam is bid over their bid; with two, two are missing: double.

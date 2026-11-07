@@ -64,6 +64,10 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     doubler bids 4M itself on four of the answered major and 11+ HCP
     (`RESPONSIVE_GAME_HCP`, `_responsive_game`), even over their bid: +0.06,
     +0.00, +0.01 (15 auctions in 30,000 deals; 12+ and 13+ fewer, also up).
+    Only after a real responsive double (straight over their new suit) and
+    never in their suit: the review of PR #66 found it bidding 4♥ over
+    partner's 3♥ cuebid of 1♥ X 2♥ X P, and over partner's run from a
+    penalty double of 1NT. Robots never bid those, so the measurement stands.
   - **Their artificial bid shows its shown suit** (`THEIR_SHOWN_SUITS` in
     `_their_suits`): over 1NT P 2♦, diamonds are not theirs, but only to a
     hand that can bid them at the three level, 6+ cards and 12+ HCP

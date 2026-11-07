@@ -4315,8 +4315,18 @@ function responsiveGame(ctx: Ctx): Decision | null {
   let answer = -1;
   ctx.calls.forEach(([w], i) => { if (w === ctx.me) me = i; if (w === ctx.pd) answer = i; });
   if (answer < me) return null;
+  // Responsive only: my double came straight over their new suit bid. Not a
+  // penalty double of 1NT (1D X 1NT X P 2H: partner ran, weak), nor a late
+  // double after passing.
+  const at = ctx.calls.findIndex(([w, c]) => w === ctx.me && c === 'X');
+  const before = at > 0 ? ctx.calls[at - 1] : null;
+  const opening = ctx.calls.find(([, c]) => c !== 'Pass')?.[1] ?? null;
+  if (!before || before[0] === ctx.pd || !parseBid(before[1])
+      || !isSuit(strainOf(before[1])) || before[1] === opening) return null;
   const s = strainOf(ctx.calls[answer][1]);
-  if (!isSuit(s) || !MAJORS.includes(s) || ctx.h.len[s] < 4 || ctx.h.hcp < RESPONSIVE_GAME_HCP) return null;
+  // A major they bid is partner's cuebid (1H X 2H X P 3H), not a suit to play.
+  if (!isSuit(s) || !MAJORS.includes(s) || theirSuits(ctx).includes(s) || ctx.h.len[s] < 4
+      || ctx.h.hcp < RESPONSIVE_GAME_HCP) return null;
   const game = `4${s}`;
   if (!ctx.ok(game)) return null;
   return [game, `4+ ${SYM[s]}, ${RESPONSIVE_GAME_HCP}+ HCP. Game after the responsive double.`];
