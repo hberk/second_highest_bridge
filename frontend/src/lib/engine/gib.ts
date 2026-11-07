@@ -67,6 +67,13 @@ const DOUBLER_SUIT_HCP = 18;
 const DOUBLER_SUIT_JUDGE = 14;
 const DOUBLER_RAISE_HCP = 6;
 const DOUBLER_SUIT_LEVEL = 2;
+/** The doubler's suit answering partner's responsive double is forced, not
+ *  the 18+ double-then-suit, so advancer does not raise it to game. */
+export const DOUBLER_SUIT_NOT_ANSWER = true;
+/** Past DOUBLER_SUIT_LEVEL, the doubler bids the suit at the three level with
+ *  DOUBLER_SUIT_LEN3+ cards, and the alert says so (the user's call,
+ *  2026-11-06). 0 keeps three-level suits out. See gib.py. */
+const DOUBLER_SUIT_LEN3 = 6;
 /** Slam on points needs 37 judgement points, not 33 (the user's call, 2026-10-31). See gib.py. */
 export const SLAM = 37;
 const GRAND = 37;
@@ -4213,7 +4220,7 @@ function theyOpened(ctx: Ctx): Decision | null {
   const partners = ctx.partners();
   if (wasLeadDouble(ctx, ctx.me) && !partners.length) return ['Pass', 'My double showed my suit, for the lead.'];
   if (wasLeadDouble(ctx, ctx.pd) && !mine.length) return ['Pass', "Partner's double asks for a lead."];
-  const responsive = answerResponsive(ctx);
+  const responsive = answerResponsive(ctx) ?? responsiveGame(ctx);
   if (responsive) return responsive;
   if (DOUBLE_THEN_SUIT) {
     const s = doublerSuit(ctx, ctx.pd);
@@ -4295,6 +4302,36 @@ function answerResponsive(ctx: Ctx): Decision | null {
   return [call, `Answering the responsive double, ${SYM[s]}.`];
 }
 
+/** My responsive double, partner's answer in a major I hold four of: game
+ *  with RESPONSIVE_GAME_HCP+ (null: off), whether they compete or not. */
+export const RESPONSIVE_GAME_HCP: number | null = 11;
+
+function responsiveGame(ctx: Ctx): Decision | null {
+  const partners = ctx.partners();
+  const mine = ctx.mine();
+  if (RESPONSIVE_GAME_HCP === null || mine.length !== 1 || mine[0] !== 'X'
+      || partners.length !== 2 || partners[0] !== 'X' || !takeoutDoubler(ctx, ctx.pd)) return null;
+  let me = -1;
+  let answer = -1;
+  ctx.calls.forEach(([w], i) => { if (w === ctx.me) me = i; if (w === ctx.pd) answer = i; });
+  if (answer < me) return null;
+  // Responsive only: my double came straight over their new suit bid. Not a
+  // penalty double of 1NT (1D X 1NT X P 2H: partner ran, weak), nor a late
+  // double after passing.
+  const at = ctx.calls.findIndex(([w, c]) => w === ctx.me && c === 'X');
+  const before = at > 0 ? ctx.calls[at - 1] : null;
+  const opening = ctx.calls.find(([, c]) => c !== 'Pass')?.[1] ?? null;
+  if (!before || before[0] === ctx.pd || !parseBid(before[1])
+      || !isSuit(strainOf(before[1])) || before[1] === opening) return null;
+  const s = strainOf(ctx.calls[answer][1]);
+  // A major they bid is partner's cuebid (1H X 2H X P 3H), not a suit to play.
+  if (!isSuit(s) || !MAJORS.includes(s) || theirSuits(ctx).includes(s) || ctx.h.len[s] < 4
+      || ctx.h.hcp < RESPONSIVE_GAME_HCP) return null;
+  const game = `4${s}`;
+  if (!ctx.ok(game)) return null;
+  return [game, `4+ ${SYM[s]}, ${RESPONSIVE_GAME_HCP}+ HCP. Game after the responsive double.`];
+}
+
 function takeoutDoubler(ctx: Ctx, seat: Seat): boolean {
   if (ctx.weOpened || wasLeadDouble(ctx, seat)) return false;
   for (let i = 0; i < ctx.calls.length; i++) {
@@ -4321,11 +4358,21 @@ function doublerSuit(ctx: Ctx, seat: Seat): Suit | null {
   if (!takeoutDoubler(ctx, seat)) return null;
   const bids: number[] = [];
   ctx.calls.forEach(([w, c], i) => { if (w === seat && c !== 'Pass') bids.push(i); });
-  return bids.length >= 2 ? newSuitAt(ctx, bids[1]) : null;
+  if (bids.length < 2) return null;
+  // Partner's responsive double asked for this suit: it is an answer at any
+  // strength, not the 18+ double-then-suit.
+  if (DOUBLER_SUIT_NOT_ANSWER && ctx.calls.slice(bids[0], bids[1])
+    .some(([w, c]) => w === PARTNERS[seat] && c === 'X')) return null;
+  return newSuitAt(ctx, bids[1]);
 }
 
-const doublerAlert = (s: Suit) =>
-  `5+ ${SYM[s]}, ${DOUBLER_SUIT_HCP}+ HCP. Doubled first: too strong to overcall.`;
+/** The length the doubler's new suit shows at this call's level. */
+const doublerLen = (call: string) =>
+  (DOUBLER_SUIT_LEN3 && levelOf(call) >= 3 ? DOUBLER_SUIT_LEN3 : 5);
+
+const doublerAlert = (call: string) =>
+  `${doublerLen(call)}+ ${SYM[strainOf(call) as Suit]}, ${DOUBLER_SUIT_HCP}+ HCP. `
+  + 'Doubled first: too strong to overcall.';
 
 /** My takeout double, then my own suit: DOUBLER_SUIT_HCP+ and five cards.
  *  With four of partner's suit, the raise branches answer instead. */
@@ -4339,7 +4386,10 @@ function doublerNewSuit(ctx: Ctx): Decision | null {
   if (!own.length) return null;
   const s = maxBy(own, (x) => [h.len[x], idx(x)]);
   const call = ctx.cheapest(s, 1);
-  if (call && levelOf(call) <= DOUBLER_SUIT_LEVEL) return [call, doublerAlert(s)];
+  if (call && levelOf(call) <= DOUBLER_SUIT_LEVEL) return [call, doublerAlert(call)];
+  if (call && DOUBLER_SUIT_LEN3 && levelOf(call) === 3 && h.len[s] >= DOUBLER_SUIT_LEN3) {
+    return [call, doublerAlert(call)];
+  }
   return null;
 }
 
@@ -4415,7 +4465,9 @@ export function doublerGuard(player: Seat, cards: Card[], auction: AuctionState,
   if (!isSuit(s) || mine.length !== 1 || mine[0] !== 'X' || !takeoutDoubler(ctx, player)
     || ctx.calls.some(([, c]) => strainOf(c) === s) || partnerCuebid(ctx)
     || partnerResponsive(ctx)) return decision;
-  if (ctx.h.hcp >= DOUBLER_SUIT_HCP && ctx.h.len[s] >= 5) return [decision[0], doublerAlert(s)];
+  if (ctx.h.hcp >= DOUBLER_SUIT_HCP && ctx.h.len[s] >= doublerLen(decision[0])) {
+    return [decision[0], doublerAlert(decision[0])];
+  }
   return ['Pass', 'Doubled: a new suit would show 18+.'];
 }
 

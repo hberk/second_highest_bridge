@@ -449,6 +449,49 @@ def test_doubler_answers_responsive_double():
         gib.RESPONSIVE_ANSWER = True
 
 
+def test_answer_to_responsive_double_is_not_raised_to_game():
+    # The user's deal, 2026-11-05: 1D P 1H X 2H X P 2S P. East's 2S only
+    # answered the responsive double; read as the 18+ double-then-suit, it
+    # took West's 8-count to 4S, doubled and down two.
+    calls = ('1D', 'Pass', '1H', 'X', '2H', 'X', 'Pass', '2S', 'Pass')
+    west = 'QS 8S 3S 2S KH 3H JD 10D QC 10C 7C 5C 2C'
+    assert bid(west, *calls, dealer='South')[0] == 'Pass'
+    gib.DOUBLER_SUIT_NOT_ANSWER = False
+    try:
+        assert bid(west, *calls, dealer='South')[0] == '4S'
+    finally:
+        gib.DOUBLER_SUIT_NOT_ANSWER = True
+
+
+def test_responsive_doubler_bids_game_with_extras():
+    # (1S) P (P) X (2S) X (P) 3H (3S): the responsive doubler with 11+ HCP and
+    # four of partner's answered major bids game, even over their competition.
+    calls = ('1S', 'Pass', 'Pass', 'X', '2S', 'X', 'Pass', '3H', '3S')
+    east = 'JS 8S 5S AH KH QH 7H QD 8D 7D 2D JC 9C'
+    call, why = bid(east, *calls, dealer='North')
+    assert call == '4H' and why.startswith('4+ ')
+    gib.RESPONSIVE_GAME_HCP = None
+    try:
+        assert bid(east, *calls, dealer='North')[0] == 'Pass'
+    finally:
+        gib.RESPONSIVE_GAME_HCP = 11
+
+
+def test_responsive_game_needs_a_responsive_double():
+    # The review of PR #66: the game rule fired on any lone X of mine. Partner's
+    # 3H over their hearts is a cuebid, not a suit to play; my X of 1NT was for
+    # penalties and partner's 2H ran from it; a late X after passing is not
+    # responsive either. Each is a pass; the switch's own case still bids game.
+    south = 'KS 8S 5S AH QH 7H 2H QD 8D 7D JC 9C 2C'
+    assert bid(south, '1H', 'X', '2H', 'X', 'Pass', '3H', 'Pass', dealer='West')[0] == 'Pass'
+    assert bid(south, '1D', 'X', '1NT', 'X', 'Pass', '2H', 'Pass', dealer='West')[0] == 'Pass'
+    late = 'KS QS 5S 2S QH 7H 2H QD 8D 7D AC 9C 2C'
+    assert bid(late, '1C', 'X', '1H', 'Pass', '2H', 'Pass', 'Pass', 'X', 'Pass', '2S', 'Pass',
+               dealer='West')[0] == 'Pass'
+    east = 'JS 8S 5S AH KH QH 7H QD 8D 7D 2D JC 9C'
+    assert bid(east, '1S', 'Pass', 'Pass', 'X', '2S', 'X', 'Pass', '3H', '3S')[0] == '4H'
+
+
 def test_keycard_answer_then_they_bid():
     # 1H 2NT 4H 4NT 5C (5D): with four keycards opposite 0/3 none is missing,
     # so the slam is bid over their bid; with two, two are missing: double.
@@ -1269,6 +1312,18 @@ def test_double_then_a_new_suit_shows_18():
     call, why = bid(north, '1H', 'Pass', 'Pass', 'X', '2H', 'Pass', 'Pass', '2S', 'Pass',
                     dealer='West')
     assert call in ('3S', '4S') and '3+' in why, (call, why)
+
+
+def test_double_then_a_long_suit_at_the_three_level():
+    """The user's deal, 2026-11-06: 2♦ X P 2♠ P, and North passed a 20-count
+    with seven hearts. With 6+ cards the doubler's suit goes to the three
+    level, and the alert says six; with five it stays a pass."""
+    north = 'KS 6S 4S AH KH JH 10H 7H 4H 2H KD QD AC'
+    call, why = bid(north, '2D', 'X', 'Pass', '2S', 'Pass', dealer='West')
+    assert call == '3H' and why.startswith('6+ ♥, 18+ HCP'), (call, why)
+    five = 'KS 6S 4S AH KH JH 10H 7H KD QD AC 3C 2C'
+    call, _ = bid(five, '2D', 'X', 'Pass', '2S', 'Pass', dealer='West')
+    assert call != '3H', call
 
 
 def test_a_takeout_doubler_answers_partners_cuebid():

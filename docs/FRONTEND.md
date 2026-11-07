@@ -100,7 +100,8 @@ remains the reference.
   ends with the auction. While you bid, your hand shows its judgement points
   (`Fan`'s `jp` tags, and the total with HCP and shape). When the auction
   ends the bidding box gives way to the recap, on the same screen: the
-  contract's double dummy score against par (N/S's best contract; no IMPs,
+  contract's double dummy score against par (duplicate par, both sides bidding, since 2026-11-06; saved boards are
+  repriced on load; no IMPs,
   the user's call) and against the robots' contract on the same board,
   then your tally per board vs par and vs the robots, over every board and
   the last 20 (the user's ask, 2026-10-28: to watch the gap to the robots

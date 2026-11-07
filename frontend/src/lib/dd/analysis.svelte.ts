@@ -90,9 +90,14 @@ export class DdAnalysis {
     return out;
   }
 
+  /** Start, or pick up again after `stop`: decisions already in are kept and
+   *  never asked for again, so a board left and reopened isn't re-solved. */
   start(): void {
     const c = this.record.contract;
     if (!c || this.worker || !this.plays.length) return;
+    const order = [...this.order(AUTO_CARDS, 0), ...(this.deep ? this.order(13, AUTO_CARDS) : [])]
+      .filter((i) => !this.values[i]);
+    if (!order.length) return;
     if (typeof Worker === 'undefined') {
       this.error = 'needs a browser with Web Workers.';
       return;
@@ -113,9 +118,7 @@ export class DdAnalysis {
       e.preventDefault();
       if (this.worker === worker) void this.failed(e.message);
     };
-    // Decisions already in (from before a retry) aren't asked for again.
-    const order = [...this.order(AUTO_CARDS, 0), ...(this.deep ? this.order(13, AUTO_CARDS) : [])];
-    this.send(order.filter((i) => !this.values[i]), $state.snapshot(board));
+    this.send(order, $state.snapshot(board));
   }
 
   /** Start again after an error that may pass. */
@@ -154,9 +157,10 @@ export class DdAnalysis {
 
   /** Analyse the tricks AUTO_CARDS leaves out. */
   deeper(): void {
-    if (this.deep || !this.worker) return;
+    if (this.deep) return;
     this.deep = true;
-    this.send(this.order(13, AUTO_CARDS));
+    if (this.worker) this.send(this.order(13, AUTO_CARDS).filter((i) => !this.values[i]));
+    else this.start();
   }
 
   stop(): void {

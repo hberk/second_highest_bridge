@@ -3,7 +3,7 @@
 //
 //     par - actual = bidding_loss + play_loss
 //
-// See challenge.py for why par is a ceiling rather than true duplicate par.
+// Par is duplicate par: both sides bid perfectly (challenge.py's `par_from_tricks`).
 import library from '$root/data/solved_deals.json';
 import { STRAINS, parseHand, removeCard, type Card, type Seat, type Side, type Strain,
   type Vulnerability } from './card';
@@ -56,25 +56,77 @@ export function scoreFor(side: Side, contract: ScoredContract, declarerTricks: n
 }
 
 export interface Par {
+  /** From the side asked for: positive when it gains. */
   score: number;
   level: number;
   strain: Strain | null;
+  /** The declaring side, or null when the deal is passed out. */
+  side: Side | null;
+  doubled: 'None' | 'X';
+  /** The declaring side's tricks. */
   tricks: number;
 }
 
-export function par(dealId: number, side: Side, vulnerability: Vulnerability = 'None'): Par {
-  let best: Par | null = null;
-  for (const strain of STRAINS) {
-    const taken = ddTricks(dealId, strain, side);
-    for (let level = 1; level < 8; level++) {
-      if (level + 6 > taken) break;
-      const points = scoreFor(side, {
-        level, strain, side, tricks_needed: level + 6, doubled: 'None', vulnerability,
-      }, taken);
-      if (best === null || points > best.score) best = { score: points, level, strain, tricks: taken };
+/** Every contract in bidding order, 1♣ to 7NT. */
+const CONTRACT_LADDER: readonly [number, Strain][] =
+  [1, 2, 3, 4, 5, 6, 7].flatMap((level) => STRAINS.map((strain) => [level, strain] as [number, Strain]));
+
+/** Duplicate par from a double dummy table: challenge.py's `par_from_tricks`,
+ *  line for line. A side passes the contract standing or bids a higher one of
+ *  its own; a failing contract is doubled, a making one isn't. N/S speak first. */
+export function parFromTricks(tricks: (strain: Strain, side: Side) => number, side: Side,
+  vulnerability: Vulnerability = 'None'): Par {
+  const sides: Side[] = ['N/S', 'E/W'];
+  const table = new Map<string, number>();
+  for (const strain of STRAINS) for (const s of sides) table.set(`${strain}:${s}`, tricks(strain, s));
+  const n = CONTRACT_LADDER.length;
+  const passedOut: Par = { score: 0, level: 0, strain: null, side: null, doubled: 'None', tricks: 0 };
+
+  const played = (k: number, owner: Side): Par => {
+    const [level, strain] = CONTRACT_LADDER[k];
+    const taken = table.get(`${strain}:${owner}`)!;
+    const doubled = taken < level + 6 ? 'X' : 'None';
+    const score = scoreFor('N/S', {
+      level, strain, side: owner, tricks_needed: level + 6, doubled, vulnerability,
+    }, taken);
+    return { score, level, strain, side: owner, doubled, tricks: taken };
+  };
+
+  // best[k][owner]: the outcome once `owner` has bid contract k and the other
+  // side is to speak. Scores from N/S; the first (lowest) of equal outcomes wins.
+  const best: Record<Side, Par>[] = new Array(n);
+  for (let k = n - 1; k >= 0; k--) {
+    const row = {} as Record<Side, Par>;
+    for (const owner of sides) {
+      const mover = otherSide(owner);
+      const sign = mover === 'N/S' ? 1 : -1;
+      let outcome = played(k, owner);
+      for (let j = k + 1; j < n; j++) {
+        const reply = best[j][mover];
+        if (sign * reply.score > sign * outcome.score) outcome = reply;
+      }
+      row[owner] = outcome;
     }
+    best[k] = row;
   }
-  return best ?? { score: 0, level: 0, strain: null, tricks: 0 };
+
+  const opening = (mover: Side, afterPass: boolean): Par => {
+    const sign = mover === 'N/S' ? 1 : -1;
+    let outcome = afterPass ? passedOut : opening(otherSide(mover), true);
+    for (let k = 0; k < n; k++) {
+      if (sign * best[k][mover].score > sign * outcome.score) outcome = best[k][mover];
+    }
+    return outcome;
+  };
+
+  const result = { ...opening('N/S', false) };
+  if (side === 'E/W') result.score = -result.score;
+  return result;
+}
+
+/** Duplicate par on a library deal, from `side`. */
+export function par(dealId: number, side: Side, vulnerability: Vulnerability = 'None'): Par {
+  return parFromTricks((strain, s) => ddTricks(dealId, strain, s), side, vulnerability);
 }
 
 export interface TrickLog {
@@ -166,18 +218,18 @@ export interface Grade {
 /** A loss is reported POSITIVE as points given away. See challenge.py. */
 export function grade(dealId: number, side: Side, contract: (ScoredContract & { declarer?: Seat }) | null,
   declarerTricks: number, vulnerability: Vulnerability = 'None'): Grade {
-  const ceiling = par(dealId, side, vulnerability);
+  const target = par(dealId, side, vulnerability);
   if (contract === null) {
-    return { par: ceiling, passed_out: true, dd_score: 0, actual: 0,
-      bidding_loss: ceiling.score, play_loss: 0, total_loss: ceiling.score };
+    return { par: target, passed_out: true, dd_score: 0, actual: 0,
+      bidding_loss: target.score, play_loss: 0, total_loss: target.score };
   }
   const perfect = ddTricks(dealId, contract.strain, contract.side, contract.declarer);
   const ddScore = scoreFor(side, contract, perfect);
   const actual = scoreFor(side, contract, declarerTricks);
   return {
-    par: ceiling, passed_out: false, dd_tricks: perfect, dd_score: ddScore, actual,
-    bidding_loss: ceiling.score - ddScore,
+    par: target, passed_out: false, dd_tricks: perfect, dd_score: ddScore, actual,
+    bidding_loss: target.score - ddScore,
     play_loss: ddScore - actual,
-    total_loss: ceiling.score - actual,
+    total_loss: target.score - actual,
   };
 }

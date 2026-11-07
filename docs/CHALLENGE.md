@@ -15,6 +15,16 @@ the mode exists for:
 
     par - actual = bidding_loss + play_loss
 
+**Par is duplicate par (2026-11-06)**: both sides bid perfectly, each seeing
+every card (`challenge.par_from_tricks`, searched over the whole auction, a
+failing contract doubled). Before, par was the grading side's best contract on
+its own; on board 76 (deal 169, N/S vulnerable) the app showed N/S par +90 for
+2♦ while E/W make 4♠+1, so a user who scored exactly par (-450) was told the
+auction cost 540. The two differ on 997 of the 1,600 deal and vulnerability
+pairs. The one-sided figure stays as `challenge.ceiling`, used only by
+`research/challenge_losses.py`, so the table below and ROBOT_PROGRESS stay
+comparable; with robots in every seat, two-sided par is zero sum and averages out.
+
 `bidding_loss` is par minus the double-dummy value of the contract reached;
 `play_loss` is that value minus what was actually scored. The identity is exact
 and `tests/test_challenge.py` asserts it on every deal in the library. It makes
@@ -383,6 +393,15 @@ both sides netted; see below for one side at a time).
   ruffed in the long trump hand (deal 4). Card choice within the side suit
   the lead rules chose is the version measured above. The user's point, in the end:
   the 9♣ is plain good planning, not part of a ruffing plan.
+- **Unless it's ruffed** (`SURE_LEAD_UNRUFFED`, on; deal 157, spades by
+  North, user's review 2026-11-06): dummy's K♥ 4♥ 2♥ to North's bare A♥, East
+  out of hearts. No heart was sure, since East might ruff, so the fallback 4♥
+  went and lost to West's 9♥; under the ace the K♥ is second-highest and wins.
+  A ruff beats every card of the suit alike, so with no sure card a second
+  pass leaves the ruffs out and leads the lowest card that wins whenever
+  nobody ruffs. Gross double dummy losses on 199 deals: declaring side 2.74 to
+  2.71, defence 2.41 to 2.38, opening lead 0.40 unchanged; the robot table's
+  tricks on the 405 boards whose play changed: -1 in all (flat).
 - **Dead card in fourth seat** (deal 156, 1H by North): on 10♣ 3♣ 9♣ North
   dumped the 5♣, keeping A♣ K♣ that could never win a trick. Double dummy
   over 199 deals the lowest card lost 43.5 tricks where the lowest dead card
@@ -602,6 +621,23 @@ West declaring led the T♠ at trick 7, North held ♠A J 8 3, dummy ♠9 6).
   and a margin before changing the card (`/mnt/project-files/second-hand-cover/`,
   `REPORT.md`). `tests/test_card_play_rules.py` holds the board.
 
+**...and when dummy led** (2026-11-05, the user's board: trick 3, dummy led
+the 9♣, East held ♣K T 7 4 3 over declarer's unseen ♣A Q 8 5 2, partner ♣J 6).
+
+- East played the 3, which gives away two tricks double dummy; the T was best.
+  The cover above only ran with dummy third, so with dummy leading,
+  `_middle_play` judged the card against declarer alone and ducked.
+- `ai.SECOND_HAND_COVER_DUMMY_LED`: the same suit plan (`_unseen_partner_plan`)
+  with dummy the leader, declarer third and partner last, the suit's unseen
+  cards laid out between declarer and partner. No `_partner_chances` fallback:
+  where the plan doesn't apply, the old card stands. On the board it plays the T.
+- Seated head to head: library **+0.045 tricks, t = +2.53, +5.3 points**;
+  400 fresh deals (seed 1105) **+0.051, t = +2.81, +6.4 points**; about 1,370
+  boards changed of 6,350. Mistakes added up, 199 deals: declaring side 2.74 ->
+  2.66, opening lead 0.40 -> 0.40, defence after the lead 2.41 -> 2.29
+  (`/mnt/project-files/dummy-led-cover/`). `tests/test_card_play_rules.py`
+  holds the board.
+
 **Every card of the suit located** (2026-11-04, the user's 4♥: trick 5, South
 led the 8♥, West showed out, dummy's 9♥ won whatever East played; East ♥T5,
 dummy ♥42, South ♥AQ6).
@@ -624,6 +660,37 @@ dummy ♥42, South ♥AQ6).
   (`/mnt/project-files/located-suit/`). `tests/test_card_play_rules.py` holds
   the board.
 
+**Third hand on defence plays the suit out** (2026-11-06, two user boards).
+Deal 319, 4♥ by South, trick 7: East led the 5♦, South played the 9♦, West held
+♦A Q 4 2 with dummy's lone K♦ to come, and played the 2. Deal 58, 2♠ by South,
+trick 2: East led the 6♦, South played the 10♦, West held ♦A J 9 7 3 2 with
+dummy's K Q to come, and played the 2.
+
+- `_middle_play` asks who holds the trick now and which later cards could take
+  it away, never which later card hands it back. The 2 "keeps" partner's card
+  winning until dummy's honour makes declarer's card second-highest; the queen
+  (the jack) loses for now, but dummy's honour pushes it into second place.
+- `ai.THIRD_SEES_LAST` (`_third_sees_last`): third hand with the last hand in
+  view plays the cheapest card that wins whatever that hand plays, unless the
+  old card already does.
+- `ai.THIRD_HAND_PLAN` (`_third_hand_plan`): third hand on defence, following
+  suit, plays the led suit out over every layout of its unseen cards between
+  partner and declarer (as `_unseen_partner_plan`; who has shown out, the
+  auction's floors, declarer's and dummy's ruffs in a side suit of a trump
+  contract) and plays the card that takes the most tricks in it; the old card
+  when it ties, else the lowest of the best. 1 = declarer last, 2 = dummy last
+  too, 0 off. Shipped at 2. Both boards: the queen, the jack (double dummy 8
+  tricks for declarer against 9).
+- Seated head to head: the sure-winner rule alone **+0.012 tricks, t = +2.77,
+  +1.4 points**, 108 boards. With the plan: library **+0.052, t = +3.11, +4.0
+  points**; 400 fresh deals (seed 1106) **+0.053, t = +3.06, +6.1 points**;
+  about 1,000 of 6,370 boards changed. Gross mistakes, 199 deals: the defence
+  2.41 -> 2.25 tricks a board (third hand 0.43 -> 0.31), the declaring side
+  2.74 -> 2.68 (it meets different positions). Card by card against the old
+  card on the same 199 deals: +0.060 a board; declarer last only +0.038, side
+  suits left out +0.049, ruffs ignored +0.057 (`/mnt/project-files/third-sees-last/`,
+  `variants.py`). `tests/test_card_play_rules.py` holds both boards.
+
 **A cuebid raise that forces the three level needs four trumps or 12+
 judgement points** (`gib.CUE_LIMIT_AT_3`), a small tightening of GIB's "limit
 raise or better"; weaker hands with three trumps raise to the two level. The
@@ -643,9 +710,9 @@ dummy on 3,944 of 6,356 boards (graded from N/S; 4,744 from the declaring
 side); the auction is at or above par on 1,603 (measured 2026-10-23, every
 declarer's count). (One auction per deal, before
 the card-play changes: 197 and 137 of 372, and the worst single auction gave
-away 1,260, deal 346: E/W stopped in 2S with 7NT available.) Note the caveat baked into `par()`: it is
-the best contract available to ONE side ignoring whether the opponents would
-compete, so it is a ceiling and overstates the true bidding gap — but the ratio
+away 1,260, deal 346: E/W stopped in 2S with 7NT available.) Note the caveat baked into this par (now
+`challenge.ceiling`): it is the best contract available to ONE side ignoring
+whether the opponents would compete, so it is a ceiling and overstates the true bidding gap — but the ratio
 between the two columns is what matters and is robust.
 
 **Every declarer is solved (2026-10-23).** The opening lead comes from

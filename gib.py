@@ -121,6 +121,17 @@ DOUBLER_SUIT_HCP = 18
 DOUBLER_SUIT_JUDGE = 14
 DOUBLER_RAISE_HCP = 6
 DOUBLER_SUIT_LEVEL = 2
+#: The doubler's suit answering partner's responsive double, (1x) X (2x) X
+#: (P) 2y, is forced, not the 18+ double-then-suit, so advancer does not
+#: raise it on DOUBLER_SUIT_JUDGE (the user's deal, 2026-11-05: 1♦ P 1♥ X
+#: 2♥ X P 2♠ P 4♠ on an 8-count, doubled and down two).
+DOUBLER_SUIT_NOT_ANSWER = True
+#: Past DOUBLER_SUIT_LEVEL, the doubler bids the suit at the three level with
+#: DOUBLER_SUIT_LEN3+ cards, a strong one-suiter, and the alert says so (the
+#: user's call, 2026-11-06: 2♦ X P 2♠ and North passed ♠K64 ♥AKJT742 ♦KQ ♣A).
+#: 0 keeps three-level suits out. Fresh deals, head to head (3 x 10,000):
+#: +0.01 a board (+0.01/+0.03/0.00), noise; 7+ 0.00, 5+ +0.03/+0.11/-0.15.
+DOUBLER_SUIT_LEN3 = 6
 #: Slam on points (6NT, quantitative 4NT, keycard) needs 37 judgement points,
 #: not GIB's 33 (the user's call, 2026-10-31, from the championship study of
 #: uncontested auctions: the robots' 2NT-6NT and 2C-2D-3NT-6NT on 33 went
@@ -4630,7 +4641,7 @@ def they_opened(ctx: Ctx) -> tuple | None:
         return 'Pass', "My double showed my suit, for the lead."
     if _was_lead_double(ctx, ctx.pd) and not mine:
         return 'Pass', "Partner's double asks for a lead."
-    responsive = _answer_responsive(ctx)
+    responsive = _answer_responsive(ctx) or _responsive_game(ctx)
     if responsive:
         return responsive
     if DOUBLE_THEN_SUIT:
@@ -4724,6 +4735,40 @@ def _answer_responsive(ctx: Ctx) -> tuple | None:
     return call, f"Answering the responsive double, {SYM[s]}."
 
 
+#: My responsive double, partner's answer in a major I hold four of: game
+#: with RESPONSIVE_GAME_HCP+ (None: off), whether they compete or not. The
+#: responsive double shows 8+ HCP, so partner's minimum answer can't bid it.
+RESPONSIVE_GAME_HCP: int | None = 11
+
+
+def _responsive_game(ctx: Ctx) -> tuple | None:
+    if RESPONSIVE_GAME_HCP is None or ctx.mine() != ['X'] or len(ctx.partners()) != 2 \
+            or ctx.partners()[0] != 'X' or not _takeout_doubler(ctx, ctx.pd):
+        return None
+    mine = max(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.me)
+    answer = max(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.pd)
+    if answer < mine:
+        return None
+    # Responsive only: my double came straight over their new suit bid. Not a
+    # penalty double of 1NT (1D X 1NT X P 2H: partner ran, weak), nor a late
+    # double after passing.
+    at = next(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.me and c == 'X')
+    before = ctx.calls[at - 1] if at else None
+    opening = next((c for _, c in ctx.calls if c != 'Pass'), None)
+    if (not before or before[0] == ctx.pd or not parse_bid(before[1])
+            or strain_of(before[1]) not in SUITS or before[1] == opening):
+        return None
+    s = strain_of(ctx.calls[answer][1])
+    # A major they bid is partner's cuebid (1H X 2H X P 3H), not a suit to play.
+    if (s not in MAJORS or s in _their_suits(ctx) or ctx.h.len[s] < 4
+            or ctx.h.hcp < RESPONSIVE_GAME_HCP):
+        return None
+    game = f"4{s}"
+    if not ctx.ok(game):
+        return None
+    return game, f"4+ {SYM[s]}, {RESPONSIVE_GAME_HCP}+ HCP. Game after the responsive double."
+
+
 def _takeout_doubler(ctx: Ctx, seat: str) -> bool:
     """Was `seat`'s first call a takeout double: they opened, its partner had
     not bid, and the double was of a suit bid through 4♥ (not a lead-directing
@@ -4754,11 +4799,25 @@ def _doubler_suit(ctx: Ctx, seat: str) -> str | None:
     if not _takeout_doubler(ctx, seat):
         return None
     bids = [i for i, (w, c) in enumerate(ctx.calls) if w == seat and c != 'Pass']
-    return _new_suit_at(ctx, bids[1]) if len(bids) >= 2 else None
+    if len(bids) < 2:
+        return None
+    if DOUBLER_SUIT_NOT_ANSWER and any(w == PARTNERS[seat] and c == 'X'
+                                       for w, c in ctx.calls[bids[0]:bids[1]]):
+        # Partner's responsive double asked for this suit: it is an answer
+        # at any strength, not the 18+ double-then-suit.
+        return None
+    return _new_suit_at(ctx, bids[1])
 
 
-def _doubler_alert(s: str) -> str:
-    return f"5+ {SYM[s]}, {DOUBLER_SUIT_HCP}+ HCP. Doubled first: too strong to overcall."
+def _doubler_len(call: str) -> int:
+    """The length the doubler's new suit shows at this call's level."""
+    return DOUBLER_SUIT_LEN3 if DOUBLER_SUIT_LEN3 and level_of(call) >= 3 else 5
+
+
+def _doubler_alert(call: str) -> str:
+    s = strain_of(call)
+    return (f"{_doubler_len(call)}+ {SYM[s]}, {DOUBLER_SUIT_HCP}+ HCP. "
+            "Doubled first: too strong to overcall.")
 
 
 def _doubler_new_suit(ctx: Ctx) -> tuple | None:
@@ -4777,7 +4836,10 @@ def _doubler_new_suit(ctx: Ctx) -> tuple | None:
     s = max(own, key=lambda s: (h.len[s], SUITS.index(s)))
     call = ctx.cheapest(s, 1)
     if call and level_of(call) <= DOUBLER_SUIT_LEVEL:
-        return call, _doubler_alert(s)
+        return call, _doubler_alert(call)
+    if (call and DOUBLER_SUIT_LEN3 and level_of(call) == 3
+            and h.len[s] >= DOUBLER_SUIT_LEN3):
+        return call, _doubler_alert(call)
     return None
 
 
@@ -4856,8 +4918,8 @@ def doubler_guard(player: str, cards: list[Card], auction: AuctionState,
             or any(strain_of(c) == s for _, c in ctx.calls)
             or _partner_cuebid(ctx) or _partner_responsive(ctx)):
         return decision
-    if ctx.h.hcp >= DOUBLER_SUIT_HCP and ctx.h.len[s] >= 5:
-        return decision[0], _doubler_alert(s)
+    if ctx.h.hcp >= DOUBLER_SUIT_HCP and ctx.h.len[s] >= _doubler_len(decision[0]):
+        return decision[0], _doubler_alert(decision[0])
     return 'Pass', "Doubled: a new suit would show 18+."
 
 

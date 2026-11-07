@@ -1211,6 +1211,12 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
       : 1.0;
     choice = middlePlay(player, legal, trick, trump,
       laterHoldings(player, hand, trick, played, visible, out), voidChance);
+    if (THIRD_SEES_LAST && trick.length === 2 && Object.keys(visible).length) {
+      choice = thirdSeesLast(player, legal, trick, trump, visible, choice);
+    }
+    if (THIRD_HAND_PLAN && trick.length === 2 && Object.keys(visible).length) {
+      choice = thirdHandPlan(player, hand, legal, trick, trump, played, visible, history, shown, choice);
+    }
   }
 
   const partner = PARTNERS[player];
@@ -1218,7 +1224,8 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     choice = coverForPartner(player, hand, legal, trick, trump, played, visible, choice, history, shown);
   }
   else if (SECOND_HAND_COVER && trick.length === 1 && Object.keys(visible).length && legal.length > 1
-    && PLAYERS[(PLAYERS.indexOf(player) + 1) % 4] in visible) {
+    && (PLAYERS[(PLAYERS.indexOf(player) + 1) % 4] in visible
+      || (SECOND_HAND_COVER_DUMMY_LED && trick[0][0] in visible && !(player in visible)))) {
     choice = coverUnseenPartner(player, hand, legal, trick, trump, played, visible, history, choice, shown);
   }
 
@@ -1429,6 +1436,8 @@ function locatedSuitPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPl
 // ── Second hand, dummy third and partner last, unseen (see ai.py) ───────────
 
 export const SECOND_HAND_COVER = true;
+/** ...and also when dummy led, declarer third and partner last (see ai.py). */
+export const SECOND_HAND_COVER_DUMMY_LED = true;
 
 /** Our tricks in the led suit after each of `cards`, summed over the layouts of
  *  its unseen cards between partner and declarer, or null (see ai.py `_unseen_partner_plan`). */
@@ -1440,8 +1449,10 @@ function unseenPartnerPlan(player: Seat, hand: Card[], cards: Card[], trick: Any
   if (history === null || cards.some((c) => c.suit !== led)) return null;
   const i = PLAYERS.indexOf(player);
   const seat = (p: Seat) => (PLAYERS.indexOf(p) - i + 4) % 4;
-  const left = PLAYERS[(i + 1) % 4], right = PLAYERS[(i + 3) % 4];
-  if (!(left in visible) || right in visible || partner in visible) return null;
+  const left = PLAYERS[(i + 1) % 4];
+  if (partner in visible || (left in visible) === (PLAYERS[(i + 3) % 4] in visible)) return null;
+  const [shownSeat, right] = left in visible
+    ? [left, PLAYERS[(i + 3) % 4]] : [PLAYERS[(i + 3) % 4], left];
   const seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
   for (const cs of Object.values(visible)) for (const c of cs!) seen.add(cardKey(c));
   const unseenSuit = FULL_DECK.filter((c) => c.suit === led && !seen.has(cardKey(c)))
@@ -1458,7 +1469,7 @@ function unseenPartnerPlan(player: Seat, hand: Card[], cards: Card[], trick: Any
     return [...vals, ...(d && d.suit === led ? [value(d)] : [])].sort((a, b) => a - b);
   };
   const own = held(player, hand.filter((c) => c.suit === led).map(value));
-  const dummy = held(left, visible[left]!.filter((c) => c.suit === led).map(value));
+  const dummy = held(shownSeat, visible[shownSeat]!.filter((c) => c.suit === led).map(value));
   const plays: [number, PlanCard][] = trick.map(([p, c]) => [seat(p as Seat), c.suit === led ? value(c) : null]);
   const downSeats = new Set(plays.map(([k]) => k));
   const order = [...plays.map(([k]) => k), 0, ...[1, 2, 3].filter((k) => !downSeats.has(k))];
@@ -1475,7 +1486,9 @@ function unseenPartnerPlan(player: Seat, hand: Card[], cards: Card[], trick: Any
       if (toPartner.length < floor(partner) || toRight.length < floor(right)) continue;
       const weight = choose(others, size(partner) - toPartner.length);
       if (!weight) continue;
-      const hands = [own, dummy, held(partner, toPartner), held(right, toRight)] as unknown as PlanHands;
+      const hands = (shownSeat === left
+        ? [own, dummy, held(partner, toPartner), held(right, toRight)]
+        : [own, held(right, toRight), held(partner, toPartner), dummy]) as unknown as PlanHands;
       weights += weight;
       for (const c of cards) {
         totals.set(cardKey(c), totals.get(cardKey(c))!
@@ -1484,6 +1497,83 @@ function unseenPartnerPlan(player: Seat, hand: Card[], cards: Card[], trick: Any
     }
   }
   return weights ? totals : null;
+}
+
+/** Third hand on defence plays the led suit out over the layouts of its unseen
+ *  cards: 0 off, 1 with declarer last, 2 also with dummy last (see ai.py). */
+export const THIRD_HAND_PLAN: number = 2;
+
+/** Port of ai._third_hand_plan. */
+function thirdHandPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[], trump: string | null,
+  played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
+  shown: Shown | null, choice: Card): Card {
+  const led = trick[0][1].suit;
+  const partner = PARTNERS[player];
+  const i = PLAYERS.indexOf(player);
+  const left = PLAYERS[(i + 1) % 4], right = PLAYERS[(i + 3) % 4];
+  if (history === null || legal.length < 2 || legal.some((c) => c.suit !== led)
+    || partner in visible || player in visible) return choice;
+  let dummySeat: Seat, declarer: Seat;
+  if (left in visible) {
+    if (THIRD_HAND_PLAN < 2) return choice;
+    dummySeat = left; declarer = right;
+  } else if (right in visible) {
+    dummySeat = right; declarer = left;
+  } else return choice;
+  if (trick.some(([, c]) => c.suit === trump && c.suit !== led)) return choice;
+  const seat = (p: Seat) => (PLAYERS.indexOf(p) - i + 4) % 4;
+  const seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
+  for (const cs of Object.values(visible)) for (const c of cs!) seen.add(cardKey(c));
+  const unseenSuit = FULL_DECK.filter((c) => c.suit === led && !seen.has(cardKey(c)))
+    .map(value).sort((a, b) => a - b);
+  if (unseenSuit.length > SUIT_PLAN_MAX_UNSEEN) return choice;
+  const out = shownOut(history, trick);
+  const ruffs = [false, false, false, false];
+  if (isSuit(trump) && led !== trump) {
+    ruffs[seat(dummySeat)] = visible[dummySeat]!.some((c) => c.suit === trump);
+    ruffs[seat(declarer)] = !out[declarer].has(trump!);
+  }
+  const down = new Map<Seat, Card>(trick as [Seat, Card][]);
+  const size = (p: Seat) => 13 - history.length - (down.has(p) ? 1 : 0);
+  const others = FULL_DECK.filter((c) => !seen.has(cardKey(c))).length - unseenSuit.length;
+  const floor = (p: Seat) => (shown?.[p]?.[led] ?? 0) - playedIn(p, led, history, trick);
+  const held = (p: Seat, vals: number[]): Trumps => {
+    const d = down.get(p);
+    return [...vals, ...(d && d.suit === led ? [value(d)] : [])].sort((a, b) => a - b);
+  };
+  const own = held(player, hand.filter((c) => c.suit === led).map(value));
+  const seenDummy = held(dummySeat, visible[dummySeat]!.filter((c) => c.suit === led).map(value));
+  const plays: [number, PlanCard][] = trick.map(([p, c]) => [seat(p as Seat), c.suit === led ? value(c) : null]);
+  const downSeats = new Set(plays.map(([k]) => k));
+  const order = [...plays.map(([k]) => k), 0, ...[1, 2, 3].filter((k) => !downSeats.has(k))];
+  const memo = SUIT_PLAN_MEMO;
+  if (memo.size > POSITION_MEMO_MAX) memo.clear();
+  const totals = new Map(legal.map((c) => [cardKey(c), 0]));
+  let weights = 0;
+  for (let n = 0; n <= unseenSuit.length; n++) {
+    for (const picked of combinations(unseenSuit.length, n)) {
+      const toPartner = picked.map((k) => unseenSuit[k]);
+      const toDeclarer = unseenSuit.filter((v) => !toPartner.includes(v));
+      if ((toPartner.length && out[partner].has(led)) || (toDeclarer.length && out[declarer].has(led))) continue;
+      if (toPartner.length > size(partner) || toDeclarer.length > size(declarer)) continue;
+      if (toPartner.length < floor(partner) || toDeclarer.length < floor(declarer)) continue;
+      const weight = choose(others, size(partner) - toPartner.length);
+      if (!weight) continue;
+      const hands: Trumps[] = [own, own, own, own];
+      hands[seat(partner)] = held(partner, toPartner);
+      hands[seat(declarer)] = held(declarer, toDeclarer);
+      hands[seat(dummySeat)] = seenDummy;
+      weights += weight;
+      for (const c of legal) {
+        totals.set(cardKey(c), totals.get(cardKey(c))!
+          + weight * planTrick(hands as unknown as PlanHands, ruffs, [...plays, [0, value(c)]], order, memo));
+      }
+    }
+  }
+  if (!weights) return choice;
+  const best = Math.max(...totals.values());
+  if (totals.get(cardKey(choice)) === best) return choice;
+  return minBy(legal.filter((c) => totals.get(cardKey(c)) === best), (c) => [value(c)]);
 }
 
 function coverUnseenPartner(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[], trump: string | null,
@@ -1495,7 +1585,10 @@ function coverUnseenPartner(player: Seat, hand: Card[], legal: Card[], trick: An
   if (legal.every((c) => c.suit === led)) {
     scores = unseenPartnerPlan(player, hand, legal, trick, trump, played, visible, history, shown);
   }
-  if (scores === null) scores = partnerChances(player, hand, legal, trick, trump, played, visible, history);
+  if (scores === null) {
+    if (!(PLAYERS[(PLAYERS.indexOf(player) + 1) % 4] in visible)) return choice;
+    scores = partnerChances(player, hand, legal, trick, trump, played, visible, history);
+  }
   const best = Math.max(...scores.values());
   if (scores.get(cardKey(choice))! >= best - 1e-9) return choice;
   return minBy(legal.filter((c) => scores!.get(cardKey(c))! >= best - 1e-9), (c) => [value(c)]);
@@ -2237,6 +2330,8 @@ function sureLead(player: Seat, hand: Card[], trump: string | null, played: Card
 // ── Four rules from the user's review of deals 92, 156 and 174 (see ai.py) ───
 
 export const SURE_LEAD_DECLARER = true;
+/** With no sure card, lead the lowest that wins whenever nobody ruffs (see ai.py). */
+export const SURE_LEAD_UNRUFFED = true;
 export const RUFF_LEAD = false;
 export const FORCE_DUMMY = false;
 export const DEAD_CARD_LAST = true;
@@ -2297,55 +2392,59 @@ function sureLeadDeclarer(player: Seat, hand: Card[], trump: string | null, play
   const ruffing = isSuit(trump) ? trump : null;
 
   const candidates = hand.filter((c) => c.suit === suit).sort((a, b) => value(a) - value(b));
-  for (const c of candidates) {
-    const led = c.suit;
-    if (led === ruffing) continue;      // trumps are drawTrump's
-    const follows = unseen.filter((x) => x.suit === led);
-    const trumps = ruffing && ruffing !== led ? unseen.filter((x) => x.suit === ruffing) : [];
-    const trumpKeys = new Set(trumps.map(cardKey));
-    const discard = unseen.filter((x) => x.suit !== led && x.suit !== ruffing).slice(0, 1);
-    const rest = hand.filter((x) => cardKey(x) !== cardKey(c));
-    const partnerView: Partial<Record<Seat, Card[]>> = { [player]: rest, [partner]: partnerHand };
-    const replies = new Map<string, Card>();
-    const partnerCard = (b: Card): Card => {
-      if (!replies.has(cardKey(b))) {
-        const trick: AnyPlay[] = [[player, c], [left, b]];
-        const legal = legalPlays(partnerHand, led);
-        const later = laterHoldings(partner, partnerHand, trick, played, partnerView);
-        replies.set(cardKey(b), middlePlay(partner, legal, trick, trump, later));
-      }
-      return replies.get(cardKey(b))!;
-    };
-
-    let sure = true;
-    for (let n = 0; n <= follows.length && sure; n++) {
-      for (const picked of combinations(follows.length, n)) {
-        const chosen = new Set(picked);
-        const held: Record<string, Card[]> = {
-          [left]: follows.filter((_, k) => chosen.has(k)),
-          [right]: follows.filter((_, k) => !chosen.has(k)),
-        };
-        if ([left, right].some((p) => held[p].length && out[p].has(led))) continue;
-        if ([left, right].some((p) => held[p].length > slots)) continue;
-        const options: Record<string, Card[]> = {};
-        for (const p of [left, right]) {
-          options[p] = held[p].length ? held[p]
-            : [...discard, ...(ruffing && !out[p].has(ruffing) ? trumps : [])];
+  // The second pass, without ruffs, only when a trump suit makes it differ.
+  const passes = SURE_LEAD_UNRUFFED && ruffing ? [true, false] : [true];
+  for (const allowRuff of passes) {
+    for (const c of candidates) {
+      const led = c.suit;
+      if (led === ruffing) continue;      // trumps are drawTrump's
+      const follows = unseen.filter((x) => x.suit === led);
+      const trumps = ruffing && ruffing !== led ? unseen.filter((x) => x.suit === ruffing) : [];
+      const trumpKeys = new Set(trumps.map(cardKey));
+      const discard = unseen.filter((x) => x.suit !== led && x.suit !== ruffing).slice(0, 1);
+      const rest = hand.filter((x) => cardKey(x) !== cardKey(c));
+      const partnerView: Partial<Record<Seat, Card[]>> = { [player]: rest, [partner]: partnerHand };
+      const replies = new Map<string, Card>();
+      const partnerCard = (b: Card): Card => {
+        if (!replies.has(cardKey(b))) {
+          const trick: AnyPlay[] = [[player, c], [left, b]];
+          const legal = legalPlays(partnerHand, led);
+          const later = laterHoldings(partner, partnerHand, trick, played, partnerView);
+          replies.set(cardKey(b), middlePlay(partner, legal, trick, trump, later));
         }
-        for (const b of options[left]) {
-          const pc = partnerCard(b);
-          for (const d of options[right]) {
-            // Both hidden seats can't ruff with the same trump.
-            if (cardKey(d) === cardKey(b) && trumpKeys.has(cardKey(d))) continue;
-            const plays: AnyPlay[] = [[player, c], [left, b], [partner, pc], [right, d]];
-            if (!ours.includes(resolveTrick(plays, trump))) { sure = false; break; }
+        return replies.get(cardKey(b))!;
+      };
+
+      let sure = true;
+      for (let n = 0; n <= follows.length && sure; n++) {
+        for (const picked of combinations(follows.length, n)) {
+          const chosen = new Set(picked);
+          const held: Record<string, Card[]> = {
+            [left]: follows.filter((_, k) => chosen.has(k)),
+            [right]: follows.filter((_, k) => !chosen.has(k)),
+          };
+          if ([left, right].some((p) => held[p].length && out[p].has(led))) continue;
+          if ([left, right].some((p) => held[p].length > slots)) continue;
+          const options: Record<string, Card[]> = {};
+          for (const p of [left, right]) {
+            options[p] = held[p].length ? held[p]
+              : [...discard, ...(allowRuff && ruffing && !out[p].has(ruffing) ? trumps : [])];
+          }
+          for (const b of options[left]) {
+            const pc = partnerCard(b);
+            for (const d of options[right]) {
+              // Both hidden seats can't ruff with the same trump.
+              if (cardKey(d) === cardKey(b) && trumpKeys.has(cardKey(d))) continue;
+              const plays: AnyPlay[] = [[player, c], [left, b], [partner, pc], [right, d]];
+              if (!ours.includes(resolveTrick(plays, trump))) { sure = false; break; }
+            }
+            if (!sure) break;
           }
           if (!sure) break;
         }
-        if (!sure) break;
       }
+      if (sure) return c;
     }
-    if (sure) return c;
   }
   return null;
 }
@@ -2695,6 +2794,26 @@ function middlePlay(player: Seat, legal: Card[], trick: AnyPlay[], trump: string
   }
   if (options.length) return minBy(options, (o) => [o[0], o[1]])[2];
   return shed(legal, trump);
+}
+
+/** Third hand, the last hand in view, plays a card that wins the trick whatever
+ *  the last hand does when one exists (see ai.py: challenge deal 319). */
+export const THIRD_SEES_LAST = true;
+
+/** Port of ai._third_sees_last. */
+function thirdSeesLast(player: Seat, legal: Card[], trick: AnyPlay[], trump: string | null,
+  visible: Partial<Record<Seat, Card[]>>, choice: Card): Card {
+  const last = PLAYERS[(PLAYERS.indexOf(player) + 1) % 4];
+  const lastHand = visible[last];
+  if (!lastHand || !lastHand.length) return choice;
+  const replies = legalPlays(lastHand, trick[0][1].suit);
+  const ours = new Set<string>([player, PARTNERS[player]]);
+  const sure = (c: Card) => replies.every(
+    (r) => ours.has(resolveTrick([...trick, [player, c], [last, r]], trump)));
+  if (sure(choice)) return choice;
+  const winners = legal.filter(sure);
+  if (!winners.length) return choice;
+  return minBy(winners, (c) => [c.suit === trump ? 1 : 0, value(c)]);
 }
 
 /** Fourth hand counts partner's winning as its own (see ai.py). */

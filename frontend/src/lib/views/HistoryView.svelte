@@ -135,14 +135,21 @@
   });
 
   // ── Double dummy ────────────────────────────────────────────────────────────
-  // One analysis per board shown, started when the board is, stopped (and its
-  // worker's memory freed) when another board is picked or the view closes.
+  // One analysis per board, kept while this view is open so switching boards
+  // (Your board / Robots' board) and back doesn't solve again. Only the board
+  // shown runs: leaving it stops its worker (freeing the solver's memory) and
+  // returning picks up where it stopped, keeping every decision already in.
+  const ddCache = new Map<string, DdAnalysis>();
+  const ddKey = (r: HistoryRecord) =>
+    JSON.stringify([r.initial_hands, r.contract, r.tricks_log.map((t) => [t.leader, t.plays])]);
   let dd = $state<DdAnalysis | null>(null);
   $effect(() => {
     dd = null;
     // A board claimed before the opening lead has no play to analyse.
     if (!analysis || !hb?.contract || hb.passed_out || !hb.tricks_log.length) return;
-    const a = new DdAnalysis(hb);
+    const key = ddKey(hb);
+    let a = ddCache.get(key);
+    if (!a) ddCache.set(key, (a = new DdAnalysis(hb)));
     dd = a;
     a.start();
     return () => a.stop();

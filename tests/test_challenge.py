@@ -249,23 +249,41 @@ def test_a_board_is_zero_sum_between_the_two_sides():
         assert ns == -ew, f"deal {deal_id}: N/S {ns}, E/W {ew}"
 
 
-def test_par_is_never_beaten_by_perfect_play_in_a_reached_contract():
-    """Par is the best this side can do, so no contract played double dummy may
-    score more FOR THE SIDE THAT CHOSE IT. (The defending side can exceed its
-    own par, which is why this only checks the declaring side.) Par is priced
-    over UNDOUBLED contracts, so a doubled contract that makes -- the
-    defenders' mistake, which GIB's penalty and negative doubles now
-    produce -- can score above it and is not checked."""
-    for i, deal_id in enumerate(challenge.deal_ids()[:80]):
-        table = challenge.robot_table(deal_id, DEALER_ROTATION[i % 4])
-        contract = table['contract']
-        if contract is None or contract['doubled'] != 'None':
-            continue
-        side = contract['side']
-        g = challenge.grade(deal_id, side, contract, table['declarer_tricks'])
-        assert g['dd_score'] <= g['par']['score'], (
-            f"deal {deal_id}: {contract['level']}{contract['strain']} scores "
-            f"{g['dd_score']} double dummy, above par {g['par']['score']}")
+def test_par_counts_both_sides():
+    """Board 76 as the user saw it (deal 169, N/S vulnerable): N/S make 2♦ on
+    their own, but E/W make eleven tricks in spades, so par is E/W's 4♠+1,
+    -450 to N/S, not N/S's +90."""
+    p = challenge.par(169, 'N/S', 'N/S')
+    assert (p['score'], p['level'], p['strain'], p['side'], p['doubled']) == \
+        (-450, 4, 'S', 'E/W', 'None'), p
+    assert challenge.par(169, 'E/W', 'N/S')['score'] == 450
+
+
+def test_par_takes_a_sacrifice_that_costs_less():
+    """Deal 2, N/S vulnerable: N/S make 3NT+1 for 630, and E/W's 5♠ doubled
+    goes two down for 300, so par is the sacrifice."""
+    p = challenge.par(2, 'N/S', 'N/S')
+    assert (p['score'], p['level'], p['strain'], p['side'], p['doubled']) == \
+        (300, 5, 'S', 'E/W', 'X'), p
+
+
+def test_par_lies_between_what_each_side_makes_alone():
+    """Par is zero sum, and neither side can be held below what the other side
+    would let it have by passing throughout: no more for N/S than their best
+    undoubled contract (or passing it out), no less than E/W's best allows."""
+    def alone(deal_id, side, vul):
+        best = 0
+        for strain in challenge.STRAINS:
+            taken = challenge.dd_tricks(deal_id, strain, side)
+            for level in range(1, taken - 5):
+                c = challenge._contract(level, strain, side, vul)
+                best = max(best, challenge.score_for(side, c, taken))
+        return best
+    for deal_id in challenge.deal_ids()[:100]:
+        for vul in ('None', 'N/S', 'E/W', 'Both'):
+            ns = challenge.par(deal_id, 'N/S', vul)['score']
+            assert ns == -challenge.par(deal_id, 'E/W', vul)['score']
+            assert -alone(deal_id, 'E/W', vul) <= ns <= alone(deal_id, 'N/S', vul), (deal_id, vul)
 
 
 if __name__ == '__main__':
