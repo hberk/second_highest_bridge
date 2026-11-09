@@ -521,16 +521,8 @@ def test_deal_114_dummy_keeps_the_seven_after_the_ten():
 
 
 def test_deal_114_robot_table_wins_two_hearts_for_east_west():
-    """The whole board as shipped: E/W win trick 2 and a later heart.
-
-    LIKELY_LEAD stays off: with it North switches to the 8C at trick 2 and
-    the hearts are played later (N/S take 5 tricks either way)."""
-    saved = ai.LIKELY_LEAD
-    ai.LIKELY_LEAD = False
-    try:
-        table = challenge.robot_table(114, 'East', 'Both')
-    finally:
-        ai.LIKELY_LEAD = saved
+    """The whole board as shipped: E/W win trick 2 and a later heart."""
+    table = challenge.robot_table(114, 'East', 'Both')
     log = table['tricks_log']
     assert log[0]['plays'][0] == ('South', C('QH'))
     assert dict(log[1]['plays'])['East'] == C('6H')
@@ -643,6 +635,19 @@ def test_deal_289_likely_lead_cashes_the_queen_under_dummys_king():
         assert ai.ai_play(*args, visible=view, history=history, shown=shown) == C('JC')
     with rules(DEFENDER_SUIT_PLAN=1, LIKELY_LEAD=1):
         assert ai.ai_play(*args, visible=view, history=history, shown=shown) == C('QD')
+
+
+def test_deal_14_likely_lead_leaves_a_king_dummy_need_not_cover():
+    # 3D by South, North dummy with QJ82 of hearts. West's K♥ wins the trick
+    # 62% of the time (partner's A♥), but dummy isn't forced to cover it with
+    # a singleton: the J♥ won. Only a card dummy's singleton must cover is cashed.
+    hands, played, history = replay(14, ['W:8S N:4S E:9S S:6S'])
+    table = challenge.robot_table(14, 'North', 'None')
+    shown = ai.shown_lengths(table['calls'], table['alerts'])
+    view = {'North': hands['North']}
+    chances = ai._trick_chances('West', hands['West'], 'D', played, view, history, shown)
+    assert chances[C('KH')] > 0.6, chances
+    assert ai._likely_lead('West', hands['West'], 'D', played, view, history, shown) is None
 
 
 def test_likely_lead_partner_keeps_the_trick():

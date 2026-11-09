@@ -3187,11 +3187,23 @@ def _sure_lead(player: str, hand: list[Card], trump: str | None,
 # split -- the worst for us -- while partner, who sees what we see, plays a
 # card that keeps the trick ours. The best card is led when its chance clears
 # LIKELY_LEAD_MIN.
+#
+# Any card at all was worse: at 0.6 declarer made +0.030 tricks a board over
+# 6,400 robot boards (t 3.0). Deal 14, 3D by South: West led the K♥ (0.62)
+# into dummy's Q J 8 2, and dummy's jack won. A chance to win THIS trick says
+# nothing of what the card is worth later. The Q♦ on deal 289 is different:
+# it wins because dummy's singleton king must cover it, and that king won't
+# wait -- dummy, void in trumps, can throw it on declarer's trump leads, and
+# then the Q♦ is highest and loses to declarer's jack. So only a card that
+# dummy's singleton must cover is cashed (LIKELY_LEAD_FORCED): declarer
+# -0.005 tricks a board (t -2.4, 124 boards changed).
 
 #: A defender with no other lead rule cashes the card most likely to win the
 #: trick, if that likelihood clears LIKELY_LEAD_MIN (measurement switch).
 LIKELY_LEAD = True
-LIKELY_LEAD_MIN = 0.6
+LIKELY_LEAD_MIN = 0.5
+#: ...only a card dummy must cover, holding at most this many of the suit (0: any card).
+LIKELY_LEAD_FORCED = 1
 
 
 def _trick_chances(player: str, hand: list[Card], trump: str | None,
@@ -3271,6 +3283,11 @@ def _likely_lead(player: str, hand: list[Card], trump: str | None,
                  history: list | None, shown: dict | None) -> Card | None:
     """The card most likely to win the trick, the lowest of equals, if likely enough."""
     chances = _trick_chances(player, hand, trump, played, visible, history, shown)
+    if LIKELY_LEAD_FORCED and chances:
+        dummy = visible[next(iter(visible))]
+        chances = {c: p for c, p in chances.items()
+                   if 0 < len(above := [d for d in dummy if d.suit == c.suit]) <= LIKELY_LEAD_FORCED
+                   and all(d.value() > c.value() for d in above)}
     if not chances:
         return None
     best = max(chances.values())

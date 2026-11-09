@@ -2241,7 +2241,8 @@ function sureLead(player: Seat, hand: Card[], trump: string | null, played: Card
 // ── Defender cashes a likely trick (see ai.py) ───────────────────────────────
 
 export const LIKELY_LEAD = true;
-export const LIKELY_LEAD_MIN = 0.6;
+export const LIKELY_LEAD_MIN = 0.5;
+export const LIKELY_LEAD_FORCED = 1;
 
 /** Each card's chance of winning the trick it leads, or an empty map (see ai.py). */
 export function trickChances(player: Seat, hand: Card[], trump: string | null, played: Card[],
@@ -2327,6 +2328,15 @@ export function trickChances(player: Seat, hand: Card[], trump: string | null, p
 function likelyLead(player: Seat, hand: Card[], trump: string | null, played: Card[],
   visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null, shown: Shown | null): Card | null {
   const chances = trickChances(player, hand, trump, played, visible, history, shown);
+  if (LIKELY_LEAD_FORCED && chances.size) {
+    const dummy = visible[Object.keys(visible)[0] as Seat]!;
+    for (const c of [...chances.keys()]) {
+      const above = dummy.filter((d) => d.suit === c.suit);
+      if (!(above.length > 0 && above.length <= LIKELY_LEAD_FORCED && above.every((d) => value(d) > value(c)))) {
+        chances.delete(c);
+      }
+    }
+  }
   if (!chances.size) return null;
   const best = Math.max(...chances.values());
   if (best < LIKELY_LEAD_MIN) return null;
