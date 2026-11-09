@@ -45,8 +45,8 @@ On the 400 library deals at all 16 board positions (v0.1.0-alpha, measured
 2026-11-03 by `research/challenge_losses.py`):
 
 - **Card play still gives away tricks on both sides.** Scored card by card
-  against double dummy (v0.1.3-alpha, 2026-11-07, 199 library deals), the declaring
-  side gives away 2.6 tricks a board and the defence 2.5 (0.4 of it on the opening lead); 95%
+  against double dummy (v0.1.3-alpha, 2026-11-09, 199 library deals), the declaring
+  side gives away 2.6 tricks a board and the defence 2.5 (0.4 of it on the opening lead); 94%
   of boards have at least one costly card. The endings are close to perfect
   (2% of cards in the last four tricks cost one), the middle of the hand is
   not. Because robots sit on both sides, those mistakes mostly cancel in the

@@ -56,6 +56,7 @@ the change in these, before and after, on the same deals
 | measured | robots | deals | declaring side | opening lead | defence after the lead | boards with a costly card | net (cancels) |
 |---|---|---|---|---|---|---|---|
 | 2026-11-09 | v0.1.3-alpha branch plus `ENTRY_TO_DRAW` and `RUFF_KEEPS_DRAW` (deal 80; `/mnt/project-files/entry-to-draw/gross.txt`) | 199 | **2.56** (17.5%, 88%) | **0.40** (35%, 33%) | **2.10** (18%, 84%) | 94% | +0.07 |
+| 2026-11-09 | **v0.1.3-alpha final**: the Nov 6 set, the review fix, the Nov 9 bidding fixes and `ENTRY_TO_DRAW` + `RUFF_KEEPS_DRAW` (`/mnt/project-files/nov9-addition/line_report_vs_v012.txt`) | 199 | **2.58** (17.5%, 88%) | **0.39** (35%, 33%) | **2.12** (18%, 84%) | 94% | +0.07 |
 | 2026-11-07 | **the Nov 6 fixes together (v0.1.3-alpha)**: the second-hand cover with dummy leading, the third-hand plan, `SURE_LEAD_UNRUFFED` and the bidding fixes (`/mnt/project-files/nov6-combined/line_report_vs_v012.txt`) | 199 | **2.59** (18%, 89%) | **0.40** (35%, 33%) | **2.12** (18%, 84%) | 95% | +0.08 |
 | 2026-11-06 | main plus the third-hand plan (`THIRD_SEES_LAST`, `THIRD_HAND_PLAN`; `/mnt/project-files/third-sees-last/report_wide.txt`, against main measured the same day) | 199 | **2.68** (18%, 90%) | **0.40** (36%, 33%) | **2.25** (20%, 87%) | 97% | +0.03 |
 | 2026-11-05 | v0.1.2-alpha with `SECOND_HAND_COVER_DUMMY_LED` (`/mnt/project-files/dummy-led-cover/gross_mistakes.txt`) | 199 | **2.66** (18%, 90%) | **0.40** (36%, 33%) | **2.29** (21%, 86%) | 95% | -0.03 |

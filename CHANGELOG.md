@@ -6,14 +6,16 @@ Releases are tagged on main, and the tag matches the version in
 what it was measured to be worth is in
 [docs/ROBOT_PROGRESS.md](docs/ROBOT_PROGRESS.md).
 
-## v0.1.3-alpha (2026-11-07)
+## v0.1.3-alpha (2026-11-09)
 
-The Nov 6 fixes from played boards. The four card-play fixes together
-measure +0.10 tricks and +11.8 points a board to the side that uses them
-(seated, 3 x 1,000 fresh deals, t above 6 on each). Card play, tricks given
-away a board on the same 199 deals: declaring side 2.74 to 2.59, opening lead
-0.40 to 0.40, defence 2.41 to 2.12. The bidding fixes together +0.07 a board
-(3 x 1,000 fresh deals, noise: the auctions are rare).
+The Nov 6 and Nov 9 fixes from played boards. The four Nov 6 card-play fixes
+together measure +0.10 tricks and +11.8 points a board to the side that uses
+them (seated, 3 x 1,000 fresh deals, t above 6 on each); the declarer's
+crossing ruff adds +0.01. Card play, tricks given away a board on the same
+199 deals: declaring side 2.74 to 2.58, opening lead 0.40 to 0.39, defence
+2.41 to 2.12. The Nov 6 bidding fixes together +0.07 a board (3 x 1,000 fresh
+deals, noise: the auctions are rare); the Nov 9 ones +0.01 to +0.08 each on
+10,000-deal sets.
 
 **The game**
 - Par is now true duplicate par (both sides bid; sacrifices count), and its ⓘ opens on tap.
