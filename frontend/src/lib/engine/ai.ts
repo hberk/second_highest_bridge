@@ -1170,6 +1170,7 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
   if (!trick.length) {
     let sure: Card | null = null;
     const chosen = (DRAW_TRUMPS ? drawTrump(player, hand, trump, played, visible, history, shown) : null)
+      ?? (ENTRY_TO_DRAW ? entryToDraw(player, hand, trump, played, visible, history, shown) : null)
       ?? (RUFF_LEAD ? ruffLead(player, hand, trump, played, visible) : null)
       ?? (RUN_LONG_SUIT ? runLongSuit(player, hand, trump, played, visible, history, shown) : null)
       ?? (RUFF_RETURN && !(PARTNERS[player] in visible) ? ruffReturn(player, hand, trump, history, visible, shown) : null)
@@ -1227,6 +1228,10 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     && (PLAYERS[(PLAYERS.indexOf(player) + 1) % 4] in visible
       || (SECOND_HAND_COVER_DUMMY_LED && trick[0][0] in visible && !(player in visible)))) {
     choice = coverUnseenPartner(player, hand, legal, trick, trump, played, visible, history, choice, shown);
+  }
+
+  if (RUFF_KEEPS_DRAW && trick.length) {
+    choice = ruffForDraw(player, hand, trick, trump, played, visible, history, shown, choice) ?? choice;
   }
 
   if (LOCATED_SUIT_PLAN && trick.length) {
@@ -2171,6 +2176,112 @@ function afterLead(led: number, rest: Trumps, partner: Trumps, left: Trumps, rig
     if (worst === null || oursBest! > worst) worst = oursBest;
   }
   return worst!;
+}
+
+// ── Crossing to the trump hand to draw trumps (see ai.py) ──────────────────
+
+export const ENTRY_TO_DRAW = true;
+export const ENTRY_FOLLOW = 0.85;
+
+/** A side-suit lead partner ruffs, so partner can draw trumps, or null (see ai.py). */
+function entryToDraw(player: Seat, hand: Card[], trump: string | null, played: Card[],
+  visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
+  shown: Shown | null = null): Card | null {
+  const partner = PARTNERS[player];
+  if (!isSuit(trump) || !Object.keys(visible).length || !(partner in visible)) return null;
+  if (hand.some((c) => c.suit === trump)) return null;
+  const partnerHand = visible[partner]!;
+  if (!partnerHand.some((c) => c.suit === trump)) return null;
+  const seen = new Set([...played, ...hand, ...partnerHand].map(cardKey));
+  if (!FULL_DECK.some((c) => c.suit === trump && !seen.has(cardKey(c)))) return null;
+  const partnerView: Partial<Record<Seat, Card[]>> = { [player]: hand };
+  if (drawTrump(partner, partnerHand, trump, played, partnerView, history, shown) === null) return null;
+  const out = shownOut(history ?? [], []);
+  const i = PLAYERS.indexOf(player);
+  const defence = [PLAYERS[(i + 1) % 4], PLAYERS[(i + 3) % 4]];
+  let best: [number[], Card] | null = null;
+  for (const suit of SUITS) {
+    if (suit === trump || partnerHand.some((c) => c.suit === suit)) continue;
+    const cards = hand.filter((c) => c.suit === suit);
+    if (!cards.length || defence.some((p) => out[p].has(suit))) continue;
+    const outstanding = FULL_DECK.filter((c) => c.suit === suit && !seen.has(cardKey(c))).map(value);
+    if (!outstanding.length) continue;
+    const layouts = splits(player, hand, suit, outstanding, seen, history, shown);
+    let total = 0;
+    for (const [, , w] of layouts) total += w;
+    if (!total) continue;
+    let bothW = 0;
+    for (const [l, r, w] of layouts) if (l.length && r.length) bothW += w;
+    const both = bothW / total;
+    if (both < ENTRY_FOLLOW) continue;
+    const lead = minBy(cards, (c) => [value(c)]);
+    const rank = [both, -value(lead)];
+    if (best === null || compareRank(rank, best[0]) > 0) best = [rank, lead];
+  }
+  return best ? best[1] : null;
+}
+
+export const RUFF_KEEPS_DRAW = true;
+export const RUFF_KEEPS_DRAW_VOID = 0.15;
+
+/** The trump to ruff with that leaves the fewest trump losers, or null (see ai.py). */
+function ruffForDraw(player: Seat, hand: Card[], trick: AnyPlay[], trump: string | null,
+  played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
+  shown: Shown | null, choice: Card): Card | null {
+  const partner = PARTNERS[player];
+  if (!isSuit(trump) || !Object.keys(visible).length || !(partner in visible) || !trick.length
+    || choice.suit !== trump || trick.length < 2) return null;
+  const led = trick[0][1].suit;
+  if (led === trump || trick.some(([, c]) => c.suit === trump)) return null;
+  const trumps = hand.filter((c) => c.suit === trump).sort((a, b) => value(a) - value(b));
+  if (trumps.length < 2) return null;
+  const partnerHand = visible[partner]!;
+  const seen = new Set([...played, ...hand, ...partnerHand, ...trick.map(([, c]) => c)].map(cardKey));
+  const out = shownOut(history ?? [], trick);
+  const i = PLAYERS.indexOf(player);
+  if (trick.length === 2) {
+    const fourth = PLAYERS[(i + 1) % 4];
+    if (out[fourth].has(led) || fourth in visible) return null;
+    const rest = FULL_DECK.filter((c) => c.suit === led && !seen.has(cardKey(c))).length;
+    const unseen = FULL_DECK.filter((c) => !seen.has(cardKey(c))).length;
+    if (!rest) return null;
+    const void_ = choose(unseen - rest, hand.length) / Math.max(choose(unseen, hand.length), 1);
+    if (void_ > RUFF_KEEPS_DRAW_VOID) return null;
+  }
+  const outstanding = FULL_DECK.filter((c) => c.suit === trump && !seen.has(cardKey(c))).map(value)
+    .sort((a, b) => a - b);
+  if (!outstanding.length) return null;
+  const left = PLAYERS[(i + 1) % 4];
+  const right = PLAYERS[(i + 3) % 4];
+  const others = FULL_DECK.filter((c) => !seen.has(cardKey(c))).length - outstanding.length;
+  const slots = hand.length - 1;
+  const layouts: [Trumps, Trumps, number][] = [];
+  for (let n = 0; n <= outstanding.length; n++) {
+    for (const picked of combinations(outstanding.length, n)) {
+      const lt = picked.map((k) => outstanding[k]);
+      const rt = outstanding.filter((v) => !lt.includes(v));
+      if ((lt.length && out[left].has(trump)) || (rt.length && out[right].has(trump))) continue;
+      const weight = lt.length <= slots && rt.length <= slots + 1 ? choose(others, slots - lt.length) : 0;
+      if (weight) layouts.push([lt, rt, weight]);
+    }
+  }
+  if (!layouts.length) return null;
+  const theirsPartner = partnerHand.filter((c) => c.suit === trump).map(value).sort((a, b) => a - b);
+  const memo = new Map<string, number>();
+  const scored: [number, number, Card][] = [];
+  for (const c of trumps) {
+    const mine = trumps.filter((x) => x !== c).map(value);
+    let total = 0;
+    let weights = 0;
+    for (const [lt, rt, w] of layouts) {
+      total += trumpLosers([mine, theirsPartner], [lt, rt], 0, memo) * w;
+      weights += w;
+    }
+    scored.push([total / weights, value(c), c]);
+  }
+  const best = minBy(scored, (t) => [t[0], t[1]]);
+  const fallback = scored.find((t) => cardKey(t[2]) === cardKey(choice))!;
+  return best[0] < fallback[0] ? best[2] : null;
 }
 
 /** Every way the defence's cards in `suit` can lie, as [left, right, weight] (see ai.py). */
