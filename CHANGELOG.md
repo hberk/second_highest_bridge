@@ -27,6 +27,12 @@ away a board on the same 199 deals: declaring side 2.74 to 2.59, opening lead
   and four cards in it (only after a real responsive double, and never in
   their suit).
 - A takeout doubler's new suit at the three level shows six or more cards.
+- Over their 1NT, a Cappelletti 2♣ one-suiter passes partner's 2♦ relay
+  with diamonds instead of bidding 3♦.
+- After a support double, responder's jump to three of their suit needs five
+  cards.
+- A negative doubler gives preference to opener's first suit instead of
+  passing a worse fit; opener passes the preference.
 - Declarer leads the card that wins unless the suit is ruffed (the K♥ from
   dummy's K 4 2 over the bare ace).
 - Second hand covers when dummy leads too (East's T♣ from K T 7 4 3 under
