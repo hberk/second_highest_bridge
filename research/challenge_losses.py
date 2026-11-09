@@ -13,6 +13,11 @@ grades each board two ways:
   give away against its own par. This is the "declares well, bids badly"
   split docs/CHALLENGE.md describes.
 
+Par here is each side's `challenge.ceiling` (its best contract on its own),
+not the duplicate par the app has shown since 2026-11-06: two-sided par is zero
+sum, so with robots in every seat it averages out, and the ceiling keeps the
+ROBOT_PROGRESS series comparable.
+
 Boards that pass out are left out, as they are of the figure the app quotes.
 This is the one source for that figure (the web app's Challenge caption,
 docs/CHALLENGE.md): rerun it after any robot change and quote what it prints.
@@ -55,7 +60,8 @@ def main(argv=None) -> int:
                 continue
             for view, side in (('N/S', 'N/S'), ('declaring side', table['contract']['side'])):
                 graded = challenge.grade(deal_id, side, table['contract'],
-                                         table['declarer_tricks'], vul)
+                                         table['declarer_tricks'], vul,
+                                         against=challenge.ceiling)
                 views[view][0].append(graded['bidding_loss'])
                 views[view][1].append(graded['play_loss'])
 

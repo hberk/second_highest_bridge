@@ -53,8 +53,8 @@ describe('Bidding training', () => {
       seen.add(r.dealId);
       expect(r.diff).toBe(r.score - r.par.score);
       expect(r.score).toBe(contractScore(r.dealId, r.contract).score);
-      // Par is N/S's best: no N/S contract scores more double dummy.
-      if (r.contract?.side === 'N/S') expect(r.score).toBeLessThanOrEqual(r.par.score);
+      // Par is duplicate par: a par contract that fails is a sacrifice, doubled.
+      if (r.par.side) expect(r.par.doubled === 'X').toBe(r.par.tricks < r.par.level + 6);
       expect(r.par.score).toBe(trainingPar(r.dealId, t.vulnerability).score);
       for (const s of ['C', 'D', 'H', 'S', 'NT'] as const) expect(r.dd[s]).toBe(nsTricks(r.dealId, s));
       // Every call South made is looked at.
@@ -153,9 +153,12 @@ describe('Bidding training', () => {
 
   it('loads past a damaged save', () => {
     const storage = new MemoryStorage() as unknown as Storage;
+    // Saved with the old one-sided par: repriced against today's on load.
+    const par = trainingPar(1, 'None').score;
     const entry = { deal_id: 1, board_num: 1, score: 110, par: 140, diff: -30 };
+    const repriced = { ...entry, par, diff: 110 - par };
     for (const [save, log] of [
-      [{ version: 1, boardNum: 3, log: [null, entry, { deal_id: 'x' }] }, [entry]],
+      [{ version: 1, boardNum: 3, log: [null, entry, { deal_id: 'x' }] }, [repriced]],
       [{ version: 1, boardNum: -5, log: [] }, []],
       [{ version: 1, boardNum: 2.5, log: [] }, []],
       [{ version: 1, boardNum: 2, log: [], current: { boardNum: 3, dealId: -1, calls: [], alerts: {} } }, []],

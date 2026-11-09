@@ -113,15 +113,79 @@ def _contract(level: int, strain: str, side: str, vulnerability: str) -> dict:
     }
 
 
-def par(deal_id: int, side: str, vulnerability: str = 'None') -> dict:
-    """The best score `side` could reach on this deal, and the contract for it.
+#: Every contract in bidding order, 1♣ to 7NT: an auction can only climb this list.
+CONTRACT_LADDER = tuple((level, strain) for level in range(1, 8) for strain in STRAINS)
 
-    CAVEAT, and it matters when reading the number: this is the best contract
-    available to ONE side, ignoring whether the opponents would have competed
-    over it. True duplicate par is the equilibrium of both sides bidding
-    perfectly, which is a harder thing to compute and usually lower. Treat this
-    as a ceiling -- "what was there" -- not as a score anyone could guarantee.
+
+def par_from_tricks(tricks, side: str, vulnerability: str = 'None') -> dict:
+    """Duplicate par from a double dummy table: the score both sides reach when
+    both bid perfectly, each knowing every card.
+
+    `tricks(strain, declaring_side)` is the tricks that side takes declaring
+    `strain` (its better partner). The auction is searched out in full: a side
+    either passes the contract standing or bids a higher one of its own, a
+    contract that fails is doubled, and one that makes is left undoubled. So the
+    opponents' game counts, and so does a sacrifice that costs less than it.
+
+    Returned from `side`: `score` (positive when `side` gains), and the par
+    contract -- `level`, `strain`, the declaring `side`, `doubled` ('X' for a
+    sacrifice) and the declaring side's `tricks`. A deal where neither side
+    gains by bidding is passed out: level 0, strain None.
+
+    N/S speak first. Who speaks first can only matter when both sides can make
+    the same top contract, and on none of the 400 challenge deals, at any
+    vulnerability, does it change the score.
     """
+    other = {'N/S': 'E/W', 'E/W': 'N/S'}
+    table = {(strain, s): tricks(strain, s) for strain in STRAINS for s in other}
+    n = len(CONTRACT_LADDER)
+    passed_out = {'score': 0, 'level': 0, 'strain': None, 'side': None,
+                  'doubled': 'None', 'tricks': 0}
+
+    def played(k: int, owner: str) -> dict:
+        level, strain = CONTRACT_LADDER[k]
+        taken = table[(strain, owner)]
+        contract = _contract(level, strain, owner, vulnerability)
+        if taken < level + 6:
+            contract['doubled'] = 'X'
+        return {'score': score_for('N/S', contract, taken), 'level': level,
+                'strain': strain, 'side': owner, 'doubled': contract['doubled'],
+                'tricks': taken}
+
+    # best[k][owner]: the outcome once `owner` has bid contract k and the other
+    # side is to speak, filled from the top of the ladder down. Scores from N/S;
+    # each side keeps the first (lowest) of equal outcomes, passing before bidding.
+    best = [dict() for _ in range(n)]
+    for k in range(n - 1, -1, -1):
+        for owner in other:
+            mover = other[owner]
+            sign = 1 if mover == 'N/S' else -1
+            outcome = played(k, owner)
+            for j in range(k + 1, n):
+                reply = best[j][mover]
+                if sign * reply['score'] > sign * outcome['score']:
+                    outcome = reply
+            best[k][owner] = outcome
+
+    def opening(mover: str, after_pass: bool) -> dict:
+        sign = 1 if mover == 'N/S' else -1
+        outcome = passed_out if after_pass else opening(other[mover], True)
+        for k in range(n):
+            if sign * best[k][mover]['score'] > sign * outcome['score']:
+                outcome = best[k][mover]
+        return outcome
+
+    result = dict(opening('N/S', False))
+    if side == 'E/W':
+        result['score'] = -result['score']
+    return result
+
+
+def ceiling(deal_id: int, side: str, vulnerability: str = 'None') -> dict:
+    """The best score `side` could reach on its own, ignoring whether the
+    opponents would have competed: what `par` was until 2026-11-06. The app
+    no longer shows it; `research/challenge_losses.py` grades against it so
+    the "lost in the auction" series in ROBOT_PROGRESS stays comparable."""
     best = None
     for strain in STRAINS:
         taken = dd_tricks(deal_id, strain, side)
@@ -134,9 +198,17 @@ def par(deal_id: int, side: str, vulnerability: str = 'None') -> dict:
                 best = {'score': points, 'level': level, 'strain': strain,
                         'tricks': taken}
     if best is None:
-        # Every contract goes down; the cheapest partscore is the least bad.
         best = {'score': 0, 'level': 0, 'strain': None, 'tricks': 0}
     return best
+
+
+def par(deal_id: int, side: str, vulnerability: str = 'None') -> dict:
+    """Duplicate par on a library deal, from `side`: see `par_from_tricks`.
+
+    Par counts both sides, so a board the opponents own has a negative par, and
+    a side can score above par when the opponents miss their contract."""
+    return par_from_tricks(lambda strain, s: dd_tricks(deal_id, strain, s),
+                           side, vulnerability)
 
 
 def robot_table(deal_id: int, dealer: str, vulnerability: str = 'None') -> dict:
@@ -237,7 +309,8 @@ def as_history_record(table: dict, board_num, label: str) -> dict:
 
 
 def grade(deal_id: int, side: str, contract: Optional[dict],
-          declarer_tricks: int, vulnerability: str = 'None') -> dict:
+          declarer_tricks: int, vulnerability: str = 'None',
+          against=None) -> dict:
     """Split a board's result into what the auction cost and what the play cost.
 
         par - actual = bidding_loss + play_loss
@@ -245,26 +318,28 @@ def grade(deal_id: int, side: str, contract: Optional[dict],
     A loss is reported POSITIVE as points given away, because "you lost 40 in
     the auction" reads more naturally than "-40". Either number can come out
     negative, which is meaningful rather than a bug: a negative bidding_loss
-    means the contract reached beats this side's own par, which happens when the
-    opponents are pushed into something that fails.
+    means the contract reached beats par, which happens when the opponents miss
+    their best contract or are pushed into something that fails.
+
+    `against` replaces `par` as the target (`ceiling`, for research).
     """
-    ceiling = par(deal_id, side, vulnerability)
+    target = (against or par)(deal_id, side, vulnerability)
     if contract is None:
-        return {'par': ceiling, 'passed_out': True, 'dd_score': 0,
-                'actual': 0, 'bidding_loss': ceiling['score'], 'play_loss': 0,
-                'total_loss': ceiling['score']}
+        return {'par': target, 'passed_out': True, 'dd_score': 0,
+                'actual': 0, 'bidding_loss': target['score'], 'play_loss': 0,
+                'total_loss': target['score']}
 
     perfect = dd_tricks(deal_id, contract['strain'], contract['side'],
                         contract.get('declarer'))
     dd_score = score_for(side, contract, perfect)
     actual = score_for(side, contract, declarer_tricks)
     return {
-        'par': ceiling,
+        'par': target,
         'passed_out': False,
         'dd_tricks': perfect,
         'dd_score': dd_score,
         'actual': actual,
-        'bidding_loss': ceiling['score'] - dd_score,
+        'bidding_loss': target['score'] - dd_score,
         'play_loss': dd_score - actual,
-        'total_loss': ceiling['score'] - actual,
+        'total_loss': target['score'] - actual,
     }

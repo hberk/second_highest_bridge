@@ -58,6 +58,16 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     `_answer_responsive`): (1x) X (2x) X (P) bids the better of the two
     unbid suits partner showed, at its cheapest level; `doubler_guard` lets
     it through like an answer to a cuebid. +0.07 and +0.04 a board.
+    That answer is not the 18+ double-then-suit (`DOUBLER_SUIT_NOT_ANSWER`,
+    the user's deal, 2026-11-05: 1♦ P 1♥ X 2♥ X P 2♠ P 4♠ on an 8-count,
+    read as 18+ opposite): flat, -0.01, +0.02, -0.02. Instead the responsive
+    doubler bids 4M itself on four of the answered major and 11+ HCP
+    (`RESPONSIVE_GAME_HCP`, `_responsive_game`), even over their bid: +0.06,
+    +0.00, +0.01 (15 auctions in 30,000 deals; 12+ and 13+ fewer, also up).
+    Only after a real responsive double (straight over their new suit) and
+    never in their suit: the review of PR #66 found it bidding 4♥ over
+    partner's 3♥ cuebid of 1♥ X 2♥ X P, and over partner's run from a
+    penalty double of 1NT. Robots never bid those, so the measurement stands.
   - **Their artificial bid shows its shown suit** (`THEIR_SHOWN_SUITS` in
     `_their_suits`): over 1NT P 2♦, diamonds are not theirs, but only to a
     hand that can bid them at the three level, 6+ cards and 12+ HCP
@@ -137,6 +147,27 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   South's QJ1065 of hearts behind declarer's suit is a textbook trap pass,
   yet E/W take 9 tricks in hearts -- under second-highest rules a trump stack
   of honours is not the penalty it is in ordinary bridge.
+- **Preference after a negative double** (`NEG_PREFERENCE`,
+  `_negative_doubler_preference`, `_preference_stands`; the user's board,
+  2026-11-09: P 1♦ (1♠) X (P) 2♣ passed out on ♠AQ875 ♥9432 ♦AK4 ♣J).
+  After 1x (y) X (P) 2z (P), z a suit the double didn't ask for, the doubler
+  with at least as many x as z (two or more, under four z, no six-card suit
+  of its own) bids 2x, and opener passes it: the fallback read only
+  partner's last suit, and read 2x as a raise (1♠ (2♣) X (P) 2♦ (P) 2♠ (P)
+  4♠ doubled, -600). Seeds 7M-9M, 10,000 each: see ROBOT_PROGRESS.
+  With values the doubler raises the longest fit instead (`NEG_FIT_INVITE_HCP
+  = 11`, `_negative_doubler_fit`, `_answer_fit_invite`; the user's call after
+  the review of PR #66): opener's 1x then 2z shows five of a major x (four of
+  a minor) and four of z, so with 11+ and an eight-card fit the doubler bids
+  3 of it (x on a tie), game on 15+ in a major (`NEG_FIT_GAME_HCP`). Opener
+  accepts a major on 14+ (`NEG_FIT_ACCEPT_HCP`) and never bids five of a minor
+  (`NEG_FIT_ACCEPT_MINOR_HCP = None`: 5 boards, all worse). An 18+ opener over
+  a preference to a major bids 4 with six, else invites with 3x, which the
+  doubler takes to game on 8+ (`NEG_OPENER_GAME_HCP`, `NEG_OPENER_ACCEPT_HCP`;
+  in a minor it lost, 0 of 4). **+0.01, +0.02 (t 2.14), +0.01** a board.
+  Notrump instead (3NT on 15+, 2NT on 11-14, with their suit stopped) lost
+  -0.03, +0.02, -0.05: in this game notrump takes fewer tricks than the fit
+  (deal 1953, seed 9M: 3NT 7 tricks, diamonds 10). `/mnt/project-files/neg-fit/`.
 - **Opener after they bid over partner's negative double**
   (`_negative_double_competed`, `_answer_extras_double`): `1x (1y) X (2y) ?`.
   The fallback read partner as having **passed** ("Partner has passed; not
@@ -187,7 +218,12 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     else passes. In the championship records responders with exactly four
     never rebid it there (20 passed); the robots did 19 of 19. Fresh deals
     (seed 12M, 10,000): **+0.05 per board, t = +1.93**, 82 auctions changed;
-    six cards measured -0.02.
+    six cards measured -0.02. Unopposed, the invitational jump to three
+    needs `SUPPORT_X_INVITE = 5` too (2026-11-09, the user's board P P 1♣ P
+    1♠ (2♥) X P 3♠ on ♠QJ95 ♥98 ♦AKJ6 ♣T84, a seven-card fit): four bid
+    two. Seed 23M, 10,000: **+0.08 per board, t = +2.52**, 44 changed.
+    Unopposed, the two-level call is alerted "Minimum, or invitational with
+    four" (the review of PR #66: "Minimum" was untrue of the 10-12 hands).
   - `_advance` after partner's two-suiter (Michaels, unusual 2NT): once RHO
     bids, advancer is not forced to choose; it bids a shown suit only to the
     level of the fit (five opposite), else passes (`TWO_SUITER_FREE`). Seed
@@ -303,6 +339,12 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     changed, 80 better and 46 worse. Handing the auction to `ai_bid` as well
     (`_owns` natural too) measured -0.20, +0.06, +0.47, 484 changed: it
     competes far higher (up to 7♣).
+  - **The Cappelletti relay is answered** (`RELAY_ANSWER`, `_answer_relay`;
+    challenge board 79, 2026-11-07): (1NT) 2♣ (P) 2♦ (P) asks which suit.
+    No branch answered it, so `continuation` read 2♦ as forcing and a
+    diamond one-suiter bid 3♦. Now the overcaller passes with diamonds and
+    bids any other long suit, only while they have bid nothing but the 1NT.
+    Seeds 7M and 8M, 10,000 each: +0.01 and **+0.03** a board.
   - **...over 1NT and after their response too** (`OVER_1NT_2C`,
     `OVERCALL_AFTER_RESPONSE`; review of PR #54). Our 2♣ over their 1NT,
     direct or after P P, is Cappelletti's one-suiter: `_game_forced` read
@@ -802,6 +844,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   t = -0.2 (388 changed: the extra three-level suits get doubled); the
   meaning and the pass alone +0.01, t = +1.9. Game at judge 12 instead of
   14 changed nothing.
+  At the three level the suit needs 6+ cards (`DOUBLER_SUIT_LEN3`, the
+  user's deal, 2026-11-06: 2♦ X P 2♠ passed out with ♠K64 ♥AKJT742 ♦KQ ♣A),
+  and the alert says 6+; `doubler_guard` passes a shorter three-level suit.
+  3 x 10,000 fresh deals: +0.01/+0.03/0.00 (t +0.18/+1.41/-0.12, 159
+  auctions), noise; 7+ cards 0.00, 5+ +0.03/+0.11/-0.15. The losses are
+  doublers who used to jump to 4♥ and now stop in 3♥. On the user's own
+  deal the pass was double dummy best: ♥AKJT742 opposite a singleton takes
+  7 tricks under the second-highest rule.
 - **A five-card major is bid, not doubled** (`NEG_BIDS_FIVE`, the user's
   Bidding training deal, 2026-10-28: 1♦ (1♥) X on ♠AKJT53 ♥8 ♦J83 ♣T62,
   and the spade fit was lost). Over a minor opening the negative double was

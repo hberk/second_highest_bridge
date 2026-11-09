@@ -6,6 +6,48 @@ Releases are tagged on main, and the tag matches the version in
 what it was measured to be worth is in
 [docs/ROBOT_PROGRESS.md](docs/ROBOT_PROGRESS.md).
 
+## v0.1.3-alpha (2026-11-09)
+
+The Nov 6 and Nov 9 fixes from played boards. The four Nov 6 card-play fixes
+together measure +0.10 tricks and +11.8 points a board to the side that uses
+them (seated, 3 x 1,000 fresh deals, t above 6 on each); the declarer's
+crossing ruff adds +0.01. Card play, tricks given away a board on the same
+199 deals: declaring side 2.74 to 2.58, opening lead 0.40 to 0.39, defence
+2.41 to 2.12. The Nov 6 bidding fixes together +0.07 a board (3 x 1,000 fresh
+deals, noise: the auctions are rare); the Nov 9 ones +0.01 to +0.08 each on
+10,000-deal sets.
+
+**The game**
+- Par is now true duplicate par (both sides bid; sacrifices count), and its ⓘ opens on tap.
+- Double dummy results are kept per board when you switch between the Your
+  board and Robots' board tabs or pick another board in History.
+
+**The robots**
+- An answer to partner's responsive double is not read as the 18+
+  double-then-suit, so advancer doesn't raise it.
+- The responsive doubler bids game in a major partner answers with 11+ HCP
+  and four cards in it (only after a real responsive double, and never in
+  their suit).
+- A takeout doubler's new suit at the three level shows six or more cards.
+- Over their 1NT, a Cappelletti 2♣ one-suiter passes partner's 2♦ relay
+  with diamonds instead of bidding 3♦.
+- After a support double, responder's jump to three of their suit needs five
+  cards.
+- A negative doubler gives preference to opener's first suit instead of
+  passing a worse fit; opener passes the preference.
+- With 11+ HCP the negative doubler raises the longest fit to the three level
+  instead (game in a major on 15+), and a strong opener invites over a
+  preference to a major. Never five of a minor.
+- Declarer leads the card that wins unless the suit is ruffed (the K♥ from
+  dummy's K 4 2 over the bare ace).
+- Declarer without trumps in hand crosses to the trump hand by a ruff to
+  draw trumps, ruffing high enough to keep the low trumps that draw the rest.
+- Second hand covers when dummy leads too (East's T♣ from K T 7 4 3 under
+  dummy's 9♣).
+- Third hand on defence plays the led suit out over partner's and declarer's
+  possible holdings, and with dummy last plays the cheapest card that wins
+  whatever dummy does.
+
 ## v0.1.2-alpha (2026-11-05)
 
 The Nov 4 evening fixes from played boards. The bidding fixes together

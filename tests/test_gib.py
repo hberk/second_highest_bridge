@@ -340,6 +340,54 @@ def test_answers_to_a_negative_double_say_what_they_show():
     assert call == '1S' and why == "4+ \u2660.", (call, why)
 
 
+def test_negative_doubler_gives_preference_to_openers_first_suit():
+    """The user's board (2026-11-09): P 1D (1S) X (P) 2C (P). South, three
+    diamonds and one club, passed 2C; 2D makes and 2C goes down two."""
+    calls = ('Pass', '1D', '1S', 'X', 'Pass', '2C', 'Pass')
+    south = 'AS QS 8S 7S 5S 9H 4H 3H 2H AD KD 4D JC'
+    assert bid(south, *calls, dealer='West') == ('2D', 'Preference to \u2666.')
+    # As long in each: opener's first suit is the longer, so back to it.
+    assert bid('AS QS 8S 7S 9H 4H 3H 2H AD 4D 3D JC 2C', *calls, dealer='West')[0] == '2D'
+    # Longer clubs (or four of them): opener's 2C is the spot.
+    assert bid('AS QS 8S 7S 5S 9H 4H 3H 2H AD JC 3C 2C', *calls, dealer='West')[0] != '2D'
+    # North, the opener, passes the preference.
+    north = '9S AH QH JH JD 10D 8D 5D 2D KC 10C 3C 2C'
+    assert bid(north, *calls, '2D', 'Pass', dealer='West') == ('Pass', "Partner's preference stands.")
+    # A six-card suit of the doubler's own is still rebid (fresh deal 1115).
+    east = 'JS 9S AH QH 10H 8H 7H 5H 5D JC 10C 7C 5C'
+    assert bid(east, '1S', '2C', 'X', 'Pass', '2D', 'Pass', dealer='West')[0] == '2H'
+    # ...and a preference to a major is not a raise: opener does not bid game.
+    west = 'AS QS 8S 5S 4S AD QD JD 9D 7D 9C 8C 2C'
+    assert bid(west, '1S', '2C', 'X', 'Pass', '2D', 'Pass', '2S', 'Pass', dealer='West')[0] == 'Pass'
+
+
+def test_negative_doubler_and_opener_raise_the_longest_fit():
+    """The user's call (2026-11-09): after 1x (y) X (P) 2z (P) the doubler
+    with 11+ and an eight-card fit in opener's suits invites at 3 (game on
+    15+ in a major); opener accepts on 14+. An 18+ opener invites over the
+    preference. Without an eight-card fit the preference stands."""
+    c = ('1D', '1S', 'X', 'Pass', '2C', 'Pass')
+    assert bid('AS 8S KH JH 3H 2H KD 9D 4D 2D QC 5C 2C', *c)[0] == '3D'
+    assert bid('8S 4S KH JH 3H 2H AD 9D 4D AC 5C 3C 2C', *c)[0] == '3C'
+    assert bid('AS QS 8S KH JH 3H 2H KD 9D 4D QC 5C 2C', *c)[0] == '2D'      # no 8-card fit
+    m = ('1S', '2C', 'X', 'Pass', '2D', 'Pass')
+    assert bid('KS 8S 4S KH JH 3H 2H AD 9D 4D QC 5C 2C', *m) == \
+        ('3S', '11+ HCP, 3+ \u2660. Invitational.')
+    assert bid('KS 8S 4S AH KH 3H 2H AD 9D 4D QC 5C 2C', *m)[0] == '4S'
+    assert bid('AS KS QS 7S 5S AH 4H KD 4D 3D 2D 6C 2C', *m, '3S', 'Pass')[0] == '4S'
+    assert bid('AS KS 9S 7S 5S QH 4H KD 4D 3D 2D 6C 2C', *m, '3S', 'Pass')[0] == 'Pass'
+    pref = m + ('2S', 'Pass')
+    assert bid('AS KS QS 7S 5S AH 4H AD KD 4D 3D 6C 2C', *pref)[0] == '3S'
+    assert bid('AS KS QS JS 7S 5S AH 4H AD KD 4D 6C 2C', *pref)[0] == '4S'
+    assert bid('AS KS QS 7S 5S AH 4H KD 4D 3D 2D 6C 2C', *pref)[0] == 'Pass'
+    assert bid('KS 8S 4S QH JH 3H 2H KD 9D 4D 6C 5C 2C', *pref, '3S', 'Pass')[0] == '4S'
+    assert bid('9S 8S 4S QH JH 3H 2H KD 9D 4D 6C 5C 2C', *pref, '3S', 'Pass')[0] == 'Pass'
+    # No game in a minor: opener passes 3D whatever its strength, and an 18+
+    # opener leaves a preference to a minor where it is.
+    assert bid('KS 7S AH 9H 4H AD KD QD 8D 3D KC QC 2C', *c, '3D', 'Pass')[0] == 'Pass'
+    assert bid('KS 7S AH 9H 4H AD KD QD 8D 3D AC KC QC', *c, '2D', 'Pass')[0] == 'Pass'
+
+
 def test_support_double():
     call, why = bid('AS 4S KH 8H 3H KD QD 9D 7D 2D QC 5C 3C', '1D', 'Pass', '1H', '2C')
     assert call == 'X' and 'Support double' in why
@@ -361,9 +409,20 @@ def test_support_double_then_they_raise():
     calls = ('Pass', '1C', 'Pass', '1D', '1H', 'X', '2H')
     assert bid('AS 10S JH 3H KD 9D 7D 2D QC 9C 5C 4C 2C', *calls, dealer='East')[0] == 'Pass'
     assert bid('AS 10S JH KD 9D 7D 3D 2D QC 9C 5C 4C 2C', *calls, dealer='East')[0] == '3D'
-    # Unopposed, the four-card suit is still bid (here an invitation).
+    # Unopposed, the four-card suit is still bid, but at two: the jump to
+    # three needs five (SUPPORT_X_INVITE).
     calls = ('Pass', '1C', 'Pass', '1D', '1H', 'X', 'Pass')
-    assert bid('AS 10S JH 3H KD 9D 7D 2D QC 9C 5C 4C 2C', *calls, dealer='East')[0] == '3D'
+    assert bid('AS 10S JH 3H KD 9D 7D 2D QC 9C 5C 4C 2C', *calls, dealer='East')[0] == '2D'
+
+
+def test_support_double_invite_needs_five():
+    # The user's board, 2026-11-07: P P 1C P 1S (2H) X P. Opener showed
+    # exactly three spades, so four make a seven-card fit: 2S, never 3S.
+    calls = ('Pass', 'Pass', '1C', 'Pass', '1S', '2H', 'X', 'Pass')
+    assert bid('QS JS 9S 5S 9H 8H AD KD JD 6D 10C 8C 4C', *calls, dealer='West') == \
+        ('2S', 'Minimum, or invitational with four ♠.')
+    assert bid('QS JS 9S 5S 2S 9H AD KD JD 6D 10C 8C 4C', *calls, dealer='West') == \
+        ('3S', 'Invitational, ♠.')
 
 
 def test_support_redouble():
@@ -447,6 +506,49 @@ def test_doubler_answers_responsive_double():
                    dealer='East')[0] == 'Pass'
     finally:
         gib.RESPONSIVE_ANSWER = True
+
+
+def test_answer_to_responsive_double_is_not_raised_to_game():
+    # The user's deal, 2026-11-05: 1D P 1H X 2H X P 2S P. East's 2S only
+    # answered the responsive double; read as the 18+ double-then-suit, it
+    # took West's 8-count to 4S, doubled and down two.
+    calls = ('1D', 'Pass', '1H', 'X', '2H', 'X', 'Pass', '2S', 'Pass')
+    west = 'QS 8S 3S 2S KH 3H JD 10D QC 10C 7C 5C 2C'
+    assert bid(west, *calls, dealer='South')[0] == 'Pass'
+    gib.DOUBLER_SUIT_NOT_ANSWER = False
+    try:
+        assert bid(west, *calls, dealer='South')[0] == '4S'
+    finally:
+        gib.DOUBLER_SUIT_NOT_ANSWER = True
+
+
+def test_responsive_doubler_bids_game_with_extras():
+    # (1S) P (P) X (2S) X (P) 3H (3S): the responsive doubler with 11+ HCP and
+    # four of partner's answered major bids game, even over their competition.
+    calls = ('1S', 'Pass', 'Pass', 'X', '2S', 'X', 'Pass', '3H', '3S')
+    east = 'JS 8S 5S AH KH QH 7H QD 8D 7D 2D JC 9C'
+    call, why = bid(east, *calls, dealer='North')
+    assert call == '4H' and why.startswith('4+ ')
+    gib.RESPONSIVE_GAME_HCP = None
+    try:
+        assert bid(east, *calls, dealer='North')[0] == 'Pass'
+    finally:
+        gib.RESPONSIVE_GAME_HCP = 11
+
+
+def test_responsive_game_needs_a_responsive_double():
+    # The review of PR #66: the game rule fired on any lone X of mine. Partner's
+    # 3H over their hearts is a cuebid, not a suit to play; my X of 1NT was for
+    # penalties and partner's 2H ran from it; a late X after passing is not
+    # responsive either. Each is a pass; the switch's own case still bids game.
+    south = 'KS 8S 5S AH QH 7H 2H QD 8D 7D JC 9C 2C'
+    assert bid(south, '1H', 'X', '2H', 'X', 'Pass', '3H', 'Pass', dealer='West')[0] == 'Pass'
+    assert bid(south, '1D', 'X', '1NT', 'X', 'Pass', '2H', 'Pass', dealer='West')[0] == 'Pass'
+    late = 'KS QS 5S 2S QH 7H 2H QD 8D 7D AC 9C 2C'
+    assert bid(late, '1C', 'X', '1H', 'Pass', '2H', 'Pass', 'Pass', 'X', 'Pass', '2S', 'Pass',
+               dealer='West')[0] == 'Pass'
+    east = 'JS 8S 5S AH KH QH 7H QD 8D 7D 2D JC 9C'
+    assert bid(east, '1S', 'Pass', 'Pass', 'X', '2S', 'X', 'Pass', '3H', '3S')[0] == '4H'
 
 
 def test_keycard_answer_then_they_bid():
@@ -933,6 +1035,19 @@ def test_two_club_overcall_answers_keycard_in_clubs():
     assert call == '5C' and 'keycards' in why, (call, why)
 
 
+def test_cappelletti_one_suiter_answers_the_relay():
+    """Board 79 (the user's deal, 2026-11-07): (1NT) 2♣ (P) 2♦ (P) is pass or
+    correct. With diamonds the 2♣ bidder passes 2♦; it bid 3♦."""
+    for calls in (('1NT', '2C', 'Pass', '2D', 'Pass'),
+                  ('1NT', 'Pass', 'Pass', '2C', 'Pass', '2D', 'Pass')):
+        call, why = bid('8S 4S 2H AD KD QD 10D 9D 8D QC JC 10C 2C', *calls, dealer='West')
+        assert call == 'Pass', (calls, call, why)
+        for cards, want in (('8S 4S AH KH QH 10H 9H 8H 2D QC JC 10C 2C', '2H'),
+                            ('AS KS QS 10S 9S 8S 2H 2D 8D QC JC 10C 2C', '2S'),
+                            ('8S 4S 2H 2D 8D 3D AC KC QC JC 10C 9C 2C', '3C')):
+            assert bid(cards, *calls, dealer='West')[0] == want, (calls, cards)
+
+
 def test_two_clubs_over_1nt_or_after_their_response_is_not_strong():
     """Review of PR #54: (1NT) 2♣ is Cappelletti, a one-suiter, and (1♦) P
     (1♥) 2♣ a natural overcall. Both were still read as a strong 2♣: a 2 HCP
@@ -1269,6 +1384,18 @@ def test_double_then_a_new_suit_shows_18():
     call, why = bid(north, '1H', 'Pass', 'Pass', 'X', '2H', 'Pass', 'Pass', '2S', 'Pass',
                     dealer='West')
     assert call in ('3S', '4S') and '3+' in why, (call, why)
+
+
+def test_double_then_a_long_suit_at_the_three_level():
+    """The user's deal, 2026-11-06: 2♦ X P 2♠ P, and North passed a 20-count
+    with seven hearts. With 6+ cards the doubler's suit goes to the three
+    level, and the alert says six; with five it stays a pass."""
+    north = 'KS 6S 4S AH KH JH 10H 7H 4H 2H KD QD AC'
+    call, why = bid(north, '2D', 'X', 'Pass', '2S', 'Pass', dealer='West')
+    assert call == '3H' and why.startswith('6+ ♥, 18+ HCP'), (call, why)
+    five = 'KS 6S 4S AH KH JH 10H 7H KD QD AC 3C 2C'
+    call, _ = bid(five, '2D', 'X', 'Pass', '2S', 'Pass', dealer='West')
+    assert call != '3H', call
 
 
 def test_a_takeout_doubler_answers_partners_cuebid():

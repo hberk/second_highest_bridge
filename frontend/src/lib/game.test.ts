@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import { Game } from './game.svelte';
 import { prng } from './meanings';
+import { SAVE_KEY } from './saves';
 import { legalPlays } from './engine/auction';
 import { SUIT_SYMBOLS, type Seat, type Suit } from './engine/card';
 import { seatAt } from './seats';
@@ -151,6 +152,20 @@ describe('table flow', () => {
       }
       expect(finished, `${seat}: no board finished`).toBeGreaterThan(2);
     }
+  });
+
+  it('reprices logged challenge boards against two-sided par', () => {
+    // Board 76, deal 169, N/S vulnerable, as the user played it: -450 both
+    // tables, logged when par was N/S's 2♦ alone (+90), so 540 "lost".
+    const old = { deal_id: 169, board_num: 76, you: -450, robot: -450, margin: 0,
+      your_bidding_loss: 540, your_play_loss: 0, robot_bidding_loss: 540, robot_play_loss: 0 };
+    const data = new Map([[SAVE_KEY, JSON.stringify({ version: 1, boardNum: 76, history: [], challengeLog: [old], passedOut: 0 })]]);
+    const storage = {
+      getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v),
+      removeItem: (k: string) => void data.delete(k),
+    } as unknown as Storage;
+    const game = new Game(storage, prng(1));
+    expect(game.challengeLog).toEqual([{ ...old, your_bidding_loss: 0, robot_bidding_loss: 0 }]);
   });
 
   it('grades challenge boards against the robot table', () => {
