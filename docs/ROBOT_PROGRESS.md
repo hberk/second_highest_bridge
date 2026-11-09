@@ -55,6 +55,7 @@ the change in these, before and after, on the same deals
 
 | measured | robots | deals | declaring side | opening lead | defence after the lead | boards with a costly card | net (cancels) |
 |---|---|---|---|---|---|---|---|
+| 2026-11-09 | v0.1.3-alpha branch plus `ENTRY_TO_DRAW` and `RUFF_KEEPS_DRAW` (deal 80; `/mnt/project-files/entry-to-draw/gross.txt`) | 199 | **2.56** (17.5%, 88%) | **0.40** (35%, 33%) | **2.10** (18%, 84%) | 94% | +0.07 |
 | 2026-11-07 | **the Nov 6 fixes together (v0.1.3-alpha)**: the second-hand cover with dummy leading, the third-hand plan, `SURE_LEAD_UNRUFFED` and the bidding fixes (`/mnt/project-files/nov6-combined/line_report_vs_v012.txt`) | 199 | **2.59** (18%, 89%) | **0.40** (35%, 33%) | **2.12** (18%, 84%) | 95% | +0.08 |
 | 2026-11-06 | main plus the third-hand plan (`THIRD_SEES_LAST`, `THIRD_HAND_PLAN`; `/mnt/project-files/third-sees-last/report_wide.txt`, against main measured the same day) | 199 | **2.68** (18%, 90%) | **0.40** (36%, 33%) | **2.25** (20%, 87%) | 97% | +0.03 |
 | 2026-11-05 | v0.1.2-alpha with `SECOND_HAND_COVER_DUMMY_LED` (`/mnt/project-files/dummy-led-cover/gross_mistakes.txt`) | 199 | **2.66** (18%, 90%) | **0.40** (36%, 33%) | **2.29** (21%, 86%) | 95% | -0.03 |
@@ -158,6 +159,7 @@ four seats, which nets out a change both declarer and defenders use.
 | 11-06 | Third hand, dummy last, plays the cheapest card that wins whatever dummy does: Q♦ from AQ42 under dummy's lone K♦ (your board, deal 319, `THIRD_SEES_LAST`). Library | +0.012 | +2.77 | +1.40 | 108 of 6,367 | on (gross mistakes, 199 deals: defence 2.41 -> 2.39) |
 | 11-06 | Third hand on defence plays the led suit out over partner's and declarer's layouts, ruffs counted, dummy or declarer last; also J♦ from AJ9732 under dummy's KQ (your board, deal 58, `THIRD_HAND_PLAN = 2`), with `THIRD_SEES_LAST`. Library | **+0.052** | +3.11 | **+4.01** | 992 of 6,367 | on (400 fresh deals, seed 1106: +0.053, t +3.06, +6.06 points; card by card on 199 solved deals +0.060 tricks a board: declarer last only +0.038, side suits off +0.049, ruffs ignored +0.057) |
 | 11-07 | **The Nov 6 card-play fixes together (v0.1.3-alpha)**: `SECOND_HAND_COVER_DUMMY_LED`, `THIRD_SEES_LAST`, `THIRD_HAND_PLAN = 2` and `SURE_LEAD_UNRUFFED` on one side against none of them. Seated, 3 × 1,000 fresh deals (seeds 1104-1106, `/mnt/project-files/nov6-combined/play_*.txt`) | **+0.097; +0.104; +0.094** | +6.30; +6.77; +6.26 | **+12.84; +11.95; +10.59** | 6,156; 6,092; 5,923 of ~15,860 | on |
+| 11-09 | Dummy with no trumps crosses to declarer by a ruff so declarer can draw trumps, and the ruff keeps the low trumps that draw the rest (your 2♥, deal 80: 2♠ ruffed with the J♥, not a club into two void defenders; `ENTRY_TO_DRAW`, `RUFF_KEEPS_DRAW`). Seated, 3 × 1,000 fresh deals (seeds 1104-1106, `/mnt/project-files/entry-to-draw/`) | **+0.013; +0.013; +0.006** | +2.81; +2.35; +1.42 | **+1.47; +1.72; +0.24** | 780; 862; 766 of ~15,850 | on (your call) |
 
 The three information rules together: +0.55 points a board, t = +0.48, 556
 boards changed. None is distinguishable from zero; they are kept because a
