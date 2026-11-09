@@ -3322,6 +3322,13 @@ def _opener_over_forcing_response(ctx: Ctx) -> tuple | None:
 #: None keeps the old free bid.
 SUPPORT_X_FREE = 5
 
+#: ...and unopposed, the invitational jump to three of my suit needs
+#: SUPPORT_X_INVITE cards: partner showed exactly three, so with four the
+#: fit is seven and three is too high; four bids two, a minimum. The user's
+#: board, 2026-11-07: P P 1♣ P 1♠ (2♥) X P 3♠ on ♠QJ95 ♥98 ♦AKJ6 ♣T84,
+#: down opposite ♠K86. None keeps the old jump on four.
+SUPPORT_X_INVITE = 5
+
 
 def _after_support_double(ctx: Ctx) -> tuple | None:
     """Partner (opener) showed exactly three of my suit with a double."""
@@ -3342,7 +3349,8 @@ def _after_support_double(ctx: Ctx) -> tuple | None:
         return 'Pass', "No fit to compete."
     call = ctx.cheapest(y, 2)
     if call and level_of(call) <= 3:
-        if h.judge >= 10 and level_of(call) == 2 and ctx.ok(f"3{y}"):
+        if (h.judge >= 10 and level_of(call) == 2 and ctx.ok(f"3{y}")
+                and (not SUPPORT_X_INVITE or h.len[y] >= SUPPORT_X_INVITE)):
             return f"3{y}", f"Invitational, {SYM[y]}."
         return call, f"Minimum, {SYM[y]}."
     return 'Pass', "No room."

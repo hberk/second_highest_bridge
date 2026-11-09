@@ -3030,6 +3030,11 @@ function openerOverForcingResponse(ctx: Ctx): Decision | null {
  *  free bid and needs SUPPORT_X_FREE cards. null keeps the old free bid. */
 export const SUPPORT_X_FREE: number | null = 5;
 
+/** ...and unopposed, the invitational jump to three of my suit needs
+ *  SUPPORT_X_INVITE cards: with four the fit is seven, so four bids two.
+ *  null keeps the old jump on four. */
+export const SUPPORT_X_INVITE: number | null = 5;
+
 function afterSupportDouble(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
   if (ctx.iAmOpener() || seq.length !== 3 || (seq[2] !== 'X' && seq[2] !== 'XX')
@@ -3048,7 +3053,8 @@ function afterSupportDouble(ctx: Ctx): Decision | null {
   }
   const call = ctx.cheapest(y, 2);
   if (call && levelOf(call) <= 3) {
-    if (h.judge >= 10 && levelOf(call) === 2 && ctx.ok(`3${y}`)) return [`3${y}`, `Invitational, ${SYM[y]}.`];
+    if (h.judge >= 10 && levelOf(call) === 2 && ctx.ok(`3${y}`)
+      && (!SUPPORT_X_INVITE || h.len[y] >= SUPPORT_X_INVITE)) return [`3${y}`, `Invitational, ${SYM[y]}.`];
     return [call, `Minimum, ${SYM[y]}.`];
   }
   return ['Pass', 'No room.'];

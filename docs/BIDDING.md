@@ -187,7 +187,10 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     else passes. In the championship records responders with exactly four
     never rebid it there (20 passed); the robots did 19 of 19. Fresh deals
     (seed 12M, 10,000): **+0.05 per board, t = +1.93**, 82 auctions changed;
-    six cards measured -0.02.
+    six cards measured -0.02. Unopposed, the invitational jump to three
+    needs `SUPPORT_X_INVITE = 5` too (2026-11-09, the user's board P P 1♣ P
+    1♠ (2♥) X P 3♠ on ♠QJ95 ♥98 ♦AKJ6 ♣T84, a seven-card fit): four bid
+    two. Seed 23M, 10,000: **+0.08 per board, t = +2.52**, 44 changed.
   - `_advance` after partner's two-suiter (Michaels, unusual 2NT): once RHO
     bids, advancer is not forced to choose; it bids a shown suit only to the
     level of the fit (five opposite), else passes (`TWO_SUITER_FREE`). Seed

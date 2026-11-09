@@ -361,9 +361,20 @@ def test_support_double_then_they_raise():
     calls = ('Pass', '1C', 'Pass', '1D', '1H', 'X', '2H')
     assert bid('AS 10S JH 3H KD 9D 7D 2D QC 9C 5C 4C 2C', *calls, dealer='East')[0] == 'Pass'
     assert bid('AS 10S JH KD 9D 7D 3D 2D QC 9C 5C 4C 2C', *calls, dealer='East')[0] == '3D'
-    # Unopposed, the four-card suit is still bid (here an invitation).
+    # Unopposed, the four-card suit is still bid, but at two: the jump to
+    # three needs five (SUPPORT_X_INVITE).
     calls = ('Pass', '1C', 'Pass', '1D', '1H', 'X', 'Pass')
-    assert bid('AS 10S JH 3H KD 9D 7D 2D QC 9C 5C 4C 2C', *calls, dealer='East')[0] == '3D'
+    assert bid('AS 10S JH 3H KD 9D 7D 2D QC 9C 5C 4C 2C', *calls, dealer='East')[0] == '2D'
+
+
+def test_support_double_invite_needs_five():
+    # The user's board, 2026-11-07: P P 1C P 1S (2H) X P. Opener showed
+    # exactly three spades, so four make a seven-card fit: 2S, never 3S.
+    calls = ('Pass', 'Pass', '1C', 'Pass', '1S', '2H', 'X', 'Pass')
+    assert bid('QS JS 9S 5S 9H 8H AD KD JD 6D 10C 8C 4C', *calls, dealer='West') == \
+        ('2S', 'Minimum, ♠.')
+    assert bid('QS JS 9S 5S 2S 9H AD KD JD 6D 10C 8C 4C', *calls, dealer='West') == \
+        ('3S', 'Invitational, ♠.')
 
 
 def test_support_redouble():
