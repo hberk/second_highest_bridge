@@ -147,6 +147,15 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   South's QJ1065 of hearts behind declarer's suit is a textbook trap pass,
   yet E/W take 9 tricks in hearts -- under second-highest rules a trump stack
   of honours is not the penalty it is in ordinary bridge.
+- **Preference after a negative double** (`NEG_PREFERENCE`,
+  `_negative_doubler_preference`, `_preference_stands`; the user's board,
+  2026-11-09: P 1♦ (1♠) X (P) 2♣ passed out on ♠AQ875 ♥9432 ♦AK4 ♣J).
+  After 1x (y) X (P) 2z (P), z a suit the double didn't ask for, the doubler
+  with at least as many x as z (two or more, under four z, no six-card suit
+  of its own) bids 2x, and opener passes it: the fallback read only
+  partner's last suit, and read 2x as a raise (1♠ (2♣) X (P) 2♦ (P) 2♠ (P)
+  4♠ doubled, -600). Strength-blind: a 15-count doubler also prefers, as
+  it passed before. Seeds 7M-9M, 10,000 each: see ROBOT_PROGRESS.
 - **Opener after they bid over partner's negative double**
   (`_negative_double_competed`, `_answer_extras_double`): `1x (1y) X (2y) ?`.
   The fallback read partner as having **passed** ("Partner has passed; not
@@ -201,6 +210,8 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     needs `SUPPORT_X_INVITE = 5` too (2026-11-09, the user's board P P 1♣ P
     1♠ (2♥) X P 3♠ on ♠QJ95 ♥98 ♦AKJ6 ♣T84, a seven-card fit): four bid
     two. Seed 23M, 10,000: **+0.08 per board, t = +2.52**, 44 changed.
+    Unopposed, the two-level call is alerted "Minimum, or invitational with
+    four" (the review of PR #66: "Minimum" was untrue of the 10-12 hands).
   - `_advance` after partner's two-suiter (Michaels, unusual 2NT): once RHO
     bids, advancer is not forced to choose; it bids a shown suit only to the
     level of the fit (five opposite), else passes (`TWO_SUITER_FREE`). Seed
@@ -316,6 +327,12 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     changed, 80 better and 46 worse. Handing the auction to `ai_bid` as well
     (`_owns` natural too) measured -0.20, +0.06, +0.47, 484 changed: it
     competes far higher (up to 7♣).
+  - **The Cappelletti relay is answered** (`RELAY_ANSWER`, `_answer_relay`;
+    challenge board 79, 2026-11-07): (1NT) 2♣ (P) 2♦ (P) asks which suit.
+    No branch answered it, so `continuation` read 2♦ as forcing and a
+    diamond one-suiter bid 3♦. Now the overcaller passes with diamonds and
+    bids any other long suit, only while they have bid nothing but the 1NT.
+    Seeds 7M and 8M, 10,000 each: +0.01 and **+0.03** a board.
   - **...over 1NT and after their response too** (`OVER_1NT_2C`,
     `OVERCALL_AFTER_RESPONSE`; review of PR #54). Our 2♣ over their 1NT,
     direct or after P P, is Cappelletti's one-suiter: `_game_forced` read

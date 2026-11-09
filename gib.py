@@ -3366,6 +3366,10 @@ def _after_support_double(ctx: Ctx) -> tuple | None:
         if (h.judge >= 10 and level_of(call) == 2 and ctx.ok(f"3{y}")
                 and (not SUPPORT_X_INVITE or h.len[y] >= SUPPORT_X_INVITE)):
             return f"3{y}", f"Invitational, {SYM[y]}."
+        if (SUPPORT_X_INVITE and level_of(call) == 2 and ctx.ok(f"3{y}")
+                and not level_of(ctx.calls[-1][1])):
+            # Four cards and invitational values bid two as well.
+            return call, f"Minimum, or invitational with four {SYM[y]}."
         return call, f"Minimum, {SYM[y]}."
     return 'Pass', "No room."
 

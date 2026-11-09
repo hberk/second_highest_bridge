@@ -3064,6 +3064,9 @@ function afterSupportDouble(ctx: Ctx): Decision | null {
   if (call && levelOf(call) <= 3) {
     if (h.judge >= 10 && levelOf(call) === 2 && ctx.ok(`3${y}`)
       && (!SUPPORT_X_INVITE || h.len[y] >= SUPPORT_X_INVITE)) return [`3${y}`, `Invitational, ${SYM[y]}.`];
+    // Four cards and invitational values bid two as well.
+    if (SUPPORT_X_INVITE && levelOf(call) === 2 && ctx.ok(`3${y}`)
+      && !levelOf(ctx.calls[ctx.calls.length - 1][1])) return [call, `Minimum, or invitational with four ${SYM[y]}.`];
     return [call, `Minimum, ${SYM[y]}.`];
   }
   return ['Pass', 'No room.'];

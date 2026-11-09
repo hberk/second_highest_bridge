@@ -393,7 +393,7 @@ def test_support_double_invite_needs_five():
     # exactly three spades, so four make a seven-card fit: 2S, never 3S.
     calls = ('Pass', 'Pass', '1C', 'Pass', '1S', '2H', 'X', 'Pass')
     assert bid('QS JS 9S 5S 9H 8H AD KD JD 6D 10C 8C 4C', *calls, dealer='West') == \
-        ('2S', 'Minimum, ♠.')
+        ('2S', 'Minimum, or invitational with four ♠.')
     assert bid('QS JS 9S 5S 2S 9H AD KD JD 6D 10C 8C 4C', *calls, dealer='West') == \
         ('3S', 'Invitational, ♠.')
 
