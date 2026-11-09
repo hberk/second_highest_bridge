@@ -2889,6 +2889,9 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
                 and h.len[y] == 3 and ctx.ok('X')
                 and ctx.calls[-1][1] == lb):
             return 'X', f"Support double: exactly 3 {SYM[y]}."
+    preference = _negative_doubler_preference(ctx)
+    if preference:
+        return preference
     return _rebid_over_their_overcall(ctx)
 
 
@@ -3784,6 +3787,41 @@ def _answer_negative(ctx: Ctx, x: str) -> tuple | None:
     if call and level_of(call) <= 2:
         return call, f"Fewer than 4 {denied}, fewer than 5 {SYM[x]}."
     return 'Pass', "Nothing to show."
+
+
+#: The negative doubler's second call, 1x (y) X (P) 2z (P), z a new suit
+#: opener showed instead of the suit the double asked for: with more x than
+#: z, or as many, go back to 2x (the user's call, 2026-11-09: 1♦ (1♠) X (P)
+#: 2♣ on ♠AQ875 ♥9432 ♦AK4 ♣J passed, and left a 4-1 club fit for the 5-3
+#: diamonds). Opener's first suit is the longer or as long, so equal length
+#: goes back too. There was no rule here: the fallback read only partner's
+#: last suit, so a hand short in it passed. Only the cheap preference, at
+#: the two level; anything else is left to the rules that were there.
+NEG_PREFERENCE = True
+
+
+def _negative_doubler_preference(ctx: Ctx) -> tuple | None:
+    if not NEG_PREFERENCE or ctx.i_am_opener():
+        return None
+    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None or len(ctx.calls) != i + 6:
+        return None
+    (w0, c0), (_, c1), (w2, c2), (_, c3), (_, c4), (_, c5) = ctx.calls[i:]
+    x, y, z = strain_of(c0), strain_of(c1), strain_of(c4)
+    if (w0 != ctx.pd or w2 != ctx.me or c2 != 'X' or c3 != 'Pass' or c5 != 'Pass'
+            or level_of(c0) != 1 or x not in SUITS or y not in SUITS or y == x
+            or level_of(c4) != 2 or z not in SUITS or z in (x, y)):
+        return None
+    unbid = [s for s in SUITS if s not in (x, y)]
+    if z in ([s for s in unbid if s in MAJORS] or unbid):
+        return None
+    h = ctx.h
+    if h.len[z] >= 4 or h.len[x] < 2 or h.len[x] < h.len[z]:
+        return None
+    call = f"2{x}"
+    if not ctx.ok(call):
+        return None
+    return call, f"Preference to {SYM[x]}."
 
 
 #: Opener after 1x (1y) X (2y): jump in partner's suit, bid game in it, or

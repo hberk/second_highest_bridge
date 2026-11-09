@@ -2668,6 +2668,8 @@ function weOpenedContested(ctx: Ctx): Decision | null {
       return ['X', `Support double: exactly 3 ${SYM[y]}.`];
     }
   }
+  const preference = negativeDoublerPreference(ctx);
+  if (preference) return preference;
   return rebidOverTheirOvercall(ctx);
 }
 
@@ -3426,6 +3428,33 @@ function answerNegative(ctx: Ctx, x: Suit): Decision | null {
   const call = ctx.cheapest('NT', 1);
   if (call && levelOf(call) <= 2) return [call, `Fewer than 4 ${denied}, fewer than 5 ${SYM[x]}.`];
   return ['Pass', 'Nothing to show.'];
+}
+
+/** The negative doubler's second call, 1x (y) X (P) 2z (P), z a new suit
+ *  opener showed instead of the suit the double asked for: with more x than
+ *  z, or as many, go back to 2x (the user's call, 2026-11-09: 1♦ (1♠) X (P)
+ *  2♣ on ♠AQ875 ♥9432 ♦AK4 ♣J passed). Only the cheap preference. */
+export const NEG_PREFERENCE = true;
+
+function negativeDoublerPreference(ctx: Ctx): Decision | null {
+  if (!NEG_PREFERENCE || ctx.iAmOpener()) return null;
+  const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
+  if (i < 0 || ctx.calls.length !== i + 6) return null;
+  const [[w0, c0], [, c1], [w2, c2], [, c3], [, c4], [, c5]] = ctx.calls.slice(i);
+  const x = strainOf(c0), y = strainOf(c1), z = strainOf(c4);
+  if (w0 !== ctx.pd || w2 !== ctx.me || c2 !== 'X' || c3 !== 'Pass' || c5 !== 'Pass'
+    || levelOf(c0) !== 1 || !isSuit(x) || !isSuit(y) || y === x
+    || levelOf(c4) !== 2 || !isSuit(z) || z === x || z === y) {
+    return null;
+  }
+  const unbid = SUITS.filter((s) => s !== x && s !== y);
+  const majors = unbid.filter((s) => MAJORS.includes(s));
+  if ((majors.length ? majors : unbid).includes(z)) return null;
+  const h = ctx.h;
+  if (h.len[z] >= 4 || h.len[x] < 2 || h.len[x] < h.len[z]) return null;
+  const call = `2${x}`;
+  if (!ctx.ok(call)) return null;
+  return [call, `Preference to ${SYM[x]}.`];
 }
 
 /** Opener after 1x (1y) X (2y): jump in partner's suit, bid game in it, or
