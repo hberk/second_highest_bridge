@@ -2668,7 +2668,7 @@ function weOpenedContested(ctx: Ctx): Decision | null {
       return ['X', `Support double: exactly 3 ${SYM[y]}.`];
     }
   }
-  const preference = negativeDoublerPreference(ctx);
+  const preference = negativeDoublerPreference(ctx) ?? preferenceStands(ctx);
   if (preference) return preference;
   return rebidOverTheirOvercall(ctx);
 }
@@ -3436,13 +3436,14 @@ function answerNegative(ctx: Ctx, x: Suit): Decision | null {
  *  2♣ on ♠AQ875 ♥9432 ♦AK4 ♣J passed). Only the cheap preference. */
 export const NEG_PREFERENCE = true;
 
-function negativeDoublerPreference(ctx: Ctx): Decision | null {
-  if (!NEG_PREFERENCE || ctx.iAmOpener()) return null;
+/** [x, y, z] when the auction from its first bid is 1x (y) X (P) 2z (P)
+ *  and n more calls, z a suit the double did not ask for, else null. */
+function preferenceSpot(ctx: Ctx, n: number): [Suit, Suit, Suit] | null {
   const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
-  if (i < 0 || ctx.calls.length !== i + 6) return null;
-  const [[w0, c0], [, c1], [w2, c2], [, c3], [, c4], [, c5]] = ctx.calls.slice(i);
+  if (i < 0 || ctx.calls.length !== i + 6 + n) return null;
+  const [[w0, c0], [, c1], [w2, c2], [, c3], [w4, c4], [, c5]] = ctx.calls.slice(i, i + 6);
   const x = strainOf(c0), y = strainOf(c1), z = strainOf(c4);
-  if (w0 !== ctx.pd || w2 !== ctx.me || c2 !== 'X' || c3 !== 'Pass' || c5 !== 'Pass'
+  if (w2 !== PARTNERS[w0] || w4 !== w0 || c2 !== 'X' || c3 !== 'Pass' || c5 !== 'Pass'
     || levelOf(c0) !== 1 || !isSuit(x) || !isSuit(y) || y === x
     || levelOf(c4) !== 2 || !isSuit(z) || z === x || z === y) {
     return null;
@@ -3450,11 +3451,35 @@ function negativeDoublerPreference(ctx: Ctx): Decision | null {
   const unbid = SUITS.filter((s) => s !== x && s !== y);
   const majors = unbid.filter((s) => MAJORS.includes(s));
   if ((majors.length ? majors : unbid).includes(z)) return null;
+  return [x, y, z];
+}
+
+/** The doubler: 2x with more x than z, or as many, and no six-card suit
+ *  of its own to rebid (that was there before, and stays). */
+function negativeDoublerPreference(ctx: Ctx): Decision | null {
+  if (!NEG_PREFERENCE || ctx.iAmOpener()) return null;
+  const spot = preferenceSpot(ctx, 0);
+  if (!spot) return null;
+  const [x, y, z] = spot;
   const h = ctx.h;
   if (h.len[z] >= 4 || h.len[x] < 2 || h.len[x] < h.len[z]) return null;
+  if (SUITS.some((s) => s !== x && s !== y && s !== z && h.len[s] >= 6)) return null;
   const call = `2${x}`;
   if (!ctx.ok(call)) return null;
   return [call, `Preference to ${SYM[x]}.`];
+}
+
+/** Opener after 1x (y) X (P) 2z (P) 2x (P): partner chose between my
+ *  suits, which promises no fit or values beyond the double, so it stands.
+ *  The fallback read it as a raise and bid game (fresh deal 1115, seed 9M). */
+function preferenceStands(ctx: Ctx): Decision | null {
+  if (!NEG_PREFERENCE || !ctx.iAmOpener()) return null;
+  const spot = preferenceSpot(ctx, 2);
+  if (!spot) return null;
+  const x = spot[0];
+  const [[w6, c6], [, c7]] = ctx.calls.slice(-2);
+  if (w6 !== ctx.pd || c6 !== `2${x}` || c7 !== 'Pass') return null;
+  return ['Pass', "Partner's preference stands."];
 }
 
 /** Opener after 1x (1y) X (2y): jump in partner's suit, bid game in it, or

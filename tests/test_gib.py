@@ -352,7 +352,13 @@ def test_negative_doubler_gives_preference_to_openers_first_suit():
     assert bid('AS QS 8S 7S 5S 9H 4H 3H 2H AD JC 3C 2C', *calls, dealer='West')[0] != '2D'
     # North, the opener, passes the preference.
     north = '9S AH QH JH JD 10D 8D 5D 2D KC 10C 3C 2C'
-    assert bid(north, *calls, '2D', 'Pass', dealer='West')[0] == 'Pass'
+    assert bid(north, *calls, '2D', 'Pass', dealer='West') == ('Pass', "Partner's preference stands.")
+    # A six-card suit of the doubler's own is still rebid (fresh deal 1115).
+    east = 'JS 9S AH QH 10H 8H 7H 5H 5D JC 10C 7C 5C'
+    assert bid(east, '1S', '2C', 'X', 'Pass', '2D', 'Pass', dealer='West')[0] == '2H'
+    # ...and a preference to a major is not a raise: opener does not bid game.
+    west = 'AS QS 8S 5S 4S AD QD JD 9D 7D 9C 8C 2C'
+    assert bid(west, '1S', '2C', 'X', 'Pass', '2D', 'Pass', '2S', 'Pass', dealer='West')[0] == 'Pass'
 
 
 def test_support_double():
