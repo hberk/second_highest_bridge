@@ -976,6 +976,19 @@ def test_two_club_overcall_answers_keycard_in_clubs():
     assert call == '5C' and 'keycards' in why, (call, why)
 
 
+def test_cappelletti_one_suiter_answers_the_relay():
+    """Board 79 (the user's deal, 2026-11-07): (1NT) 2♣ (P) 2♦ (P) is pass or
+    correct. With diamonds the 2♣ bidder passes 2♦; it bid 3♦."""
+    for calls in (('1NT', '2C', 'Pass', '2D', 'Pass'),
+                  ('1NT', 'Pass', 'Pass', '2C', 'Pass', '2D', 'Pass')):
+        call, why = bid('8S 4S 2H AD KD QD 10D 9D 8D QC JC 10C 2C', *calls, dealer='West')
+        assert call == 'Pass', (calls, call, why)
+        for cards, want in (('8S 4S AH KH QH 10H 9H 8H 2D QC JC 10C 2C', '2H'),
+                            ('AS KS QS 10S 9S 8S 2H 2D 8D QC JC 10C 2C', '2S'),
+                            ('8S 4S 2H 2D 8D 3D AC KC QC JC 10C 9C 2C', '3C')):
+            assert bid(cards, *calls, dealer='West')[0] == want, (calls, cards)
+
+
 def test_two_clubs_over_1nt_or_after_their_response_is_not_strong():
     """Review of PR #54: (1NT) 2♣ is Cappelletti, a one-suiter, and (1♦) P
     (1♥) 2♣ a natural overcall. Both were still read as a strong 2♣: a 2 HCP

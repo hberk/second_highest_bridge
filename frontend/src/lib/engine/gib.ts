@@ -4234,6 +4234,8 @@ function theyOpened(ctx: Ctx): Decision | null {
   }
   const minor = answerMinorAsk(ctx);
   if (minor) return minor;
+  const relay = answerRelay(ctx);
+  if (relay) return relay;
   const cue = answerCuebid(ctx);
   if (cue) return cue;
   if (partners.length && !mine.length) return advance(ctx);
@@ -4265,6 +4267,28 @@ function answerMinorAsk(ctx: Ctx): Decision | null {
   const call = ctx.cheapest(m, 3);
   if (call && levelOf(call) === 3) return [call, `4+ ${SYM[m]}, answering 2NT.`];
   return ['Pass', 'No room.'];
+}
+
+/** (1NT) 2♣ (P) 2♦ (P): partner's 2♦ is a relay, pass or correct, and no
+ *  branch answered it: `continuation` bid 3♦ on a diamond one-suiter
+ *  (board 79, gib.py has the deal). The overcaller now passes with
+ *  diamonds and names any other suit. */
+export const RELAY_ANSWER = true;
+
+/** Our 2♣ over their 1NT showed one long suit and partner's 2♦ relay asked
+ *  which: pass with diamonds, else bid the suit. Only while they have bid
+ *  nothing but the 1NT. */
+function answerRelay(ctx: Ctx): Decision | null {
+  const mine = ctx.mine();
+  const partners = ctx.partners();
+  if (!RELAY_ANSWER || mine.length !== 1 || mine[0] !== '2C'
+      || partners.length !== 1 || partners[0] !== '2D'
+      || ctx.ours[ctx.ours.length - 1][0] !== ctx.pd) return null;
+  const theirs = ctx.theirs.map(([, c]) => c).filter((c) => c !== 'Pass');
+  if (theirs.length !== 1 || theirs[0] !== '1NT' || ctx.current() !== '2D') return null;
+  const s = ctx.h.longest();
+  if (s === 'D') return ['Pass', `Long ${SYM.D}, to play.`];
+  return [ctx.cheapest(s, 2)!, `The long suit, ${SYM[s]}.`];
 }
 
 /** Was `seat`'s first call a takeout double: they opened, its partner had

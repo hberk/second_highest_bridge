@@ -4655,6 +4655,9 @@ def they_opened(ctx: Ctx) -> tuple | None:
     minor = _answer_minor_ask(ctx)
     if minor:
         return minor
+    relay = _answer_relay(ctx)
+    if relay:
+        return relay
     cue = _answer_cuebid(ctx)
     if cue:
         return cue
@@ -4699,6 +4702,29 @@ def _answer_minor_ask(ctx: Ctx) -> tuple | None:
     if call and level_of(call) == 3:
         return call, f"4+ {SYM[m]}, answering 2NT."
     return 'Pass', "No room."
+
+
+#: (1NT) 2♣ (P) 2♦ (P): partner's 2♦ is a relay, pass or correct, and no
+#: branch answered it. `continuation` read the relay as forcing and bid the
+#: longest suit at its cheapest level, so a diamond one-suiter went past
+#: 2♦ to 3♦ (board 79: ♠84 ♥2 ♦AKQT98 ♣QJT2, the user's deal, 2026-11-07).
+#: The overcaller now passes with diamonds and names any other suit.
+RELAY_ANSWER = True
+
+
+def _answer_relay(ctx: Ctx) -> tuple | None:
+    """Our 2♣ over their 1NT showed one long suit and partner's 2♦ relay
+    asked which: pass with diamonds, else bid the suit. Only while they have
+    bid nothing but the 1NT."""
+    if not RELAY_ANSWER or ctx.mine() != ['2C'] or ctx.partners() != ['2D'] \
+            or ctx.ours[-1][0] != ctx.pd:
+        return None
+    if [c for _, c in ctx.theirs if c != 'Pass'] != ['1NT'] or ctx.current() != '2D':
+        return None
+    s = ctx.h.longest()
+    if s == 'D':
+        return 'Pass', f"Long {SYM['D']}, to play."
+    return ctx.cheapest(s, 2), f"The long suit, {SYM[s]}."
 
 
 #: (1x) X (2x) X (P): partner's responsive double (`_advance`) shows the
