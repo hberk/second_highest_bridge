@@ -340,6 +340,27 @@ def test_answers_to_a_negative_double_say_what_they_show():
     assert call == '1S' and why == "4+ \u2660.", (call, why)
 
 
+def test_negative_doubler_gives_preference_to_openers_first_suit():
+    """The user's board (2026-11-09): P 1D (1S) X (P) 2C (P). South, three
+    diamonds and one club, passed 2C; 2D makes and 2C goes down two."""
+    calls = ('Pass', '1D', '1S', 'X', 'Pass', '2C', 'Pass')
+    south = 'AS QS 8S 7S 5S 9H 4H 3H 2H AD KD 4D JC'
+    assert bid(south, *calls, dealer='West') == ('2D', 'Preference to \u2666.')
+    # As long in each: opener's first suit is the longer, so back to it.
+    assert bid('AS QS 8S 7S 9H 4H 3H 2H AD 4D 3D JC 2C', *calls, dealer='West')[0] == '2D'
+    # Longer clubs (or four of them): opener's 2C is the spot.
+    assert bid('AS QS 8S 7S 5S 9H 4H 3H 2H AD JC 3C 2C', *calls, dealer='West')[0] != '2D'
+    # North, the opener, passes the preference.
+    north = '9S AH QH JH JD 10D 8D 5D 2D KC 10C 3C 2C'
+    assert bid(north, *calls, '2D', 'Pass', dealer='West') == ('Pass', "Partner's preference stands.")
+    # A six-card suit of the doubler's own is still rebid (fresh deal 1115).
+    east = 'JS 9S AH QH 10H 8H 7H 5H 5D JC 10C 7C 5C'
+    assert bid(east, '1S', '2C', 'X', 'Pass', '2D', 'Pass', dealer='West')[0] == '2H'
+    # ...and a preference to a major is not a raise: opener does not bid game.
+    west = 'AS QS 8S 5S 4S AD QD JD 9D 7D 9C 8C 2C'
+    assert bid(west, '1S', '2C', 'X', 'Pass', '2D', 'Pass', '2S', 'Pass', dealer='West')[0] == 'Pass'
+
+
 def test_support_double():
     call, why = bid('AS 4S KH 8H 3H KD QD 9D 7D 2D QC 5C 3C', '1D', 'Pass', '1H', '2C')
     assert call == 'X' and 'Support double' in why

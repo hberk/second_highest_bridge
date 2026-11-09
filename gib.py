@@ -2900,6 +2900,9 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
                 and h.len[y] == 3 and ctx.ok('X')
                 and ctx.calls[-1][1] == lb):
             return 'X', f"Support double: exactly 3 {SYM[y]}."
+    preference = _negative_doubler_preference(ctx) or _preference_stands(ctx)
+    if preference:
+        return preference
     return _rebid_over_their_overcall(ctx)
 
 
@@ -3803,6 +3806,72 @@ def _answer_negative(ctx: Ctx, x: str) -> tuple | None:
     if call and level_of(call) <= 2:
         return call, f"Fewer than 4 {denied}, fewer than 5 {SYM[x]}."
     return 'Pass', "Nothing to show."
+
+
+#: The negative doubler's second call, 1x (y) X (P) 2z (P), z a new suit
+#: opener showed instead of the suit the double asked for: with more x than
+#: z, or as many, go back to 2x (the user's call, 2026-11-09: 1♦ (1♠) X (P)
+#: 2♣ on ♠AQ875 ♥9432 ♦AK4 ♣J passed, and left a 4-1 club fit for the 5-3
+#: diamonds). Opener's first suit is the longer or as long, so equal length
+#: goes back too. There was no rule here: the fallback read only partner's
+#: last suit, so a hand short in it passed. Only the cheap preference, at
+#: the two level; anything else is left to the rules that were there.
+NEG_PREFERENCE = True
+
+
+def _preference_spot(ctx: Ctx, n: int) -> tuple | None:
+    """(x, y, z) when the auction from its first bid is 1x (y) X (P) 2z (P)
+    and n more calls, z a suit the double did not ask for, else None."""
+    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None or len(ctx.calls) != i + 6 + n:
+        return None
+    (w0, c0), (_, c1), (w2, c2), (_, c3), (w4, c4), (_, c5) = ctx.calls[i:i + 6]
+    x, y, z = strain_of(c0), strain_of(c1), strain_of(c4)
+    if (w2 != PARTNERS[w0] or w4 != w0 or c2 != 'X' or c3 != 'Pass' or c5 != 'Pass'
+            or level_of(c0) != 1 or x not in SUITS or y not in SUITS or y == x
+            or level_of(c4) != 2 or z not in SUITS or z in (x, y)):
+        return None
+    unbid = [s for s in SUITS if s not in (x, y)]
+    if z in ([s for s in unbid if s in MAJORS] or unbid):
+        return None
+    return x, y, z
+
+
+def _negative_doubler_preference(ctx: Ctx) -> tuple | None:
+    """The doubler: 2x with more x than z, or as many, and no six-card suit
+    of its own to rebid (that was there before, and stays)."""
+    if not NEG_PREFERENCE or ctx.i_am_opener():
+        return None
+    spot = _preference_spot(ctx, 0)
+    if spot is None:
+        return None
+    x, y, z = spot
+    h = ctx.h
+    if h.len[z] >= 4 or h.len[x] < 2 or h.len[x] < h.len[z]:
+        return None
+    if any(h.len[s] >= 6 for s in SUITS if s not in (x, y, z)):
+        return None
+    call = f"2{x}"
+    if not ctx.ok(call):
+        return None
+    return call, f"Preference to {SYM[x]}."
+
+
+def _preference_stands(ctx: Ctx) -> tuple | None:
+    """Opener after 1x (y) X (P) 2z (P) 2x (P): partner chose between my
+    suits, which promises no fit or values beyond the double, so it stands.
+    The fallback read it as a raise and bid game: 1♠ (2♣) X (P) 2♦ (P) 2♠
+    (P) 4♠ on 13 HCP, doubled, -600 (fresh deal 1115, seed 9M)."""
+    if not NEG_PREFERENCE or not ctx.i_am_opener():
+        return None
+    spot = _preference_spot(ctx, 2)
+    if spot is None:
+        return None
+    x = spot[0]
+    (w6, c6), (_, c7) = ctx.calls[-2:]
+    if w6 != ctx.pd or c6 != f"2{x}" or c7 != 'Pass':
+        return None
+    return 'Pass', "Partner's preference stands."
 
 
 #: Opener after 1x (1y) X (2y): jump in partner's suit, bid game in it, or
