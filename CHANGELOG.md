@@ -35,6 +35,9 @@ deals, noise: the auctions are rare); the Nov 9 ones +0.01 to +0.08 each on
   cards.
 - A negative doubler gives preference to opener's first suit instead of
   passing a worse fit; opener passes the preference.
+- With 11+ HCP the negative doubler raises the longest fit to the three level
+  instead (game in a major on 15+), and a strong opener invites over a
+  preference to a major. Never five of a minor.
 - Declarer leads the card that wins unless the suit is ruffed (the K♥ from
   dummy's K 4 2 over the bare ace).
 - Declarer without trumps in hand crosses to the trump hand by a ruff to

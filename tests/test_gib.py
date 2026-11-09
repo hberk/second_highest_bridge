@@ -361,6 +361,33 @@ def test_negative_doubler_gives_preference_to_openers_first_suit():
     assert bid(west, '1S', '2C', 'X', 'Pass', '2D', 'Pass', '2S', 'Pass', dealer='West')[0] == 'Pass'
 
 
+def test_negative_doubler_and_opener_raise_the_longest_fit():
+    """The user's call (2026-11-09): after 1x (y) X (P) 2z (P) the doubler
+    with 11+ and an eight-card fit in opener's suits invites at 3 (game on
+    15+ in a major); opener accepts on 14+. An 18+ opener invites over the
+    preference. Without an eight-card fit the preference stands."""
+    c = ('1D', '1S', 'X', 'Pass', '2C', 'Pass')
+    assert bid('AS 8S KH JH 3H 2H KD 9D 4D 2D QC 5C 2C', *c)[0] == '3D'
+    assert bid('8S 4S KH JH 3H 2H AD 9D 4D AC 5C 3C 2C', *c)[0] == '3C'
+    assert bid('AS QS 8S KH JH 3H 2H KD 9D 4D QC 5C 2C', *c)[0] == '2D'      # no 8-card fit
+    m = ('1S', '2C', 'X', 'Pass', '2D', 'Pass')
+    assert bid('KS 8S 4S KH JH 3H 2H AD 9D 4D QC 5C 2C', *m) == \
+        ('3S', '11+ HCP, 3+ \u2660. Invitational.')
+    assert bid('KS 8S 4S AH KH 3H 2H AD 9D 4D QC 5C 2C', *m)[0] == '4S'
+    assert bid('AS KS QS 7S 5S AH 4H KD 4D 3D 2D 6C 2C', *m, '3S', 'Pass')[0] == '4S'
+    assert bid('AS KS 9S 7S 5S QH 4H KD 4D 3D 2D 6C 2C', *m, '3S', 'Pass')[0] == 'Pass'
+    pref = m + ('2S', 'Pass')
+    assert bid('AS KS QS 7S 5S AH 4H AD KD 4D 3D 6C 2C', *pref)[0] == '3S'
+    assert bid('AS KS QS JS 7S 5S AH 4H AD KD 4D 6C 2C', *pref)[0] == '4S'
+    assert bid('AS KS QS 7S 5S AH 4H KD 4D 3D 2D 6C 2C', *pref)[0] == 'Pass'
+    assert bid('KS 8S 4S QH JH 3H 2H KD 9D 4D 6C 5C 2C', *pref, '3S', 'Pass')[0] == '4S'
+    assert bid('9S 8S 4S QH JH 3H 2H KD 9D 4D 6C 5C 2C', *pref, '3S', 'Pass')[0] == 'Pass'
+    # No game in a minor: opener passes 3D whatever its strength, and an 18+
+    # opener leaves a preference to a minor where it is.
+    assert bid('KS 7S AH 9H 4H AD KD QD 8D 3D KC QC 2C', *c, '3D', 'Pass')[0] == 'Pass'
+    assert bid('KS 7S AH 9H 4H AD KD QD 8D 3D AC KC QC', *c, '2D', 'Pass')[0] == 'Pass'
+
+
 def test_support_double():
     call, why = bid('AS 4S KH 8H 3H KD QD 9D 7D 2D QC 5C 3C', '1D', 'Pass', '1H', '2C')
     assert call == 'X' and 'Support double' in why

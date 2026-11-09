@@ -154,8 +154,20 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   with at least as many x as z (two or more, under four z, no six-card suit
   of its own) bids 2x, and opener passes it: the fallback read only
   partner's last suit, and read 2x as a raise (1♠ (2♣) X (P) 2♦ (P) 2♠ (P)
-  4♠ doubled, -600). Strength-blind: a 15-count doubler also prefers, as
-  it passed before. Seeds 7M-9M, 10,000 each: see ROBOT_PROGRESS.
+  4♠ doubled, -600). Seeds 7M-9M, 10,000 each: see ROBOT_PROGRESS.
+  With values the doubler raises the longest fit instead (`NEG_FIT_INVITE_HCP
+  = 11`, `_negative_doubler_fit`, `_answer_fit_invite`; the user's call after
+  the review of PR #66): opener's 1x then 2z shows five of a major x (four of
+  a minor) and four of z, so with 11+ and an eight-card fit the doubler bids
+  3 of it (x on a tie), game on 15+ in a major (`NEG_FIT_GAME_HCP`). Opener
+  accepts a major on 14+ (`NEG_FIT_ACCEPT_HCP`) and never bids five of a minor
+  (`NEG_FIT_ACCEPT_MINOR_HCP = None`: 5 boards, all worse). An 18+ opener over
+  a preference to a major bids 4 with six, else invites with 3x, which the
+  doubler takes to game on 8+ (`NEG_OPENER_GAME_HCP`, `NEG_OPENER_ACCEPT_HCP`;
+  in a minor it lost, 0 of 4). **+0.01, +0.02 (t 2.14), +0.01** a board.
+  Notrump instead (3NT on 15+, 2NT on 11-14, with their suit stopped) lost
+  -0.03, +0.02, -0.05: in this game notrump takes fewer tricks than the fit
+  (deal 1953, seed 9M: 3NT 7 tricks, diamonds 10). `/mnt/project-files/neg-fit/`.
 - **Opener after they bid over partner's negative double**
   (`_negative_double_competed`, `_answer_extras_double`): `1x (1y) X (2y) ?`.
   The fallback read partner as having **passed** ("Partner has passed; not

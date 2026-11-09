@@ -2675,7 +2675,8 @@ function weOpenedContested(ctx: Ctx): Decision | null {
       return ['X', `Support double: exactly 3 ${SYM[y]}.`];
     }
   }
-  const preference = negativeDoublerPreference(ctx) ?? preferenceStands(ctx);
+  const preference = negativeDoublerFit(ctx) ?? negativeDoublerPreference(ctx) ?? preferenceStands(ctx)
+    ?? answerFitInvite(ctx);
   if (preference) return preference;
   return rebidOverTheirOvercall(ctx);
 }
@@ -3470,6 +3471,73 @@ function preferenceSpot(ctx: Ctx, n: number): [Suit, Suit, Suit] | null {
   return [x, y, z];
 }
 
+/** ...and with values the doubler raises our longest fit instead of stopping
+ *  in the preference (the user's call, 2026-11-09): 1x then 2z shows 5 of a
+ *  major x (4 of a minor) and four of z. 11+ and an eight-card fit invites at
+ *  3, 15+ with a major fit bids game; opener accepts on 14+ (a major) or 15+
+ *  (a minor: null, never); an 18+ opener over a preference to a major bids
+ *  4 of a six-card one or invites with 3x, accepted on 8+. Notrump measured a
+ *  loss. null turns the tries off. */
+export const NEG_FIT_INVITE_HCP: number | null = 11;
+export const NEG_FIT_GAME_HCP = 15;
+export const NEG_FIT_ACCEPT_HCP = 14;
+export const NEG_FIT_ACCEPT_MINOR_HCP: number | null = null;
+export const NEG_OPENER_GAME_HCP: number | null = 18;
+export const NEG_OPENER_ACCEPT_HCP = 8;
+
+function openerShows(x: Suit, s: Suit): number {
+  return s === x && MAJORS.includes(x) ? 5 : 4;
+}
+
+function negativeDoublerFit(ctx: Ctx): Decision | null {
+  if (!NEG_PREFERENCE || NEG_FIT_INVITE_HCP === null || ctx.iAmOpener()) return null;
+  const spot = preferenceSpot(ctx, 0);
+  if (!spot) return null;
+  const [x, y, z] = spot;
+  const h = ctx.h;
+  if (h.hcp < NEG_FIT_INVITE_HCP || SUITS.some((s) => s !== x && s !== y && s !== z && h.len[s] >= 6)) return null;
+  const fit = (s: Suit) => h.len[s] + openerShows(x, s);
+  const s = fit(z) > fit(x) ? z : x;
+  const need = 8 - openerShows(x, s);
+  if (h.len[s] < need) return null;
+  if (MAJORS.includes(s) && h.hcp >= NEG_FIT_GAME_HCP && ctx.ok(`4${s}`)) {
+    return [`4${s}`, `${NEG_FIT_GAME_HCP}+ HCP, ${need}+ ${SYM[s]}. To play.`];
+  }
+  if (ctx.ok(`3${s}`)) return [`3${s}`, `${NEG_FIT_INVITE_HCP}+ HCP, ${need}+ ${SYM[s]}. Invitational.`];
+  return null;
+}
+
+function answerFitInvite(ctx: Ctx): Decision | null {
+  if (!NEG_PREFERENCE) return null;
+  let s: Suit;
+  let need: number;
+  if (ctx.iAmOpener()) {
+    if (NEG_FIT_INVITE_HCP === null) return null;
+    const spot = preferenceSpot(ctx, 2);
+    if (!spot) return null;
+    const [x, , z] = spot;
+    const [[w6, c6], [, c7]] = ctx.calls.slice(-2);
+    if (w6 !== ctx.pd || c7 !== 'Pass' || (c6 !== `3${x}` && c6 !== `3${z}`)) return null;
+    s = strainOf(c6) as Suit;
+    const n = MAJORS.includes(s) ? NEG_FIT_ACCEPT_HCP : NEG_FIT_ACCEPT_MINOR_HCP;
+    if (n === null) return ['Pass', 'No game in a minor.'];
+    need = n;
+  } else {
+    if (NEG_OPENER_GAME_HCP === null) return null;
+    const spot = preferenceSpot(ctx, 4);
+    if (!spot) return null;
+    const x = spot[0];
+    const calls = ctx.calls.slice(-4);
+    const want = [`2${x}`, 'Pass', `3${x}`, 'Pass'];
+    if (calls.some(([, c], k) => c !== want[k]) || calls[0][0] !== ctx.me) return null;
+    s = x;
+    need = NEG_OPENER_ACCEPT_HCP + (MAJORS.includes(x) ? 0 : 1);
+  }
+  const game = MAJORS.includes(s) ? `4${s}` : `5${s}`;
+  if (ctx.h.hcp >= need && ctx.ok(game)) return [game, `${need}+ HCP, accepting.`];
+  return ['Pass', 'Minimum, declining.'];
+}
+
 /** The doubler: 2x with more x than z, or as many, and no six-card suit
  *  of its own to rebid (that was there before, and stays). */
 function negativeDoublerPreference(ctx: Ctx): Decision | null {
@@ -3495,6 +3563,14 @@ function preferenceStands(ctx: Ctx): Decision | null {
   const x = spot[0];
   const [[w6, c6], [, c7]] = ctx.calls.slice(-2);
   if (w6 !== ctx.pd || c6 !== `2${x}` || c7 !== 'Pass') return null;
+  const h = ctx.h;
+  if (NEG_OPENER_GAME_HCP !== null && h.hcp >= NEG_OPENER_GAME_HCP) {
+    // A strong opener bids again: the preference shows two or more of x.
+    if (MAJORS.includes(x) && h.len[x] >= 6 && ctx.ok(`4${x}`)) {
+      return [`4${x}`, `${NEG_OPENER_GAME_HCP}+ HCP, 6+ ${SYM[x]}. To play.`];
+    }
+    if (MAJORS.includes(x) && ctx.ok(`3${x}`)) return [`3${x}`, `${NEG_OPENER_GAME_HCP}+ HCP. Invitational.`];
+  }
   return ['Pass', "Partner's preference stands."];
 }
 

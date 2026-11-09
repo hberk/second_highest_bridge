@@ -2900,7 +2900,8 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
                 and h.len[y] == 3 and ctx.ok('X')
                 and ctx.calls[-1][1] == lb):
             return 'X', f"Support double: exactly 3 {SYM[y]}."
-    preference = _negative_doubler_preference(ctx) or _preference_stands(ctx)
+    preference = (_negative_doubler_fit(ctx) or _negative_doubler_preference(ctx)
+                  or _preference_stands(ctx) or _answer_fit_invite(ctx))
     if preference:
         return preference
     return _rebid_over_their_overcall(ctx)
@@ -3841,6 +3842,94 @@ def _preference_spot(ctx: Ctx, n: int) -> tuple | None:
     return x, y, z
 
 
+#: ...and with values the doubler raises our longest fit instead of stopping
+#: in the preference (the user's call, 2026-11-09, after the review of PR
+#: #66): opener's 1x then 2z shows NEG_FIT_X cards of x (5 of a major, 4 of
+#: a minor) and four of z. With 11+ (NEG_FIT_INVITE_HCP) and an eight-card
+#: fit, 3 of it invites; with NEG_FIT_GAME_HCP+ and a major fit, game. Opener
+#: accepts on NEG_FIT_ACCEPT_HCP+ (a major) or NEG_FIT_ACCEPT_MINOR_HCP+ (five
+#: of a minor; None: never, as five of a minor measured -560 on 5 boards, all
+#: worse), and an NEG_OPENER_GAME_HCP+ opener over a preference to a major
+#: bids 4 of a six-card one or invites with 3x, which the doubler takes to
+#: game on NEG_OPENER_ACCEPT_HCP+ (inviting in a minor measured -410, 0/4). Notrump measured a loss: 3NT on 15+, 2NT on 11-14,
+#: -0.03/+0.02/-0.05 a board (`/mnt/project-files/neg-game/REPORT.md`), as
+#: notrump plays badly in this game. None turns the tries off.
+NEG_FIT_INVITE_HCP: int | None = 11
+NEG_FIT_GAME_HCP = 15
+NEG_FIT_ACCEPT_HCP = 14
+NEG_FIT_ACCEPT_MINOR_HCP: int | None = None
+NEG_OPENER_GAME_HCP: int | None = 18
+NEG_OPENER_ACCEPT_HCP = 8
+
+
+def _opener_shows(x: str, s: str) -> int:
+    """Cards of s that 1x then 2z promises: 5 of a major x, 4 otherwise."""
+    return 5 if s == x and x in MAJORS else 4
+
+
+def _negative_doubler_fit(ctx: Ctx) -> tuple | None:
+    """The doubler at 1x (y) X (P) 2z (P) with 11+: 3 (or 4) of the longest
+    fit in opener's two suits, x on a tie."""
+    if not NEG_PREFERENCE or NEG_FIT_INVITE_HCP is None or ctx.i_am_opener():
+        return None
+    spot = _preference_spot(ctx, 0)
+    if spot is None:
+        return None
+    x, y, z = spot
+    h = ctx.h
+    if h.hcp < NEG_FIT_INVITE_HCP or any(h.len[s] >= 6 for s in SUITS if s not in (x, y, z)):
+        return None
+    s = max((x, z), key=lambda s: (h.len[s] + _opener_shows(x, s), s == x))
+    need = 8 - _opener_shows(x, s)
+    if h.len[s] < need:
+        return None
+    if s in MAJORS and h.hcp >= NEG_FIT_GAME_HCP and ctx.ok(f"4{s}"):
+        return f"4{s}", f"{NEG_FIT_GAME_HCP}+ HCP, {need}+ {SYM[s]}. To play."
+    if ctx.ok(f"3{s}"):
+        return f"3{s}", f"{NEG_FIT_INVITE_HCP}+ HCP, {need}+ {SYM[s]}. Invitational."
+    return None
+
+
+def _answer_fit_invite(ctx: Ctx) -> tuple | None:
+    """After 1x (y) X (P) 2z (P) and a 3-level raise of x or z by one side
+    with only passes since: the other side bids game with the extras asked
+    for, else passes. The invite is the doubler's on 11+, or opener's 3x on
+    NEG_OPENER_GAME_HCP+ over the preference."""
+    if not NEG_PREFERENCE:
+        return None
+    opener = ctx.i_am_opener()
+    if opener:
+        if NEG_FIT_INVITE_HCP is None:
+            return None
+        spot = _preference_spot(ctx, 2)
+        if spot is None:
+            return None
+        x, _, z = spot
+        (w6, c6), (_, c7) = ctx.calls[-2:]
+        s = strain_of(c6)
+        if w6 != ctx.pd or c7 != 'Pass' or c6 not in (f"3{x}", f"3{z}"):
+            return None
+        need = NEG_FIT_ACCEPT_HCP if s in MAJORS else NEG_FIT_ACCEPT_MINOR_HCP
+        if need is None:
+            return 'Pass', "No game in a minor."
+    else:
+        if NEG_OPENER_GAME_HCP is None:
+            return None
+        spot = _preference_spot(ctx, 4)
+        if spot is None:
+            return None
+        x = spot[0]
+        calls = ctx.calls[-4:]
+        if ([c for _, c in calls] != [f"2{x}", 'Pass', f"3{x}", 'Pass']
+                or calls[0][0] != ctx.me):
+            return None
+        s, need = x, NEG_OPENER_ACCEPT_HCP + (0 if x in MAJORS else 1)
+    game = f"4{s}" if s in MAJORS else f"5{s}"
+    if ctx.h.hcp >= need and ctx.ok(game):
+        return game, f"{need}+ HCP, accepting."
+    return 'Pass', "Minimum, declining."
+
+
 def _negative_doubler_preference(ctx: Ctx) -> tuple | None:
     """The doubler: 2x with more x than z, or as many, and no six-card suit
     of its own to rebid (that was there before, and stays)."""
@@ -3875,6 +3964,13 @@ def _preference_stands(ctx: Ctx) -> tuple | None:
     (w6, c6), (_, c7) = ctx.calls[-2:]
     if w6 != ctx.pd or c6 != f"2{x}" or c7 != 'Pass':
         return None
+    h = ctx.h
+    if NEG_OPENER_GAME_HCP is not None and h.hcp >= NEG_OPENER_GAME_HCP:
+        # A strong opener bids again: the preference shows two or more of x.
+        if x in MAJORS and h.len[x] >= 6 and ctx.ok(f"4{x}"):
+            return f"4{x}", f"{NEG_OPENER_GAME_HCP}+ HCP, 6+ {SYM[x]}. To play."
+        if x in MAJORS and ctx.ok(f"3{x}"):
+            return f"3{x}", f"{NEG_OPENER_GAME_HCP}+ HCP. Invitational."
     return 'Pass', "Partner's preference stands."
 
 
