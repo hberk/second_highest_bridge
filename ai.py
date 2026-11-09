@@ -1691,6 +1691,8 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         sure = None
         choice = ((_draw_trump(player, hand, trump, played, visible, history, shown)
                    if DRAW_TRUMPS else None)
+                  or (_entry_to_draw(player, hand, trump, played, visible, history, shown)
+                      if ENTRY_TO_DRAW else None)
                   or (_ruff_lead(player, hand, trump, played, visible)
                       if RUFF_LEAD else None)
                   or (_run_long_suit(player, hand, trump, played, visible, history, shown)
@@ -1757,6 +1759,10 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                      and trick[0][0] in visible and player not in visible))):
         choice = _cover_unseen_partner(player, hand, legal, trick, trump, played,
                                        visible, history, choice, shown)
+
+    if RUFF_KEEPS_DRAW and trick:
+        choice = _ruff_for_draw(player, hand, trick, trump, played, visible, history,
+                                shown, choice) or choice
 
     if LOCATED_SUIT_PLAN and trick:
         choice = _located_suit_plan(player, hand, legal, trick, trump, played, visible,
@@ -2974,6 +2980,153 @@ def _draw_trump(player: str, hand: list[Card], trump: str | None,
             worst = max(worst, losers)
         scored.append((total / weights, worst, card.value(), card))
     return min(scored, key=lambda t: t[:3])[3]
+
+
+# ── Crossing to the trump hand to draw trumps ──────────────────────────────
+#
+# `_draw_trump` only asks whether the hand on lead can lead a trump. Dummy
+# with none gives up at once, and the lead falls to `_lead`, which reads only
+# dummy's own cards. On a user's board (deal 80, 2H by East, trick 8) dummy
+# held S 2, D J9, C K86 opposite declarer's AJ42 of hearts, D 8, C 9; South
+# still held the 7 5 of hearts and both defenders were out of clubs. Dummy led
+# a club, which South could ruff. The plan is to ruff the spade in hand, draw
+# South's two trumps from there, then run the clubs and throw the diamond.
+#
+# So a hand on lead without trumps, whose partner holds the trumps the
+# defence still has, leads a side suit partner is void in (partner ruffs:
+# the only trump in the trick wins) when the defence will follow to it, and
+# partner then draws trumps by `_draw_trump`.
+
+#: Declaring side crosses to the trump hand by a ruff to draw trumps
+#: (measurement switch).
+ENTRY_TO_DRAW = True
+#: How likely, over the layouts of the suit, both defenders must be to follow.
+ENTRY_FOLLOW = 0.85
+
+
+def _entry_to_draw(player: str, hand: list[Card], trump: str | None,
+                   played: list[Card], visible: dict[str, list[Card]] | None,
+                   history: list | None,
+                   shown: dict[str, dict[str, int]] | None = None) -> Card | None:
+    """A side-suit lead partner ruffs, so partner can draw trumps, or None."""
+    partner = PARTNERS[player]
+    if trump not in SUITS or not visible or partner not in visible:
+        return None
+    if any(c.suit == trump for c in hand):
+        return None                       # `_draw_trump` leads from here
+    partner_hand = visible[partner]
+    if not any(c.suit == trump for c in partner_hand):
+        return None
+    seen = set(played) | set(hand) | set(partner_hand)
+    if not any(c.suit == trump and c not in seen for c in _FULL_DECK):
+        return None                       # trumps are drawn already
+    # Partner, once on lead, would draw them.
+    if _draw_trump(partner, partner_hand, trump, played, {player: hand},
+                   history, shown) is None:
+        return None
+    out = _shown_out(history or [], [])
+    i = PLAYERS.index(player)
+    defence = (PLAYERS[(i + 1) % 4], PLAYERS[(i + 3) % 4])
+    best = None
+    for suit in SUITS:
+        if suit == trump or any(c.suit == suit for c in partner_hand):
+            continue
+        cards = [c for c in hand if c.suit == suit]
+        if not cards or any(suit in out[p] for p in defence):
+            continue
+        outstanding = [c.value() for c in _FULL_DECK if c.suit == suit and c not in seen]
+        if not outstanding:
+            continue
+        layouts = _splits(player, hand, suit, outstanding, seen, history, shown)
+        total = sum(w for _, _, w in layouts)
+        if not total:
+            continue
+        both = sum(w for left, right, w in layouts if left and right) / total
+        if both < ENTRY_FOLLOW:
+            continue
+        lead = min(cards, key=lambda c: c.value())
+        rank = (both, -lead.value())
+        if best is None or rank > best[0]:
+            best = (rank, lead)
+    return best[1] if best else None
+
+
+#: The ruff that crosses to the trump hand keeps the low trumps that draw the
+#: rest (measurement switch). In this game the lowest of the remaining trumps
+#: led wins whenever one opponent's trumps are all higher: on deal 80 East's
+#: J42 or A42 draws South's 7 5 by leading the 2 then the 4, but ruffing with
+#: the 2 leaves A J 4, and the 4 then the J or A each let the 7 win.
+RUFF_KEEPS_DRAW = True
+#: The most the hand still to play may be void in the led suit (and overruff).
+RUFF_KEEPS_DRAW_VOID = 0.15
+
+
+def _ruff_for_draw(player: str, hand: list[Card], trick: list[tuple[str, Card]],
+                   trump: str | None, played: list[Card],
+                   visible: dict[str, list[Card]] | None, history: list | None,
+                   shown: dict[str, dict[str, int]] | None, choice: Card) -> Card | None:
+    """The trump to ruff with that leaves the fewest trump losers, or None."""
+    partner = PARTNERS[player]
+    if (trump not in SUITS or not visible or partner not in visible or not trick
+            or choice.suit != trump or len(trick) < 2):
+        return None
+    led = trick[0][1].suit
+    if led == trump or any(c.suit == trump for _, c in trick):
+        return None
+    trumps = sorted((c for c in hand if c.suit == trump), key=lambda c: c.value())
+    if len(trumps) < 2:
+        return None
+    partner_hand = visible[partner]
+    on_table = [c for _, c in trick]
+    seen = set(played) | set(hand) | set(partner_hand) | set(on_table)
+    out = _shown_out(history or [], trick)
+    i = PLAYERS.index(player)
+    if len(trick) == 2:
+        # The fourth hand could still ruff lower and win: only when it surely follows.
+        fourth = PLAYERS[(i + 1) % 4]
+        if led in out[fourth] or fourth in visible:
+            return None
+        rest = [c for c in _FULL_DECK if c.suit == led and c not in seen]
+        unseen = sum(1 for c in _FULL_DECK if c not in seen)
+        slots = len(hand)
+        if not rest:
+            return None
+        # Chance the fourth hand holds none of the led suit's unseen cards.
+        void = _choose(unseen - len(rest), slots) / max(_choose(unseen, slots), 1)
+        if void > RUFF_KEEPS_DRAW_VOID:
+            return None
+    outstanding = [c.value() for c in _FULL_DECK if c.suit == trump and c not in seen]
+    if not outstanding:
+        return None
+    left, right = PLAYERS[(i + 1) % 4], PLAYERS[(i + 3) % 4]
+    unseen_all = sum(1 for c in _FULL_DECK if c not in seen)
+    others = unseen_all - len(outstanding)
+    slots = len(hand) - 1                 # cards each hand holds at the next lead
+    layouts = []
+    for n in range(len(outstanding) + 1):
+        for picked in combinations(sorted(outstanding), n):
+            lt = tuple(picked)
+            rt = tuple(v for v in sorted(outstanding) if v not in picked)
+            if (lt and trump in out[left]) or (rt and trump in out[right]):
+                continue
+            weight = _choose(others, slots - len(lt)) if len(lt) <= slots and len(rt) <= slots + 1 else 0
+            if weight:
+                layouts.append((lt, rt, weight))
+    if not layouts:
+        return None
+    theirs_partner = tuple(sorted(c.value() for c in partner_hand if c.suit == trump))
+    memo = _trump_memo()
+    scored = []
+    for card in trumps:
+        mine = tuple(sorted(c.value() for c in trumps if c != card))
+        total = weights = 0
+        for lt, rt, w in layouts:
+            total += _trump_losers((mine, theirs_partner), (lt, rt), 0, memo) * w
+            weights += w
+        scored.append((total / weights, card.value(), card))
+    best = min(scored, key=lambda t: t[:2])
+    default = next(t for t in scored if t[2] == choice)
+    return best[2] if best[0] < default[0] else None
 
 
 def _splits(player: str, hand: list[Card], suit: str, outstanding: list[int],

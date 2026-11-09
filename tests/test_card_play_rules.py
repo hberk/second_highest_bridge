@@ -25,7 +25,8 @@ RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'NT_DEFENCE_SUIT', 'IDLE_TRUMP_FOR_RUFF', 'PARTNER_HONOUR_LEAD',
          'COVER_SUIT_PLAN', 'COVER_PLAN_LOW', 'LAST_SUIT_PLAN', 'COVER_KEEP_MASTER',
          'SECOND_HAND_COVER', 'SECOND_HAND_COVER_DUMMY_LED', 'PARTNER_WINS_NO_RUFF',
-         'LOCATED_SUIT_PLAN', 'THIRD_SEES_LAST', 'THIRD_HAND_PLAN', 'SURE_LEAD_UNRUFFED')
+         'LOCATED_SUIT_PLAN', 'THIRD_SEES_LAST', 'THIRD_HAND_PLAN', 'SURE_LEAD_UNRUFFED',
+         'ENTRY_TO_DRAW', 'RUFF_KEEPS_DRAW')
 
 
 @contextmanager
@@ -738,6 +739,46 @@ def test_deal_157_sure_lead_unruffed_leads_the_king():
 def test_sure_lead_unruffed_needs_sure_lead_declarer():
     with rules(SURE_LEAD_UNRUFFED=True):
         assert _south_157() == C('4H')
+
+
+# Deal 80, 2H by East, dummy West, a user's board. After trick 7 dummy is on
+# lead with S 2, D J9, C K86 and no trumps; East holds H AJ42, D 8, C 9.
+# South still has the 7 5 of hearts and both defenders are out of clubs.
+DEAL_80 = ['S:10S W:8S N:9S E:AS', 'S:7S W:5S N:6S E:3S', 'N:QD E:6D S:AD W:3D',
+           'N:10C E:3C S:4C W:5C', 'W:9H N:6H E:8H S:3H', 'E:10H S:KH W:QH N:2C',
+           'W:QC N:JC E:7C S:AC']
+
+
+def _west_80():
+    hands, played, history = replay(80, DEAL_80)
+    view = {'West': hands['West'], 'East': hands['East']}
+    return ai.ai_play('West', hands['West'], [], 'H', played, view, history)
+
+
+def test_deal_80_dummy_led_a_club_the_defence_can_ruff():
+    with rules():
+        assert _west_80().suit == 'C'
+
+
+def test_deal_80_entry_to_draw_leads_the_spade_to_ruff():
+    with rules(ENTRY_TO_DRAW=True):
+        assert _west_80() == C('2S')
+
+
+def _east_ruffs_80():
+    hands, played, history = replay(80, DEAL_80)
+    view = {'West': hands['West'], 'East': hands['East']}
+    trick = [('West', C('2S')), ('North', C('JS'))]
+    return ai.ai_play('East', hands['East'], trick, 'H', played, view, history)
+
+
+def test_deal_80_ruff_keeps_draw_ruffs_high():
+    # The 2 and 4 draw South's 7 5 (each the lower of two hearts); ruffing
+    # with the 2 leaves A J 4, and South's 7 then beats the J or A.
+    with rules(RUFF_KEEPS_DRAW=True):
+        assert _east_ruffs_80() in (C('JH'), C('AH'))
+    with rules():
+        assert _east_ruffs_80() == C('2H')
 
 
 if __name__ == '__main__':
