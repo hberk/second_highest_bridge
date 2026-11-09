@@ -15,8 +15,7 @@
   import Fan from '../components/Fan.svelte';
   import SideHand from '../components/SideHand.svelte';
   import Strain from '../components/Strain.svelte';
-  import Scoreline from '../components/Scoreline.svelte';
-  import Breakdown from '../components/Breakdown.svelte';
+  import Scorecard from '../components/Scorecard.svelte';
 
   /** `onreview` opens the Challenge tab's review of both boards. */
   let { game, onhome, onsettings = () => {}, onreview }:
@@ -69,9 +68,8 @@
 {#snippet challengeResult()}
   {#if game.challenge}
     <section class="challenge-result">
-      <Scoreline result={game.challenge} />
+      <Scorecard result={game.challenge} />
       {#if onreview}<button class="btn full" onclick={onreview}>See the robots' board ›</button>{/if}
-      <Breakdown result={game.challenge} />
     </section>
   {/if}
 {/snippet}

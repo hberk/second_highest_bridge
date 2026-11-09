@@ -185,7 +185,7 @@ describe('table flow', () => {
       expect(ch.margin).toBe(ch.you.actual - ch.robot.actual);
       const html = render(ChallengeView, { props: { game, ondealt: () => {} } }).body;
       expect(html).toContain('Review the deal');
-      expectBoth(renderAll(game), 'Where the points went');
+      expectBoth(renderAll(game), 'Card play');
     }
     expect(graded).toBeGreaterThan(5);
     // Every board is logged, passed-out ones included, each deal once.
@@ -212,7 +212,7 @@ describe('table flow', () => {
     expect(game.boardOver).toBe(true);
     const tables = renderAll(game);
     expectBoth(tables, 'Passed out');
-    expectBoth(tables, 'Where the points went');
+    expectBoth(tables, 'Card play');
     const review = render(ChallengeView, { props: { game, ondealt: () => {} } }).body;
     expect(review, 'still claims the board is in play').not.toContain('Finish it');
     expect(review).toContain('Your board');

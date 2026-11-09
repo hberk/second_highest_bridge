@@ -6,8 +6,7 @@
   import type { Game, HistoryRecord } from '../game.svelte';
   import HistoryView from './HistoryView.svelte';
   import MatchTotal from '../components/MatchTotal.svelte';
-  import Scoreline from '../components/Scoreline.svelte';
-  import Breakdown from '../components/Breakdown.svelte';
+  import Scorecard from '../components/Scorecard.svelte';
 
   let { game, ondealt }: { game: Game; ondealt: () => void } = $props();
 
@@ -34,26 +33,30 @@
 </script>
 
 <div class="hv">
-  <section class="res-card">
-    <div class="eyebrow accent">Challenge the robots</div>
-    <p class="res-detail">Play a solved deal, then compare with four robots on the same cards.</p>
-    {#if game.challengeId !== null && !game.boardOver}
-      <p class="res-detail hv-note">A challenge board is in play at the table.</p>
-    {/if}
-    <button class="btn primary full big" disabled={!remaining} onclick={deal}>Deal a challenge board</button>
-    <p class="caption hv-center">{remaining} of {ids.length} unplayed</p>
-  </section>
-
   {#if last}
-    <div class="eyebrow hv-h">Last board</div>
-    <Scoreline result={last} />
-    <Breakdown result={last} />
+    <div class="eyebrow hv-h">Board {last.board_num}</div>
+    <Scorecard result={last} />
+    <MatchTotal log={game.challengeLog} />
+    {#if game.challengeId !== null && !game.boardOver}
+      <p class="res-detail hv-note hv-center">A challenge board is in play at the table.</p>
+    {/if}
+    <button class="btn primary full big" disabled={!remaining} onclick={deal}>Deal the next board</button>
+    <p class="caption hv-center">{remaining} of {ids.length} unplayed</p>
+  {:else}
+    <section class="res-card">
+      <div class="eyebrow accent">Challenge the robots</div>
+      <p class="res-detail">Play a solved deal, then compare with four robots on the same cards.</p>
+      {#if game.challengeId !== null && !game.boardOver}
+        <p class="res-detail hv-note">A challenge board is in play at the table.</p>
+      {/if}
+      <button class="btn primary full big" disabled={!remaining} onclick={deal}>Deal a challenge board</button>
+      <p class="caption hv-center">{remaining} of {ids.length} unplayed</p>
+    </section>
+    <MatchTotal log={game.challengeLog} />
   {/if}
 
   {#if records.length}
     <div class="eyebrow hv-h" id="challenge-review">Review the deal</div>
     <HistoryView {records} analysis />
   {/if}
-
-  <MatchTotal log={game.challengeLog} />
 </div>
