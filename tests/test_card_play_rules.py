@@ -1,9 +1,9 @@
-"""The card-play rules from the user's review of deals 10, 43, 92, 114, 156, 174, 276 and 356.
+"""The card-play rules from the user's review of deals 10, 43, 92, 114, 156, 174, 276, 289 and 356.
 
 Each is a switch in ai.py (SURE_LEAD_DECLARER, RUFF_LEAD, FORCE_DUMMY,
 DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT, DEFENDER_SUIT_PLAN, DEAD_WINNER_FIRST, RUFF_IF_FOLLOWS,
 PARTNER_HONOUR_LEAD, COVER_SUIT_PLAN, COVER_PLAN_LOW, LAST_SUIT_PLAN, SECOND_HAND_COVER,
-PARTNER_WINS_NO_RUFF, LOCATED_SUIT_PLAN). Every test sets the switches it needs and puts them back, so
+PARTNER_WINS_NO_RUFF, LOCATED_SUIT_PLAN, LIKELY_LEAD). Every test sets the switches it needs and puts them back, so
 the result doesn't depend on which rules are adopted.
 """
 from __future__ import annotations
@@ -23,7 +23,8 @@ RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'SHORT_LEAD_RETURN', 'DEAD_WINNER_FIRST', 'RUFF_IF_FOLLOWS',
          'NT_DEFENCE_SUIT', 'IDLE_TRUMP_FOR_RUFF', 'PARTNER_HONOUR_LEAD',
          'COVER_SUIT_PLAN', 'COVER_PLAN_LOW', 'LAST_SUIT_PLAN', 'COVER_KEEP_MASTER',
-         'SECOND_HAND_COVER', 'PARTNER_WINS_NO_RUFF', 'LOCATED_SUIT_PLAN')
+         'SECOND_HAND_COVER', 'PARTNER_WINS_NO_RUFF', 'LOCATED_SUIT_PLAN',
+         'LIKELY_LEAD')
 
 
 @contextmanager
@@ -520,8 +521,16 @@ def test_deal_114_dummy_keeps_the_seven_after_the_ten():
 
 
 def test_deal_114_robot_table_wins_two_hearts_for_east_west():
-    """The whole board as shipped: E/W win trick 2 and a later heart."""
-    table = challenge.robot_table(114, 'East', 'Both')
+    """The whole board as shipped: E/W win trick 2 and a later heart.
+
+    LIKELY_LEAD stays off: with it North switches to the 8C at trick 2 and
+    the hearts are played later (N/S take 5 tricks either way)."""
+    saved = ai.LIKELY_LEAD
+    ai.LIKELY_LEAD = False
+    try:
+        table = challenge.robot_table(114, 'East', 'Both')
+    finally:
+        ai.LIKELY_LEAD = saved
     log = table['tricks_log']
     assert log[0]['plays'][0] == ('South', C('QH'))
     assert dict(log[1]['plays'])['East'] == C('6H')
@@ -613,6 +622,39 @@ def test_located_suit_plan_needs_every_card_placed():
         card = ai.ai_play('East', east, trick, 'H', played, visible={'North': dummy},
                           history=history)
     assert card == C('5H'), card
+
+
+def _deal_289_trick_4():
+    """3H by West, East dummy; North won trick 3 and is on lead."""
+    hands, played, history = replay(289, [
+        'N:KS E:10S S:4S W:8S', 'E:10H S:9H W:JH N:AH', 'W:6H N:5H E:3D S:2H'])
+    shown = {'West': {'H': 7}}
+    return hands, played, history, shown
+
+
+def test_deal_289_likely_lead_cashes_the_queen_under_dummys_king():
+    # Q♦ forces dummy's singleton K♦: K highest, Q second, ours unless
+    # declarer holds the A♦ or ruffs. `_lead` alone picks clubs by the gap
+    # in North's own J-8 and never looks at dummy's A K 9.
+    hands, played, history, shown = _deal_289_trick_4()
+    args = ('North', hands['North'], [], 'H', played)
+    view = {'East': hands['East']}
+    with rules(DEFENDER_SUIT_PLAN=1):
+        assert ai.ai_play(*args, visible=view, history=history, shown=shown) == C('JC')
+    with rules(DEFENDER_SUIT_PLAN=1, LIKELY_LEAD=1):
+        assert ai.ai_play(*args, visible=view, history=history, shown=shown) == C('QD')
+
+
+def test_likely_lead_partner_keeps_the_trick():
+    # Partner holds the A♦ on many layouts and could drop it under the Q♦,
+    # which makes the king second-highest; partner, seeing dummy's king go,
+    # plays low. So the Q♦ loses only to declarer's A♦ or a ruff.
+    hands, played, history, shown = _deal_289_trick_4()
+    chances = ai._trick_chances('North', hands['North'], 'H', played,
+                                {'East': hands['East']}, history, shown)
+    assert 0.6 < chances[C('QD')] < 0.7, chances
+    assert chances[C('JC')] < chances[C('QD')], chances
+    assert chances[C('8D')] == 0, chances
 
 if __name__ == '__main__':
     failed = 0

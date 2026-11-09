@@ -1177,12 +1177,16 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
       ?? (shown && !(PARTNERS[player] in visible) ? fitLead(player, hand, trump, shown, history, visible) : null)
       ?? (NT_DEFENCE_SUIT ? ntDefenceSuit(player, hand, trump, history, visible) : null)
       ?? (NT_LONG_LEAD ? ntLongLead(player, hand, trump, played, visible) : null);
+    const likely = chosen === null && LIKELY_LEAD
+      ? likelyLead(player, hand, trump, played, visible, history, shown) : null;
     if (chosen !== null) {
       choice = chosen;
       // A sure trick is cashed as it is (see ai.py).
       if (DEFENDER_SUIT_PLAN && choice !== sure) {
         choice = defenderSuitPlan(player, hand, trump, played, visible, history, shown, choice) ?? choice;
       }
+    } else if (likely !== null) {
+      choice = likely;            // a likely trick is cashed as it is (see ai.py)
     } else {
       choice = lead(hand, trump, played);
       if (IDLE_TRUMP_FOR_RUFF && choice.suit === trump) {
@@ -2232,6 +2236,102 @@ function sureLead(player: Seat, hand: Card[], trump: string | null, played: Card
     if (sure) return c;
   }
   return null;
+}
+
+// ── Defender cashes a likely trick (see ai.py) ───────────────────────────────
+
+export const LIKELY_LEAD = true;
+export const LIKELY_LEAD_MIN = 0.6;
+
+/** Each card's chance of winning the trick it leads, or an empty map (see ai.py). */
+export function trickChances(player: Seat, hand: Card[], trump: string | null, played: Card[],
+  visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
+  shown: Shown | null): Map<Card, number> {
+  const chances = new Map<Card, number>();
+  const partner = PARTNERS[player];
+  if (!Object.keys(visible).length || partner in visible || player in visible) return chances;
+  const dummy = Object.keys(visible)[0] as Seat;
+  const dummyHand = visible[dummy]!;
+  const declarer = PLAYERS.find((p) => p !== player && p !== partner && p !== dummy)!;
+  const seen = new Set([...played, ...hand, ...dummyHand].map(cardKey));
+  const unseen = FULL_DECK.filter((c) => !seen.has(cardKey(c)));
+  const out = shownOut(history ?? [], []);
+  const order = [1, 2, 3].map((k) => PLAYERS[(PLAYERS.indexOf(player) + k) % 4]);
+  const ours = [player, partner] as string[];
+  const slots = hand.length;
+  const ruffing = isSuit(trump) ? trump : null;
+  const floor = (p: Seat, suit: Suit) =>
+    Math.max(0, (shown?.[p]?.[suit] ?? 0) - playedIn(p, suit, history ?? [], []));
+
+  for (const c of hand) {
+    const led = c.suit;
+    const follows = unseen.filter((x) => x.suit === led);
+    const trumps = ruffing && ruffing !== led ? unseen.filter((x) => x.suit === ruffing) : [];
+    const trumpKeys = new Set(trumps.map(cardKey));
+    const discard = card(SUITS.find((s) => s !== led && s !== ruffing)!, '2');
+    const mine = hand.filter((x) => x.suit === led && x !== c);
+    const pinned: Record<string, number> = {};
+    for (const p of [partner, declarer]) {
+      pinned[p] = SUITS.filter((s) => s !== led).reduce((n, s) => n + floor(p, s), 0);
+    }
+    const others = unseen.length - follows.length - pinned[partner] - pinned[declarer];
+
+    const loses = (at: number, plays: AnyPlay[], options: Record<string, Card[]>,
+      used: Set<string>): boolean => {
+      if (at === 3) return !ours.includes(resolveTrick(plays, trump));
+      const seat = order[at];
+      const step = (x: Card, opts: Record<string, Card[]>) => loses(at + 1, [...plays, [seat, x]], opts,
+        trumpKeys.has(cardKey(x)) ? new Set([...used, cardKey(x)]) : used);
+      const free = options[seat].filter((x) => !used.has(cardKey(x)));
+      if (seat === partner) {
+        // Fourth hand as partner sees it: hidden, it may hold our cards too.
+        const last = order[2];
+        const after = last === dummy ? options : {
+          ...options,
+          [last]: [...options[last], ...mine.filter((x) => !options[last].some((y) => cardKey(y) === cardKey(x)))],
+        };
+        return free.every((x) => step(x, after));
+      }
+      return free.some((x) => step(x, options));
+    };
+
+    let won = 0;
+    let total = 0;
+    for (let n = 0; n <= follows.length; n++) {
+      for (const picked of combinations(follows.length, n)) {
+        const chosen = new Set(picked);
+        const held: Record<string, Card[]> = {
+          [partner]: follows.filter((_, i) => chosen.has(i)),
+          [declarer]: follows.filter((_, i) => !chosen.has(i)),
+        };
+        const both = [partner, declarer];
+        if (both.some((p) => held[p].length && out[p].has(led))) continue;
+        if (both.some((p) => held[p].length < floor(p, led) || held[p].length + pinned[p] > slots)) continue;
+        const weight = choose(others, slots - pinned[partner] - held[partner].length);
+        if (!weight) continue;
+        const options: Record<string, Card[]> = { [dummy]: legalPlays(dummyHand, led) };
+        for (const p of both) {
+          options[p] = held[p].length ? held[p]
+            : [discard, ...(ruffing && !out[p].has(ruffing) ? trumps : [])];
+        }
+        total += weight;
+        if (!loses(0, [[player, c]], options, new Set())) won += weight;
+      }
+    }
+    if (total) chances.set(c, won / total);
+  }
+  return chances;
+}
+
+/** The card most likely to win the trick, the lowest of equals, if likely enough (see ai.py). */
+function likelyLead(player: Seat, hand: Card[], trump: string | null, played: Card[],
+  visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null, shown: Shown | null): Card | null {
+  const chances = trickChances(player, hand, trump, played, visible, history, shown);
+  if (!chances.size) return null;
+  const best = Math.max(...chances.values());
+  if (best < LIKELY_LEAD_MIN) return null;
+  return hand.filter((c) => chances.get(c) === best)
+    .sort((a, b) => value(a) - value(b) || suitIndex(a.suit) - suitIndex(b.suit))[0];
 }
 
 // ── Four rules from the user's review of deals 92, 156 and 174 (see ai.py) ───

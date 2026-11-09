@@ -1713,6 +1713,8 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
             # suit in notrump) still has its card planned.
             choice = _defender_suit_plan(player, hand, trump, played, visible, history,
                                          shown, choice) or choice
+        if choice is None and LIKELY_LEAD:
+            choice = _likely_lead(player, hand, trump, played, visible, history, shown)
         if choice is None:
             choice = _lead(hand, trump, played)
             if IDLE_TRUMP_FOR_RUFF and choice.suit == trump:
@@ -3165,6 +3167,117 @@ def _sure_lead(player: str, hand: list[Card], trump: str | None,
         if sure:
             return card
     return None
+
+
+# ── Defender cashes a likely trick ───────────────────────────────────────────
+#
+# Challenge deal 289, 3H by West (7+ hearts, 5-10), East dummy with QJ765 of
+# spades, the singleton K♦ and AK95 of clubs. North won trick 3 and held A3 7
+# Q87 J862. The Q♦ forces dummy's king, and K highest, Q second wins the trick
+# unless declarer holds the A♦ and plays it, or ruffs. `_sure_lead` can't call
+# that sure, so the lead fell through to `_lead`, which ranks suits by the gap
+# between OUR top two cards and never looks at dummy: J-8 of clubs has the
+# smallest gap, and the J♣ went into dummy's A K 9 (double dummy 3 tricks, the
+# Q♦ 4; over 40 layouts declarer could hold, Q♦ 3.38, J♣ 3.30, 8♣ 3.15).
+#
+# So before `_lead`, a defender weighs each card's chance of winning this
+# trick: every split of the unseen cards of its suit between partner and
+# declarer, weighted by how many deals hold it (after the cards each seat's
+# bidding promised), dummy's play from its known cards and declarer's from the
+# split -- the worst for us -- while partner, who sees what we see, plays a
+# card that keeps the trick ours. The best card is led when its chance clears
+# LIKELY_LEAD_MIN.
+
+#: A defender with no other lead rule cashes the card most likely to win the
+#: trick, if that likelihood clears LIKELY_LEAD_MIN (measurement switch).
+LIKELY_LEAD = True
+LIKELY_LEAD_MIN = 0.6
+
+
+def _trick_chances(player: str, hand: list[Card], trump: str | None,
+                   played: list[Card], visible: dict[str, list[Card]] | None,
+                   history: list | None, shown: dict | None) -> dict:
+    """Each card's chance of winning the trick it leads, or {} if not a defender."""
+    partner = PARTNERS[player]
+    if not visible or partner in visible or player in visible:
+        return {}
+    dummy = next(iter(visible))
+    declarer = next(p for p in PLAYERS if p not in (player, partner, dummy))
+    seen = set(played) | set(hand) | set(visible[dummy])
+    unseen = [c for c in _FULL_DECK if c not in seen]
+    out = _shown_out(history or [], [])
+    order = [PLAYERS[(PLAYERS.index(player) + k) % 4] for k in (1, 2, 3)]
+    ours = (player, partner)
+    slots = len(hand)
+    ruffing = trump if trump in SUITS else None
+    shown = shown or {}
+
+    def floor(p: str, suit: str) -> int:
+        return max(0, shown.get(p, {}).get(suit, 0) - _played_in(p, suit, history or [], []))
+
+    chances = {}
+    for card in hand:
+        led = card.suit
+        follows = [c for c in unseen if c.suit == led]
+        trumps = ([c for c in unseen if c.suit == ruffing]
+                  if ruffing and ruffing != led else [])
+        discard = Card(next(s for s in SUITS if s not in (led, ruffing)), '2')
+        mine = [c for c in hand if c.suit == led and c != card]
+        pinned = {p: sum(floor(p, s) for s in SUITS if s != led) for p in (partner, declarer)}
+        others = len(unseen) - len(follows) - pinned[partner] - pinned[declarer]
+
+        def loses(at: int, plays: list, options: dict, used: set) -> bool:
+            if at == 3:
+                return resolve_trick(plays, trump) not in ours
+            seat = order[at]
+            if seat == partner:
+                # Fourth hand as partner sees it: hidden, it may hold our cards too.
+                last = order[2]
+                after = options if last == dummy else {
+                    **options, last: options[last] + [c for c in mine if c not in options[last]]}
+                return all(loses(at + 1, plays + [(seat, c)], after,
+                                 used | {c} if c in trumps else used)
+                           for c in options[seat] if c not in used)
+            return any(loses(at + 1, plays + [(seat, c)], options,
+                             used | {c} if c in trumps else used)
+                       for c in options[seat] if c not in used)
+
+        won = total = 0
+        for n in range(len(follows) + 1):
+            for picked in combinations(range(len(follows)), n):
+                held = {partner: [follows[i] for i in picked],
+                        declarer: [c for i, c in enumerate(follows) if i not in picked]}
+                if any(held[p] and led in out[p] for p in held):
+                    continue
+                if any(len(held[p]) < floor(p, led) or len(held[p]) + pinned[p] > slots
+                       for p in held):
+                    continue
+                weight = _choose(others, slots - pinned[partner] - len(held[partner]))
+                if not weight:
+                    continue
+                options = {dummy: legal_plays(visible[dummy], led)}
+                for p in held:
+                    options[p] = held[p] or [discard] + (trumps if ruffing not in out[p] else [])
+                total += weight
+                if not loses(0, [(player, card)], options, set()):
+                    won += weight
+        if total:
+            chances[card] = won / total
+    return chances
+
+
+def _likely_lead(player: str, hand: list[Card], trump: str | None,
+                 played: list[Card], visible: dict[str, list[Card]] | None,
+                 history: list | None, shown: dict | None) -> Card | None:
+    """The card most likely to win the trick, the lowest of equals, if likely enough."""
+    chances = _trick_chances(player, hand, trump, played, visible, history, shown)
+    if not chances:
+        return None
+    best = max(chances.values())
+    if best < LIKELY_LEAD_MIN:
+        return None
+    return min((c for c in hand if chances.get(c) == best),
+               key=lambda c: (c.value(), SUITS.index(c.suit)))
 
 
 # ── Four rules from the user's review of deals 92, 156 and 174 ───────────────
