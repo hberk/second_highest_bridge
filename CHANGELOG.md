@@ -35,6 +35,8 @@ away a board on the same 199 deals: declaring side 2.74 to 2.59, opening lead
   passing a worse fit; opener passes the preference.
 - Declarer leads the card that wins unless the suit is ruffed (the K♥ from
   dummy's K 4 2 over the bare ace).
+- Declarer without trumps in hand crosses to the trump hand by a ruff to
+  draw trumps, ruffing high enough to keep the low trumps that draw the rest.
 - Second hand covers when dummy leads too (East's T♣ from K T 7 4 3 under
   dummy's 9♣).
 - Third hand on defence plays the led suit out over partner's and declarer's
