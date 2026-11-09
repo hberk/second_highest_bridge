@@ -737,3 +737,28 @@ later `deal()` reproducible. `ai.py` imports no
 RNG at all, so the robot table is deterministic and the benchmark cannot drift —
 also pinned by a test, because a benchmark that wandered would turn every margin
 into noise.
+
+## Crossing to the trump hand to draw trumps (deal 80)
+
+A user's 2♥ by East, trick 8: dummy (West) on lead with ♠2 ♦J9 ♣K86 and no
+trumps, East holding ♥AJ42 ♦8 ♣9, South still with ♥75 and both defenders out
+of clubs. Dummy led a club, which South could ruff.
+
+- Why: `_draw_trump` returns None when the hand on lead holds no trumps; it
+  never asks whether the lead can cross to the hand that has them.
+  `_run_long_suit` rightly refuses while the defence holds trumps, and the
+  fallback `_lead` reads only dummy's own cards (gap analysis tied ♦ and ♣,
+  clubs were longer), so it led the 8♣ (the 6♣ with `SURE_LEAD_UNRUFFED`).
+- `ai.ENTRY_TO_DRAW` (`_entry_to_draw`): a declaring-side hand on lead with no
+  trumps, whose partner's `_draw_trump` would draw, leads its lowest card of a
+  side suit partner is void in, when both defenders follow on at least
+  `ENTRY_FOLLOW` (85%) of the layouts and neither has shown out.
+- `ai.RUFF_KEEPS_DRAW` (`_ruff_for_draw`): the declaring side, ruffing third or
+  fourth with the first trump in the trick, ruffs with the trump that leaves
+  the fewest `_trump_losers`; third hand only when the fourth hand is void in
+  the led suit at most 15% of the time (a lower ruff would win). East ruffs
+  with the J♥, keeping the 2 and 4 that draw the 7 5.
+- The board makes 10 tricks, the user's line. Seated head to head, 3 × 1,000
+  fresh deals: **+0.013, +0.013, +0.006 tricks** (t 2.81, 2.35, 1.42); gross
+  mistakes on 199 deals 2.56 / 0.40 / 2.10 (from 2.59 / 0.40 / 2.12).
+  `tests/test_card_play_rules.py` holds the deal.
