@@ -902,3 +902,11 @@ Two user boards where declarer led trumps that did no good.
 - Seated head to head, 3 × 1,000 fresh deals: **+0.005, −0.001, +0.003 tricks**
   (t 1.53, −0.35, 1.20); gross mistakes on 199 deals 2.57 / 0.39 / 2.11 (from
   2.58 / 0.39 / 2.12). `tests/test_card_play_rules.py` holds both deals.
+- With `COUNT_LEAD` (v0.1.4-alpha): the count's lead never picks a trump for
+  the declaring side, so it would hide the trump `RUFF_NOT_DRAW` looks for (on
+  deal 102 it chose the Q♣, a trick worse than the K♠). `RUFF_NOT_DRAW` also
+  fires when `_lead`'s own pick is that trump, and its ruff suit's card, like
+  `NO_FUTILE_DRAW`'s side suit, comes from `_fallback_lead`. Order of the
+  discard rules: `COUNT_DISCARD` picks the suit, then `DISCARD_SUIT_PLAN` picks
+  the card in it. `test_shipped_rules_together_on_the_users_deals` holds deals
+  13, 102, 206 and 215 with every rule as shipped.

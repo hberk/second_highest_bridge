@@ -6,6 +6,43 @@ Releases are tagged on main, and the tag matches the version in
 what it was measured to be worth is in
 [docs/ROBOT_PROGRESS.md](docs/ROBOT_PROGRESS.md).
 
+## v0.1.4-alpha (2026-11-10)
+
+The Nov 10 fixes from played boards, and the table count: every card-play
+rule now reads one count of what its seat has seen, and the fallback lead,
+the declaring side's discards and fourth hand on defence are chosen from it.
+Card play, tricks given away a board on the same 199 deals: declaring side
+2.58 to GROSS_DECL, opening lead 0.39 to GROSS_LEAD, defence 2.12 to
+GROSS_DEF. The count's three play rules measured +0.03 to +0.06 tricks a
+board each to the side that uses them (seated, 3 x 1,000 fresh deals). The
+bidding fixes +0.53 / +0.35 / +0.22 (long suits) and +0.02 / +0.21 / +0.22
+(over 1x-P-1NT) points a board on 10,000-deal sets.
+
+**The game**
+- The challenge result is one scorecard: You, Robots and Par side by side,
+  with par's contract named next to its score. The match totals come next,
+  then the button for the next board, then the deal review.
+
+**The robots**
+- An eight-card major or a nine-card minor bids game at once: opening, over
+  their opening, or as advancer's first call.
+- Advancer with 10+ HCP and a seven-card suit names it, at the three level at
+  most.
+- Fourth seat over 1x-P-1NT bids a natural five-card suit at the two level or
+  doubles for takeout (12-17 HCP) instead of always passing, and the answer
+  to a takeout double never names a suit they bid.
+- The fallback lead picks its suit by playing each suit out over the layouts
+  the count allows.
+- Declarer and dummy price each discard by what it costs in its suit.
+- Fourth hand on defence plays the led suit out over the count.
+- Declarer's side third hand plays the led suit out before following (the 8♠
+  that keeps the 6♠ to trap West's 7♠).
+- A discard keeps the low card that beats dummy in a located suit (South
+  throws the A♠ and keeps the 2♠ over dummy's 4 3).
+- Declarer doesn't draw trumps when every defence trump would take a round
+  anyway (two or more out), and leads for a ruff instead of a trump that
+  draws nothing (dummy's lone 6♥ ruffs the K♠).
+
 ## v0.1.3-alpha (2026-11-09)
 
 The Nov 6 and Nov 9 fixes from played boards. The four Nov 6 card-play fixes
