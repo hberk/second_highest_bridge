@@ -1081,6 +1081,114 @@ export function aiBid(player: Seat, hand: Card[], auction: AuctionState): string
 const ALL_VALUES = RANKS.map((_, i) => i).reverse();
 const FULL_DECK: Card[] = SUITS.flatMap((s) => RANKS.map((r) => card(s, r)));
 
+// ── The table count (see ai.py `TableCount`) ─────────────────────────────────
+
+/** One seat's knowledge of the table, worked out once per card by `aiPlay` and
+ *  read by every play rule (see ai.py). */
+export class TableCount {
+  readonly partner: Seat;
+  readonly left: Seat;
+  readonly right: Seat;
+  readonly down: Partial<Record<string, Card>>;
+  readonly seen: Set<string>;
+  readonly unseen: Card[];
+  readonly gone: Set<string>;
+  private outCache: Record<string, Set<string>> | null = null;
+
+  constructor(readonly player: Seat, readonly hand: Card[], readonly trick: AnyPlay[],
+    readonly trump: string | null, readonly played: Card[],
+    readonly visible: Partial<Record<Seat, Card[]>> = {},
+    readonly history: AnyPlay[][] | null = null, readonly shown: Shown | null = null) {
+    this.partner = PARTNERS[player];
+    const i = PLAYERS.indexOf(player);
+    this.left = PLAYERS[(i + 1) % 4];
+    this.right = PLAYERS[(i + 3) % 4];
+    this.down = Object.fromEntries(trick);
+    this.seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
+    for (const cards of Object.values(visible)) for (const c of cards!) this.seen.add(cardKey(c));
+    this.unseen = FULL_DECK.filter((c) => !this.seen.has(cardKey(c)));
+    this.gone = new Set([...played, ...trick.map(([, c]) => c)].map(cardKey));
+  }
+
+  /** Suits each seat has shown out of, this trick included. */
+  get out(): Record<string, Set<string>> {
+    if (this.outCache === null) this.outCache = shownOut(this.history ?? [], this.trick);
+    return this.outCache;
+  }
+
+  /** The values of the unseen cards of `suit`, low to high. */
+  unseenIn(suit: string): number[] {
+    return this.unseen.filter((c) => c.suit === suit).map(value).sort((a, b) => a - b);
+  }
+
+  /** `unseenIn` in deck order, as the trump and long-suit plans enumerate it. */
+  outstanding(suit: string): number[] {
+    return this.unseen.filter((c) => c.suit === suit).map(value);
+  }
+
+  playedIn(seat: Seat, suit: string): number {
+    return playedIn(seat, suit, this.history ?? [], this.trick);
+  }
+
+  /** The fewest cards of `suit` `seat` can still hold by its bidding. */
+  floor(seat: Seat, suit: string): number {
+    return (this.shown?.[seat]?.[suit as Suit] ?? 0) - this.playedIn(seat, suit);
+  }
+
+  /** Cards `seat` holds besides any it has put on this trick, by the tricks played. */
+  size(seat: Seat): number {
+    return 13 - this.history!.length - (seat in this.down ? 1 : 0);
+  }
+
+  /** The suit's highest card still in play, whoever holds it. */
+  master(suit: string): Card | null {
+    const live = FULL_DECK.filter((c) => c.suit === suit && !this.gone.has(cardKey(c)));
+    return live.length ? maxBy(live, (c) => [value(c)]) : null;
+  }
+
+  /** No other seat can play a higher card of this suit: every one is gone or mine. */
+  dead(c: Card, gone: Set<string> | null = null): boolean {
+    return dead(c, this.hand, gone ?? this.gone);
+  }
+
+  unseenCards(suit: string): Card[] {
+    return this.unseen.filter((c) => c.suit === suit);
+  }
+
+  /** Every way the defence's cards in `suit` can lie, as [left, right, weight] (see ai.py). */
+  splits(suit: Suit, outstanding: number[]): [Trumps, Trumps, number][] {
+    const { left, right, out, shown } = this;
+    const gone: Record<string, number> = {};
+    for (const p of PLAYERS) gone[p] = this.playedIn(p, suit);
+    const unseen = this.unseen.length;
+    const slots = this.hand.length;
+    const others = unseen - outstanding.length;
+    const sorted = [...outstanding].sort((a, b) => a - b);
+    const layouts: [Trumps, Trumps, number][] = [];
+    for (let n = 0; n <= sorted.length; n++) {
+      for (const picked of combinations(sorted.length, n)) {
+        const leftCards = picked.map((i) => sorted[i]);
+        const rightCards = sorted.filter((v) => !leftCards.includes(v));
+        if ((leftCards.length && out[left].has(suit)) || (rightCards.length && out[right].has(suit))) continue;
+        if (leftCards.length > slots || rightCards.length > slots) continue;
+        if (shown && (leftCards.length + gone[left] < (shown[left]?.[suit] ?? 0)
+          || rightCards.length + gone[right] < (shown[right]?.[suit] ?? 0))) continue;
+        const weight = choose(others, slots - leftCards.length);
+        if (weight) layouts.push([leftCards, rightCards, weight]);
+      }
+    }
+    return layouts;
+  }
+
+  /** Could `seat` hold `cards` now and still have bid what it bid? */
+  fitsAuction(seat: Seat, cards: Card[]): boolean {
+    for (const [suit, n] of Object.entries(this.shown?.[seat] ?? {}) as [Suit, number][]) {
+      if (cards.filter((c) => c.suit === suit).length + this.playedIn(seat, suit) < n) return false;
+    }
+    return true;
+  }
+}
+
 function unplayedValues(suit: Suit, played: Card[]): number[] {
   const gone = new Set(played.filter((c) => c.suit === suit).map(value));
   return ALL_VALUES.filter((v) => !gone.has(v));
@@ -1096,17 +1204,16 @@ function gap(suit: Suit, hand: Card[], played: Card[]): number {
 }
 
 function laterHoldings(player: Seat, hand: Card[], trick: AnyPlay[], played: Card[],
-  visible: Partial<Record<Seat, Card[]>>, out: Record<string, Set<string>> | null = null): Card[] {
+  visible: Partial<Record<Seat, Card[]>>, out: Record<string, Set<string>> | null = null,
+  count: TableCount | null = null): Card[] {
+  count ??= new TableCount(player, hand, trick, null, played, visible);
   const i = PLAYERS.indexOf(player);
   const later: Seat[] = [];
   for (let k = 1; k < 4 - trick.length; k++) later.push(PLAYERS[(i + k) % 4]);
   const opponents = later.filter((p) => p !== PARTNERS[player]);
   const pool = new Map<string, Card>();
   if (opponents.some((p) => !(p in visible))) {
-    const seen = new Set<string>([
-      ...played.map(cardKey), ...trick.map(([, c]) => cardKey(c)), ...hand.map(cardKey)]);
-    for (const h of Object.values(visible)) for (const c of h!) seen.add(cardKey(c));
-    for (const c of FULL_DECK) if (!seen.has(cardKey(c))) pool.set(cardKey(c), c);
+    for (const c of count.unseen) pool.set(cardKey(c), c);
   }
   // An opponent who has shown out of a suit holds none of it (see ai.py).
   if (out) {
@@ -1162,85 +1269,87 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
   const legal = legalPlays(hand, led);
   if (NO_PEEK_OPENING_LEAD && !trick.length && !played.length) visible = {};
   if (!AUCTION_IN_PLAY) shown = null;
+  const count = new TableCount(player, hand, trick, trump, played, visible, history, shown);
   if (!trick.length && !played.length && shown) {
-    const lead0 = partnerSuitLead(player, hand, trump, shown) ?? fitLead(player, hand, trump, shown, history, visible);
+    const lead0 = partnerSuitLead(player, hand, trump, shown)
+      ?? fitLead(player, hand, trump, shown, history, visible, count);
     if (lead0 !== null) return lead0;
   }
   let choice: Card;
   if (!trick.length) {
     let sure: Card | null = null;
-    const chosen = (DRAW_TRUMPS ? drawTrump(player, hand, trump, played, visible, history, shown) : null)
-      ?? (ENTRY_TO_DRAW ? entryToDraw(player, hand, trump, played, visible, history, shown) : null)
-      ?? (RUFF_LEAD ? ruffLead(player, hand, trump, played, visible) : null)
-      ?? (RUN_LONG_SUIT ? runLongSuit(player, hand, trump, played, visible, history, shown) : null)
-      ?? (RUFF_RETURN && !(PARTNERS[player] in visible) ? ruffReturn(player, hand, trump, history, visible, shown) : null)
-      ?? (SURE_LEAD ? (sure = sureLead(player, hand, trump, played, visible, history)) : null)
-      ?? (shown && !(PARTNERS[player] in visible) ? fitLead(player, hand, trump, shown, history, visible) : null)
-      ?? (NT_DEFENCE_SUIT ? ntDefenceSuit(player, hand, trump, history, visible) : null)
+    const chosen = (DRAW_TRUMPS ? drawTrump(player, hand, trump, played, visible, history, shown, count) : null)
+      ?? (ENTRY_TO_DRAW ? entryToDraw(player, hand, trump, played, visible, history, shown, count) : null)
+      ?? (RUFF_LEAD ? ruffLead(player, hand, trump, played, visible, count) : null)
+      ?? (RUN_LONG_SUIT ? runLongSuit(player, hand, trump, played, visible, history, shown, count) : null)
+      ?? (RUFF_RETURN && !(PARTNERS[player] in visible) ? ruffReturn(player, hand, trump, history, visible, shown, count) : null)
+      ?? (SURE_LEAD ? (sure = sureLead(player, hand, trump, played, visible, history, count)) : null)
+      ?? (shown && !(PARTNERS[player] in visible) ? fitLead(player, hand, trump, shown, history, visible, count) : null)
+      ?? (NT_DEFENCE_SUIT ? ntDefenceSuit(player, hand, trump, history, visible, count) : null)
       ?? (NT_LONG_LEAD ? ntLongLead(player, hand, trump, played, visible) : null);
     if (chosen !== null) {
       choice = chosen;
       // A sure trick is cashed as it is (see ai.py).
       if (DEFENDER_SUIT_PLAN && choice !== sure) {
-        choice = defenderSuitPlan(player, hand, trump, played, visible, history, shown, choice) ?? choice;
+        choice = defenderSuitPlan(player, hand, trump, played, visible, history, shown, choice, count) ?? choice;
       }
     } else {
       choice = lead(hand, trump, played);
       if (IDLE_TRUMP_FOR_RUFF && choice.suit === trump) {
-        const ruff = ruffForIdleTrump(player, hand, trump, played, visible);
+        const ruff = ruffForIdleTrump(player, hand, trump, played, visible, count);
         if (ruff !== null) choice = lead(hand.filter((c) => c.suit === ruff), trump, played);
       }
       if (DEFENDER_SUIT_PLAN) {
-        choice = defenderSuitPlan(player, hand, trump, played, visible, history, shown, choice) ?? choice;
+        choice = defenderSuitPlan(player, hand, trump, played, visible, history, shown, choice, count) ?? choice;
       }
       if (SURE_LEAD_DECLARER) {
-        choice = sureLeadDeclarer(player, hand, trump, played, visible, history, choice.suit) ?? choice;
+        choice = sureLeadDeclarer(player, hand, trump, played, visible, history, choice.suit, count) ?? choice;
       }
-      if (FORCE_DUMMY && choice.suit === trump) choice = forceDummy(player, hand, trump, visible, played) ?? choice;
+      if (FORCE_DUMMY && choice.suit === trump) choice = forceDummy(player, hand, trump, visible, played, count) ?? choice;
     }
   }
   else if (trick.length === 3) {
-    choice = playLast(legal, trick, trump, hand, played);
+    choice = playLast(legal, trick, trump, hand, played, count);
     if (LAST_SUIT_PLAN && PARTNERS[player] in visible) {
-      choice = lastSuitPlan(player, hand, legal, trick, trump, played, visible, history, shown, choice);
+      choice = lastSuitPlan(player, hand, legal, trick, trump, played, visible, history, shown, choice, count);
     }
   }
   else {
-    const out = SHOWOUT_MIDDLE && history !== null ? shownOut(history, trick) : null;
+    const out = SHOWOUT_MIDDLE && history !== null ? count.out : null;
     const voidChance = RUFF_IF_FOLLOWS && history !== null && trick.length === 2
-      ? voidChanceOf(player, hand, trick, played, visible, history, out ?? shownOut(history, trick))
+      ? voidChanceOf(player, hand, trick, played, visible, history, out ?? count.out, count)
       : 1.0;
     choice = middlePlay(player, legal, trick, trump,
-      laterHoldings(player, hand, trick, played, visible, out), voidChance);
+      laterHoldings(player, hand, trick, played, visible, out, count), voidChance);
     if (THIRD_SEES_LAST && trick.length === 2 && Object.keys(visible).length) {
       choice = thirdSeesLast(player, legal, trick, trump, visible, choice);
     }
     if (THIRD_HAND_PLAN && trick.length === 2 && Object.keys(visible).length) {
-      choice = thirdHandPlan(player, hand, legal, trick, trump, played, visible, history, shown, choice);
+      choice = thirdHandPlan(player, hand, legal, trick, trump, played, visible, history, shown, choice, count);
     }
   }
 
   const partner = PARTNERS[player];
   if (trick.length === 1 && Object.keys(visible).length && partner in visible && legal.length > 1) {
-    choice = coverForPartner(player, hand, legal, trick, trump, played, visible, choice, history, shown);
+    choice = coverForPartner(player, hand, legal, trick, trump, played, visible, choice, history, shown, count);
   }
   else if (SECOND_HAND_COVER && trick.length === 1 && Object.keys(visible).length && legal.length > 1
     && (PLAYERS[(PLAYERS.indexOf(player) + 1) % 4] in visible
       || (SECOND_HAND_COVER_DUMMY_LED && trick[0][0] in visible && !(player in visible)))) {
-    choice = coverUnseenPartner(player, hand, legal, trick, trump, played, visible, history, choice, shown);
+    choice = coverUnseenPartner(player, hand, legal, trick, trump, played, visible, history, choice, shown, count);
   }
 
   if (RUFF_KEEPS_DRAW && trick.length) {
-    choice = ruffForDraw(player, hand, trick, trump, played, visible, history, shown, choice) ?? choice;
+    choice = ruffForDraw(player, hand, trick, trump, played, visible, history, shown, choice, count) ?? choice;
   }
 
   if (LOCATED_SUIT_PLAN && trick.length) {
-    choice = locatedSuitPlan(player, hand, legal, trick, trump, played, visible, history, choice);
+    choice = locatedSuitPlan(player, hand, legal, trick, trump, played, visible, history, choice, count);
   }
 
   if (history !== null && Object.keys(visible).length && legal.length > 1
     && hand.length <= (DEEP_ENDGAME ? DEEP_ENDGAME_CARDS : ENDGAME_CARDS)) {
-    const totals = endgameTotals(player, hand, trick, trump, played, visible, history, legal, shown);
+    const totals = endgameTotals(player, hand, trick, trump, played, visible, history, legal, shown, count);
     if (totals) {
       const best = Math.max(...totals.values());
       const tied = legal.filter((c) => totals.get(cardKey(c)) === best);
@@ -1254,7 +1363,8 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
 
 function coverForPartner(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[], trump: string | null,
   played: Card[], visible: Partial<Record<Seat, Card[]>>, choice: Card,
-  history: AnyPlay[][] | null = null, shown: Shown | null = null): Card {
+  history: AnyPlay[][] | null = null, shown: Shown | null = null, count: TableCount | null = null): Card {
+  count ??= new TableCount(player, hand, trick, trump, played, visible, history, shown);
   const partner = PARTNERS[player];
   const third = PLAYERS[(PLAYERS.indexOf(player) + 1) % 4];
   const ledSuit = trick[0][1].suit;
@@ -1263,9 +1373,7 @@ function coverForPartner(player: Seat, hand: Card[], legal: Card[], trick: AnyPl
     candidates = [...visible[third]!];
   } else {
     // The whole hand, not just the legal cards (see ai.py).
-    const seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
-    for (const cards of Object.values(visible)) for (const c of cards!) seen.add(cardKey(c));
-    candidates = FULL_DECK.filter((c) => !seen.has(cardKey(c)));
+    candidates = [...count.unseen];
   }
   const follows = candidates.filter((c) => c.suit === ledSuit);
   const options = [...follows];
@@ -1293,12 +1401,11 @@ function coverForPartner(player: Seat, hand: Card[], legal: Card[], trick: AnyPl
   let tied = legal.filter((c) => scores.get(cardKey(c)) === best);
   if (COVER_SUIT_PLAN && COVER_KEEP_MASTER && tied.length > 1 && tied.every((c) => c.suit === ledSuit)) {
     // The suit's top unplayed card isn't spent on a tie (see ai.py).
-    const gone = new Set([...played, ...trick.map(([, c]) => c)].map(cardKey));
-    const top = maxBy(FULL_DECK.filter((c) => c.suit === ledSuit && !gone.has(cardKey(c))), (c) => [value(c)]);
+    const top = count.master(ledSuit)!;
     if (cardKey(top) !== cardKey(choice)) tied = tied.filter((c) => cardKey(c) !== cardKey(top));
   }
   if (COVER_SUIT_PLAN && tied.length > 1) {
-    const planned = coverSuitPlan(player, hand, tied, trick, trump, played, visible, history, shown);
+    const planned = coverSuitPlan(player, hand, tied, trick, trump, played, visible, history, shown, count);
     if (planned) {
       const top = Math.max(...planned.values());
       tied = tied.filter((c) => planned.get(cardKey(c)) === top);
@@ -1320,7 +1427,7 @@ export const COVER_KEEP_MASTER = true;
  *  of its unseen cards between the opponents, or null (see ai.py `_cover_suit_plan`). */
 function coverSuitPlan(player: Seat, hand: Card[], tied: Card[], trick: AnyPlay[], trump: string | null,
   played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
-  shown: Shown | null): Map<string, number> | null {
+  shown: Shown | null, count: TableCount | null = null): Map<string, number> | null {
   const led = trick[0][1].suit;
   const partner = PARTNERS[player];
   if (history === null || !(partner in visible) || tied.some((c) => c.suit !== led)
@@ -1329,17 +1436,15 @@ function coverSuitPlan(player: Seat, hand: Card[], tied: Card[], trick: AnyPlay[
   const seat = (p: Seat) => (PLAYERS.indexOf(p) - i + 4) % 4;
   const left = PLAYERS[(i + 1) % 4], right = PLAYERS[(i + 3) % 4];
   if (left in visible || right in visible) return null;
-  const seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
-  for (const cards of Object.values(visible)) for (const c of cards!) seen.add(cardKey(c));
-  const unseenSuit = FULL_DECK.filter((c) => c.suit === led && !seen.has(cardKey(c)))
-    .map(value).sort((a, b) => a - b);
+  const tc = count ?? new TableCount(player, hand, trick, trump, played, visible, history, shown);
+  const unseenSuit = tc.unseenIn(led);
   if (unseenSuit.length > SUIT_PLAN_MAX_UNSEEN) return null;
-  const out = shownOut(history, trick);
+  const out = tc.out;
   const ruffs = [false, false, false, false];       // no ruffs (see ai.py)
   const down = new Map<Seat, Card>(trick as [Seat, Card][]);
-  const size = (p: Seat) => 13 - history.length - (down.has(p) ? 1 : 0);
-  const others = FULL_DECK.filter((c) => !seen.has(cardKey(c))).length - unseenSuit.length;
-  const floor = (p: Seat) => (shown?.[p]?.[led] ?? 0) - playedIn(p, led, history, trick);
+  const size = (p: Seat) => tc.size(p);
+  const others = tc.unseen.length - unseenSuit.length;
+  const floor = (p: Seat) => tc.floor(p, led);
   const held = (p: Seat, cards: number[]): Trumps => {
     const d = down.get(p);
     return [...cards, ...(d && d.suit === led ? [value(d)] : [])].sort((a, b) => a - b);
@@ -1376,7 +1481,7 @@ function coverSuitPlan(player: Seat, hand: Card[], tied: Card[], trick: AnyPlay[
 /** Of the cards that keep the trick for us, the one the suit plan rates best (see ai.py). */
 function lastSuitPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[], trump: string | null,
   played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
-  shown: Shown | null, choice: Card): Card {
+  shown: Shown | null, choice: Card, count: TableCount | null = null): Card {
   const ours = new Set<string>([player, PARTNERS[player]]);
   let winning = legal.filter((c) => ours.has(resolveTrick([...trick, [player, c]], trump)));
   if (PARTNER_WINS_NO_RUFF && trump !== null && isSuit(trump) && choice.suit !== trump
@@ -1384,7 +1489,7 @@ function lastSuitPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[
     winning = winning.filter((c) => c.suit !== trump);   // no ruff of partner's trick
   }
   if (!winning.some((c) => cardKey(c) === cardKey(choice)) || winning.length < 2) return choice;
-  const planned = coverSuitPlan(player, hand, winning, trick, trump, played, visible, history, shown);
+  const planned = coverSuitPlan(player, hand, winning, trick, trump, played, visible, history, shown, count);
   if (!planned) return choice;
   const top = Math.max(...planned.values());
   if (planned.get(cardKey(choice)) === top) return choice;
@@ -1399,17 +1504,16 @@ export const LOCATED_SUIT_PLAN: number = 1;
 /** The card of `legal` that takes the most tricks in the led suit when every card
  *  of it is located, else `choice` (see ai.py `_located_suit_plan`). */
 function locatedSuitPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[], trump: string | null,
-  played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null, choice: Card): Card {
+  played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null, choice: Card,
+  count: TableCount | null = null): Card {
   if (!trick.length || !Object.keys(visible).length || history === null || legal.length < 2) return choice;
   const led = trick[0][1].suit;
   if (legal.some((c) => c.suit !== led)) return choice;
   if (LOCATED_SUIT_PLAN < 2 && isSuit(trump) && led !== trump) return choice;
   if (trick.slice(1).some(([, c]) => c.suit === trump && c.suit !== led)) return choice;
-  const seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
-  for (const cs of Object.values(visible)) for (const c of cs!) seen.add(cardKey(c));
-  const unseen = FULL_DECK.filter((c) => c.suit === led && !seen.has(cardKey(c)))
-    .map(value).sort((a, b) => a - b);
-  const out = shownOut(history, trick);
+  const tc = count ?? new TableCount(player, hand, trick, trump, played, visible, history);
+  const unseen = tc.unseenIn(led);
+  const out = tc.out;
   const hidden = PLAYERS.filter((p) => p !== player && !(p in visible) && !out[p].has(led));
   if (unseen.length && hidden.length !== 1) return choice;
   const i = PLAYERS.indexOf(player);
@@ -1448,7 +1552,7 @@ export const SECOND_HAND_COVER_DUMMY_LED = true;
  *  its unseen cards between partner and declarer, or null (see ai.py `_unseen_partner_plan`). */
 function unseenPartnerPlan(player: Seat, hand: Card[], cards: Card[], trick: AnyPlay[], trump: string | null,
   played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
-  shown: Shown | null): Map<string, number> | null {
+  shown: Shown | null, count: TableCount | null = null): Map<string, number> | null {
   const led = trick[0][1].suit;
   const partner = PARTNERS[player];
   if (history === null || cards.some((c) => c.suit !== led)) return null;
@@ -1458,17 +1562,15 @@ function unseenPartnerPlan(player: Seat, hand: Card[], cards: Card[], trick: Any
   if (partner in visible || (left in visible) === (PLAYERS[(i + 3) % 4] in visible)) return null;
   const [shownSeat, right] = left in visible
     ? [left, PLAYERS[(i + 3) % 4]] : [PLAYERS[(i + 3) % 4], left];
-  const seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
-  for (const cs of Object.values(visible)) for (const c of cs!) seen.add(cardKey(c));
-  const unseenSuit = FULL_DECK.filter((c) => c.suit === led && !seen.has(cardKey(c)))
-    .map(value).sort((a, b) => a - b);
+  const tc = count ?? new TableCount(player, hand, trick, trump, played, visible, history, shown);
+  const unseenSuit = tc.unseenIn(led);
   if (unseenSuit.length > SUIT_PLAN_MAX_UNSEEN) return null;
-  const out = shownOut(history, trick);
+  const out = tc.out;
   const ruffs = [false, false, false, false];
   const down = new Map<Seat, Card>(trick as [Seat, Card][]);
-  const size = (p: Seat) => 13 - history.length - (down.has(p) ? 1 : 0);
-  const others = FULL_DECK.filter((c) => !seen.has(cardKey(c))).length - unseenSuit.length;
-  const floor = (p: Seat) => (shown?.[p]?.[led] ?? 0) - playedIn(p, led, history, trick);
+  const size = (p: Seat) => tc.size(p);
+  const others = tc.unseen.length - unseenSuit.length;
+  const floor = (p: Seat) => tc.floor(p, led);
   const held = (p: Seat, vals: number[]): Trumps => {
     const d = down.get(p);
     return [...vals, ...(d && d.suit === led ? [value(d)] : [])].sort((a, b) => a - b);
@@ -1511,7 +1613,7 @@ export const THIRD_HAND_PLAN: number = 2;
 /** Port of ai._third_hand_plan. */
 function thirdHandPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[], trump: string | null,
   played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
-  shown: Shown | null, choice: Card): Card {
+  shown: Shown | null, choice: Card, count: TableCount | null = null): Card {
   const led = trick[0][1].suit;
   const partner = PARTNERS[player];
   const i = PLAYERS.indexOf(player);
@@ -1527,21 +1629,19 @@ function thirdHandPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay
   } else return choice;
   if (trick.some(([, c]) => c.suit === trump && c.suit !== led)) return choice;
   const seat = (p: Seat) => (PLAYERS.indexOf(p) - i + 4) % 4;
-  const seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
-  for (const cs of Object.values(visible)) for (const c of cs!) seen.add(cardKey(c));
-  const unseenSuit = FULL_DECK.filter((c) => c.suit === led && !seen.has(cardKey(c)))
-    .map(value).sort((a, b) => a - b);
+  const tc = count ?? new TableCount(player, hand, trick, trump, played, visible, history, shown);
+  const unseenSuit = tc.unseenIn(led);
   if (unseenSuit.length > SUIT_PLAN_MAX_UNSEEN) return choice;
-  const out = shownOut(history, trick);
+  const out = tc.out;
   const ruffs = [false, false, false, false];
   if (isSuit(trump) && led !== trump) {
     ruffs[seat(dummySeat)] = visible[dummySeat]!.some((c) => c.suit === trump);
     ruffs[seat(declarer)] = !out[declarer].has(trump!);
   }
   const down = new Map<Seat, Card>(trick as [Seat, Card][]);
-  const size = (p: Seat) => 13 - history.length - (down.has(p) ? 1 : 0);
-  const others = FULL_DECK.filter((c) => !seen.has(cardKey(c))).length - unseenSuit.length;
-  const floor = (p: Seat) => (shown?.[p]?.[led] ?? 0) - playedIn(p, led, history, trick);
+  const size = (p: Seat) => tc.size(p);
+  const others = tc.unseen.length - unseenSuit.length;
+  const floor = (p: Seat) => tc.floor(p, led);
   const held = (p: Seat, vals: number[]): Trumps => {
     const d = down.get(p);
     return [...vals, ...(d && d.suit === led ? [value(d)] : [])].sort((a, b) => a - b);
@@ -1583,16 +1683,16 @@ function thirdHandPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay
 
 function coverUnseenPartner(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[], trump: string | null,
   played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null, choice: Card,
-  shown: Shown | null): Card {
+  shown: Shown | null, count: TableCount | null = null): Card {
   const led = trick[0][1].suit;
   if (!legal.some((c) => c.suit === led)) return choice;
   let scores: Map<string, number> | null = null;
   if (legal.every((c) => c.suit === led)) {
-    scores = unseenPartnerPlan(player, hand, legal, trick, trump, played, visible, history, shown);
+    scores = unseenPartnerPlan(player, hand, legal, trick, trump, played, visible, history, shown, count);
   }
   if (scores === null) {
     if (!(PLAYERS[(PLAYERS.indexOf(player) + 1) % 4] in visible)) return choice;
-    scores = partnerChances(player, hand, legal, trick, trump, played, visible, history);
+    scores = partnerChances(player, hand, legal, trick, trump, played, visible, history, count);
   }
   const best = Math.max(...scores.values());
   if (scores.get(cardKey(choice))! >= best - 1e-9) return choice;
@@ -1602,14 +1702,14 @@ function coverUnseenPartner(player: Seat, hand: Card[], legal: Card[], trick: An
 /** After dummy's best reply to each card, the chance partner holds a card that
  *  wins the trick for us, at even odds a card (see ai.py `_partner_chances`). */
 function partnerChances(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[], trump: string | null,
-  played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null): Map<string, number> {
+  played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
+  count: TableCount | null = null): Map<string, number> {
   const led = trick[0][1].suit;
   const partner = PARTNERS[player];
   const third = PLAYERS[(PLAYERS.indexOf(player) + 1) % 4];
-  const seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
-  for (const cs of Object.values(visible)) for (const c of cs!) seen.add(cardKey(c));
-  let unseen = FULL_DECK.filter((c) => c.suit === led && !seen.has(cardKey(c)));
-  if (history !== null && shownOut(history, trick)[partner].has(led)) unseen = [];
+  count ??= new TableCount(player, hand, trick, trump, played, visible, history);
+  let unseen = count.unseenCards(led);
+  if (history !== null && count.out[partner].has(led)) unseen = [];
   const ours = new Set<string>([player, partner]);
   const replies = legalPlays(visible[third]!, led);
   const chance = (card: Card): number => {
@@ -1723,13 +1823,6 @@ function playedIn(seat: Seat, suit: string, history: AnyPlay[][], trick: AnyPlay
   return n;
 }
 
-function fitsAuction(seat: Seat, cards: Card[], history: AnyPlay[][], trick: AnyPlay[], shown: Shown): boolean {
-  for (const [suit, n] of Object.entries(shown[seat] ?? {}) as [Suit, number][]) {
-    if (cards.filter((c) => c.suit === suit).length + playedIn(seat, suit, history, trick) < n) return false;
-  }
-  return true;
-}
-
 function partnerSuitLead(player: Seat, hand: Card[], trump: string | null, shown: Shown): Card | null {
   const partner = PARTNERS[player];
   const mine = shown[partner] ?? {};
@@ -1745,9 +1838,11 @@ function partnerSuitLead(player: Seat, hand: Card[], trump: string | null, shown
 }
 
 function fitLead(player: Seat, hand: Card[], trump: string | null, shown: Shown,
-  history: AnyPlay[][] | null, visible: Partial<Record<Seat, Card[]>>): Card | null {
+  history: AnyPlay[][] | null, visible: Partial<Record<Seat, Card[]>>,
+  count: TableCount | null = null): Card | null {
   const partner = PARTNERS[player];
-  const out = shownOut(history ?? [], []);
+  count ??= new TableCount(player, hand, [], trump, [], visible, history, shown);
+  const out = count.out;
   const dummySeat = (Object.keys(visible) as Seat[]).find((seat) => seat !== partner);
   const dummy = dummySeat === undefined ? null : visible[dummySeat]!;
   const theirs = shown[partner] ?? {};
@@ -1768,10 +1863,11 @@ function fitLead(player: Seat, hand: Card[], trump: string | null, shown: Shown,
 /** A suit partner has shown out of while partner may still hold a trump,
  *  or partner's opening-lead suit read as a singleton, for the ruff (see ai.py). */
 function ruffReturn(player: Seat, hand: Card[], trump: string | null, history: AnyPlay[][] | null,
-  visible: Partial<Record<Seat, Card[]>>, shown: Shown | null): Card | null {
+  visible: Partial<Record<Seat, Card[]>>, shown: Shown | null, count: TableCount | null = null): Card | null {
   if (trump === null || !(SUITS as readonly string[]).includes(trump) || !history || !history.length) return null;
   const partner = PARTNERS[player];
-  const out = shownOut(history, []);
+  count ??= new TableCount(player, hand, [], trump, [], visible, history, shown);
+  const out = count.out;
   if (out[partner].has(trump)) return null;
   let cards = hand.filter((c) => c.suit !== trump && out[partner].has(c.suit));
   if (!cards.length && SHORT_LEAD_RETURN) {
@@ -1801,15 +1897,15 @@ function shortLead(player: Seat, hand: Card[], trump: string, history: AnyPlay[]
   if (dummySeat === undefined) return null;
   const dummy = visible[dummySeat]!;
   const declarer = PLAYERS.find((p) => p !== player && p !== partner && p !== dummySeat)!;
-  const seen = new Set<string>([...hand, ...dummy].map(cardKey));
-  for (const plays of history) for (const [, c] of plays) seen.add(cardKey(c));
-  const unseen = FULL_DECK.filter((c) => !seen.has(cardKey(c)));
+  const count = new TableCount(player, hand, [], trump, history.flatMap((plays) => plays.map(([, c]) => c)),
+    { [dummySeat]: dummy }, history, shown);
+  const unseen = count.unseen;
   const higher = unseen.filter((c) => c.suit === suit && value(c) > value(lead)).length;
   const lower = unseen.filter((c) => c.suit === suit && value(c) < value(lead)).length;
   const others = unseen.filter((c) => c.suit !== suit).length;
   let held = 13;
   for (const plays of history) for (const [p] of plays) if (p === partner) held--;
-  const floor = Math.max(0, (shown?.[declarer]?.[suit as Suit] ?? 0) - playedIn(declarer, suit, history, []));
+  const floor = Math.max(0, count.floor(declarer, suit));
   const total = higher + lower;
   const single = total >= floor ? comb(others, held) : 0;
   let longer = 0;
@@ -2005,24 +2101,21 @@ function* combinations(n: number, k: number): Generator<number[]> {
 
 function endgameTotals(player: Seat, hand: Card[], trick: AnyPlay[], trump: string | null,
   played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][],
-  legal: Card[], shown: Shown | null = null): Map<string, number> | null {
+  legal: Card[], shown: Shown | null = null, count: TableCount | null = null): Map<string, number> | null {
+  const tc = count ?? new TableCount(player, hand, trick, trump, played, visible, history, shown);
   const known: Record<string, Card[]> = { [player]: [...hand] };
-  const seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
   for (const [seat, cards] of Object.entries(visible) as [Seat, Card[]][]) {
-    if (seat !== player) {
-      known[seat] = [...cards];
-      for (const c of cards) seen.add(cardKey(c));
-    }
+    if (seat !== player) known[seat] = [...cards];
   }
   const hidden = PLAYERS.filter((p) => !(p in known));
-  const already = new Set(trick.map(([seat]) => seat));
+  const already = new Set(Object.keys(tc.down));
   const size: Record<string, number> = {};
   for (const p of PLAYERS) size[p] = hand.length - (already.has(p) ? 1 : 0);
-  const unseen = FULL_DECK.filter((c) => !seen.has(cardKey(c)))
+  const unseen = [...tc.unseen]
     .sort((a, b) => suitIndex(a.suit) - suitIndex(b.suit) || value(a) - value(b));
   if (hidden.length !== 2 || unseen.length !== size[hidden[0]] + size[hidden[1]]) return null;
   const [first, second] = hidden;
-  const out = shownOut(history, trick);
+  const out = tc.out;
   const leader = (trick.length ? trick[0][0] : player) as Seat;
   const side = PARTNERSHIP[player];
   const totals = new Map<string, number>(legal.map((c) => [cardKey(c), 0]));
@@ -2032,8 +2125,8 @@ function endgameTotals(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     const a = unseen.filter((_, i) => chosen.has(i));
     const b = unseen.filter((_, i) => !chosen.has(i));
     if (a.some((c) => out[first].has(c.suit)) || b.some((c) => out[second].has(c.suit))) continue;
-    if (shown && !(fitsAuction(first, a, history, trick, shown)
-      && fitsAuction(second, b, history, trick, shown))) continue;
+    if (shown && !(tc.fitsAuction(first, a)
+      && tc.fitsAuction(second, b))) continue;
     layouts++;
     const hands: Record<string, Card[]> = {};
     for (const [seat, cards] of Object.entries(known)) hands[seat] = [...cards];
@@ -2186,27 +2279,26 @@ export const ENTRY_FOLLOW = 0.85;
 /** A side-suit lead partner ruffs, so partner can draw trumps, or null (see ai.py). */
 function entryToDraw(player: Seat, hand: Card[], trump: string | null, played: Card[],
   visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
-  shown: Shown | null = null): Card | null {
+  shown: Shown | null = null, count: TableCount | null = null): Card | null {
   const partner = PARTNERS[player];
   if (!isSuit(trump) || !Object.keys(visible).length || !(partner in visible)) return null;
   if (hand.some((c) => c.suit === trump)) return null;
   const partnerHand = visible[partner]!;
   if (!partnerHand.some((c) => c.suit === trump)) return null;
-  const seen = new Set([...played, ...hand, ...partnerHand].map(cardKey));
-  if (!FULL_DECK.some((c) => c.suit === trump && !seen.has(cardKey(c)))) return null;
+  const tc = count ?? new TableCount(player, hand, [], trump, played, visible, history, shown);
+  if (!tc.outstanding(trump).length) return null;
   const partnerView: Partial<Record<Seat, Card[]>> = { [player]: hand };
   if (drawTrump(partner, partnerHand, trump, played, partnerView, history, shown) === null) return null;
-  const out = shownOut(history ?? [], []);
-  const i = PLAYERS.indexOf(player);
-  const defence = [PLAYERS[(i + 1) % 4], PLAYERS[(i + 3) % 4]];
+  const out = tc.out;
+  const defence = [tc.left, tc.right];
   let best: [number[], Card] | null = null;
   for (const suit of SUITS) {
     if (suit === trump || partnerHand.some((c) => c.suit === suit)) continue;
     const cards = hand.filter((c) => c.suit === suit);
     if (!cards.length || defence.some((p) => out[p].has(suit))) continue;
-    const outstanding = FULL_DECK.filter((c) => c.suit === suit && !seen.has(cardKey(c))).map(value);
+    const outstanding = tc.outstanding(suit);
     if (!outstanding.length) continue;
-    const layouts = splits(player, hand, suit, outstanding, seen, history, shown);
+    const layouts = tc.splits(suit, outstanding);
     let total = 0;
     for (const [, , w] of layouts) total += w;
     if (!total) continue;
@@ -2227,7 +2319,7 @@ export const RUFF_KEEPS_DRAW_VOID = 0.15;
 /** The trump to ruff with that leaves the fewest trump losers, or null (see ai.py). */
 function ruffForDraw(player: Seat, hand: Card[], trick: AnyPlay[], trump: string | null,
   played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
-  shown: Shown | null, choice: Card): Card | null {
+  shown: Shown | null, choice: Card, count: TableCount | null = null): Card | null {
   const partner = PARTNERS[player];
   if (!isSuit(trump) || !Object.keys(visible).length || !(partner in visible) || !trick.length
     || choice.suit !== trump || trick.length < 2) return null;
@@ -2236,24 +2328,22 @@ function ruffForDraw(player: Seat, hand: Card[], trick: AnyPlay[], trump: string
   const trumps = hand.filter((c) => c.suit === trump).sort((a, b) => value(a) - value(b));
   if (trumps.length < 2) return null;
   const partnerHand = visible[partner]!;
-  const seen = new Set([...played, ...hand, ...partnerHand, ...trick.map(([, c]) => c)].map(cardKey));
-  const out = shownOut(history ?? [], trick);
-  const i = PLAYERS.indexOf(player);
+  const tc = count ?? new TableCount(player, hand, trick, trump, played, visible, history, shown);
+  const out = tc.out;
   if (trick.length === 2) {
-    const fourth = PLAYERS[(i + 1) % 4];
+    const fourth = tc.left;
     if (out[fourth].has(led) || fourth in visible) return null;
-    const rest = FULL_DECK.filter((c) => c.suit === led && !seen.has(cardKey(c))).length;
-    const unseen = FULL_DECK.filter((c) => !seen.has(cardKey(c))).length;
+    const rest = tc.unseenCards(led).length;
+    const unseen = tc.unseen.length;
     if (!rest) return null;
     const void_ = choose(unseen - rest, hand.length) / Math.max(choose(unseen, hand.length), 1);
     if (void_ > RUFF_KEEPS_DRAW_VOID) return null;
   }
-  const outstanding = FULL_DECK.filter((c) => c.suit === trump && !seen.has(cardKey(c))).map(value)
-    .sort((a, b) => a - b);
+  const outstanding = tc.unseenIn(trump);
   if (!outstanding.length) return null;
-  const left = PLAYERS[(i + 1) % 4];
-  const right = PLAYERS[(i + 3) % 4];
-  const others = FULL_DECK.filter((c) => !seen.has(cardKey(c))).length - outstanding.length;
+  const left = tc.left;
+  const right = tc.right;
+  const others = tc.unseen.length - outstanding.length;
   const slots = hand.length - 1;
   const layouts: [Trumps, Trumps, number][] = [];
   for (let n = 0; n <= outstanding.length; n++) {
@@ -2284,32 +2374,11 @@ function ruffForDraw(player: Seat, hand: Card[], trick: AnyPlay[], trump: string
   return best[0] < fallback[0] ? best[2] : null;
 }
 
-/** Every way the defence's cards in `suit` can lie, as [left, right, weight] (see ai.py). */
+/** `TableCount.splits` for a seat that has seen `seen` (its hand included). */
 function splits(player: Seat, hand: Card[], suit: Suit, outstanding: number[], seen: Set<string>,
   history: AnyPlay[][] | null, shown: Shown | null = null): [Trumps, Trumps, number][] {
-  const left = PLAYERS[(PLAYERS.indexOf(player) + 1) % 4];
-  const right = PLAYERS[(PLAYERS.indexOf(player) + 3) % 4];
-  const out = shownOut(history ?? [], []);
-  const gone: Record<string, number> = {};
-  for (const p of PLAYERS) gone[p] = playedIn(p, suit, history ?? [], []);
-  const unseen = FULL_DECK.filter((c) => !seen.has(cardKey(c))).length;
-  const slots = hand.length;
-  const others = unseen - outstanding.length;
-  const sorted = [...outstanding].sort((a, b) => a - b);
-  const layouts: [Trumps, Trumps, number][] = [];
-  for (let n = 0; n <= sorted.length; n++) {
-    for (const picked of combinations(sorted.length, n)) {
-      const leftCards = picked.map((i) => sorted[i]);
-      const rightCards = sorted.filter((v) => !leftCards.includes(v));
-      if ((leftCards.length && out[left].has(suit)) || (rightCards.length && out[right].has(suit))) continue;
-      if (leftCards.length > slots || rightCards.length > slots) continue;
-      if (shown && (leftCards.length + gone[left] < (shown[left]?.[suit] ?? 0)
-        || rightCards.length + gone[right] < (shown[right]?.[suit] ?? 0))) continue;
-      const weight = choose(others, slots - leftCards.length);
-      if (weight) layouts.push([leftCards, rightCards, weight]);
-    }
-  }
-  return layouts;
+  const played = FULL_DECK.filter((c) => seen.has(cardKey(c)));
+  return new TableCount(player, hand, [], null, played, {}, history, shown).splits(suit, outstanding);
 }
 
 // ── Declarer runs a long suit (see ai.py) ────────────────────────────────────
@@ -2320,26 +2389,26 @@ export const RUN_MAX_LOSERS = 0.5;
 /** A lead that runs the partnership's long suit without loss, or null (see ai.py). */
 function runLongSuit(player: Seat, hand: Card[], trump: string | null, played: Card[],
   visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
-  shown: Shown | null = null): Card | null {
+  shown: Shown | null = null, count: TableCount | null = null): Card | null {
   const partner = PARTNERS[player];
   if (!Object.keys(visible).length || !(partner in visible)) return null;
   const partnerHand = visible[partner]!;
-  const seen = new Set([...played, ...hand, ...partnerHand].map(cardKey));
-  if (isSuit(trump) && FULL_DECK.some((c) => c.suit === trump && !seen.has(cardKey(c)))) return null;
+  const tc = count ?? new TableCount(player, hand, [], trump, played, visible, history, shown);
+  if (isSuit(trump) && tc.outstanding(trump).length) return null;
   let best: [number[], Card] | null = null;
   for (const suit of SUITS) {
     if (suit === trump) continue;
     const mine = hand.filter((c) => c.suit === suit).map(value).sort((a, b) => a - b);
     const theirsPartner = partnerHand.filter((c) => c.suit === suit).map(value).sort((a, b) => a - b);
     if (!mine.length) continue;
-    const outstanding = FULL_DECK.filter((c) => c.suit === suit && !seen.has(cardKey(c))).map(value);
+    const outstanding = tc.outstanding(suit);
     if (outstanding.length && mine.length + theirsPartner.length < 7) continue;
     const tricks = Math.max(mine.length, theirsPartner.length);
     const cards = hand.filter((c) => c.suit === suit).sort((a, b) => value(a) - value(b));
     let expected: number;
     let lead: Card;
     if (outstanding.length) {
-      const layouts = splits(player, hand, suit, outstanding, seen, history, shown);
+      const layouts = tc.splits(suit, outstanding);
       if (!layouts.length) continue;
       const memo = new Map<string, number>();
       const scored: [number, number, number, Card][] = [];
@@ -2377,14 +2446,15 @@ export const SURE_LEAD = true;
 
 /** The lowest card that wins the trick on every layout, or null (see ai.py). */
 function sureLead(player: Seat, hand: Card[], trump: string | null, played: Card[],
-  visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null): Card | null {
+  visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
+  count: TableCount | null = null): Card | null {
   const partner = PARTNERS[player];
   if (!Object.keys(visible).length || partner in visible || player in visible) return null;
   const dummy = Object.keys(visible)[0] as Seat;
   const dummyHand = visible[dummy]!;
-  const seen = new Set([...played, ...hand, ...dummyHand].map(cardKey));
-  const unseen = FULL_DECK.filter((c) => !seen.has(cardKey(c)));
-  const out = shownOut(history ?? [], []);
+  const tc = count ?? new TableCount(player, hand, [], trump, played, visible, history);
+  const unseen = tc.unseen;
+  const out = tc.out;
   const hidden = PLAYERS.filter((p) => p !== player && p !== dummy);
   const order = [1, 2, 3].map((k) => PLAYERS[(PLAYERS.indexOf(player) + k) % 4]);
   const ours = [player, partner] as string[];
@@ -2457,30 +2527,28 @@ function dead(c: Card, hand: Card[], gone: Set<string>): boolean {
 }
 
 /** The card of a suit to give up first: the lowest dead card, else the lowest. */
-function shedFirst(cards: Card[], hand: Card[], played: Card[]): Card {
-  const gone = new Set(played.map(cardKey));
-  const deadOnes = cards.filter((c) => dead(c, hand, gone));
+function shedFirst(cards: Card[], count: TableCount): Card {
+  const deadOnes = cards.filter((c) => count.dead(c));
   return minBy(deadOnes.length ? deadOnes : cards, (c) => [value(c)]);
 }
 
 /** A lead for partner to ruff, once the defence has no trumps, or null (see ai.py). */
 function ruffLead(player: Seat, hand: Card[], trump: string | null, played: Card[],
-  visible: Partial<Record<Seat, Card[]>>): Card | null {
+  visible: Partial<Record<Seat, Card[]>>, count: TableCount | null = null): Card | null {
   const partner = PARTNERS[player];
   if (!isSuit(trump) || !Object.keys(visible).length || !(partner in visible)) return null;
   const partnerHand = visible[partner]!;
-  const seen = new Set([...played, ...hand, ...partnerHand].map(cardKey));
-  if (FULL_DECK.some((c) => c.suit === trump && !seen.has(cardKey(c)))) return null;
+  const tc = count ?? new TableCount(player, hand, [], trump, played, visible);
+  if (tc.outstanding(trump).length) return null;
   if (!partnerHand.some((c) => c.suit === trump)) return null;
-  const gone = new Set(played.map(cardKey));
   let best: [number[], Card] | null = null;
   for (const suit of SUITS) {
     if (suit === trump || partnerHand.some((c) => c.suit === suit)) continue;
     const cards = hand.filter((c) => c.suit === suit);
     if (!cards.length) continue;
-    const hasDead = cards.some((c) => dead(c, hand, gone)) ? 1 : 0;
+    const hasDead = cards.some((c) => tc.dead(c)) ? 1 : 0;
     const rank = [hasDead, cards.length, -suitIndex(suit)];
-    if (best === null || compareRank(rank, best[0]) > 0) best = [rank, shedFirst(cards, hand, played)];
+    if (best === null || compareRank(rank, best[0]) > 0) best = [rank, shedFirst(cards, tc)];
   }
   return best ? best[1] : null;
 }
@@ -2488,16 +2556,16 @@ function ruffLead(player: Seat, hand: Card[], trump: string | null, played: Card
 /** The lowest card of `suit` that wins the trick on every layout, or null:
  *  card choice within a suit already chosen, for the declaring side (see ai.py). */
 function sureLeadDeclarer(player: Seat, hand: Card[], trump: string | null, played: Card[],
-  visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null, suit: string): Card | null {
+  visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null, suit: string,
+  count: TableCount | null = null): Card | null {
   const partner = PARTNERS[player];
   if (!Object.keys(visible).length || !(partner in visible)) return null;
   const partnerHand = visible[partner]!;
-  const seen = new Set([...played, ...hand, ...partnerHand].map(cardKey));
-  const unseen = FULL_DECK.filter((c) => !seen.has(cardKey(c)));
-  const out = shownOut(history ?? [], []);
-  const i = PLAYERS.indexOf(player);
-  const left = PLAYERS[(i + 1) % 4];
-  const right = PLAYERS[(i + 3) % 4];
+  const tc = count ?? new TableCount(player, hand, [], trump, played, visible, history);
+  const unseen = tc.unseen;
+  const out = tc.out;
+  const left = tc.left;
+  const right = tc.right;
   const ours = [player, partner] as string[];
   const slots = hand.length;
   const ruffing = isSuit(trump) ? trump : null;
@@ -2562,7 +2630,7 @@ function sureLeadDeclarer(player: Seat, hand: Card[], trump: string | null, play
 
 /** A defender's lead in a suit dummy is void in while dummy has trumps, or null (see ai.py). */
 function forceDummy(player: Seat, hand: Card[], trump: string | null,
-  visible: Partial<Record<Seat, Card[]>>, played: Card[]): Card | null {
+  visible: Partial<Record<Seat, Card[]>>, played: Card[], count: TableCount | null = null): Card | null {
   if (!isSuit(trump) || !Object.keys(visible).length || PARTNERS[player] in visible) return null;
   const dummy = Object.keys(visible)[0] as Seat;
   const dummyHand = visible[dummy]!;
@@ -2573,7 +2641,9 @@ function forceDummy(player: Seat, hand: Card[], trump: string | null,
     const cards = hand.filter((c) => c.suit === suit);
     if (!cards.length) continue;
     const rank = [cards.length, -suitIndex(suit)];
-    if (best === null || compareRank(rank, best[0]) > 0) best = [rank, shedFirst(cards, hand, played)];
+    if (best === null || compareRank(rank, best[0]) > 0) {
+      best = [rank, shedFirst(cards, count ?? new TableCount(player, hand, [], trump, played, visible))];
+    }
   }
   return best ? best[1] : null;
 }
@@ -2607,12 +2677,13 @@ export const NT_DEFENCE_SUIT = true;
 
 /** In notrump, the defence's opening-lead suit led again, or null (see ai.py). */
 function ntDefenceSuit(player: Seat, hand: Card[], trump: string | null, history: AnyPlay[][] | null,
-  visible: Partial<Record<Seat, Card[]>>): Card | null {
+  visible: Partial<Record<Seat, Card[]>>, count: TableCount | null = null): Card | null {
   if (isSuit(trump) || !history || !history.length
     || (Object.keys(visible).length && PARTNERS[player] in visible)) return null;
   const [leader, led] = history[0][0];
   if (leader !== player && leader !== PARTNERS[player]) return null;
-  if (shownOut(history, [])[leader].has(led.suit)) return null;
+  count ??= new TableCount(player, hand, [], trump, [], visible, history);
+  if (count.out[leader].has(led.suit)) return null;
   const cards = hand.filter((c) => c.suit === led.suit).sort((a, b) => value(b) - value(a));
   return cards.length ? cards[Math.min(1, cards.length - 1)] : null;
 }
@@ -2623,12 +2694,12 @@ export const IDLE_TRUMP_FOR_RUFF = true;
 
 /** The side suit to lead for a ruff in partner's hand instead of a trump, or null (see ai.py). */
 function ruffForIdleTrump(player: Seat, hand: Card[], trump: string | null, played: Card[],
-  visible: Partial<Record<Seat, Card[]>>): Suit | null {
+  visible: Partial<Record<Seat, Card[]>>, count: TableCount | null = null): Suit | null {
   const partner = PARTNERS[player];
   const other = visible[partner];
   if (!isSuit(trump) || !other) return null;
-  const seen = new Set([...played, ...hand, ...other].map(cardKey));
-  if (FULL_DECK.some((c) => c.suit === trump && !seen.has(cardKey(c)))) return null;
+  count ??= new TableCount(player, hand, [], trump, played, visible);
+  if (count.outstanding(trump).length) return null;
   if (!other.some((c) => c.suit === trump)) return null;
   const cards = hand.filter((c) => c.suit !== trump && !other.some((d) => d.suit === c.suit));
   return cards.length ? minBy(cards, (c) => [value(c), suitIndex(c.suit)]).suit : null;
@@ -2677,21 +2748,21 @@ function compareRank(a: number[], b: number[]): number {
 /** The trump the declaring side should lead to draw trumps, or null (see ai.py). */
 function drawTrump(player: Seat, hand: Card[], trump: string | null, played: Card[],
   visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
-  shown: Shown | null = null): Card | null {
+  shown: Shown | null = null, count: TableCount | null = null): Card | null {
   const partner = PARTNERS[player];
   if (!isSuit(trump) || !Object.keys(visible).length || !(partner in visible)) return null;
   const partnerHand = visible[partner]!;
   const mine = hand.filter((c) => c.suit === trump).map(value).sort((a, b) => a - b);
   const theirsPartner = partnerHand.filter((c) => c.suit === trump).map(value).sort((a, b) => a - b);
   if (!mine.length) return null;
-  const seen = new Set([...played, ...hand, ...partnerHand].map(cardKey));
-  const outstanding = FULL_DECK.filter((c) => c.suit === trump && !seen.has(cardKey(c))).map(value);
+  const tc = count ?? new TableCount(player, hand, [], trump, played, visible, history, shown);
+  const outstanding = tc.outstanding(trump);
   if (!outstanding.length || mine.length + theirsPartner.length <= outstanding.length) return null;
 
   const ruff = ruffFirst(hand, partnerHand, trump, outstanding.length);
   if (ruff !== null) return ruff === NO_DRAW ? null : ruff;
 
-  const layouts = splits(player, hand, trump, outstanding, seen, history, shown);
+  const layouts = tc.splits(trump, outstanding);
   if (!layouts.length) return null;
 
   const memo = new Map<string, number>();
@@ -2775,7 +2846,7 @@ function planSuit(hands: PlanHands, ruffs: readonly boolean[], leader: number | 
 /** The card of `choice`'s suit that takes the most tricks in it, or null (see ai.py). */
 function defenderSuitPlan(player: Seat, hand: Card[], trump: string | null, played: Card[],
   visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null, shown: Shown | null,
-  choice: Card): Card | null {
+  choice: Card, count: TableCount | null = null): Card | null {
   if (!Object.keys(visible).length || PARTNERS[player] in visible || player in visible) return null;
   const suit = choice.suit;
   if (isSuit(trump) && suit === trump) return null;
@@ -2787,18 +2858,17 @@ function defenderSuitPlan(player: Seat, hand: Card[], trump: string | null, play
   const seatOf = (p: Seat) => (PLAYERS.indexOf(p) - i + 4) % 4;
   const partner = PARTNERS[player];
   const declarer = PLAYERS.find((p) => p !== player && p !== partner && p !== dummy)!;
-  const seen = new Set([...played, ...hand, ...dummyHand].map(cardKey));
-  const unseenSuit = FULL_DECK.filter((c) => c.suit === suit && !seen.has(cardKey(c)))
-    .map(value).sort((a, b) => a - b);
+  const tc = count ?? new TableCount(player, hand, [], trump, played, visible, history, shown);
+  const unseenSuit = tc.unseenIn(suit);
   if (unseenSuit.length > SUIT_PLAN_MAX_UNSEEN) return null;
-  const out = shownOut(history ?? [], []);
+  const out = tc.out;
   const ruffing = isSuit(trump);
   const ruffs = [false, false, false, false];
   ruffs[seatOf(dummy)] = ruffing && dummyHand.some((c) => c.suit === trump);
   ruffs[seatOf(declarer)] = ruffing && !out[declarer].has(trump!);
   const slots = hand.length;
-  const others = FULL_DECK.filter((c) => !seen.has(cardKey(c))).length - unseenSuit.length;
-  const floor = (p: Seat) => (shown?.[p]?.[suit] ?? 0) - playedIn(p, suit, history ?? [], []);
+  const others = tc.unseen.length - unseenSuit.length;
+  const floor = (p: Seat) => tc.floor(p, suit);
   const floorPartner = floor(partner);
   const floorDeclarer = floor(declarer);
   const dummyCards = dummyHand.filter((c) => c.suit === suit).map(value).sort((a, b) => a - b);
@@ -2869,7 +2939,7 @@ export const RUFF_IF_FOLLOWS = true;
 /** Port of ai._void_chance. */
 function voidChanceOf(player: Seat, hand: Card[], trick: AnyPlay[], played: Card[],
   visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][],
-  out: Record<string, Set<string>>): number {
+  out: Record<string, Set<string>>, count: TableCount | null = null): number {
   const i = PLAYERS.indexOf(player);
   const later: Seat[] = [];
   for (let k = 1; k < 4 - trick.length; k++) later.push(PLAYERS[(i + k) % 4]);
@@ -2879,13 +2949,10 @@ function voidChanceOf(player: Seat, hand: Card[], trick: AnyPlay[], played: Card
   const led = trick[0][1].suit;
   if (opp in visible) return visible[opp]!.some((c) => c.suit === led) ? 0.0 : 1.0;
   if (out[opp]?.has(led)) return 1.0;
-  const seen = new Set<string>([
-    ...played.map(cardKey), ...trick.map(([, c]) => cardKey(c)), ...hand.map(cardKey)]);
-  for (const h of Object.values(visible)) for (const c of h!) seen.add(cardKey(c));
-  const unseen = FULL_DECK.filter((c) => c.suit === led && !seen.has(cardKey(c))).length;
+  const tc = count ?? new TableCount(player, hand, trick, null, played, visible, history);
+  const unseen = tc.unseenCards(led).length;
   if (unseen === 0) return 1.0;
-  const inTrick = new Set<string>(trick.map(([p]) => p));
-  const size = (p: Seat) => 13 - history.length - (inTrick.has(p) ? 1 : 0);
+  const size = (p: Seat) => tc.size(p);
   let rest = 0;
   for (const p of PLAYERS) {
     if (!(p in visible) && p !== player && p !== opp && !out[p]?.has(led)) rest += size(p);
@@ -2935,8 +3002,13 @@ export const settingsPlay = { lastHandForPartner: true };
 export const PARTNER_WINS_NO_RUFF = true;
 
 function playLast(legal: Card[], trick: AnyPlay[], trump: string | null,
-  hand: Card[] | null = null, played: Card[] | null = null): Card {
+  hand: Card[] | null = null, played: Card[] | null = null, count: TableCount | null = null): Card {
   const partner = trick[1][0];
+  if (count === null && hand !== null) {
+    const me = PLAYERS[(PLAYERS.indexOf(trick[trick.length - 1][0] as Seat) + 1) % 4];
+    count = new TableCount(me, hand, trick, trump, played ?? []);
+  }
+  const tc = count;
   const ours = settingsPlay.lastHandForPartner ? [AI_TAG, partner] : [AI_TAG];
   const winning = legal.filter((c) => ours.includes(resolveTrick([...trick, [AI_TAG, c]], trump)));
   if (winning.length) {
@@ -2948,16 +3020,14 @@ function playLast(legal: Card[], trick: AnyPlay[], trump: string | null,
       }
     }
     if (DEAD_WINNER_FIRST && hand !== null) {
-      const gone = new Set([...(played ?? []), ...trick.map(([, c]) => c)].map(cardKey));
-      const deadOnes = winning.filter((c) => dead(c, hand, gone));
+      const deadOnes = winning.filter((c) => tc!.dead(c));
       if (deadOnes.length) return minBy(deadOnes, (c) => [value(c)]);
     }
     return minBy(winning, (c) => [value(c)]);
   }
   if (DEAD_CARD_LAST && hand !== null) {
     const led = trick[0][1].suit;
-    const gone = new Set([...(played ?? []), ...trick.map(([, c]) => c)].map(cardKey));
-    const deadOnes = legal.filter((c) => c.suit === led && dead(c, hand, gone));
+    const deadOnes = legal.filter((c) => c.suit === led && tc!.dead(c));
     if (deadOnes.length) return minBy(deadOnes, (c) => [value(c)]);
   }
   return shed(legal, trump);

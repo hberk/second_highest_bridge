@@ -762,3 +762,32 @@ of clubs. Dummy led a club, which South could ruff.
   fresh deals: **+0.013, +0.013, +0.006 tricks** (t 2.81, 2.35, 1.42); gross
   mistakes on 199 deals 2.56 / 0.40 / 2.10 (from 2.59 / 0.40 / 2.12).
   `tests/test_card_play_rules.py` holds the deal.
+
+## The table count (2026-11-10)
+
+An audit of every robot card on 199 library deals, each traced to the rule
+that chose it (`research/play_rule_trace.py`), found 2.82 of the 5.09 tricks a
+board given away (gross, both sides) on cards chosen by rules that read only
+their own hand and the cards played: the fallback lead `_lead` (1.21, mostly
+the wrong suit, not the wrong card), the discards in `_shed` (0.84), fourth
+hand's `_play_last` (0.32) and the notrump leads (0.27). The rules that do
+count each rebuilt their own picture of the table — "seen", "unseen",
+show-outs, hand sizes, the auction's floors — about fifteen times, each a
+little differently.
+
+- **Phase 1 (this change, no card changes).** `ai.TableCount` is that picture,
+  built once per card by `ai_play` from what the seat may legally know, and
+  passed to every rule as `count`: `seen`, `unseen`, `gone`, `out` (who has
+  shown out), `size`, `floor`, `played_in`, `master`, `dead`, `splits`
+  (`_splits`), `fits_auction`. A rule called on its own builds one from the same
+  arguments. `tests/test_table_count.py` keeps the derivations in the count (no
+  rule reads `_FULL_DECK`, `_shown_out` or `_played_in`, or builds
+  `set(played)`) and checks the count against the real deal at every card of
+  12 robot games. The robots' 6,400 lines on the library (400 deals × 16 boards)
+  are identical before and after, and the web engine's `TableCount` follows
+  line for line (fixtures).
+- **Still blind, by design of phase 1:** `_lead`, `_gap` and `_nt_long_lead`
+  still read only the cards played, and `_shed` reads neither. Phase 2 rebuilds
+  them on the count, one measured switch each: the lead's suit choice by the
+  suit plans over `count.splits`, discards that keep the guard against dummy's
+  visible length, fourth hand on defence.
