@@ -1936,3 +1936,26 @@ def test_a_doubled_transfer_is_still_a_transfer():
     for dealer, calls, cards, want in TRANSFER_INTERFERED_CASES:
         call, why = bid(cards, *calls, dealer=dealer)
         assert call == want, (calls, call, why)
+
+
+def test_fourth_seat_over_a_1nt_response():
+    """The user's challenge deal 206, 2026-11-10: 1♠ P 1NT and East passed
+    ♠T ♥AKJ83 ♦A6 ♣A8654 ("No action." whenever their last bid was
+    notrump). Now a natural two-level suit, else a takeout double; and the
+    answer to that double never names a suit they bid (it was 2♠)."""
+    east = '10S AH KH JH 8H 3H AD 6D AC 8C 6C 5C 4C'
+    call, why = bid(east, '1S', 'Pass', '1NT', dealer='South')
+    assert call == '2H' and 'Overcall' in why, (call, why)
+    # The same over a minor opening.
+    call, _ = bid('KS QS 9S 7S 3S AH 9H 2H KD 4D 2D 7C 3C', '1C', 'Pass', '1NT', dealer='South')
+    assert call == '2S', call
+    # Short in theirs, no five-card suit: takeout double.
+    call, why = bid('5S KH QH 9H 2H AD QD 4D 2D KC 9C 7C 3C', '1S', 'Pass', '1NT', dealer='South')
+    assert call == 'X' and 'Takeout' in why, (call, why)
+    # Partner of the doubler with spades: not 2♠.
+    west = 'KS 9S 8S 7S 6S 4H 3H 2H 9D 8D 7C 5C 2C'
+    call, _ = bid(west, '1S', 'Pass', '1NT', 'X', 'Pass', dealer='South')
+    assert call != '2S' and call[1] in 'CDH', call
+    # Too weak for either: pass, as before.
+    call, _ = bid('5S KH QH 9H 7H 2H 8D 4D 2D 9C 7C 4C 3C', '1S', 'Pass', '1NT', dealer='South')
+    assert call == 'Pass', call

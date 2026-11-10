@@ -415,6 +415,11 @@ ADVANCE_JUMP_POINTS = 8        # guide: 0-7 cheapest, 8-12 a level higher
 #: is in `_points` (HCP + length); None turns it off.
 ADVANCE_GAME_POINTS = 9
 ADVANCE_GAME_LEN = 5
+#: The answer to partner's takeout double never names a suit they bid, only
+#: the last strain they named was left out, so after 1♠ P 1NT X P the
+#: advancer bid 2♠, the opener's own suit, and was doubled (the user's rule,
+#: 2026-11-10: partner never bids the opponents' suit).
+ADVANCE_NOT_THEIRS = True
 
 # The guide's opener-rebid tiers. Partner passing has already denied a response,
 # so these decide whether to speak again at all, not how high to go.
@@ -629,6 +634,10 @@ def _advance_double(player: str, partner: str, auction: AuctionState, ev: dict,
     theirs = _their_suit(player, auction)
     pts = _points(groups)
     candidates = [s for s in SUITS if s != theirs]
+    if ADVANCE_NOT_THEIRS:
+        named = {parse_bid(c)[1] for who, c in auction.calls
+                 if parse_bid(c) and who not in (player, partner)}
+        candidates = [s for s in candidates if s not in named] or candidates
     best = max(candidates, key=lambda s: (len(groups[s]), ev['suit_pts'][s],
                                           SUITS.index(s)))
     combined = ev['suit_pts'][best] + PROMISE_DOUBLED

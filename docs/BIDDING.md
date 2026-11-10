@@ -339,6 +339,25 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     changed, 80 better and 46 worse. Handing the auction to `ai_bid` as well
     (`_owns` natural too) measured -0.20, +0.06, +0.47, 484 changed: it
     competes far higher (up to 7♣).
+  - **Fourth seat over 1x-P-1NT bids** (`OVER_NT_RESPONSE = 'x'`,
+    `_over_nt_response`; the user's challenge deal 206, 2026-11-10: 1♠ P 1NT
+    and East passed ♠T ♥AKJ83 ♦A6 ♣A8654). `_defend` passed with "No
+    action." whenever their last bid was notrump, a rule meant for a 1NT
+    opening that also caught a 1NT response. Now, with partner passed: a
+    natural 5+ suit at the two level on 12-17 HCP, else a takeout double
+    (short in theirs and three of every other suit, both majors over a
+    minor, or 18+). Experts in the championship archive act here with
+    natural bids and doubles (over 1♠-1NT: X 51, 2♣ 48, 2♥ 43, 2♦ 35 of
+    1,293) and almost never with 2NT or the cuebid (1 and 3).
+    And **the answer to a takeout double never names a suit they bid**
+    (`ai.ADVANCE_NOT_THEIRS`, the user's rule): `_advance_double` left out
+    only their last strain, so 1♠ P 1NT X P was answered 2♠ and doubled.
+    Seeds 7M, 8M, 9M, 10,000 fresh deals each, against the old pass: natural
+    only +0.07, +0.15, +0.13 (t = +2.33, +3.41, +3.55); natural, double and
+    the answer rule **+0.02, +0.21, +0.22** (t = +0.30, +3.56, +3.07). The
+    answer rule alone is noise (-0.08, +0.05, +0.08); its worst swing is
+    1♦ P 1♥ P 2♥ X P, where long diamonds now answer 3♣ (-1470).
+    `/mnt/project-files/east-over-1nt-response/REPORT.md`.
   - **The Cappelletti relay is answered** (`RELAY_ANSWER`, `_answer_relay`;
     challenge board 79, 2026-11-07): (1NT) 2♣ (P) 2♦ (P) asks which suit.
     No branch answered it, so `continuation` read 2♦ as forcing and a

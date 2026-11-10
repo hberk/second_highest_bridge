@@ -129,6 +129,9 @@ export const ADVANCE_JUMP_POINTS = 8;
 // Game in a five-card major over partner's takeout double of a three-level bid.
 export const ADVANCE_GAME_POINTS: number | null = 9;
 export const ADVANCE_GAME_LEN = 5;
+// The answer to partner's takeout double never names a suit they bid (the
+// user's rule, 2026-11-10: after 1S P 1NT X P the answer was 2S).
+export const ADVANCE_NOT_THEIRS = true;
 export const REBID_MINIMUM = 12;
 export const REBID_LENGTH = 6;
 // From this level up a lone rebid needs the sixth card, so it shows six.
@@ -345,7 +348,15 @@ function advanceDouble(player: Seat, auction: AuctionState, ev: HandEval, groups
   legal: string[]): Decision {
   const theirs = theirSuit(player, auction);
   const pts = points(groups);
-  const candidates = SUITS.filter((s) => s !== theirs);
+  let candidates = SUITS.filter((s) => s !== theirs);
+  if (ADVANCE_NOT_THEIRS) {
+    const partner = PARTNERS[player];
+    const named = new Set(auction.calls
+      .filter(([who, c]) => parseBid(c) && who !== player && who !== partner)
+      .map(([, c]) => parseBid(c)![1]));
+    const free = candidates.filter((s) => !named.has(s));
+    if (free.length) candidates = free;
+  }
   const best = maxBy(candidates, (s) => [groups[s].length, ev.suit_pts[s], suitIndex(s)]);
   const combined = ev.suit_pts[best] + PROMISE_DOUBLED;
   const ceiling = Math.max(1, trunc(combined) - 6);
