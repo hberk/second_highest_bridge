@@ -4,7 +4,9 @@ Each is a switch in ai.py (SURE_LEAD_DECLARER, RUFF_LEAD, FORCE_DUMMY,
 DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT, DEFENDER_SUIT_PLAN, DEAD_WINNER_FIRST, RUFF_IF_FOLLOWS,
 PARTNER_HONOUR_LEAD, COVER_SUIT_PLAN, COVER_PLAN_LOW, LAST_SUIT_PLAN, SECOND_HAND_COVER,
 SECOND_HAND_COVER_DUMMY_LED, PARTNER_WINS_NO_RUFF, LOCATED_SUIT_PLAN, THIRD_SEES_LAST,
-THIRD_HAND_PLAN, SURE_LEAD_UNRUFFED, DISCARD_SUIT_PLAN). Every test sets the switches it needs and puts them back, so
+THIRD_HAND_PLAN, SURE_LEAD_UNRUFFED, ENTRY_TO_DRAW, RUFF_KEEPS_DRAW, DECLARER_THIRD_PLAN,
+DISCARD_SUIT_PLAN, COUNT_LEAD, COUNT_DISCARD, FOURTH_HAND_PLAN, NO_FUTILE_DRAW, RUFF_NOT_DRAW).
+Every test sets the switches it needs and puts them back, so
 the result doesn't depend on which rules are adopted.
 """
 from __future__ import annotations
@@ -27,7 +29,8 @@ RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'SECOND_HAND_COVER', 'SECOND_HAND_COVER_DUMMY_LED', 'PARTNER_WINS_NO_RUFF',
          'LOCATED_SUIT_PLAN', 'THIRD_SEES_LAST', 'THIRD_HAND_PLAN', 'SURE_LEAD_UNRUFFED',
          'ENTRY_TO_DRAW', 'RUFF_KEEPS_DRAW', 'DECLARER_THIRD_PLAN',
-         'DISCARD_SUIT_PLAN', 'COUNT_LEAD', 'COUNT_DISCARD', 'FOURTH_HAND_PLAN')
+         'DISCARD_SUIT_PLAN', 'COUNT_LEAD', 'COUNT_DISCARD', 'FOURTH_HAND_PLAN',
+         'NO_FUTILE_DRAW', 'RUFF_NOT_DRAW')
 
 
 @contextmanager
@@ -835,6 +838,68 @@ def test_deal_206_threw_the_two_of_spades():
 def test_deal_206_discard_suit_plan_throws_the_ace():
     with rules(DISCARD_SUIT_PLAN=True):
         assert _south_discards_206() == C('AS')
+
+
+# Deal 215, 2H by West, dummy East, a user's board. After trick 4 dummy is on
+# lead with S 7, H AK, D Q7, C QT84; West holds S 985, H 84, D AJ2, C J.
+# South has shown out of hearts, so North's 10 5 are the defence's trumps.
+DEAL_215 = ['N:QS E:JS S:KS W:3S', 'N:KD E:4D S:8D W:10D',
+            'W:7H N:2H E:9H S:6H', 'W:QH N:3H E:JH S:5C']
+
+
+def _east_215():
+    hands, played, history = replay(215, DEAL_215)
+    view = {'West': hands['West'], 'East': hands['East']}
+    return ai.ai_play('East', hands['East'], [], 'H', played, view, history)
+
+
+def test_deal_215_dummy_cashed_a_high_trump():
+    with rules():
+        assert _east_215() in (C('KH'), C('AH'))
+
+
+def test_deal_215_futile_draw_plays_a_side_suit():
+    # Whichever pair leads, North's 10 and 5 each take a round: drawing loses
+    # a trick to every trump the defence holds and gains nothing. Double
+    # dummy the K or A gives N/S 9 tricks, the best side-suit leads 6.
+    with rules(NO_FUTILE_DRAW=True):
+        assert _east_215().suit != 'H'
+
+
+def test_deal_215_draw_plan_is_futile_only_with_the_switch():
+    hands, played, history = replay(215, DEAL_215)
+    view = {'West': hands['West'], 'East': hands['East']}
+    with rules(NO_FUTILE_DRAW=True):
+        assert ai._draw_plan('East', hands['East'], 'H', played, view, history) is ai._FUTILE_DRAW
+        assert ai._draw_trump('East', hands['East'], 'H', played, view, history) is None
+    with rules():
+        assert ai._draw_trump('East', hands['East'], 'H', played, view, history) in (C('KH'), C('AH'))
+
+
+# Deal 102, hearts by East, dummy West, a user's board. After trick 4 East is
+# on lead with S K, H JT3, D 82, C Q73; dummy has S void, H 6, D Q964,
+# C AJ42. The defence holds four trumps (North 7 4, South K 8).
+DEAL_102 = ['S:QH W:5H N:2H E:9H', 'E:3S S:JS W:2S N:7S',
+            'N:10S E:8S S:AS W:AH', 'W:JD N:5D E:KD S:AD']
+
+
+def _east_102():
+    hands, played, history = replay(102, DEAL_102)
+    view = {'West': hands['West'], 'East': hands['East']}
+    return ai.ai_play('East', hands['East'], [], 'H', played, view, history)
+
+
+def test_deal_102_declarer_led_a_trump_that_draws_nothing():
+    # Four trumps each way: `_draw_trump` declines, and `_lead` picks the 10H.
+    with rules():
+        assert _east_102() == C('10H')
+
+
+def test_deal_102_ruff_not_draw_leads_the_king_for_dummy_to_ruff():
+    # Dummy's lone 6H wins the K♠ alone in the trick. Double dummy the K♠
+    # holds N/S to 4 tricks, the 10H gives them 5.
+    with rules(RUFF_NOT_DRAW=True):
+        assert _east_102() == C('KS')
 
 
 if __name__ == '__main__':

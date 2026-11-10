@@ -873,3 +873,32 @@ little differently.
   suit lost 0.215 → 0.122 tricks a board; whole games, defence 2.01 → 1.97,
   declaring side 2.24 → 2.23; seated +0.026, +0.026, +0.027 tricks a board on
   fresh deals (t 3.46, 3.86, 3.69). Fourth-hand discards keep `_shed`.
+## Playing for ruffs when drawing trumps gains nothing (deals 215, 102)
+
+Two user boards where declarer led trumps that did no good.
+
+- Deal 215, 2♥ by West, trick 5: South had shown out of hearts, North held the
+  ♥10 5, dummy the A K over West's 8 4. Whichever hand leads, North's 10 and 5
+  each take a round, so drawing gains nothing: the defence makes both trumps
+  anyway and the declaring side throws two trumps a round that could each
+  have ruffed. `_draw_trump` only asked whether the defence still held trumps
+  and whether we held more, and dummy cashed the K♥ (three tricks double
+  dummy).
+- `ai.NO_FUTILE_DRAW` (`_draw_plan`): when the best trump lead loses a trick to
+  every outstanding trump on every layout, and two or more are out, no trump
+  is led; the fallback `_lead` picks a side suit. Dummy now leads the 10♣. With
+  one defence trump out the test fires constantly and drawing is usually
+  right (left in, the lone trump overruffs a higher ruff, since of two trumps
+  the lower wins): those cases went 3 better, 8 worse card by card on 199
+  solved deals, so they're excluded.
+- Deal 102, hearts by East, trick 5: four trumps each way, so `_draw_trump`
+  declined; the fallback `_lead` reads only declarer's cards and picked the
+  10♥, never asking whether dummy (void in spades, the 6♥ left) could ruff the
+  K♠ (one trick double dummy).
+- `ai.RUFF_NOT_DRAW`: when the fallback picks a trump that `_draw_trump` didn't
+  choose, the declaring side leads a suit its visible partner is void in while
+  partner holds a trump (`_ruff_for_idle_trump` with `defence_trumps=True`).
+  Card by card on 199 solved deals: 4 better, 0 worse.
+- Seated head to head, 3 × 1,000 fresh deals: **+0.005, −0.001, +0.003 tricks**
+  (t 1.53, −0.35, 1.20); gross mistakes on 199 deals 2.57 / 0.39 / 2.11 (from
+  2.58 / 0.39 / 2.12). `tests/test_card_play_rules.py` holds both deals.
