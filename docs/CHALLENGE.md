@@ -660,6 +660,25 @@ dummy ♥42, South ♥AQ6).
   (`/mnt/project-files/located-suit/`). `tests/test_card_play_rules.py` holds
   the board.
 
+**A discard keeps the card that wins in a located suit** (2026-11-10, user's
+board). Deal 206, 3♥ by East, trick 5: East led the K♥ and South, out of trumps,
+threw the 2♠ from A J 7 5 2. Every other spade had been seen and dummy held 4 3.
+- South threw the 2: `_middle_play` found nothing that keeps the trick and
+  `_shed` dumps the lowest side card, as in ordinary bridge. Here a trick only
+  two hands follow to goes to the LOWER card: the 2 was the one spade under
+  dummy's, and without it both of dummy's spades won.
+- `ai.DISCARD_SUIT_PLAN` (`_discard_suit_plan`): after any rule picks a discard,
+  if every card of its suit is located (as `LOCATED_SUIT_PLAN` locates them),
+  the suit is played out (`_plan_suit`, ruffs ignored, since a ruff takes the
+  trick whichever card was thrown) with each of the hand's cards of it gone. A
+  discard that loses a trick there gives way to the highest card that loses
+  none; the suit stays the one chosen. Shipped on.
+- Robot lines on 199 library deals: 56 discards changed on 349 lines, each
+  scored double dummy: +17 tricks for the side that threw, none lost. Gross
+  mistakes 2.58 -> 2.57 declaring side, 2.12 -> 2.11 defence
+  (`/mnt/project-files/keep-low-spade/`). `tests/test_card_play_rules.py`
+  holds the board.
+
 **Third hand on defence plays the suit out** (2026-11-06, two user boards).
 Deal 319, 4♥ by South, trick 7: East led the 5♦, South played the 9♦, West held
 ♦A Q 4 2 with dummy's lone K♦ to come, and played the 2. Deal 58, 2♠ by South,

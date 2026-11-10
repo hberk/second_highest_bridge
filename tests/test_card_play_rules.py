@@ -4,7 +4,7 @@ Each is a switch in ai.py (SURE_LEAD_DECLARER, RUFF_LEAD, FORCE_DUMMY,
 DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT, DEFENDER_SUIT_PLAN, DEAD_WINNER_FIRST, RUFF_IF_FOLLOWS,
 PARTNER_HONOUR_LEAD, COVER_SUIT_PLAN, COVER_PLAN_LOW, LAST_SUIT_PLAN, SECOND_HAND_COVER,
 SECOND_HAND_COVER_DUMMY_LED, PARTNER_WINS_NO_RUFF, LOCATED_SUIT_PLAN, THIRD_SEES_LAST,
-THIRD_HAND_PLAN, SURE_LEAD_UNRUFFED). Every test sets the switches it needs and puts them back, so
+THIRD_HAND_PLAN, SURE_LEAD_UNRUFFED, DISCARD_SUIT_PLAN). Every test sets the switches it needs and puts them back, so
 the result doesn't depend on which rules are adopted.
 """
 from __future__ import annotations
@@ -26,7 +26,7 @@ RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'COVER_SUIT_PLAN', 'COVER_PLAN_LOW', 'LAST_SUIT_PLAN', 'COVER_KEEP_MASTER',
          'SECOND_HAND_COVER', 'SECOND_HAND_COVER_DUMMY_LED', 'PARTNER_WINS_NO_RUFF',
          'LOCATED_SUIT_PLAN', 'THIRD_SEES_LAST', 'THIRD_HAND_PLAN', 'SURE_LEAD_UNRUFFED',
-         'ENTRY_TO_DRAW', 'RUFF_KEEPS_DRAW')
+         'ENTRY_TO_DRAW', 'RUFF_KEEPS_DRAW', 'DISCARD_SUIT_PLAN')
 
 
 @contextmanager
@@ -779,6 +779,33 @@ def test_deal_80_ruff_keeps_draw_ruffs_high():
         assert _east_ruffs_80() in (C('JH'), C('AH'))
     with rules():
         assert _east_ruffs_80() == C('2H')
+
+
+# Deal 206, 3H by East (the user's board, 2026-11-10). Trick 5: East leads the
+# KH and South, out of trumps, holds AJ752 with dummy's 43 the only other
+# spades left. The lower card wins a trick only two hands follow to, so the 2
+# beats dummy's spades and the ace beats nothing: throw the ace.
+
+def _south_discards_206():
+    t = challenge.robot_table(206, 'South', 'None')
+    contract = t['contract']
+    shown = ai.shown_lengths(t['calls'], t['alerts'])
+    tricks = ['S:KS W:8S N:9S E:10S', 'E:JH S:4H W:10H N:2H',
+              'W:5H N:QH E:8H S:9H', 'S:QS W:6S N:7H E:3H']
+    hands, played, history = replay(206, tricks)
+    return ai.ai_play('South', hands['South'], [('East', C('KH'))], 'H', played,
+                      visible=ai.visible_hands('South', contract, hands),
+                      history=history, shown=shown)
+
+
+def test_deal_206_threw_the_two_of_spades():
+    with rules():
+        assert _south_discards_206() == C('2S')
+
+
+def test_deal_206_discard_suit_plan_throws_the_ace():
+    with rules(DISCARD_SUIT_PLAN=True):
+        assert _south_discards_206() == C('AS')
 
 
 if __name__ == '__main__':
