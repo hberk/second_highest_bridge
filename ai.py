@@ -1914,7 +1914,7 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         if (DECLARER_THIRD_PLAN and len(trick) == 2 and visible
                 and PARTNERS[player] in visible):
             choice = _declarer_third_plan(player, hand, legal, trick, trump, played,
-                                          visible, history, shown, choice)
+                                          visible, history, shown, choice, count=count)
 
     partner = PARTNERS[player]
     if len(trick) == 1 and visible and partner in visible and len(legal) > 1:
@@ -1943,7 +1943,7 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
 
     if DISCARD_SUIT_PLAN and trick:
         choice = _discard_suit_plan(player, hand, trick, trump, played, visible,
-                                    history, choice)
+                                    history, choice, count=count)
 
     if searched:
         totals = _endgame_totals(player, hand, trick, trump, played, visible,
@@ -2174,7 +2174,8 @@ DECLARER_THIRD_PLAN = 1
 def _declarer_third_plan(player: str, hand: list[Card], legal: list[Card],
                          trick: list[tuple[str, Card]], trump: str | None,
                          played: list[Card], visible: dict[str, list[Card]],
-                         history: list | None, shown: dict | None, choice: Card) -> Card:
+                         history: list | None, shown: dict | None, choice: Card,
+                         count: TableCount | None = None) -> Card:
     """The card of `legal` that takes the most tricks in the led suit, summed
     over the layouts of its unseen cards; `choice` when it is among the best,
     or the plan doesn't apply."""
@@ -2184,7 +2185,7 @@ def _declarer_third_plan(player: str, hand: list[Card], legal: list[Card],
     if DECLARER_THIRD_PLAN < 2 and trump in SUITS and led != trump:
         return choice
     planned = _cover_suit_plan(player, hand, legal, trick, trump, played, visible,
-                               history, shown)
+                               history, shown, count=count)
     if not planned:
         return choice
     top = max(planned.values())
@@ -2289,7 +2290,7 @@ DISCARD_SUIT_PLAN = True
 def _discard_suit_plan(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                        trump: str | None, played: list[Card],
                        visible: dict[str, list[Card]] | None, history: list | None,
-                       choice: Card) -> Card:
+                       choice: Card, count: TableCount | None = None) -> Card:
     """The card of discard `choice`'s suit to throw: `choice` unless the suit,
     every card located, shows it takes a trick some other card of it doesn't."""
     if not visible or history is None:
@@ -2300,11 +2301,9 @@ def _discard_suit_plan(player: str, hand: list[Card], trick: list[tuple[str, Car
     mine = [c for c in hand if c.suit == suit]
     if len(mine) < 2:
         return choice
-    seen = set(played) | {c for _, c in trick} | set(hand)
-    for cards in visible.values():
-        seen |= set(cards)
-    unseen = tuple(sorted(c.value() for c in _FULL_DECK if c.suit == suit and c not in seen))
-    out = _shown_out(history, trick)
+    count = count or TableCount(player, hand, trick, trump, played, visible, history)
+    unseen = tuple(count.unseen_in(suit))
+    out = count.out
     hidden = [p for p in PLAYERS if p != player and p not in visible and suit not in out[p]]
     if unseen and len(hidden) != 1:
         return choice

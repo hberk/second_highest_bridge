@@ -1353,7 +1353,7 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     }
     if (DECLARER_THIRD_PLAN && trick.length === 2 && Object.keys(visible).length
         && PARTNERS[player] in visible) {
-      choice = declarerThirdPlan(player, hand, legal, trick, trump, played, visible, history, shown, choice);
+      choice = declarerThirdPlan(player, hand, legal, trick, trump, played, visible, history, shown, choice, count);
     }
   }
 
@@ -1382,7 +1382,7 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
   }
 
   if (DISCARD_SUIT_PLAN && trick.length) {
-    choice = discardSuitPlan(player, hand, trick, trump, played, visible, history, choice);
+    choice = discardSuitPlan(player, hand, trick, trump, played, visible, history, choice, count);
   }
 
   if (searched) {
@@ -1542,11 +1542,12 @@ export const DECLARER_THIRD_PLAN: number = 1;
  *  layouts, else `choice` (see ai.py `_declarer_third_plan`). */
 function declarerThirdPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[],
   trump: string | null, played: Card[], visible: Partial<Record<Seat, Card[]>>,
-  history: AnyPlay[][] | null, shown: Shown | null, choice: Card): Card {
+  history: AnyPlay[][] | null, shown: Shown | null, choice: Card,
+  count: TableCount | null = null): Card {
   const led = trick[0][1].suit;
   if (legal.length < 2 || legal.some((c) => c.suit !== led)) return choice;
   if (DECLARER_THIRD_PLAN < 2 && trump !== null && isSuit(trump) && led !== trump) return choice;
-  const planned = coverSuitPlan(player, hand, legal, trick, trump, played, visible, history, shown);
+  const planned = coverSuitPlan(player, hand, legal, trick, trump, played, visible, history, shown, count);
   if (!planned) return choice;
   const top = Math.max(...planned.values());
   if (planned.get(cardKey(choice)) === top) return choice;
@@ -1607,17 +1608,16 @@ export const DISCARD_SUIT_PLAN = true;
  *  card located, shows it takes a trick some other card of it doesn't
  *  (see ai.py `_discard_suit_plan`). */
 function discardSuitPlan(player: Seat, hand: Card[], trick: AnyPlay[], trump: string | null,
-  played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null, choice: Card): Card {
+  played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null, choice: Card,
+  count: TableCount | null = null): Card {
   if (!Object.keys(visible).length || history === null) return choice;
   const suit = choice.suit;
   if (suit === trick[0][1].suit || (isSuit(trump) && suit === trump)) return choice;
   const mine = hand.filter((c) => c.suit === suit);
   if (mine.length < 2) return choice;
-  const seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
-  for (const cs of Object.values(visible)) for (const c of cs!) seen.add(cardKey(c));
-  const unseen = FULL_DECK.filter((c) => c.suit === suit && !seen.has(cardKey(c)))
-    .map(value).sort((a, b) => a - b);
-  const out = shownOut(history, trick);
+  const tc = count ?? new TableCount(player, hand, trick, trump, played, visible, history);
+  const unseen = tc.unseenIn(suit);
+  const out = tc.out;
   const hidden = PLAYERS.filter((p) => p !== player && !(p in visible) && !out[p].has(suit));
   if (unseen.length && hidden.length !== 1) return choice;
   const i = PLAYERS.indexOf(player);
