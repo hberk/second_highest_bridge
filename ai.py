@@ -1689,8 +1689,9 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
             return choice
     if not trick:
         sure = None
-        choice = ((_draw_trump(player, hand, trump, played, visible, history, shown)
-                   if DRAW_TRUMPS else None)
+        draw = (_draw_plan(player, hand, trump, played, visible, history, shown)
+                if DRAW_TRUMPS else None)
+        choice = ((draw if isinstance(draw, Card) else None)
                   or (_entry_to_draw(player, hand, trump, played, visible, history, shown)
                       if ENTRY_TO_DRAW else None)
                   or (_ruff_lead(player, hand, trump, played, visible)
@@ -1721,6 +1722,15 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                 ruff = _ruff_for_idle_trump(player, hand, trump, played, visible)
                 if ruff is not None:
                     choice = _lead([c for c in hand if c.suit == ruff], trump, played)
+            if RUFF_NOT_DRAW and choice.suit == trump and not isinstance(draw, Card):
+                ruff = _ruff_for_idle_trump(player, hand, trump, played, visible,
+                                            defence_trumps=True)
+                if ruff is not None:
+                    choice = _lead([c for c in hand if c.suit == ruff], trump, played)
+            if NO_FUTILE_DRAW and draw is _FUTILE_DRAW and choice.suit == trump:
+                side = [c for c in hand if c.suit != trump]
+                if side:
+                    choice = _lead(side, trump, played)
             if DEFENDER_SUIT_PLAN:
                 choice = _defender_suit_plan(player, hand, trump, played, visible, history,
                                              shown, choice) or choice
@@ -2832,6 +2842,42 @@ def _endgame_totals(player: str, hand: list[Card], trick: list[tuple[str, Card]]
 #: Declaring side draws trumps when on lead (measurement switch).
 DRAW_TRUMPS = True
 
+# ── A draw that gains nothing ───────────────────────────────────────────────
+#
+# Drawing trumps is worth its cost when it stops the defence's trumps from
+# ruffing. When it would lose a trick to every trump the defence holds, on
+# every layout declarer can't rule out, it stops nothing: the defence makes
+# each trump anyway, and the declaring side has thrown two or more trumps a
+# round that could each have won a ruff (a trump alone in a trick wins). On a
+# user's board (deal 215, 2H by West, trick 5) South had shown out of hearts,
+# North held the 10 5, and dummy's A K sat over West's 8 4: whichever pair
+# led, North's 10 and 5 each took a round. Dummy cashed the K (9 tricks for
+# N/S double dummy, instead of 6). The user's rule: once drawing only loses
+# trump tricks, play for ruffs instead. So the declaring side leads a side
+# suit and keeps its trumps for ruffing.
+
+#: Declaring side doesn't lead trumps when drawing would lose a trick to every
+#: trump the defence holds (measurement switch).
+NO_FUTILE_DRAW = True
+
+#: `_draw_plan`'s answer when drawing would gain nothing.
+_FUTILE_DRAW = object()
+
+# The same blind spot when `_draw_trump` declines for its own reasons: on a
+# user's board (deal 102, hearts by East, trick 5) East held K83 of spades to
+# dummy's 2, dummy ruffed the second spade, and East held the K♠ with dummy
+# void in spades and the 6♥ left. The defence held four trumps to the
+# declaring side's four, so `_draw_trump` didn't draw; the fallback `_lead`
+# reads only East's cards and its gap analysis chose the 10♥ (a trick lost
+# double dummy). It never asked whether dummy could ruff the K♠ (a trump alone
+# in a trick wins). So when the fallback picks a trump that isn't a draw, the
+# declaring side leads a suit partner is void in while partner holds a trump,
+# as `IDLE_TRUMP_FOR_RUFF` does once the defence is out of trumps.
+
+#: The fallback lead, a trump that `_draw_trump` didn't choose, gives way to a
+#: suit visible partner can ruff (measurement switch).
+RUFF_NOT_DRAW = True
+
 
 def _distinct(cards: tuple, others: tuple) -> list:
     """One card from each run of `cards` with none of `others` in between.
@@ -2939,7 +2985,17 @@ def _draw_trump(player: str, hand: list[Card], trump: str | None,
                 played: list[Card], visible: dict[str, list[Card]] | None,
                 history: list | None,
                 shown: dict[str, dict[str, int]] | None = None) -> Card | None:
-    """The trump the declaring side should lead to draw trumps, or None.
+    """The trump the declaring side should lead to draw trumps, or None."""
+    plan = _draw_plan(player, hand, trump, played, visible, history, shown)
+    return plan if isinstance(plan, Card) else None
+
+
+def _draw_plan(player: str, hand: list[Card], trump: str | None,
+               played: list[Card], visible: dict[str, list[Card]] | None,
+               history: list | None,
+               shown: dict[str, dict[str, int]] | None = None):
+    """`_draw_trump`'s card, or None, or `_FUTILE_DRAW` when drawing would
+    lose a trick to every trump the defence holds.
 
     Only for a hand whose partner it can see (declarer and dummy see each
     other; a defender sees only dummy, an opponent). Leads a trump when the
@@ -2979,7 +3035,10 @@ def _draw_trump(player: str, hand: list[Card], trump: str | None,
             weights += weight
             worst = max(worst, losers)
         scored.append((total / weights, worst, card.value(), card))
-    return min(scored, key=lambda t: t[:3])[3]
+    best = min(scored, key=lambda t: t[:3])
+    if NO_FUTILE_DRAW and best[0] >= len(outstanding):
+        return _FUTILE_DRAW
+    return best[3]
 
 
 # ── Crossing to the trump hand to draw trumps ──────────────────────────────
@@ -3871,13 +3930,17 @@ IDLE_TRUMP_FOR_RUFF = True
 
 
 def _ruff_for_idle_trump(player: str, hand: list[Card], trump: str | None,
-                         played: list[Card], visible: dict[str, list[Card]] | None) -> str | None:
-    """The side suit to lead for a ruff in partner's hand instead of a trump, or None."""
+                         played: list[Card], visible: dict[str, list[Card]] | None,
+                         defence_trumps: bool = False) -> str | None:
+    """The side suit to lead for a ruff in partner's hand instead of a trump, or None.
+
+    `defence_trumps` allows it while the defence still holds trumps
+    (`RUFF_NOT_DRAW`: the trump lead wasn't a draw)."""
     partner = PARTNERS[player]
     if trump not in SUITS or not visible or partner not in visible:
         return None
     seen = set(played) | set(hand) | set(visible[partner])
-    if any(c.suit == trump and c not in seen for c in _FULL_DECK):
+    if not defence_trumps and any(c.suit == trump and c not in seen for c in _FULL_DECK):
         return None                       # the defence still holds trumps
     other = visible[partner]
     if not any(c.suit == trump for c in other):

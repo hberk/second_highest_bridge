@@ -1169,7 +1169,8 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
   let choice: Card;
   if (!trick.length) {
     let sure: Card | null = null;
-    const chosen = (DRAW_TRUMPS ? drawTrump(player, hand, trump, played, visible, history, shown) : null)
+    const draw = DRAW_TRUMPS ? drawPlan(player, hand, trump, played, visible, history, shown) : null;
+    const chosen = (draw === FUTILE_DRAW ? null : draw)
       ?? (ENTRY_TO_DRAW ? entryToDraw(player, hand, trump, played, visible, history, shown) : null)
       ?? (RUFF_LEAD ? ruffLead(player, hand, trump, played, visible) : null)
       ?? (RUN_LONG_SUIT ? runLongSuit(player, hand, trump, played, visible, history, shown) : null)
@@ -1189,6 +1190,14 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
       if (IDLE_TRUMP_FOR_RUFF && choice.suit === trump) {
         const ruff = ruffForIdleTrump(player, hand, trump, played, visible);
         if (ruff !== null) choice = lead(hand.filter((c) => c.suit === ruff), trump, played);
+      }
+      if (RUFF_NOT_DRAW && choice.suit === trump && (draw === null || draw === FUTILE_DRAW)) {
+        const ruff = ruffForIdleTrump(player, hand, trump, played, visible, true);
+        if (ruff !== null) choice = lead(hand.filter((c) => c.suit === ruff), trump, played);
+      }
+      if (NO_FUTILE_DRAW && draw === FUTILE_DRAW && choice.suit === trump) {
+        const side = hand.filter((c) => c.suit !== trump);
+        if (side.length) choice = lead(side, trump, played);
       }
       if (DEFENDER_SUIT_PLAN) {
         choice = defenderSuitPlan(player, hand, trump, played, visible, history, shown, choice) ?? choice;
@@ -2623,12 +2632,12 @@ export const IDLE_TRUMP_FOR_RUFF = true;
 
 /** The side suit to lead for a ruff in partner's hand instead of a trump, or null (see ai.py). */
 function ruffForIdleTrump(player: Seat, hand: Card[], trump: string | null, played: Card[],
-  visible: Partial<Record<Seat, Card[]>>): Suit | null {
+  visible: Partial<Record<Seat, Card[]>>, defenceTrumps = false): Suit | null {
   const partner = PARTNERS[player];
   const other = visible[partner];
   if (!isSuit(trump) || !other) return null;
   const seen = new Set([...played, ...hand, ...other].map(cardKey));
-  if (FULL_DECK.some((c) => c.suit === trump && !seen.has(cardKey(c)))) return null;
+  if (!defenceTrumps && FULL_DECK.some((c) => c.suit === trump && !seen.has(cardKey(c)))) return null;
   if (!other.some((c) => c.suit === trump)) return null;
   const cards = hand.filter((c) => c.suit !== trump && !other.some((d) => d.suit === c.suit));
   return cards.length ? minBy(cards, (c) => [value(c), suitIndex(c.suit)]).suit : null;
@@ -2678,6 +2687,22 @@ function compareRank(a: number[], b: number[]): number {
 function drawTrump(player: Seat, hand: Card[], trump: string | null, played: Card[],
   visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
   shown: Shown | null = null): Card | null {
+  const plan = drawPlan(player, hand, trump, played, visible, history, shown);
+  return plan === FUTILE_DRAW ? null : plan;
+}
+
+/** Declaring side doesn't lead trumps when drawing would lose a trick to every
+ *  trump the defence holds (see ai.py's NO_FUTILE_DRAW). */
+export const NO_FUTILE_DRAW = true;
+const FUTILE_DRAW = Symbol('futile draw');
+/** The fallback lead, a trump drawTrump didn't choose, gives way to a suit
+ *  visible partner can ruff (see ai.py's RUFF_NOT_DRAW). */
+export const RUFF_NOT_DRAW = true;
+
+/** drawTrump's card, or null, or FUTILE_DRAW when drawing would gain nothing (see ai.py). */
+function drawPlan(player: Seat, hand: Card[], trump: string | null, played: Card[],
+  visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
+  shown: Shown | null = null): Card | typeof FUTILE_DRAW | null {
   const partner = PARTNERS[player];
   if (!isSuit(trump) || !Object.keys(visible).length || !(partner in visible)) return null;
   const partnerHand = visible[partner]!;
@@ -2709,7 +2734,9 @@ function drawTrump(player: Seat, hand: Card[], trump: string | null, played: Car
     }
     scored.push([total / weights, worst, value(c), c]);
   }
-  return minBy(scored, (t) => [t[0], t[1], t[2]])[3];
+  const best = minBy(scored, (t) => [t[0], t[1], t[2]]);
+  if (NO_FUTILE_DRAW && best[0] >= outstanding.length) return FUTILE_DRAW;
+  return best[3];
 }
 
 // ── Defender plans the suit it leads (see ai.py) ─────────────────────────────
