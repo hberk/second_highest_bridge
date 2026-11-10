@@ -1076,6 +1076,22 @@ suits) are what experts play (median 18 HCP), but they lost on 3 × 4,000 filter
 setting tried (16+, 18+, five-card reverse suit): opener passing partner's free 1NT or one-level
 suit scores better here. On by the user's choice, so the bidding box explains the reverse and the robots answer it.
 
+
+**Long suits bid game (2026-11-09).** Two of the user's boards. Challenge deal 160: (1♠) 2♥ (P) with
+West ♠Q8 ♥A9 ♦— ♣AJ9875432 passed three times (`_advance`: `LONG_ADVANCE` stops at 9 HCP and a
+plain new suit needs the two level, so 11 HCP and a three-level suit had no rule); 5♣ makes.
+Challenge deal 51: North ♠5 ♥AKQJT9764 ♦J4 ♣3 opened 1♥ (the opening test runs before the 4♥
+pre-empt) and rebid 2♥. The user's rule, `LONG_GAME`: an eight-card major or a nine-card minor bids
+game, with at least `LONG_GAME_HCP` (4), on the opening (`LONG_GAME_OPEN`, ahead of the pre-empts),
+the first call over their opening (ahead of `BLAST_GAME`) and advancer's first call (ahead of
+`LONG_ADVANCE`). Alert "8+ ♥. To play." `LONG_ADVANCE_STRONG`: with 10+ HCP and seven or eight
+cards, advancer names the suit at the cheapest level, three at most. Fresh deals, seeds 7M/8M/9M,
+10,000 each (`/mnt/project-files/long-advance-strong/`): `LONG_GAME` **+0.49, +0.34, +0.19** (t =
++5.7, +5.0, +2.8); without the opening +0.23, +0.21, +0.22; `LONG_ADVANCE_STRONG` alone +0.04,
+-0.00, +0.04 (noise); both **+0.53, +0.35, +0.22** (t = +5.6, +4.6, +3.0). On deal 51 itself
+hearts by North take 9 tricks double dummy, so 4♥ is down one where 2♥ made an overtrick: the rule wins on
+average, not on that board.
+
 ## The previous system (`ai.USE_GIB = False`)
 
 - **Everything in this section about `ai_bid` describes the

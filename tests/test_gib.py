@@ -1604,10 +1604,31 @@ def test_advancer_names_a_long_suit_with_a_jump():
     # (1♣) 1♦ (1♠): ♠KT95 ♥QT975432 ♦7, 5 HCP, passed twice (user's item 6).
     # Eight hearts bid game; seven jump one level.
     call, why = bid('KS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 2H 7D', '1C', '1D', '1S', dealer='South')
-    assert call == '4H' and why.startswith('7+')
+    assert call == '4H' and why.startswith('8+')     # LONG_GAME's alert
     assert bid('KS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 7D 2D', '1C', '1D', '1S', dealer='South')[0] == '3H'
     # Too weak (3 HCP): pass, as before.
     assert bid('JS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 7D 2D', '1C', '1D', '1S', dealer='South')[0] == 'Pass'
+
+
+def test_advancer_names_a_long_suit_with_values_at_the_three_level():
+    # The user's board, 2026-11-09 (challenge deal 160): (1♠) 2♥ (P) with
+    # ♠Q8 ♥A9 ♦— ♣AJ9875432, 11 HCP, passed three times (LONG_ADVANCE stops
+    # at 9 HCP, a plain new suit needs the two level). Clubs by West make 11
+    # tricks. Nine clubs bid game (LONG_GAME); eight bid 3♣ (LONG_ADVANCE_STRONG).
+    call, why = bid('QS 8S AH 9H AC JC 9C 8C 7C 5C 4C 3C 2C', '1S', '2H', 'Pass', dealer='North')
+    assert call == '5C' and why.startswith('9+'), (call, why)
+    call, why = bid('QS 8S 7S AH 9H AC JC 9C 8C 7C 5C 4C 3C', '1S', '2H', 'Pass', dealer='North')
+    assert call == '3C' and why.startswith('7+'), (call, why)
+    # Six clubs: no change.
+    assert bid('QS 8S 7S AH 9H 3D 2D AC JC 9C 8C 7C 5C', '1S', '2H', 'Pass',
+               dealer='North')[0] == 'Pass'
+
+
+def test_eight_card_major_opens_game():
+    # The user's challenge deal 51, 2026-11-09: North ♠5 ♥AKQJT9764 ♦J4 ♣3
+    # opened 1♥ and rebid 2♥. LONG_GAME: it opens 4♥.
+    call, why = bid('5S AH KH QH JH 10H 9H 7H 6H 4H JD 4D 3C', dealer='North')
+    assert call == '4H' and why.startswith('8+'), (call, why)
 
 
 def test_eight_card_major_blasts_game_over_their_opening():

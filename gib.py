@@ -424,6 +424,9 @@ def opening(ctx: Ctx) -> tuple:
         return '2NT', "20-21 HCP, balanced."
     if h.balanced and NT1[0] <= h.hcp <= NT1[1]:
         return '1NT', "15-17 HCP, balanced."
+    game = _long_game(ctx, SUITS) if LONG_GAME and LONG_GAME_OPEN else None
+    if game:
+        return game
     best = h.longest()
     if (fourth and best != 'C' and h.len[best] >= 6
             and FOURTH_SEAT[0] <= h.points <= FOURTH_SEAT[1] and ctx.ok(f"2{best}")):
@@ -5197,6 +5200,9 @@ def _defend(ctx: Ctx) -> tuple | None:
     if opening == '2C' or their == 'NT':
         return 'Pass', "No action."
 
+    game = _long_game(ctx, [s for s in SUITS if s not in theirs]) if LONG_GAME else None
+    if game:
+        return game
     blast = _blast_game(ctx, opening, their)
     if blast:
         return blast
@@ -5402,10 +5408,18 @@ def _advance(ctx: Ctx) -> tuple | None:
                 return '1NT', f"8-11 HCP, {SYM[their]} stopper."
             if 12 <= hcp <= 14 and ctx.ok('2NT') and not _cue_2nt_on(ctx, ps, their):
                 return '2NT', f"12-14 HCP, {SYM[their]} stopper."
+        game = _long_game(ctx, [s for s in SUITS if s not in theirs and s != ps]) \
+            if LONG_GAME else None
+        if game:
+            return game
         long = _long_suit_jump(ctx, [s for s in SUITS if s not in theirs and s != ps]) \
             if LONG_ADVANCE else None
         if long:
             return long
+        strong = _long_suit_strong(ctx, [s for s in SUITS if s not in theirs and s != ps]) \
+            if LONG_ADVANCE_STRONG else None
+        if strong:
+            return strong
         for s in SUITS:
             if s not in theirs and s != ps and h.len[s] >= 5 and hcp >= 8:
                 call = ctx.cheapest(s, 1)
@@ -5446,6 +5460,56 @@ def _long_suit_jump(ctx: Ctx, allowed: list[str]) -> tuple | None:
         return f"4{s}", LONG_SUIT_ALERT.format(SYM[s])
     if level_of(jump) <= 3 and ctx.ok(jump):
         return jump, LONG_SUIT_ALERT.format(SYM[s])
+    return None
+
+
+#: The user's rule (Nov 9 2026): an eight-card major or a nine-card minor
+#: bids game; it sets trump. Our first call over their opening (the
+#: overcaller, before BLAST_GAME) and advancer's first call over partner's
+#: overcall (before LONG_ADVANCE). At least LONG_GAME_HCP high-card points.
+LONG_GAME = True
+LONG_GAME_LEN = {'S': 8, 'H': 8, 'D': 9, 'C': 9}
+LONG_GAME_HCP = 4
+#: The opening too (the user's challenge deal 51, Nov 9 2026: North
+#: ♠5 ♥AKQJT9764 ♦J4 ♣3 opened 1♥ and rebid 2♥), ahead of the 4M pre-empt.
+LONG_GAME_OPEN = True
+
+
+def _long_game(ctx: Ctx, allowed: list[str]) -> tuple | None:
+    h = ctx.h
+    if h.hcp < LONG_GAME_HCP:
+        return None
+    longs = [s for s in allowed if h.len[s] >= LONG_GAME_LEN[s]]
+    if not longs:
+        return None
+    s = max(longs, key=lambda x: (h.len[x], SUITS.index(x)))
+    call = f"{4 if s in MAJORS else 5}{s}"
+    if ctx.ok(call):
+        return call, f"{LONG_GAME_LEN[s]}+ {SYM[s]}. To play."
+    return None
+
+
+#: The same long suit with 10+ HCP had no rule at all: LONG_ADVANCE stops at
+#: 9 HCP and the plain new suit needs the two level, so a three-level suit
+#: passed. The user's board (Nov 9 2026): (1♠) 2♥ (P) ? with ♠Q8 ♥A9 ♦-
+#: ♣AJ9875432, 11 HCP, passed three times; clubs by West make 11 tricks.
+#: Named at the cheapest level, three at most: natural, constructive.
+LONG_ADVANCE_STRONG = True
+LONG_STRONG_LEN = 7
+LONG_STRONG_ALERT = "{}+ {}, 10+ HCP."
+
+
+def _long_suit_strong(ctx: Ctx, allowed: list[str]) -> tuple | None:
+    h = ctx.h
+    if h.hcp <= LONG_SUIT_HCP[1]:
+        return None
+    longs = [s for s in allowed if h.len[s] >= LONG_STRONG_LEN]
+    if not longs:
+        return None
+    s = max(longs, key=lambda x: (h.len[x], SUITS.index(x)))
+    call = ctx.cheapest(s, 1)
+    if call and level_of(call) <= 3:
+        return call, LONG_STRONG_ALERT.format(LONG_STRONG_LEN, SYM[s])
     return None
 
 
