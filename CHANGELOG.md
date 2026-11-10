@@ -12,8 +12,8 @@ The Nov 10 fixes from played boards, and the table count: every card-play
 rule now reads one count of what its seat has seen, and the fallback lead,
 the declaring side's discards and fourth hand on defence are chosen from it.
 Card play, tricks given away a board on the same 199 deals: declaring side
-2.58 to GROSS_DECL, opening lead 0.39 to GROSS_LEAD, defence 2.12 to
-GROSS_DEF. The count's three play rules measured +0.03 to +0.06 tricks a
+2.58 to 2.15, opening lead 0.39 to 0.40 (the bidding changes move some
+contracts), defence 2.12 to 1.87. The count's three play rules measured +0.03 to +0.06 tricks a
 board each to the side that uses them (seated, 3 x 1,000 fresh deals). The
 bidding fixes +0.53 / +0.35 / +0.22 (long suits) and +0.02 / +0.21 / +0.22
 (over 1x-P-1NT) points a board on 10,000-deal sets.
