@@ -1347,8 +1347,13 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     choice = locatedSuitPlan(player, hand, legal, trick, trump, played, visible, history, choice, count);
   }
 
-  if (history !== null && Object.keys(visible).length && legal.length > 1
-    && hand.length <= (DEEP_ENDGAME ? DEEP_ENDGAME_CARDS : ENDGAME_CARDS)) {
+  const searched = history !== null && Object.keys(visible).length > 0 && legal.length > 1
+    && hand.length <= (DEEP_ENDGAME ? DEEP_ENDGAME_CARDS : ENDGAME_CARDS);
+  if (COUNT_DISCARD && trick.length && history !== null && !searched) {
+    choice = countDiscard(player, hand, trick, trump, visible, choice, count) ?? choice;
+  }
+
+  if (searched) {
     const totals = endgameTotals(player, hand, trick, trump, played, visible, history, legal, shown, count);
     if (totals) {
       const best = Math.max(...totals.values());
@@ -3003,6 +3008,95 @@ function countLead(player: Seat, hand: Card[], trump: string | null,
   if (!values.size) return null;
   const best = maxBy(values.keys(), (s) => [values.get(s)![0], s === choice.suit ? 1 : 0]);
   return best === choice.suit ? null : values.get(best)![1];
+}
+
+// ── Declarer's discards, from the count (see ai.py: COUNT_DISCARD) ──
+
+/** The declaring side's discard is priced by playing each suit out over the count (measurement switch). */
+export const COUNT_DISCARD = true;
+/** ...and replaces `shed`'s card only when that costs this much more. */
+export const COUNT_DISCARD_MARGIN = 0.5;
+
+/** Port of ai._count_discard_costs: the tricks in `suit` each card's discard loses, on average, or null. */
+function countDiscardCosts(player: Seat, hand: Card[], trump: string | null,
+  visible: Partial<Record<Seat, Card[]>>, suit: Suit, tc: TableCount): Map<string, number> | null {
+  const i = PLAYERS.indexOf(player);
+  const seats = [0, 1, 2, 3].map((k) => PLAYERS[(i + k) % 4]);
+  const mine = hand.filter((c) => c.suit === suit);
+  const hidden = seats.slice(1).filter((s) => !(s in visible));
+  const unseen = tc.unseenIn(suit);
+  if (hidden.length !== 2 || unseen.length > SUIT_PLAN_MAX_UNSEEN) return null;
+  const out = tc.out;
+  const others = tc.unseen.length - unseen.length;
+  const known: Partial<Record<Seat, Card[]>> = { [player]: hand, ...visible };
+  const held = new Map<Seat, Trumps>();
+  for (const [s, cards] of Object.entries(known) as [Seat, Card[]][]) {
+    held.set(s, cards.filter((c) => c.suit === suit).map(value).sort((a, b) => a - b));
+  }
+  const sideSuit = isSuit(trump) && suit !== trump;
+  const ruffs = (seat: Seat): boolean => {
+    if (!sideSuit) return false;
+    if (seat in known) return known[seat]!.some((c) => c.suit === trump);
+    return !out[seat].has(trump!) && tc.unseenIn(trump!).length > 0;
+  };
+  const canRuff = seats.map(ruffs);
+  const turned = [...canRuff.slice(1), ...canRuff.slice(0, 1)];
+  const memo = SUIT_PLAN_MEMO;
+  if (memo.size > POSITION_MEMO_MAX) memo.clear();
+  // Our tricks in the suit, ours opening it plus theirs opening it.
+  const twiceOurs = (hands: PlanHands): number => {
+    const rounds = Math.max(...hands.map((h) => h.length));
+    const turnedHands = [...hands.slice(1), ...hands.slice(0, 1)] as unknown as PlanHands;
+    return planSuit(hands, canRuff, null, memo) + rounds - planSuit(turnedHands, turned, null, memo);
+  };
+  const [first, second] = hidden;
+  const roomFirst = tc.size(first);
+  const roomSecond = tc.size(second);
+  const totals = new Map(mine.map((c) => [cardKey(c), 0]));
+  let weights = 0;
+  for (let n = 0; n <= unseen.length; n++) {
+    for (const picked of combinations(unseen.length, n)) {
+      const toFirst = picked.map((k) => unseen[k]);
+      const toSecond = unseen.filter((v) => !toFirst.includes(v));
+      if ((toFirst.length && out[first].has(suit)) || (toSecond.length && out[second].has(suit))) continue;
+      if (toFirst.length > roomFirst || toSecond.length > roomSecond) continue;
+      if (toFirst.length < tc.floor(first, suit) || toSecond.length < tc.floor(second, suit)) continue;
+      const weight = choose(others, roomFirst - toFirst.length);
+      if (!weight) continue;
+      const layout = new Map(held);
+      layout.set(first, toFirst);
+      layout.set(second, toSecond);
+      const hands = seats.map((s) => layout.get(s)!) as unknown as PlanHands;
+      const full = twiceOurs(hands);
+      weights += weight;
+      for (const c of mine) {
+        const without = hands[0].filter((v) => v !== value(c));
+        const rest = [without, hands[1], hands[2], hands[3]] as unknown as PlanHands;
+        totals.set(cardKey(c), totals.get(cardKey(c))! + weight * (full - twiceOurs(rest)));
+      }
+    }
+  }
+  if (!weights) return null;
+  return new Map(mine.map((c) => [cardKey(c), totals.get(cardKey(c))! / (2 * weights)]));
+}
+
+/** Port of ai._count_discard: the declaring side's discard priced over the count, or null. */
+function countDiscard(player: Seat, hand: Card[], trick: AnyPlay[], trump: string | null,
+  visible: Partial<Record<Seat, Card[]>>, choice: Card, tc: TableCount): Card | null {
+  if (!trick.length || !Object.keys(visible).length || !(PARTNERS[player] in visible)
+    || choice.suit === trick[0][1].suit || choice.suit === trump) return null;
+  const costs = new Map<string, number>();
+  const cards: Card[] = [];
+  for (const suit of SUITS) {
+    if (suit === trump || !hand.some((c) => c.suit === suit)) continue;
+    const priced = countDiscardCosts(player, hand, trump, visible, suit, tc);
+    if (priced === null) return null;
+    for (const [k, v] of priced) costs.set(k, v);
+    cards.push(...hand.filter((c) => c.suit === suit));
+  }
+  const cheapest = Math.min(...costs.values());
+  if (costs.get(cardKey(choice))! <= cheapest + COUNT_DISCARD_MARGIN) return null;
+  return minBy(cards.filter((c) => costs.get(cardKey(c)) === cheapest), (c) => [value(c), suitIndex(c.suit)]);
 }
 
 /** Port of ai._fallback_lead: `lead`, its suit chosen from the count where it can be. */

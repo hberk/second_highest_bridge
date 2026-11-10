@@ -1903,8 +1903,12 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         choice = _located_suit_plan(player, hand, legal, trick, trump, played, visible,
                                     history, choice, count=count)
 
-    if (history is not None and visible and len(legal) > 1
-            and len(hand) <= (DEEP_ENDGAME_CARDS if DEEP_ENDGAME else ENDGAME_CARDS)):
+    searched = (history is not None and visible and len(legal) > 1
+                and len(hand) <= (DEEP_ENDGAME_CARDS if DEEP_ENDGAME else ENDGAME_CARDS))
+    if COUNT_DISCARD and trick and history is not None and not searched:
+        choice = _count_discard(player, hand, trick, trump, visible, choice, count) or choice
+
+    if searched:
         totals = _endgame_totals(player, hand, trick, trump, played, visible,
                                  history, legal, shown, count=count)
         if totals:
@@ -4131,6 +4135,124 @@ def _count_lead(player: str, hand: list[Card], trump: str | None,
         return None
     best = max(values, key=lambda s: (values[s][0], s == choice.suit))
     return None if best == choice.suit else values[best][1]
+
+
+# ── Declarer's discards, from the count ─────────────────────────────────────
+#
+# A robot that can't follow and doesn't ruff throws `_shed`'s card: the lowest
+# side card in the hand, whatever suit it is in. That is the costliest blind
+# rule after the lead (docs/CHALLENGE.md, "The table count"): of the 0.98
+# tricks a board lost on the cards played while void, about half is a discard
+# from the wrong suit. Declarer threw the 2 from a suit whose 2 was its only
+# card under dummy's, and kept a useless one in another.
+#
+# So the declaring side (it sees partner) prices each card it could throw: its
+# suit is played out over every layout of the unseen cards between the two
+# defenders, as `_count_lead` plays a suit, with and without the card, and the
+# card's cost is the tricks the side loses in the suit by throwing it. A
+# suit's tricks are the average of the two openings, ours and theirs, since a
+# discard doesn't decide who leads the suit later. The card thrown is the
+# cheapest, but only when `_shed`'s card costs half a trick more: the model
+# sees one suit at a time, and below that margin it was wrong as often as
+# right. Scored one decision at a time against the solver on the 199 deals:
+# the declaring side's void cards 0.55 -> 0.47 tricks a board (margin 0.25:
+# 0.49, 1.0: 0.49). The defence keeps `_shed`: there the model, which lets
+# either defender lead the suit whenever it likes, can't see partner's
+# entries, and every margin measured worse (0.43 -> 0.45 at 0.75).
+
+#: The declaring side's discard is priced by playing each suit out over the
+#: count (measurement switch).
+COUNT_DISCARD = True
+#: ...and replaces `_shed`'s card only when that costs this much more.
+COUNT_DISCARD_MARGIN = 0.5
+
+
+def _count_discard_costs(player: str, hand: list[Card], trump: str | None,
+                         visible: dict[str, list[Card]], suit: str,
+                         count: TableCount) -> dict | None:
+    """{card: the tricks in `suit` its discard loses, on average}, or None
+    when the suit is too open to enumerate."""
+    i = PLAYERS.index(player)
+    seats = [PLAYERS[(i + k) % 4] for k in range(4)]
+    mine = [c for c in hand if c.suit == suit]
+    hidden = [s for s in seats[1:] if s not in visible]
+    unseen = count.unseen_in(suit)
+    if len(hidden) != 2 or len(unseen) > SUIT_PLAN_MAX_UNSEEN:
+        return None
+    out = count.out
+    others = len(count.unseen) - len(unseen)
+    known = {player: hand, **visible}
+    held = {s: tuple(sorted(c.value() for c in cards if c.suit == suit))
+            for s, cards in known.items()}
+    side_suit = trump in SUITS and suit != trump
+
+    def ruffs(seat: str) -> bool:
+        if not side_suit:
+            return False
+        if seat in known:
+            return any(c.suit == trump for c in known[seat])
+        return trump not in out[seat] and bool(count.unseen_in(trump))
+    can_ruff = tuple(ruffs(s) for s in seats)
+    turned = can_ruff[1:] + can_ruff[:1]
+    memo = _SUIT_PLAN_MEMO
+    if len(memo) > _TRUMP_MEMO_MAX:
+        memo.clear()
+
+    def twice_ours(hands: tuple) -> int:
+        """Our tricks in the suit, ours opening it plus theirs opening it."""
+        rounds = max(len(h) for h in hands)
+        return (_plan_suit(hands, can_ruff, None, memo)
+                + rounds - _plan_suit(hands[1:] + hands[:1], turned, None, memo))
+    first, second = hidden
+    room = {s: count.size(s) for s in hidden}
+    totals = {c: 0 for c in mine}
+    weights = 0
+    for n in range(len(unseen) + 1):
+        for picked in combinations(unseen, n):
+            to_first = tuple(picked)
+            to_second = tuple(v for v in unseen if v not in picked)
+            if (to_first and suit in out[first]) or (to_second and suit in out[second]):
+                continue
+            if len(to_first) > room[first] or len(to_second) > room[second]:
+                continue
+            if (len(to_first) < count.floor(first, suit)
+                    or len(to_second) < count.floor(second, suit)):
+                continue
+            weight = _choose(others, room[first] - len(to_first))
+            if not weight:
+                continue
+            layout = {**held, first: to_first, second: to_second}
+            hands = tuple(layout[s] for s in seats)
+            full = twice_ours(hands)
+            weights += weight
+            for c in mine:
+                without = tuple(v for v in hands[0] if v != c.value())
+                totals[c] += weight * (full - twice_ours((without,) + hands[1:]))
+    if not weights:
+        return None
+    return {c: totals[c] / (2 * weights) for c in mine}
+
+
+def _count_discard(player: str, hand: list[Card], trick: list[tuple[str, Card]],
+                   trump: str | None, visible: dict[str, list[Card]] | None,
+                   choice: Card, count: TableCount) -> Card | None:
+    """The declaring side's discard priced over the count, or None to keep `choice`."""
+    if (not trick or not visible or PARTNERS[player] not in visible
+            or choice.suit in (trick[0][1].suit, trump)):
+        return None
+    costs = {}
+    for suit in SUITS:
+        if suit == trump or not any(c.suit == suit for c in hand):
+            continue
+        priced = _count_discard_costs(player, hand, trump, visible, suit, count)
+        if priced is None:
+            return None
+        costs.update(priced)
+    cheapest = min(costs.values())
+    if costs[choice] <= cheapest + COUNT_DISCARD_MARGIN:
+        return None
+    return min((c for c in costs if costs[c] == cheapest),
+               key=lambda c: (c.value(), SUITS.index(c.suit)))
 
 
 def _fallback_lead(player: str, hand: list[Card], trump: str | None, played: list[Card],

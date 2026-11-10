@@ -811,3 +811,20 @@ little differently.
   the opening lead unchanged; seated on 3 × 1,000 fresh deals +0.051, +0.058,
   +0.028 tricks a board (t 2.95, 3.33, 1.54). It costs about 0.08 s a fallback
   lead in Python. Deal 114's robot table now wins three hearts for E/W, not two.
+- **Phase 2.2, the declaring side's discards (`COUNT_DISCARD`).** Void and not
+  ruffing, a robot threw `_shed`'s card, the lowest side card wherever it
+  was. Of the 0.98 tricks a board lost on cards played while void (199 deals,
+  after phase 2.1), about half was a discard from the wrong suit. Now the
+  declaring side prices each card it could throw: its suit is played out over
+  the count's layouts with and without the card, a suit's tricks the average
+  of us opening it and them opening it, and the cheapest card replaces
+  `_shed`'s when that one costs half a trick more (`COUNT_DISCARD_MARGIN`).
+  Not inside the endgame search, which already sees every card. The defence
+  keeps `_shed`: the model lets either defender lead the suit whenever it
+  likes, blind to partner's entries, and every margin tried measured worse
+  there. Nor does declarer stop ruffing second hand when partner wins anyway
+  (0.14 tricks a board lost that way): keeping the trump measured worse too.
+  Offline, the declaring side's void cards 0.55 → 0.47 tricks a board; whole
+  games, declaring side 2.31 → 2.24, defence 1.99 → 2.01 (its play is
+  unchanged; the boards it meets are not); seated on fresh deals, see
+  ROBOT_PROGRESS.
