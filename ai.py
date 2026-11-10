@@ -1870,6 +1870,9 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         if LAST_SUIT_PLAN and visible and PARTNERS[player] in visible:
             choice = _last_suit_plan(player, hand, legal, trick, trump, played, visible,
                                      history, shown, choice, count=count)
+        elif FOURTH_HAND_PLAN and visible:
+            choice = _third_hand_plan(player, hand, legal, trick, trump, played, visible,
+                                      history, shown, choice, count=count)
     else:
         out = count.out if SHOWOUT_MIDDLE and history is not None else None
         later = _later_holdings(player, hand, trick, played, visible or {}, out, count=count)
@@ -4373,6 +4376,21 @@ def _third_sees_last(player: str, legal: list[Card], trick: list[tuple[str, Card
 #: cards (measurement switch): 0 off, 1 with declarer last, 2 also with dummy
 #: last.
 THIRD_HAND_PLAN = 2
+
+# Fourth hand on defence. `_play_last` plays the cheapest card that keeps the
+# trick, or with none the lowest (a dead one first): the one trick only. But
+# fourth hand's card also decides what is left of the suit, and in this game
+# the cards beside it matter as much as the top: a nine kept between dummy's
+# ten and declarer's eight wins a later round. The plan above is written for
+# any position, the trick so far in `plays`, so fourth hand follows suit with
+# it too. Card by card on 199 solved deals the defence's fourth-hand cards in
+# the led suit lost 0.215 tricks a board, 0.122 with the plan (notrump 0.085
+# -> 0.062, suit contracts 0.130 -> 0.060); its discards keep `_shed` (see
+# `COUNT_DISCARD`), and the declaring side has `LAST_SUIT_PLAN`.
+
+#: Fourth hand on defence, following suit, plays the led suit out with the
+#: third-hand plan (measurement switch).
+FOURTH_HAND_PLAN = True
 
 
 def _third_hand_plan(player: str, hand: list[Card], legal: list[Card],

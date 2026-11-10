@@ -828,3 +828,13 @@ little differently.
   games, declaring side 2.31 → 2.24, defence 1.99 → 2.01 (its play is
   unchanged; the boards it meets are not); seated on fresh deals, see
   ROBOT_PROGRESS.
+- **Phase 2.3, the defence's fourth hand (`FOURTH_HAND_PLAN`).** `_play_last`
+  played the cheapest card that kept the trick, or the lowest: one trick's
+  worth of thought, where fourth hand's card also decides what is left of the
+  suit. The third-hand plan (`_third_hand_plan`) already plays the led suit out
+  over the count's layouts with the trick so far on the table, so fourth hand
+  on defence now follows suit with it too (the declaring side has
+  `LAST_SUIT_PLAN`). Card by card, the defence's fourth-hand cards in the led
+  suit lost 0.215 → 0.122 tricks a board; whole games, defence 2.01 → 1.97,
+  declaring side 2.24 → 2.23; seated +0.026, +0.026, +0.027 tricks a board on
+  fresh deals (t 3.46, 3.86, 3.69). Fourth-hand discards keep `_shed`.

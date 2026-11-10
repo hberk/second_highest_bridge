@@ -1312,6 +1312,8 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     choice = playLast(legal, trick, trump, hand, played, count);
     if (LAST_SUIT_PLAN && PARTNERS[player] in visible) {
       choice = lastSuitPlan(player, hand, legal, trick, trump, played, visible, history, shown, choice, count);
+    } else if (FOURTH_HAND_PLAN && Object.keys(visible).length) {
+      choice = thirdHandPlan(player, hand, legal, trick, trump, played, visible, history, shown, choice, count);
     }
   }
   else {
@@ -1614,6 +1616,8 @@ function unseenPartnerPlan(player: Seat, hand: Card[], cards: Card[], trick: Any
 /** Third hand on defence plays the led suit out over the layouts of its unseen
  *  cards: 0 off, 1 with declarer last, 2 also with dummy last (see ai.py). */
 export const THIRD_HAND_PLAN: number = 2;
+/** Fourth hand on defence, following suit, plays the led suit out with the third-hand plan (see ai.py). */
+export const FOURTH_HAND_PLAN = true;
 
 /** Port of ai._third_hand_plan. */
 function thirdHandPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[], trump: string | null,
