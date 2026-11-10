@@ -2855,9 +2855,16 @@ DRAW_TRUMPS = True
 # N/S double dummy, instead of 6). The user's rule: once drawing only loses
 # trump tricks, play for ruffs instead. So the declaring side leads a side
 # suit and keeps its trumps for ruffing.
+#
+# Only with two or more defence trumps out. A lone defence trump nearly always
+# takes its round, so the test fires all the time there, and drawing it is
+# usually right: left out, it overruffs a higher ruff (of two trumps the lower
+# wins) or ruffs a winner. Card by card on 199 solved deals the one-trump
+# cases went 3 better, 8 worse (deal 70: the 9H drawing West's lone Q was
+# worth two tricks).
 
 #: Declaring side doesn't lead trumps when drawing would lose a trick to every
-#: trump the defence holds (measurement switch).
+#: trump the defence holds, two or more (measurement switch).
 NO_FUTILE_DRAW = True
 
 #: `_draw_plan`'s answer when drawing would gain nothing.
@@ -3036,7 +3043,7 @@ def _draw_plan(player: str, hand: list[Card], trump: str | None,
             worst = max(worst, losers)
         scored.append((total / weights, worst, card.value(), card))
     best = min(scored, key=lambda t: t[:3])
-    if NO_FUTILE_DRAW and best[0] >= len(outstanding):
+    if NO_FUTILE_DRAW and len(outstanding) >= 2 and best[0] >= len(outstanding):
         return _FUTILE_DRAW
     return best[3]
 

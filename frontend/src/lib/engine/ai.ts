@@ -2735,7 +2735,7 @@ function drawPlan(player: Seat, hand: Card[], trump: string | null, played: Card
     scored.push([total / weights, worst, value(c), c]);
   }
   const best = minBy(scored, (t) => [t[0], t[1], t[2]]);
-  if (NO_FUTILE_DRAW && best[0] >= outstanding.length) return FUTILE_DRAW;
+  if (NO_FUTILE_DRAW && outstanding.length >= 2 && best[0] >= outstanding.length) return FUTILE_DRAW;
   return best[3];
 }
 
