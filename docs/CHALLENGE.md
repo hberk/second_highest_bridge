@@ -798,3 +798,78 @@ had only `_middle_play` (the cheapest card that keeps this trick), and both the
   tricks** (t 1.71, 4.00, 2.87), +3.47 / +4.22 / +2.23 points; gross mistakes
   on 199 deals 2.57 / 0.39 / 2.11 (main 2.58 / 0.39 / 2.12).
   `tests/test_card_play_rules.py` holds the deal.
+## The table count (2026-11-10)
+
+An audit of every robot card on 199 library deals, each traced to the rule
+that chose it (`research/play_rule_trace.py`), found 2.82 of the 5.09 tricks a
+board given away (gross, both sides) on cards chosen by rules that read only
+their own hand and the cards played: the fallback lead `_lead` (1.21, mostly
+the wrong suit, not the wrong card), the discards in `_shed` (0.84), fourth
+hand's `_play_last` (0.32) and the notrump leads (0.27). The rules that do
+count each rebuilt their own picture of the table — "seen", "unseen",
+show-outs, hand sizes, the auction's floors — about fifteen times, each a
+little differently.
+
+- **Phase 1 (this change, no card changes).** `ai.TableCount` is that picture,
+  built once per card by `ai_play` from what the seat may legally know, and
+  passed to every rule as `count`: `seen`, `unseen`, `gone`, `out` (who has
+  shown out), `size`, `floor`, `played_in`, `master`, `dead`, `splits`
+  (`_splits`), `fits_auction`. A rule called on its own builds one from the same
+  arguments. `tests/test_table_count.py` keeps the derivations in the count (no
+  rule reads `_FULL_DECK`, `_shown_out` or `_played_in`, or builds
+  `set(played)`) and checks the count against the real deal at every card of
+  12 robot games. The robots' 6,400 lines on the library (400 deals × 16 boards)
+  are identical before and after, and the web engine's `TableCount` follows
+  line for line (fixtures).
+- **Still blind, by design of phase 1:** `_lead`, `_gap` and `_nt_long_lead`
+  still read only the cards played, and `_shed` reads neither. Phase 2 rebuilds
+  them on the count, one measured switch each: the lead's suit choice by the
+  suit plans over `count.splits`, discards that keep the guard against dummy's
+  visible length, fourth hand on defence.
+- **Phase 2.1, the lead's suit (`COUNT_LEAD`).** When no lead rule fires, `_lead`
+  still names a suit by `_gap`, and `_count_lead` then asks the count instead,
+  for a seat that sees a second hand: each suit it holds is played out over
+  every layout of its unseen cards between the two hidden hands (shown-outs and
+  the auction's floors respected, weighted as `splits` weights), with
+  `_defender_suit_plan`'s suit model. U is the tricks this side takes in the
+  suit leading it now; V the tricks it takes if the other side opens it. The
+  suit with the most U + (U − V) is led, with the card that takes the most;
+  `_lead`'s suit wins a tie. Declarer never picks trumps this way (drawing
+  them is `_draw_trump`'s call), the defence in a suit contract keeps `_lead`
+  (every version measured worse there: the model's ruffs are too rough), and a
+  suit with more than `SUIT_PLAN_MAX_UNSEEN` unseen cards leaves `_lead` alone.
+  Scored one decision at a time against the solver on the 2,448 fallback leads
+  of 199 deals: 1.63 → 1.27 tricks a board (declarer in notrump 0.47 → 0.23,
+  declarer in a suit 0.50 → 0.41, defence in notrump 0.16 → 0.12; U alone,
+  U − V alone and U + (U − V)/2 all did worse). Whole games on the same deals,
+  gross: declaring side 2.58 → 2.31, defence 2.12 → 1.99 tricks given a board,
+  the opening lead unchanged; seated on 3 × 1,000 fresh deals +0.051, +0.058,
+  +0.028 tricks a board (t 2.95, 3.33, 1.54). It costs about 0.08 s a fallback
+  lead in Python. Deal 114's robot table now wins three hearts for E/W, not two.
+- **Phase 2.2, the declaring side's discards (`COUNT_DISCARD`).** Void and not
+  ruffing, a robot threw `_shed`'s card, the lowest side card wherever it
+  was. Of the 0.98 tricks a board lost on cards played while void (199 deals,
+  after phase 2.1), about half was a discard from the wrong suit. Now the
+  declaring side prices each card it could throw: its suit is played out over
+  the count's layouts with and without the card, a suit's tricks the average
+  of us opening it and them opening it, and the cheapest card replaces
+  `_shed`'s when that one costs half a trick more (`COUNT_DISCARD_MARGIN`).
+  Not inside the endgame search, which already sees every card. The defence
+  keeps `_shed`: the model lets either defender lead the suit whenever it
+  likes, blind to partner's entries, and every margin tried measured worse
+  there. Nor does declarer stop ruffing second hand when partner wins anyway
+  (0.14 tricks a board lost that way): keeping the trump measured worse too.
+  Offline, the declaring side's void cards 0.55 → 0.47 tricks a board; whole
+  games, declaring side 2.31 → 2.24, defence 1.99 → 2.01 (its play is
+  unchanged; the boards it meets are not); seated on fresh deals, see
+  ROBOT_PROGRESS.
+- **Phase 2.3, the defence's fourth hand (`FOURTH_HAND_PLAN`).** `_play_last`
+  played the cheapest card that kept the trick, or the lowest: one trick's
+  worth of thought, where fourth hand's card also decides what is left of the
+  suit. The third-hand plan (`_third_hand_plan`) already plays the led suit out
+  over the count's layouts with the trick so far on the table, so fourth hand
+  on defence now follows suit with it too (the declaring side has
+  `LAST_SUIT_PLAN`). Card by card, the defence's fourth-hand cards in the led
+  suit lost 0.215 → 0.122 tricks a board; whole games, defence 2.01 → 1.97,
+  declaring side 2.24 → 2.23; seated +0.026, +0.026, +0.027 tricks a board on
+  fresh deals (t 3.46, 3.86, 3.69). Fourth-hand discards keep `_shed`.

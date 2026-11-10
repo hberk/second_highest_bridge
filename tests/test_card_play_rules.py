@@ -27,7 +27,7 @@ RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'SECOND_HAND_COVER', 'SECOND_HAND_COVER_DUMMY_LED', 'PARTNER_WINS_NO_RUFF',
          'LOCATED_SUIT_PLAN', 'THIRD_SEES_LAST', 'THIRD_HAND_PLAN', 'SURE_LEAD_UNRUFFED',
          'ENTRY_TO_DRAW', 'RUFF_KEEPS_DRAW', 'DECLARER_THIRD_PLAN',
-         'DISCARD_SUIT_PLAN')
+         'DISCARD_SUIT_PLAN', 'COUNT_LEAD', 'COUNT_DISCARD', 'FOURTH_HAND_PLAN')
 
 
 @contextmanager
@@ -524,14 +524,16 @@ def test_deal_114_dummy_keeps_the_seven_after_the_ten():
 
 
 def test_deal_114_robot_table_wins_two_hearts_for_east_west():
-    """The whole board as shipped: E/W win trick 2 and a later heart."""
+    """The whole board as shipped: E/W win trick 2 and a later heart (with
+    COUNT_LEAD, two later hearts: North is left to open them)."""
     table = challenge.robot_table(114, 'East', 'Both')
     log = table['tricks_log']
     assert log[0]['plays'][0] == ('South', C('QH'))
     assert dict(log[1]['plays'])['East'] == C('6H')
+    assert log[1]['winner'] in ('East', 'West')
     hearts_ew = [t for t in log if t['plays'][0][1].suit == 'H'
                  and t['winner'] in ('East', 'West')]
-    assert len(hearts_ew) == 2
+    assert len(hearts_ew) >= 2
 
 
 # The user's board (Oct 30): trick 7, West declaring leads the TS; North holds
