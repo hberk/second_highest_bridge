@@ -28,9 +28,10 @@ bidding fixes +0.53 / +0.35 / +0.22 (long suits) and +0.02 / +0.21 / +0.22
   their opening, or as advancer's first call.
 - Advancer with 10+ HCP and a seven-card suit names it, at the three level at
   most.
-- Fourth seat over 1x-P-1NT bids a natural five-card suit at the two level or
-  doubles for takeout (12-17 HCP) instead of always passing, and the answer
-  to a takeout double never names a suit they bid.
+- Fourth seat over 1x-P-1NT bids a natural five-card suit at the two level
+  (12-17 HCP) or doubles for takeout (12+ HCP with the shape, or 18+)
+  instead of always passing, and the answer to a takeout double never names
+  a suit they bid.
 - The fallback lead picks its suit by playing each suit out over the layouts
   the count allows.
 - Declarer and dummy price each discard by what it costs in its suit.
