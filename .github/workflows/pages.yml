@@ -37,7 +37,9 @@ jobs:
   python-tests:
     if: github.event.repository.visibility == 'public' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The table count's play rules (v0.1.4-alpha) enumerate suit layouts on
+    # every card, so the seeded games take longer: 28 minutes on the PR.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       # 3.12 is the reference: 3.12's sum() can move a hand's value in the
@@ -81,7 +83,9 @@ jobs:
   build:
     if: github.event.repository.visibility == 'public' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Fixtures plus the engine parity games, slower since the table count
+    # (v0.1.4-alpha): over 30 minutes on the PR, 21 for npm test alone locally.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
 
