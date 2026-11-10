@@ -4672,6 +4672,40 @@ function blastGame(ctx: Ctx, opening: string | null, their: string): Decision | 
   return null;
 }
 
+/** Fourth seat over (1x) P (1NT) P? -- they bid a suit and a 1NT response,
+ *  partner passed: a natural 5+ suit at the two level, else a takeout double
+ *  (the user's challenge deal 206, 2026-11-10). Was always a pass. */
+export const OVER_NT_RESPONSE: 'overcall' | 'x' | null = 'x';
+export const OVER_NT_RESPONSE_HCP: readonly [number, number] = [12, 17];
+export const OVER_NT_RESPONSE_LEN = 5;
+export const OVER_NT_RESPONSE_X: readonly [number, number] = [12, 18];
+
+function overNtResponse(ctx: Ctx): Decision | null {
+  if (!OVER_NT_RESPONSE) return null;
+  const seq = ctx.theirs.map(([, c]) => c);
+  if (seq.length !== 2 || seq[1] !== '1NT' || levelOf(seq[0]) !== 1
+    || !isSuit(strainOf(seq[0])) || ctx.seq.length
+    || ctx.calls.some(([w, c]) => w === ctx.pd && c !== 'Pass')) {
+    return null;
+  }
+  const h = ctx.h;
+  const [lo, hi] = OVER_NT_RESPONSE_HCP;
+  const their = strainOf(seq[0]) as Suit;
+  const own = SUITS.filter((s) => s !== their && h.len[s] >= OVER_NT_RESPONSE_LEN);
+  if (own.length && lo <= h.hcp && h.hcp <= hi) {
+    const s = maxBy(own, (x) => [h.len[x], SUITS.indexOf(x)]);
+    const call = `2${s}`;
+    if (ctx.ok(call)) return [call, `${OVER_NT_RESPONSE_LEN}+ ${SYM[s]}, ${lo}-${hi} HCP. Overcall.`];
+  }
+  if (OVER_NT_RESPONSE === 'x' && ctx.ok('X')) {
+    const [xlo, strong] = OVER_NT_RESPONSE_X;
+    let shape = h.len[their] <= 2 && SUITS.every((s) => s === their || h.len[s] >= 3);
+    if (MINORS.includes(their) && h.len.H >= 4 && h.len.S >= 4 && h.len[their] <= 3) shape = true;
+    if ((shape && h.hcp >= xlo) || h.hcp >= strong) return ['X', `Takeout: ${xlo}+ HCP.`];
+  }
+  return null;
+}
+
 function defend(ctx: Ctx): Decision | null {
   const h = ctx.h;
   const hcp = h.hcp;
@@ -4697,7 +4731,7 @@ function defend(ctx: Ctx): Decision | null {
     }
     return ['Pass', 'No action over 1NT.'];
   }
-  if (opening === '2C' || their === 'NT') return ['Pass', 'No action.'];
+  if (opening === '2C' || their === 'NT') return overNtResponse(ctx) ?? ['Pass', 'No action.'];
 
   const game = LONG_GAME ? longGame(ctx, SUITS.filter((s) => !theirs.includes(s))) : null;
   if (game) return game;

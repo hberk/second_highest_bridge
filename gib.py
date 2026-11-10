@@ -5169,6 +5169,51 @@ def _blast_game(ctx: Ctx, opening: str | None, their: str) -> tuple | None:
     return None
 
 
+#: Fourth seat over (1x) P (1NT) P? -- they bid a suit and a 1NT response, partner
+#: passed. `_defend` read the 1NT as their strain and always passed, so
+#: ♠T ♥AKJ83 ♦A6 ♣A8654 passed 1♠-1NT (the user's challenge deal 206,
+#: 2026-11-10). Experts (championship archive) act there on 10 of 11 hands with
+#: five of the other major, a five-card minor and 12+ HCP, mostly a natural 2♥;
+#: with one five-card suit and 12-15 HCP they act about half the time.
+#: Experts double for takeout too (51 of 1,293 times over 1♠-1NT), and almost
+#: never use 2NT or the cuebid (1 and 3 times).
+#: None keeps the pass; 'overcall' bids a natural 5+ suit at the two level;
+#: 'x' adds a takeout double.
+OVER_NT_RESPONSE: str | None = 'x'
+OVER_NT_RESPONSE_HCP = (12, 17)
+OVER_NT_RESPONSE_LEN = 5
+#: The takeout double: short in their suit with three of every other suit
+#: (both majors over a minor), or this many HCP whatever the shape.
+OVER_NT_RESPONSE_X = (12, 18)
+
+
+def _over_nt_response(ctx: Ctx) -> tuple | None:
+    if not OVER_NT_RESPONSE:
+        return None
+    seq = [c for _, c in ctx.theirs]
+    if (len(seq) != 2 or seq[1] != '1NT' or level_of(seq[0]) != 1
+            or strain_of(seq[0]) not in SUITS or ctx.seq
+            or any(c != 'Pass' for w, c in ctx.calls if w == ctx.pd)):
+        return None
+    h = ctx.h
+    lo, hi = OVER_NT_RESPONSE_HCP
+    their = strain_of(seq[0])
+    own = [s for s in SUITS if s != their and h.len[s] >= OVER_NT_RESPONSE_LEN]
+    if own and lo <= h.hcp <= hi:
+        s = max(own, key=lambda s: (h.len[s], SUITS.index(s)))
+        call = f"2{s}"
+        if ctx.ok(call):
+            return call, f"{OVER_NT_RESPONSE_LEN}+ {SYM[s]}, {lo}-{hi} HCP. Overcall."
+    if OVER_NT_RESPONSE == 'x' and ctx.ok('X'):
+        xlo, strong = OVER_NT_RESPONSE_X
+        shape = h.len[their] <= 2 and all(h.len[s] >= 3 for s in SUITS if s != their)
+        if their in MINORS and h.len['H'] >= 4 and h.len['S'] >= 4 and h.len[their] <= 3:
+            shape = True
+        if (shape and h.hcp >= xlo) or h.hcp >= strong:
+            return 'X', f"Takeout: {xlo}+ HCP."
+    return None
+
+
 def _defend(ctx: Ctx) -> tuple | None:
     """Our first action after they opened."""
     h = ctx.h
@@ -5198,7 +5243,7 @@ def _defend(ctx: Ctx) -> tuple | None:
                 return '2C', "One long suit, 6+. Artificial."
         return 'Pass', "No action over 1NT."
     if opening == '2C' or their == 'NT':
-        return 'Pass', "No action."
+        return _over_nt_response(ctx) or ('Pass', "No action.")
 
     game = _long_game(ctx, [s for s in SUITS if s not in theirs]) if LONG_GAME else None
     if game:
