@@ -762,3 +762,20 @@ of clubs. Dummy led a club, which South could ruff.
   fresh deals: **+0.013, +0.013, +0.006 tricks** (t 2.81, 2.35, 1.42); gross
   mistakes on 199 deals 2.56 / 0.40 / 2.10 (from 2.59 / 0.40 / 2.12).
   `tests/test_card_play_rules.py` holds the deal.
+
+**Deal 13, 4♠ by South (user's board, 2026-11-10).** Trick 2: dummy led the
+9♠, East covered with the 10♠, and South held A K Q J 8 6 with dummy's 5♠ left
+and West's 7 3 2 unseen. South played the 6♠: declarer's side in third seat
+had only `_middle_play` (the cheapest card that keeps this trick), and both the
+8 and the 6 leave the nine second-highest. The 8 keeps the 6 to sandwich West's
+7 between dummy's 5 and South's 6 next round; double dummy 10 tricks against 9.
+- `ai.DECLARER_THIRD_PLAN` (`_declarer_third_plan`): third hand on the
+  declaring side, in the trump suit or notrump (1; 2 adds side suits, not
+  measured), plays the led suit out over the layouts of its unseen cards
+  between the defenders (`_cover_suit_plan`, this trick included) and plays
+  the card that takes the most tricks in it. Fourth hand already did this
+  (`LAST_SUIT_PLAN`), defence third hand too (`THIRD_HAND_PLAN`).
+- Seated head to head, 3 × 1,000 fresh deals: **+0.017, +0.036, +0.027
+  tricks** (t 1.71, 4.00, 2.87), +3.47 / +4.22 / +2.23 points; gross mistakes
+  on 199 deals 2.57 / 0.39 / 2.11 (main 2.58 / 0.39 / 2.12).
+  `tests/test_card_play_rules.py` holds the deal.

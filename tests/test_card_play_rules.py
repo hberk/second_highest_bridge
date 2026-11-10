@@ -26,7 +26,7 @@ RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'COVER_SUIT_PLAN', 'COVER_PLAN_LOW', 'LAST_SUIT_PLAN', 'COVER_KEEP_MASTER',
          'SECOND_HAND_COVER', 'SECOND_HAND_COVER_DUMMY_LED', 'PARTNER_WINS_NO_RUFF',
          'LOCATED_SUIT_PLAN', 'THIRD_SEES_LAST', 'THIRD_HAND_PLAN', 'SURE_LEAD_UNRUFFED',
-         'ENTRY_TO_DRAW', 'RUFF_KEEPS_DRAW')
+         'ENTRY_TO_DRAW', 'RUFF_KEEPS_DRAW', 'DECLARER_THIRD_PLAN')
 
 
 @contextmanager
@@ -779,6 +779,32 @@ def test_deal_80_ruff_keeps_draw_ruffs_high():
         assert _east_ruffs_80() in (C('JH'), C('AH'))
     with rules():
         assert _east_ruffs_80() == C('2H')
+
+
+# Deal 13, 4S by South. Trick 2: dummy led the 9S and East covered with the TS.
+# South holds AKQJ86, dummy has the 5S left and West's 732 are unseen.
+DEAL_13 = ['W:10H N:JH E:2H S:AH']
+
+
+def _south_13() -> Card:
+    hands, played, history = replay(13, DEAL_13)
+    hands['North'].remove(C('9S'))
+    hands['East'].remove(C('10S'))
+    view = {'North': hands['North'], 'South': hands['South']}
+    trick = [('North', C('9S')), ('East', C('10S'))]
+    return ai.ai_play('South', hands['South'], trick, 'S', played, view, history)
+
+
+def test_deal_13_played_the_six():
+    with rules():
+        assert _south_13() == C('6S')
+
+
+def test_deal_13_declarer_third_plan_keeps_the_six():
+    # The 8 and the 6 both leave the nine second-highest; the 8 keeps the 6
+    # to sandwich West's 7 between dummy's 5 and South's 6 next round.
+    with rules(DECLARER_THIRD_PLAN=1):
+        assert _south_13() == C('8S')
 
 
 if __name__ == '__main__':

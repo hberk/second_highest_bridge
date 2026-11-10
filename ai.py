@@ -1756,6 +1756,10 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         if THIRD_HAND_PLAN and len(trick) == 2 and visible:
             choice = _third_hand_plan(player, hand, legal, trick, trump, played, visible,
                                       history, shown, choice)
+        if (DECLARER_THIRD_PLAN and len(trick) == 2 and visible
+                and PARTNERS[player] in visible):
+            choice = _declarer_third_plan(player, hand, legal, trick, trump, played,
+                                          visible, history, shown, choice)
 
     partner = PARTNERS[player]
     if len(trick) == 1 and visible and partner in visible and len(legal) > 1:
@@ -1987,6 +1991,49 @@ def _last_suit_plan(player: str, hand: list[Card], legal: list[Card],
     if planned[choice] == top:
         return choice
     return min((c for c in winning if planned[c] == top), key=lambda c: c.value())
+
+
+# ── Declarer's side third hand, the suit counted ─────────────────────────────
+#
+# Third hand on the declaring side played `_middle_play`'s card: the cheapest
+# one that keeps this trick, and nothing else. It never counted the suit. On
+# challenge deal 13, 4S by South, trick 2, dummy led the 9S, East covered with
+# the TS, and South held AKQJ86 with dummy's 5S left and West's 732 unseen. The
+# 8 and the 6 both leave the nine second-highest, so the six went; but the
+# eight keeps the 6 to sandwich West's 7 on the next round (dummy's 5, South's
+# 6) and the six gives West a second trump trick: double dummy 10 tricks
+# against 9. Declarer sees both hands, so the suit is played out over every
+# layout of its unseen cards between the two defenders (`_cover_suit_plan`),
+# this trick included, and the card that takes the most tricks in it is
+# played, as fourth hand already does. Only the trump suit and notrump: in a
+# side suit of a trump contract the plan can't see a defender's ruff.
+
+#: Third hand on the declaring side picks its card of the trump suit (or in
+#: notrump) by playing the suit out over the unseen layouts (measurement
+#: switch): 0 off, 1 trumps and notrump, 2 any suit.
+DECLARER_THIRD_PLAN = 1
+
+
+def _declarer_third_plan(player: str, hand: list[Card], legal: list[Card],
+                         trick: list[tuple[str, Card]], trump: str | None,
+                         played: list[Card], visible: dict[str, list[Card]],
+                         history: list | None, shown: dict | None, choice: Card) -> Card:
+    """The card of `legal` that takes the most tricks in the led suit, summed
+    over the layouts of its unseen cards; `choice` when it is among the best,
+    or the plan doesn't apply."""
+    led = trick[0][1].suit
+    if len(legal) < 2 or any(c.suit != led for c in legal):
+        return choice
+    if DECLARER_THIRD_PLAN < 2 and trump in SUITS and led != trump:
+        return choice
+    planned = _cover_suit_plan(player, hand, legal, trick, trump, played, visible,
+                               history, shown)
+    if not planned:
+        return choice
+    top = max(planned.values())
+    if planned[choice] == top:
+        return choice
+    return min((c for c in legal if planned[c] == top), key=lambda c: c.value())
 
 
 # ── Every card of the suit located ───────────────────────────────────────────
