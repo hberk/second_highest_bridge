@@ -1218,6 +1218,10 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     if (THIRD_HAND_PLAN && trick.length === 2 && Object.keys(visible).length) {
       choice = thirdHandPlan(player, hand, legal, trick, trump, played, visible, history, shown, choice);
     }
+    if (DECLARER_THIRD_PLAN && trick.length === 2 && Object.keys(visible).length
+        && PARTNERS[player] in visible) {
+      choice = declarerThirdPlan(player, hand, legal, trick, trump, played, visible, history, shown, choice);
+    }
   }
 
   const partner = PARTNERS[player];
@@ -1389,6 +1393,26 @@ function lastSuitPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[
   const top = Math.max(...planned.values());
   if (planned.get(cardKey(choice)) === top) return choice;
   return minBy(winning.filter((c) => planned.get(cardKey(c)) === top), (c) => [value(c)]);
+}
+
+// ── Declarer's side third hand, the suit counted (see ai.py) ────────────────
+
+/** 0 off, 1 trumps and notrump, 2 any suit (see ai.py). */
+export const DECLARER_THIRD_PLAN: number = 1;
+
+/** The card of `legal` that takes the most tricks in the led suit over the unseen
+ *  layouts, else `choice` (see ai.py `_declarer_third_plan`). */
+function declarerThirdPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[],
+  trump: string | null, played: Card[], visible: Partial<Record<Seat, Card[]>>,
+  history: AnyPlay[][] | null, shown: Shown | null, choice: Card): Card {
+  const led = trick[0][1].suit;
+  if (legal.length < 2 || legal.some((c) => c.suit !== led)) return choice;
+  if (DECLARER_THIRD_PLAN < 2 && trump !== null && isSuit(trump) && led !== trump) return choice;
+  const planned = coverSuitPlan(player, hand, legal, trick, trump, played, visible, history, shown);
+  if (!planned) return choice;
+  const top = Math.max(...planned.values());
+  if (planned.get(cardKey(choice)) === top) return choice;
+  return minBy(legal.filter((c) => planned.get(cardKey(c)) === top), (c) => [value(c)]);
 }
 
 // ── Every card of the suit located (see ai.py) ───────────────────────────────
