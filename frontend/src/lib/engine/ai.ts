@@ -1311,7 +1311,9 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
         const ruff = ruffForIdleTrump(player, hand, trump, played, visible, count);
         if (ruff !== null) choice = fallbackLead(player, hand.filter((c) => c.suit === ruff), trump, played, visible, count);
       }
-      if (RUFF_NOT_DRAW && choice.suit === trump && (draw === null || draw === FUTILE_DRAW)) {
+      // COUNT_LEAD never leads a trump for the declaring side: ask _lead too (see ai.py).
+      if (RUFF_NOT_DRAW && (draw === null || draw === FUTILE_DRAW)
+        && (choice.suit === trump || lead(hand, trump, played).suit === trump)) {
         const ruff = ruffForIdleTrump(player, hand, trump, played, visible, count, true);
         if (ruff !== null) choice = fallbackLead(player, hand.filter((c) => c.suit === ruff), trump, played, visible, count);
       }

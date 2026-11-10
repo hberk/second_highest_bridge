@@ -902,6 +902,17 @@ def test_deal_102_ruff_not_draw_leads_the_king_for_dummy_to_ruff():
         assert _east_102() == C('KS')
 
 
+
+def test_shipped_rules_together_on_the_users_deals():
+    # The rules as shipped, all at once (the Nov 10 combined branch): COUNT_LEAD
+    # and COUNT_DISCARD sit in front of DISCARD_SUIT_PLAN, NO_FUTILE_DRAW and
+    # RUFF_NOT_DRAW, and each user's board keeps its fix.
+    assert _south_discards_206() == C('AS')   # keeps the 2S over dummy's spades
+    assert _east_215().suit != 'H'            # no futile trump draw
+    assert _east_102() == C('KS')             # dummy ruffs with its lone trump
+    assert _south_13() == C('8S')             # keeps the 6S
+
+
 if __name__ == '__main__':
     failed = 0
     for name, fn in list(globals().items()):

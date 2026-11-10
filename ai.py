@@ -1867,7 +1867,13 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                 if ruff is not None:
                     choice = _fallback_lead(player, [c for c in hand if c.suit == ruff],
                                             trump, played, visible, count)
-            if RUFF_NOT_DRAW and choice.suit == trump and not isinstance(draw, Card):
+            # COUNT_LEAD never leads a trump for the declaring side, so this
+            # also asks whether the hand's own lead (`_lead`) was the idle
+            # trump: the count's suit doesn't price partner's lone trump
+            # (deal 102: the count chose the Q♣, the K♠ for dummy to ruff is
+            # a trick better double dummy).
+            if (RUFF_NOT_DRAW and not isinstance(draw, Card)
+                    and trump in (choice.suit, _lead(hand, trump, played).suit)):
                 ruff = _ruff_for_idle_trump(player, hand, trump, played, visible,
                                             count=count, defence_trumps=True)
                 if ruff is not None:
