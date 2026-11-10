@@ -1851,11 +1851,12 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
             choice = _defender_suit_plan(player, hand, trump, played, visible, history,
                                          shown, choice, count=count) or choice
         if choice is None:
-            choice = _lead(hand, trump, played)
+            choice = _fallback_lead(player, hand, trump, played, visible, count)
             if IDLE_TRUMP_FOR_RUFF and choice.suit == trump:
                 ruff = _ruff_for_idle_trump(player, hand, trump, played, visible, count=count)
                 if ruff is not None:
-                    choice = _lead([c for c in hand if c.suit == ruff], trump, played)
+                    choice = _fallback_lead(player, [c for c in hand if c.suit == ruff],
+                                            trump, played, visible, count)
             if DEFENDER_SUIT_PLAN:
                 choice = _defender_suit_plan(player, hand, trump, played, visible, history,
                                              shown, choice, count=count) or choice
@@ -4005,6 +4006,140 @@ def _lead(hand: list[Card], trump: str | None, played: list[Card]) -> Card:
         return (-dead, -g, -is_trump_penalty, len(groups[s]), SUITS.index(s))
 
     return lead_from(max(groups, key=suit_score))
+
+
+# ── The fallback lead's suit, from the count ────────────────────────────────
+#
+# `_lead` chooses its suit by `_gap`: the cards that could fall between its
+# own two highest, counted without dummy and with only `played` gone. It never
+# asks what leading the suit does, so it was the costliest rule in the robots'
+# play: 1.21 tricks a board double dummy, nearly all of it the wrong suit, not
+# the wrong card (docs/CHALLENGE.md, "The table count"). Declarer in notrump
+# alone gave away 0.33 tricks a board leading the wrong side suit.
+#
+# A seat that sees dummy (or declarer, for dummy) knows two hands and has the
+# count of the other two. So each suit is played out over every way its unseen
+# cards can lie between the two hidden hands (shown-out seats and the
+# auction's floors respected, weighted as `_splits` weights), with the suit
+# model `_defender_suit_plan` uses: the side that wins a round leads the next
+# one, and a void hand with trumps ruffs. Two numbers come out of it: U, the
+# tricks this side takes leading the suit now, and V, the tricks it takes in
+# the suit if the other side opens it instead. The suit led is the one with
+# the most U + (U - V): its tricks, plus what opening it ourselves gains over
+# leaving it to them. Measured one decision at a time against the solver on
+# the 2,448 fallback leads of 199 deals, each a weighted blend: U alone, U - V
+# alone, U + (U - V)/2: U + (U - V) did best in every group it was tried in.
+#
+# Not in a suit contract for the defence: there the plan's count of ruffs is
+# too rough (who has trumps left, and whether a ruff is a trump trick anyway),
+# and every version measured worse. Not the trump suit for declarer either:
+# drawing trumps is `_draw_trump`'s decision, and the plan cannot see what a
+# trump lead costs the ruffs. Nor the opening lead: nothing is in view yet.
+
+#: The fallback lead picks its suit by playing each suit out over the count
+#: (measurement switch).
+COUNT_LEAD = True
+
+
+def _count_lead_value(player: str, hand: list[Card], trump: str | None,
+                      visible: dict[str, list[Card]], suit: str,
+                      count: TableCount) -> tuple | None:
+    """(U + (U - V), the card of `suit` that takes the most) over the layouts,
+    or None when the suit is too open to enumerate."""
+    i = PLAYERS.index(player)
+    seats = [PLAYERS[(i + k) % 4] for k in range(4)]
+    mine = [c for c in hand if c.suit == suit]
+    hidden = [s for s in seats[1:] if s not in visible]
+    unseen = count.unseen_in(suit)
+    if len(hidden) != 2 or len(unseen) > SUIT_PLAN_MAX_UNSEEN:
+        return None
+    out = count.out
+    slots = len(count.hand)
+    others = len(count.unseen) - len(unseen)
+    known = {player: count.hand, **visible}
+    held = {s: tuple(sorted(c.value() for c in cards if c.suit == suit))
+            for s, cards in known.items()}
+    side_suit = trump in SUITS and suit != trump
+
+    def ruffs(seat: str) -> bool:
+        if not side_suit:
+            return False
+        if seat in known:
+            return any(c.suit == trump for c in known[seat])
+        return trump not in out[seat] and bool(count.unseen_in(trump))
+    can_ruff = tuple(ruffs(s) for s in seats)
+    turned = can_ruff[1:] + can_ruff[:1]
+    memo = _SUIT_PLAN_MEMO
+    if len(memo) > _TRUMP_MEMO_MAX:
+        memo.clear()
+    first, second = hidden
+    totals = {c: 0 for c in mine}
+    ours = theirs = weights = 0
+    for n in range(len(unseen) + 1):
+        for picked in combinations(unseen, n):
+            to_first = tuple(picked)
+            to_second = tuple(v for v in unseen if v not in picked)
+            if (to_first and suit in out[first]) or (to_second and suit in out[second]):
+                continue
+            if len(to_first) > slots or len(to_second) > slots:
+                continue
+            if (len(to_first) < count.floor(first, suit)
+                    or len(to_second) < count.floor(second, suit)):
+                continue
+            weight = _choose(others, slots - len(to_first))
+            if not weight:
+                continue
+            layout = {**held, first: to_first, second: to_second}
+            hands = tuple(layout[s] for s in seats)
+            weights += weight
+            best = 0
+            for c in mine:
+                tricks = _plan_trick(hands, can_ruff, [(0, c.value())], [0, 1, 2, 3], memo)
+                totals[c] += weight * tricks
+                best = max(best, tricks)
+            ours += weight * best
+            # The other side opens it: turn the table so the left hand is seat 0.
+            rounds = max(len(h) for h in hands)
+            theirs += weight * (rounds - _plan_suit(hands[1:] + hands[:1], turned, None, memo))
+    if not weights:
+        return None
+    card = max(mine, key=lambda c: (totals[c], c.value()))
+    return ((2 * ours - theirs) / weights, card)
+
+
+def _count_lead(player: str, hand: list[Card], trump: str | None,
+                visible: dict[str, list[Card]] | None, choice: Card,
+                count: TableCount) -> Card | None:
+    """The fallback lead's suit chosen by playing each suit out, or None.
+
+    `hand` is the cards the lead may come from (all of them, or the suits
+    partner is void in when an idle trump becomes a ruff)."""
+    if not visible:
+        return None
+    declaring = PARTNERS[player] in visible
+    if trump in SUITS and not declaring:
+        return None
+    values = {}
+    for suit in SUITS:
+        if not any(c.suit == suit for c in hand) or (declaring and suit == trump):
+            continue
+        value = _count_lead_value(player, hand, trump, visible, suit, count)
+        if value is None:
+            return None
+        values[suit] = value
+    if not values:
+        return None
+    best = max(values, key=lambda s: (values[s][0], s == choice.suit))
+    return None if best == choice.suit else values[best][1]
+
+
+def _fallback_lead(player: str, hand: list[Card], trump: str | None, played: list[Card],
+                   visible: dict[str, list[Card]] | None, count: TableCount) -> Card:
+    """`_lead`, its suit chosen from the count where it can be."""
+    choice = _lead(hand, trump, played)
+    if COUNT_LEAD:
+        choice = _count_lead(player, hand, trump, visible, choice, count) or choice
+    return choice
 
 
 # ── Giving up a trick ────────────────────────────────────────────────────────

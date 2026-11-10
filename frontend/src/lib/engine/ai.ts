@@ -1294,10 +1294,10 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
         choice = defenderSuitPlan(player, hand, trump, played, visible, history, shown, choice, count) ?? choice;
       }
     } else {
-      choice = lead(hand, trump, played);
+      choice = fallbackLead(player, hand, trump, played, visible, count);
       if (IDLE_TRUMP_FOR_RUFF && choice.suit === trump) {
         const ruff = ruffForIdleTrump(player, hand, trump, played, visible, count);
-        if (ruff !== null) choice = lead(hand.filter((c) => c.suit === ruff), trump, played);
+        if (ruff !== null) choice = fallbackLead(player, hand.filter((c) => c.suit === ruff), trump, played, visible, count);
       }
       if (DEFENDER_SUIT_PLAN) {
         choice = defenderSuitPlan(player, hand, trump, played, visible, history, shown, choice, count) ?? choice;
@@ -2916,6 +2916,101 @@ function lead(hand: Card[], trump: string | null, played: Card[]): Card {
   ]);
   const cards = [...groups.get(best)!].sort((a, b) => value(b) - value(a));
   return cards[Math.min(1, cards.length - 1)];
+}
+
+// ── The fallback lead's suit, from the count (see ai.py: COUNT_LEAD) ──
+
+/** The fallback lead picks its suit by playing each suit out over the count (measurement switch). */
+export const COUNT_LEAD = true;
+
+/** Port of ai._count_lead_value: [U + (U - V), the card of `suit` that takes the most], or null. */
+function countLeadValue(player: Seat, hand: Card[], trump: string | null,
+  visible: Partial<Record<Seat, Card[]>>, suit: Suit, tc: TableCount): [number, Card] | null {
+  const i = PLAYERS.indexOf(player);
+  const seats = [0, 1, 2, 3].map((k) => PLAYERS[(i + k) % 4]);
+  const mine = hand.filter((c) => c.suit === suit);
+  const hidden = seats.slice(1).filter((s) => !(s in visible));
+  const unseen = tc.unseenIn(suit);
+  if (hidden.length !== 2 || unseen.length > SUIT_PLAN_MAX_UNSEEN) return null;
+  const out = tc.out;
+  const slots = tc.hand.length;
+  const others = tc.unseen.length - unseen.length;
+  const known: Partial<Record<Seat, Card[]>> = { [player]: tc.hand, ...visible };
+  const held = new Map<Seat, Trumps>();
+  for (const [s, cards] of Object.entries(known) as [Seat, Card[]][]) {
+    held.set(s, cards.filter((c) => c.suit === suit).map(value).sort((a, b) => a - b));
+  }
+  const sideSuit = isSuit(trump) && suit !== trump;
+  const ruffs = (seat: Seat): boolean => {
+    if (!sideSuit) return false;
+    if (seat in known) return known[seat]!.some((c) => c.suit === trump);
+    return !out[seat].has(trump!) && tc.unseenIn(trump!).length > 0;
+  };
+  const canRuff = seats.map(ruffs);
+  const turned = [...canRuff.slice(1), ...canRuff.slice(0, 1)];
+  const memo = SUIT_PLAN_MEMO;
+  if (memo.size > POSITION_MEMO_MAX) memo.clear();
+  const [first, second] = hidden;
+  const totals = new Map(mine.map((c) => [cardKey(c), 0]));
+  let ours = 0;
+  let theirs = 0;
+  let weights = 0;
+  for (let n = 0; n <= unseen.length; n++) {
+    for (const picked of combinations(unseen.length, n)) {
+      const toFirst = picked.map((k) => unseen[k]);
+      const toSecond = unseen.filter((v) => !toFirst.includes(v));
+      if ((toFirst.length && out[first].has(suit)) || (toSecond.length && out[second].has(suit))) continue;
+      if (toFirst.length > slots || toSecond.length > slots) continue;
+      if (toFirst.length < tc.floor(first, suit) || toSecond.length < tc.floor(second, suit)) continue;
+      const weight = choose(others, slots - toFirst.length);
+      if (!weight) continue;
+      const layout = new Map(held);
+      layout.set(first, toFirst);
+      layout.set(second, toSecond);
+      const hands = seats.map((s) => layout.get(s)!) as unknown as PlanHands;
+      weights += weight;
+      let best = 0;
+      for (const c of mine) {
+        const tricks = planTrick(hands, canRuff, [[0, value(c)]], [0, 1, 2, 3], memo);
+        totals.set(cardKey(c), totals.get(cardKey(c))! + weight * tricks);
+        best = Math.max(best, tricks);
+      }
+      ours += weight * best;
+      // The other side opens it: turn the table so the left hand is seat 0.
+      const rounds = Math.max(...hands.map((h) => h.length));
+      const turnedHands = [...hands.slice(1), ...hands.slice(0, 1)] as unknown as PlanHands;
+      theirs += weight * (rounds - planSuit(turnedHands, turned, null, memo));
+    }
+  }
+  if (!weights) return null;
+  const card = maxBy(mine, (c) => [totals.get(cardKey(c))!, value(c)]);
+  return [(2 * ours - theirs) / weights, card];
+}
+
+/** Port of ai._count_lead: the fallback lead's suit chosen by playing each suit out, or null. */
+function countLead(player: Seat, hand: Card[], trump: string | null,
+  visible: Partial<Record<Seat, Card[]>>, choice: Card, tc: TableCount): Card | null {
+  if (!Object.keys(visible).length) return null;
+  const declaring = PARTNERS[player] in visible;
+  if (isSuit(trump) && !declaring) return null;
+  const values = new Map<Suit, [number, Card]>();
+  for (const suit of SUITS) {
+    if (!hand.some((c) => c.suit === suit) || (declaring && suit === trump)) continue;
+    const v = countLeadValue(player, hand, trump, visible, suit, tc);
+    if (v === null) return null;
+    values.set(suit, v);
+  }
+  if (!values.size) return null;
+  const best = maxBy(values.keys(), (s) => [values.get(s)![0], s === choice.suit ? 1 : 0]);
+  return best === choice.suit ? null : values.get(best)![1];
+}
+
+/** Port of ai._fallback_lead: `lead`, its suit chosen from the count where it can be. */
+function fallbackLead(player: Seat, hand: Card[], trump: string | null, played: Card[],
+  visible: Partial<Record<Seat, Card[]>>, tc: TableCount): Card {
+  let choice = lead(hand, trump, played);
+  if (COUNT_LEAD) choice = countLead(player, hand, trump, visible, choice, tc) ?? choice;
+  return choice;
 }
 
 // ── Giving up a trick ── (ai.py: a void robot keeps its trumps, roadmap 3.11)

@@ -791,3 +791,23 @@ little differently.
   them on the count, one measured switch each: the lead's suit choice by the
   suit plans over `count.splits`, discards that keep the guard against dummy's
   visible length, fourth hand on defence.
+- **Phase 2.1, the lead's suit (`COUNT_LEAD`).** When no lead rule fires, `_lead`
+  still names a suit by `_gap`, and `_count_lead` then asks the count instead,
+  for a seat that sees a second hand: each suit it holds is played out over
+  every layout of its unseen cards between the two hidden hands (shown-outs and
+  the auction's floors respected, weighted as `splits` weights), with
+  `_defender_suit_plan`'s suit model. U is the tricks this side takes in the
+  suit leading it now; V the tricks it takes if the other side opens it. The
+  suit with the most U + (U − V) is led, with the card that takes the most;
+  `_lead`'s suit wins a tie. Declarer never picks trumps this way (drawing
+  them is `_draw_trump`'s call), the defence in a suit contract keeps `_lead`
+  (every version measured worse there: the model's ruffs are too rough), and a
+  suit with more than `SUIT_PLAN_MAX_UNSEEN` unseen cards leaves `_lead` alone.
+  Scored one decision at a time against the solver on the 2,448 fallback leads
+  of 199 deals: 1.63 → 1.27 tricks a board (declarer in notrump 0.47 → 0.23,
+  declarer in a suit 0.50 → 0.41, defence in notrump 0.16 → 0.12; U alone,
+  U − V alone and U + (U − V)/2 all did worse). Whole games on the same deals,
+  gross: declaring side 2.58 → 2.31, defence 2.12 → 1.99 tricks given a board,
+  the opening lead unchanged; seated on 3 × 1,000 fresh deals +0.051, +0.058,
+  +0.028 tricks a board (t 2.95, 3.33, 1.54). It costs about 0.08 s a fallback
+  lead in Python. Deal 114's robot table now wins three hearts for E/W, not two.
