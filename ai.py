@@ -1768,6 +1768,10 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         choice = _located_suit_plan(player, hand, legal, trick, trump, played, visible,
                                     history, choice)
 
+    if DISCARD_SUIT_PLAN and trick:
+        choice = _discard_suit_plan(player, hand, trick, trump, played, visible,
+                                    history, choice)
+
     if (history is not None and visible and len(legal) > 1
             and len(hand) <= (DEEP_ENDGAME_CARDS if DEEP_ENDGAME else ENDGAME_CARDS)):
         totals = _endgame_totals(player, hand, trick, trump, played, visible,
@@ -2052,6 +2056,76 @@ def _located_suit_plan(player: str, hand: list[Card], legal: list[Card],
     if score[choice] == best:
         return choice
     return min((c for c in legal if score[c] == best), key=lambda c: c.value())
+
+
+# ── Which card of a located suit to discard ─────────────────────────────────
+#
+# The user's board (challenge deal 206, 3H by East, trick 5): East led the KH
+# and South, out of trumps, discarded from AJ752 with dummy's 43 the only other
+# spades left (all seven others had been seen). The fallback (`_shed`) threw the
+# lowest card, the 2, as in ordinary bridge. But in this game the LOWER card
+# wins a trick only two hands follow to: the 2 was the one spade under dummy's
+# 4 and 3, so it beat dummy's spades, and without it both of them became
+# winners. The ace beats nothing of dummy's and costs only length. So once
+# every card of the discard's suit is placed (seen, or with the one hidden hand
+# that hasn't shown out), the suit is played out (`_plan_suit`) with each of
+# our cards of it gone, and if throwing the chosen card loses a trick there,
+# the highest card whose loss costs nothing goes instead. The suit to discard
+# from stays the fallback's choice.
+
+#: A discard from a suit whose cards are all located keeps the card that
+#: takes a trick in it (measurement switch).
+DISCARD_SUIT_PLAN = True
+
+
+def _discard_suit_plan(player: str, hand: list[Card], trick: list[tuple[str, Card]],
+                       trump: str | None, played: list[Card],
+                       visible: dict[str, list[Card]] | None, history: list | None,
+                       choice: Card) -> Card:
+    """The card of discard `choice`'s suit to throw: `choice` unless the suit,
+    every card located, shows it takes a trick some other card of it doesn't."""
+    if not visible or history is None:
+        return choice
+    suit = choice.suit
+    if suit == trick[0][1].suit or (trump in SUITS and suit == trump):
+        return choice
+    mine = [c for c in hand if c.suit == suit]
+    if len(mine) < 2:
+        return choice
+    seen = set(played) | {c for _, c in trick} | set(hand)
+    for cards in visible.values():
+        seen |= set(cards)
+    unseen = tuple(sorted(c.value() for c in _FULL_DECK if c.suit == suit and c not in seen))
+    out = _shown_out(history, trick)
+    hidden = [p for p in PLAYERS if p != player and p not in visible and suit not in out[p]]
+    if unseen and len(hidden) != 1:
+        return choice
+    i = PLAYERS.index(player)
+    order = [PLAYERS[(i + k) % 4] for k in range(4)]
+
+    def held(p: str) -> tuple:
+        if p in visible and p != player:
+            return tuple(sorted(c.value() for c in visible[p] if c.suit == suit))
+        return unseen if p in hidden else ()
+
+    others = [held(p) for p in order[1:]]
+    if not any(others[k] for k in (0, 2)):
+        return choice                   # the opponents hold none: every card is length
+    # Played out without ruffs: a ruff takes the same trick whichever card of
+    # the suit was thrown, and counting ruffs as unlimited (as the lead plan
+    # does) scores every card of a suit an opponent is void in alike.
+    ruffs = (False, False, False, False)
+    memo = _SUIT_PLAN_MEMO
+    if len(memo) > _TRUMP_MEMO_MAX:
+        memo.clear()
+    score = {}
+    for c in mine:
+        rest = tuple(sorted(d.value() for d in mine if d != c))
+        score[c] = _plan_suit((rest,) + tuple(others), ruffs, None, memo)
+    best = max(score.values())
+    if score[choice] == best:
+        return choice
+    return max((c for c in mine if score[c] == best), key=lambda c: c.value())
 
 
 # ── Second hand, dummy third and partner last, unseen ────────────────────────

@@ -1238,6 +1238,10 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     choice = locatedSuitPlan(player, hand, legal, trick, trump, played, visible, history, choice);
   }
 
+  if (DISCARD_SUIT_PLAN && trick.length) {
+    choice = discardSuitPlan(player, hand, trick, trump, played, visible, history, choice);
+  }
+
   if (history !== null && Object.keys(visible).length && legal.length > 1
     && hand.length <= (DEEP_ENDGAME ? DEEP_ENDGAME_CARDS : ENDGAME_CARDS)) {
     const totals = endgameTotals(player, hand, trick, trump, played, visible, history, legal, shown);
@@ -1436,6 +1440,46 @@ function locatedSuitPlan(player: Seat, hand: Card[], legal: Card[], trick: AnyPl
   const best = Math.max(...score.values());
   if (score.get(cardKey(choice)) === best) return choice;
   return minBy(legal.filter((c) => score.get(cardKey(c)) === best), (c) => [value(c)]);
+}
+
+// ── Which card of a located suit to discard (see ai.py) ─────────────────────
+
+export const DISCARD_SUIT_PLAN = true;
+
+/** The card of discard `choice`'s suit to throw: `choice` unless the suit, every
+ *  card located, shows it takes a trick some other card of it doesn't
+ *  (see ai.py `_discard_suit_plan`). */
+function discardSuitPlan(player: Seat, hand: Card[], trick: AnyPlay[], trump: string | null,
+  played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null, choice: Card): Card {
+  if (!Object.keys(visible).length || history === null) return choice;
+  const suit = choice.suit;
+  if (suit === trick[0][1].suit || (isSuit(trump) && suit === trump)) return choice;
+  const mine = hand.filter((c) => c.suit === suit);
+  if (mine.length < 2) return choice;
+  const seen = new Set([...played, ...trick.map(([, c]) => c), ...hand].map(cardKey));
+  for (const cs of Object.values(visible)) for (const c of cs!) seen.add(cardKey(c));
+  const unseen = FULL_DECK.filter((c) => c.suit === suit && !seen.has(cardKey(c)))
+    .map(value).sort((a, b) => a - b);
+  const out = shownOut(history, trick);
+  const hidden = PLAYERS.filter((p) => p !== player && !(p in visible) && !out[p].has(suit));
+  if (unseen.length && hidden.length !== 1) return choice;
+  const i = PLAYERS.indexOf(player);
+  const held = (p: Seat): Trumps => {
+    if (p in visible && p !== player) return visible[p]!.filter((c) => c.suit === suit).map(value).sort((a, b) => a - b);
+    return hidden.includes(p) ? [...unseen] : [];
+  };
+  const others = [1, 2, 3].map((k) => held(PLAYERS[(i + k) % 4]));
+  if (!others[0].length && !others[2].length) return choice;
+  const ruffs = [false, false, false, false];
+  const memo = SUIT_PLAN_MEMO;
+  if (memo.size > POSITION_MEMO_MAX) memo.clear();
+  const score = new Map(mine.map((c) => {
+    const rest = mine.filter((d) => cardKey(d) !== cardKey(c)).map(value).sort((a, b) => a - b);
+    return [cardKey(c), planSuit([rest, ...others] as unknown as PlanHands, ruffs, null, memo)];
+  }));
+  const best = Math.max(...score.values());
+  if (score.get(cardKey(choice)) === best) return choice;
+  return maxBy(mine.filter((c) => score.get(cardKey(c)) === best), (c) => [value(c)]);
 }
 
 // ── Second hand, dummy third and partner last, unseen (see ai.py) ───────────
