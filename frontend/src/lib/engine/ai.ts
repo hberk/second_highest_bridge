@@ -132,6 +132,8 @@ export const ADVANCE_GAME_LEN = 5;
 // The answer to partner's takeout double never names a suit they bid (the
 // user's rule, 2026-11-10: after 1S P 1NT X P the answer was 2S).
 export const ADVANCE_NOT_THEIRS = true;
+// ...and the game answer neither (2♥ P 3♦ X P: not 4♥; the user's rule, 2026-11-11).
+export const ADVANCE_GAME_NOT_THEIRS = true;
 export const REBID_MINIMUM = 12;
 export const REBID_LENGTH = 6;
 // From this level up a lone rebid needs the sixth card, so it shows six.
@@ -349,9 +351,10 @@ function advanceDouble(player: Seat, auction: AuctionState, ev: HandEval, groups
   const theirs = theirSuit(player, auction);
   const pts = points(groups);
   let candidates = SUITS.filter((s) => s !== theirs);
+  let named = new Set<string>();
   if (ADVANCE_NOT_THEIRS) {
     const partner = PARTNERS[player];
-    const named = new Set(auction.calls
+    named = new Set(auction.calls
       .filter(([who, c]) => parseBid(c) && who !== player && who !== partner)
       .map(([, c]) => parseBid(c)![1]));
     const free = candidates.filter((s) => !named.has(s));
@@ -371,7 +374,7 @@ function advanceDouble(player: Seat, auction: AuctionState, ev: HandEval, groups
       : `Longest suit other than theirs, ${sym}. Answering the double.`;
   };
 
-  const game = advanceGame(theirs, groups, pts, legal);
+  const game = advanceGame(theirs, groups, pts, legal, ADVANCE_GAME_NOT_THEIRS ? named : new Set());
   if (game) return game;
   let call = cheapest(best, start, legal);
   if (call && levelOf(call) <= Math.max(ceiling, PARTSCORE_LEVEL)) return [call, answer(call)];
@@ -381,10 +384,11 @@ function advanceDouble(player: Seat, auction: AuctionState, ev: HandEval, groups
   return ['Pass', 'No legal suit to answer the double.'];
 }
 
+/** `named`: every strain they bid (ADVANCE_NOT_THEIRS): 2♥ P 3♦ X P never answers 4♥ (see ai.py). */
 function advanceGame(theirs: string | null, groups: Groups, pts: number,
-  legal: string[]): Decision | null {
+  legal: string[], named: ReadonlySet<string> = new Set()): Decision | null {
   if (ADVANCE_GAME_POINTS === null || pts < ADVANCE_GAME_POINTS) return null;
-  const majors = (['S', 'H'] as Suit[]).filter((s) => s !== theirs
+  const majors = (['S', 'H'] as Suit[]).filter((s) => s !== theirs && !named.has(s)
     && groups[s].length >= ADVANCE_GAME_LEN);
   if (!majors.length) return null;
   // Longer major; spades on a tie (the Python's max over [S, H]).

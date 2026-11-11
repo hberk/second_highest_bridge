@@ -358,6 +358,12 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     answer rule alone is noise (-0.08, +0.05, +0.08); its worst swing is
     1♦ P 1♥ P 2♥ X P, where long diamonds now answer 3♣ (-1470).
     `/mnt/project-files/east-over-1nt-response/REPORT.md`.
+    The game answer follows the same rule (`ai.ADVANCE_GAME_NOT_THEIRS`, the
+    review of PR #68, the user's call 2026-11-11): `_advance_game` left out
+    only their last strain, so 2♥ P 3♦ X P with ♥AKQJ9 and 9+ points bid 4♥,
+    opener's suit; it now answers 3♠. No robot auction changed on seeds 7M,
+    8M, 9M (10,000 deals each): it only meets a human's double.
+    `/mnt/project-files/advance-game-not-theirs/`.
   - **The Cappelletti relay is answered** (`RELAY_ANSWER`, `_answer_relay`;
     challenge board 79, 2026-11-07): (1NT) 2♣ (P) 2♦ (P) asks which suit.
     No branch answered it, so `continuation` read 2♦ as forcing and a

@@ -1980,3 +1980,14 @@ def test_fourth_seat_over_a_1nt_response():
     # Too weak for either: pass, as before.
     call, _ = bid('5S KH QH 9H 7H 2H 8D 4D 2D 9C 7C 4C 3C', '1S', 'Pass', '1NT', dealer='South')
     assert call == 'Pass', call
+
+
+def test_game_over_a_takeout_double_never_in_their_suit():
+    """2♥ P 3♦ X P: `_advance_game` left out only their last strain, so five
+    hearts and 9+ answered 4♥, opener's suit (the review of PR #68; the
+    user's rule, 2026-11-11). Game in the other major still stands."""
+    hearts = 'AH KH QH JH 9H 4S 3S 2S KC 3C 2C 5D 4D'
+    call, _ = bid(hearts, '2H', 'Pass', '3D', 'X', 'Pass')
+    assert call[1:] != 'H', call
+    spades = '4H 3H AS KS QS JS 9S 2C KC 3C 7C 5D 4D'
+    assert bid(spades, '2H', 'Pass', '3D', 'X', 'Pass')[0] == '4S'

@@ -420,6 +420,9 @@ ADVANCE_GAME_LEN = 5
 #: advancer bid 2♠, the opener's own suit, and was doubled (the user's rule,
 #: 2026-11-10: partner never bids the opponents' suit).
 ADVANCE_NOT_THEIRS = True
+#: ...and the game answer (`_advance_game`) neither: 2♥ P 3♦ X P bid 4♥ on
+#: five hearts (the review of PR #68; the user's rule, 2026-11-11).
+ADVANCE_GAME_NOT_THEIRS = True
 
 # The guide's opener-rebid tiers. Partner passing has already denied a response,
 # so these decide whether to speak again at all, not how high to go.
@@ -634,6 +637,7 @@ def _advance_double(player: str, partner: str, auction: AuctionState, ev: dict,
     theirs = _their_suit(player, auction)
     pts = _points(groups)
     candidates = [s for s in SUITS if s != theirs]
+    named: set = set()
     if ADVANCE_NOT_THEIRS:
         named = {parse_bid(c)[1] for who, c in auction.calls
                  if parse_bid(c) and who not in (player, partner)}
@@ -656,7 +660,8 @@ def _advance_double(player: str, partner: str, auction: AuctionState, ev: dict,
             return f"{ADVANCE_JUMP_POINTS}+ points, longest suit, {sym}. Answering the double."
         return f"Longest suit other than theirs, {sym}. Answering the double."
 
-    game = _advance_game(theirs, groups, pts, legal)
+    game = _advance_game(theirs, groups, pts, legal,
+                         named if ADVANCE_GAME_NOT_THEIRS else frozenset())
     if game:
         return game
     call = _cheapest(best, start, legal)
@@ -682,11 +687,14 @@ def _advance_double(player: str, partner: str, auction: AuctionState, ev: dict,
 
 
 def _advance_game(theirs: str | None, groups: dict, pts: int,
-                  legal: list[str]) -> tuple | None:
-    """Game in a major over partner's takeout double of a three-level bid."""
+                  legal: list[str], named: set | frozenset = frozenset()) -> tuple | None:
+    """Game in a major over partner's takeout double of a three-level bid.
+
+    `named`: every strain they bid (`ADVANCE_NOT_THEIRS`), so 2♥ P 3♦ X P
+    never answers 4♥ in opener's suit (the user's rule, 2026-11-11)."""
     if ADVANCE_GAME_POINTS is None or pts < ADVANCE_GAME_POINTS:
         return None
-    majors = [s for s in ('S', 'H') if s != theirs
+    majors = [s for s in ('S', 'H') if s != theirs and s not in named
               and len(groups[s]) >= ADVANCE_GAME_LEN]
     if not majors:
         return None
