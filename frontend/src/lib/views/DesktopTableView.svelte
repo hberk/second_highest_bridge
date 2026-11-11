@@ -17,8 +17,7 @@
   import SeatCard from '../components/SeatCard.svelte';
   import SideHand from '../components/SideHand.svelte';
   import Strain from '../components/Strain.svelte';
-  import Scoreline from '../components/Scoreline.svelte';
-  import Breakdown from '../components/Breakdown.svelte';
+  import Scorecard from '../components/Scorecard.svelte';
   import SessionScore from '../components/SessionScore.svelte';
 
   let { game, onreview }: { game: TableSource; onreview?: () => void } = $props();
@@ -91,9 +90,8 @@
 {#snippet challengeResult()}
   {#if game.challenge}
     <section class="dk-panel challenge-result">
-      <Scoreline result={game.challenge} />
+      <Scorecard result={game.challenge} />
       {#if onreview}<button class="btn full" onclick={onreview}>See the robots' board ›</button>{/if}
-      <Breakdown result={game.challenge} />
     </section>
   {/if}
 {/snippet}

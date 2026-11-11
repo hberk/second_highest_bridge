@@ -339,6 +339,31 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     changed, 80 better and 46 worse. Handing the auction to `ai_bid` as well
     (`_owns` natural too) measured -0.20, +0.06, +0.47, 484 changed: it
     competes far higher (up to 7♣).
+  - **Fourth seat over 1x-P-1NT bids** (`OVER_NT_RESPONSE = 'x'`,
+    `_over_nt_response`; the user's challenge deal 206, 2026-11-10: 1♠ P 1NT
+    and East passed ♠T ♥AKJ83 ♦A6 ♣A8654). `_defend` passed with "No
+    action." whenever their last bid was notrump, a rule meant for a 1NT
+    opening that also caught a 1NT response. Now, with partner passed: a
+    natural 5+ suit at the two level on 12-17 HCP, else a takeout double
+    (short in theirs and three of every other suit, both majors over a
+    minor, or 18+). Experts in the championship archive act here with
+    natural bids and doubles (over 1♠-1NT: X 51, 2♣ 48, 2♥ 43, 2♦ 35 of
+    1,293) and almost never with 2NT or the cuebid (1 and 3).
+    And **the answer to a takeout double never names a suit they bid**
+    (`ai.ADVANCE_NOT_THEIRS`, the user's rule): `_advance_double` left out
+    only their last strain, so 1♠ P 1NT X P was answered 2♠ and doubled.
+    Seeds 7M, 8M, 9M, 10,000 fresh deals each, against the old pass: natural
+    only +0.07, +0.15, +0.13 (t = +2.33, +3.41, +3.55); natural, double and
+    the answer rule **+0.02, +0.21, +0.22** (t = +0.30, +3.56, +3.07). The
+    answer rule alone is noise (-0.08, +0.05, +0.08); its worst swing is
+    1♦ P 1♥ P 2♥ X P, where long diamonds now answer 3♣ (-1470).
+    `/mnt/project-files/east-over-1nt-response/REPORT.md`.
+    The game answer follows the same rule (`ai.ADVANCE_GAME_NOT_THEIRS`, the
+    review of PR #68, the user's call 2026-11-11): `_advance_game` left out
+    only their last strain, so 2♥ P 3♦ X P with ♥AKQJ9 and 9+ points bid 4♥,
+    opener's suit; it now answers 3♠. No robot auction changed on seeds 7M,
+    8M, 9M (10,000 deals each): it only meets a human's double.
+    `/mnt/project-files/advance-game-not-theirs/`.
   - **The Cappelletti relay is answered** (`RELAY_ANSWER`, `_answer_relay`;
     challenge board 79, 2026-11-07): (1NT) 2♣ (P) 2♦ (P) asks which suit.
     No branch answered it, so `continuation` read 2♦ as forcing and a
@@ -1075,6 +1100,22 @@ one-level new suit, 16+ HCP, 5+ x; responder raises a major, raises a minor with
 suits) are what experts play (median 18 HCP), but they lost on 3 × 4,000 filtered deals at every
 setting tried (16+, 18+, five-card reverse suit): opener passing partner's free 1NT or one-level
 suit scores better here. On by the user's choice, so the bidding box explains the reverse and the robots answer it.
+
+
+**Long suits bid game (2026-11-09).** Two of the user's boards. Challenge deal 160: (1♠) 2♥ (P) with
+West ♠Q8 ♥A9 ♦— ♣AJ9875432 passed three times (`_advance`: `LONG_ADVANCE` stops at 9 HCP and a
+plain new suit needs the two level, so 11 HCP and a three-level suit had no rule); 5♣ makes.
+Challenge deal 51: North ♠5 ♥AKQJT9764 ♦J4 ♣3 opened 1♥ (the opening test runs before the 4♥
+pre-empt) and rebid 2♥. The user's rule, `LONG_GAME`: an eight-card major or a nine-card minor bids
+game, with at least `LONG_GAME_HCP` (4), on the opening (`LONG_GAME_OPEN`, ahead of the pre-empts),
+the first call over their opening (ahead of `BLAST_GAME`) and advancer's first call (ahead of
+`LONG_ADVANCE`). Alert "8+ ♥. To play." `LONG_ADVANCE_STRONG`: with 10+ HCP and seven or eight
+cards, advancer names the suit at the cheapest level, three at most. Fresh deals, seeds 7M/8M/9M,
+10,000 each (`/mnt/project-files/long-advance-strong/`): `LONG_GAME` **+0.49, +0.34, +0.19** (t =
++5.7, +5.0, +2.8); without the opening +0.23, +0.21, +0.22; `LONG_ADVANCE_STRONG` alone +0.04,
+-0.00, +0.04 (noise); both **+0.53, +0.35, +0.22** (t = +5.6, +4.6, +3.0). On deal 51 itself
+hearts by North take 9 tricks double dummy, so 4♥ is down one where 2♥ made an overtrick: the rule wins on
+average, not on that board.
 
 ## The previous system (`ai.USE_GIB = False`)
 

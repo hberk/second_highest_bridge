@@ -1604,10 +1604,31 @@ def test_advancer_names_a_long_suit_with_a_jump():
     # (1♣) 1♦ (1♠): ♠KT95 ♥QT975432 ♦7, 5 HCP, passed twice (user's item 6).
     # Eight hearts bid game; seven jump one level.
     call, why = bid('KS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 2H 7D', '1C', '1D', '1S', dealer='South')
-    assert call == '4H' and why.startswith('7+')
+    assert call == '4H' and why.startswith('8+')     # LONG_GAME's alert
     assert bid('KS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 7D 2D', '1C', '1D', '1S', dealer='South')[0] == '3H'
     # Too weak (3 HCP): pass, as before.
     assert bid('JS 10S 9S 5S QH 10H 9H 7H 5H 4H 3H 7D 2D', '1C', '1D', '1S', dealer='South')[0] == 'Pass'
+
+
+def test_advancer_names_a_long_suit_with_values_at_the_three_level():
+    # The user's board, 2026-11-09 (challenge deal 160): (1♠) 2♥ (P) with
+    # ♠Q8 ♥A9 ♦— ♣AJ9875432, 11 HCP, passed three times (LONG_ADVANCE stops
+    # at 9 HCP, a plain new suit needs the two level). Clubs by West make 11
+    # tricks. Nine clubs bid game (LONG_GAME); eight bid 3♣ (LONG_ADVANCE_STRONG).
+    call, why = bid('QS 8S AH 9H AC JC 9C 8C 7C 5C 4C 3C 2C', '1S', '2H', 'Pass', dealer='North')
+    assert call == '5C' and why.startswith('9+'), (call, why)
+    call, why = bid('QS 8S 7S AH 9H AC JC 9C 8C 7C 5C 4C 3C', '1S', '2H', 'Pass', dealer='North')
+    assert call == '3C' and why.startswith('7+'), (call, why)
+    # Six clubs: no change.
+    assert bid('QS 8S 7S AH 9H 3D 2D AC JC 9C 8C 7C 5C', '1S', '2H', 'Pass',
+               dealer='North')[0] == 'Pass'
+
+
+def test_eight_card_major_opens_game():
+    # The user's challenge deal 51, 2026-11-09: North ♠5 ♥AKQJT9764 ♦J4 ♣3
+    # opened 1♥ and rebid 2♥. LONG_GAME: it opens 4♥.
+    call, why = bid('5S AH KH QH JH 10H 9H 7H 6H 4H JD 4D 3C', dealer='North')
+    assert call == '4H' and why.startswith('8+'), (call, why)
 
 
 def test_eight_card_major_blasts_game_over_their_opening():
@@ -1936,3 +1957,37 @@ def test_a_doubled_transfer_is_still_a_transfer():
     for dealer, calls, cards, want in TRANSFER_INTERFERED_CASES:
         call, why = bid(cards, *calls, dealer=dealer)
         assert call == want, (calls, call, why)
+
+
+def test_fourth_seat_over_a_1nt_response():
+    """The user's challenge deal 206, 2026-11-10: 1♠ P 1NT and East passed
+    ♠T ♥AKJ83 ♦A6 ♣A8654 ("No action." whenever their last bid was
+    notrump). Now a natural two-level suit, else a takeout double; and the
+    answer to that double never names a suit they bid (it was 2♠)."""
+    east = '10S AH KH JH 8H 3H AD 6D AC 8C 6C 5C 4C'
+    call, why = bid(east, '1S', 'Pass', '1NT', dealer='South')
+    assert call == '2H' and 'Overcall' in why, (call, why)
+    # The same over a minor opening.
+    call, _ = bid('KS QS 9S 7S 3S AH 9H 2H KD 4D 2D 7C 3C', '1C', 'Pass', '1NT', dealer='South')
+    assert call == '2S', call
+    # Short in theirs, no five-card suit: takeout double.
+    call, why = bid('5S KH QH 9H 2H AD QD 4D 2D KC 9C 7C 3C', '1S', 'Pass', '1NT', dealer='South')
+    assert call == 'X' and 'Takeout' in why, (call, why)
+    # Partner of the doubler with spades: not 2♠.
+    west = 'KS 9S 8S 7S 6S 4H 3H 2H 9D 8D 7C 5C 2C'
+    call, _ = bid(west, '1S', 'Pass', '1NT', 'X', 'Pass', dealer='South')
+    assert call != '2S' and call[1] in 'CDH', call
+    # Too weak for either: pass, as before.
+    call, _ = bid('5S KH QH 9H 7H 2H 8D 4D 2D 9C 7C 4C 3C', '1S', 'Pass', '1NT', dealer='South')
+    assert call == 'Pass', call
+
+
+def test_game_over_a_takeout_double_never_in_their_suit():
+    """2♥ P 3♦ X P: `_advance_game` left out only their last strain, so five
+    hearts and 9+ answered 4♥, opener's suit (the review of PR #68; the
+    user's rule, 2026-11-11). Game in the other major still stands."""
+    hearts = 'AH KH QH JH 9H 4S 3S 2S KC 3C 2C 5D 4D'
+    call, _ = bid(hearts, '2H', 'Pass', '3D', 'X', 'Pass')
+    assert call[1:] != 'H', call
+    spades = '4H 3H AS KS QS JS 9S 2C KC 3C 7C 5D 4D'
+    assert bid(spades, '2H', 'Pass', '3D', 'X', 'Pass')[0] == '4S'

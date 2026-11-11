@@ -660,6 +660,25 @@ dummy ♥42, South ♥AQ6).
   (`/mnt/project-files/located-suit/`). `tests/test_card_play_rules.py` holds
   the board.
 
+**A discard keeps the card that wins in a located suit** (2026-11-10, user's
+board). Deal 206, 3♥ by East, trick 5: East led the K♥ and South, out of trumps,
+threw the 2♠ from A J 7 5 2. Every other spade had been seen and dummy held 4 3.
+- South threw the 2: `_middle_play` found nothing that keeps the trick and
+  `_shed` dumps the lowest side card, as in ordinary bridge. Here a trick only
+  two hands follow to goes to the LOWER card: the 2 was the one spade under
+  dummy's, and without it both of dummy's spades won.
+- `ai.DISCARD_SUIT_PLAN` (`_discard_suit_plan`): after any rule picks a discard,
+  if every card of its suit is located (as `LOCATED_SUIT_PLAN` locates them),
+  the suit is played out (`_plan_suit`, ruffs ignored, since a ruff takes the
+  trick whichever card was thrown) with each of the hand's cards of it gone. A
+  discard that loses a trick there gives way to the highest card that loses
+  none; the suit stays the one chosen. Shipped on.
+- Robot lines on 199 library deals: 56 discards changed on 349 lines, each
+  scored double dummy: +17 tricks for the side that threw, none lost. Gross
+  mistakes 2.58 -> 2.57 declaring side, 2.12 -> 2.11 defence
+  (`/mnt/project-files/keep-low-spade/`). `tests/test_card_play_rules.py`
+  holds the board.
+
 **Third hand on defence plays the suit out** (2026-11-06, two user boards).
 Deal 319, 4♥ by South, trick 7: East led the 5♦, South played the 9♦, West held
 ♦A Q 4 2 with dummy's lone K♦ to come, and played the 2. Deal 58, 2♠ by South,
@@ -762,3 +781,132 @@ of clubs. Dummy led a club, which South could ruff.
   fresh deals: **+0.013, +0.013, +0.006 tricks** (t 2.81, 2.35, 1.42); gross
   mistakes on 199 deals 2.56 / 0.40 / 2.10 (from 2.59 / 0.40 / 2.12).
   `tests/test_card_play_rules.py` holds the deal.
+
+**Deal 13, 4♠ by South (user's board, 2026-11-10).** Trick 2: dummy led the
+9♠, East covered with the 10♠, and South held A K Q J 8 6 with dummy's 5♠ left
+and West's 7 3 2 unseen. South played the 6♠: declarer's side in third seat
+had only `_middle_play` (the cheapest card that keeps this trick), and both the
+8 and the 6 leave the nine second-highest. The 8 keeps the 6 to sandwich West's
+7 between dummy's 5 and South's 6 next round; double dummy 10 tricks against 9.
+- `ai.DECLARER_THIRD_PLAN` (`_declarer_third_plan`): third hand on the
+  declaring side, in the trump suit or notrump (1; 2 adds side suits, not
+  measured), plays the led suit out over the layouts of its unseen cards
+  between the defenders (`_cover_suit_plan`, this trick included) and plays
+  the card that takes the most tricks in it. Fourth hand already did this
+  (`LAST_SUIT_PLAN`), defence third hand too (`THIRD_HAND_PLAN`).
+- Seated head to head, 3 × 1,000 fresh deals: **+0.017, +0.036, +0.027
+  tricks** (t 1.71, 4.00, 2.87), +3.47 / +4.22 / +2.23 points; gross mistakes
+  on 199 deals 2.57 / 0.39 / 2.11 (main 2.58 / 0.39 / 2.12).
+  `tests/test_card_play_rules.py` holds the deal.
+## The table count (2026-11-10)
+
+An audit of every robot card on 199 library deals, each traced to the rule
+that chose it (`research/play_rule_trace.py`), found 2.82 of the 5.09 tricks a
+board given away (gross, both sides) on cards chosen by rules that read only
+their own hand and the cards played: the fallback lead `_lead` (1.21, mostly
+the wrong suit, not the wrong card), the discards in `_shed` (0.84), fourth
+hand's `_play_last` (0.32) and the notrump leads (0.27). The rules that do
+count each rebuilt their own picture of the table — "seen", "unseen",
+show-outs, hand sizes, the auction's floors — about fifteen times, each a
+little differently.
+
+- **Phase 1 (this change, no card changes).** `ai.TableCount` is that picture,
+  built once per card by `ai_play` from what the seat may legally know, and
+  passed to every rule as `count`: `seen`, `unseen`, `gone`, `out` (who has
+  shown out), `size`, `floor`, `played_in`, `master`, `dead`, `splits`
+  (`_splits`), `fits_auction`. A rule called on its own builds one from the same
+  arguments. `tests/test_table_count.py` keeps the derivations in the count (no
+  rule reads `_FULL_DECK`, `_shown_out` or `_played_in`, or builds
+  `set(played)`) and checks the count against the real deal at every card of
+  12 robot games. The robots' 6,400 lines on the library (400 deals × 16 boards)
+  are identical before and after, and the web engine's `TableCount` follows
+  line for line (fixtures).
+- **Still blind, by design of phase 1:** `_lead`, `_gap` and `_nt_long_lead`
+  still read only the cards played, and `_shed` reads neither. Phase 2 rebuilds
+  them on the count, one measured switch each: the lead's suit choice by the
+  suit plans over `count.splits`, discards that keep the guard against dummy's
+  visible length, fourth hand on defence.
+- **Phase 2.1, the lead's suit (`COUNT_LEAD`).** When no lead rule fires, `_lead`
+  still names a suit by `_gap`, and `_count_lead` then asks the count instead,
+  for a seat that sees a second hand: each suit it holds is played out over
+  every layout of its unseen cards between the two hidden hands (shown-outs and
+  the auction's floors respected, weighted as `splits` weights), with
+  `_defender_suit_plan`'s suit model. U is the tricks this side takes in the
+  suit leading it now; V the tricks it takes if the other side opens it. The
+  suit with the most U + (U − V) is led, with the card that takes the most;
+  `_lead`'s suit wins a tie. Declarer never picks trumps this way (drawing
+  them is `_draw_trump`'s call), the defence in a suit contract keeps `_lead`
+  (every version measured worse there: the model's ruffs are too rough), and a
+  suit with more than `SUIT_PLAN_MAX_UNSEEN` unseen cards leaves `_lead` alone.
+  Scored one decision at a time against the solver on the 2,448 fallback leads
+  of 199 deals: 1.63 → 1.27 tricks a board (declarer in notrump 0.47 → 0.23,
+  declarer in a suit 0.50 → 0.41, defence in notrump 0.16 → 0.12; U alone,
+  U − V alone and U + (U − V)/2 all did worse). Whole games on the same deals,
+  gross: declaring side 2.58 → 2.31, defence 2.12 → 1.99 tricks given a board,
+  the opening lead unchanged; seated on 3 × 1,000 fresh deals +0.051, +0.058,
+  +0.028 tricks a board (t 2.95, 3.33, 1.54). It costs about 0.08 s a fallback
+  lead in Python. Deal 114's robot table now wins three hearts for E/W, not two.
+- **Phase 2.2, the declaring side's discards (`COUNT_DISCARD`).** Void and not
+  ruffing, a robot threw `_shed`'s card, the lowest side card wherever it
+  was. Of the 0.98 tricks a board lost on cards played while void (199 deals,
+  after phase 2.1), about half was a discard from the wrong suit. Now the
+  declaring side prices each card it could throw: its suit is played out over
+  the count's layouts with and without the card, a suit's tricks the average
+  of us opening it and them opening it, and the cheapest card replaces
+  `_shed`'s when that one costs half a trick more (`COUNT_DISCARD_MARGIN`).
+  Not inside the endgame search, which already sees every card. The defence
+  keeps `_shed`: the model lets either defender lead the suit whenever it
+  likes, blind to partner's entries, and every margin tried measured worse
+  there. Nor does declarer stop ruffing second hand when partner wins anyway
+  (0.14 tricks a board lost that way): keeping the trump measured worse too.
+  Offline, the declaring side's void cards 0.55 → 0.47 tricks a board; whole
+  games, declaring side 2.31 → 2.24, defence 1.99 → 2.01 (its play is
+  unchanged; the boards it meets are not); seated on fresh deals, see
+  ROBOT_PROGRESS.
+- **Phase 2.3, the defence's fourth hand (`FOURTH_HAND_PLAN`).** `_play_last`
+  played the cheapest card that kept the trick, or the lowest: one trick's
+  worth of thought, where fourth hand's card also decides what is left of the
+  suit. The third-hand plan (`_third_hand_plan`) already plays the led suit out
+  over the count's layouts with the trick so far on the table, so fourth hand
+  on defence now follows suit with it too (the declaring side has
+  `LAST_SUIT_PLAN`). Card by card, the defence's fourth-hand cards in the led
+  suit lost 0.215 → 0.122 tricks a board; whole games, defence 2.01 → 1.97,
+  declaring side 2.24 → 2.23; seated +0.026, +0.026, +0.027 tricks a board on
+  fresh deals (t 3.46, 3.86, 3.69). Fourth-hand discards keep `_shed`.
+## Playing for ruffs when drawing trumps gains nothing (deals 215, 102)
+
+Two user boards where declarer led trumps that did no good.
+
+- Deal 215, 2♥ by West, trick 5: South had shown out of hearts, North held the
+  ♥10 5, dummy the A K over West's 8 4. Whichever hand leads, North's 10 and 5
+  each take a round, so drawing gains nothing: the defence makes both trumps
+  anyway and the declaring side throws two trumps a round that could each
+  have ruffed. `_draw_trump` only asked whether the defence still held trumps
+  and whether we held more, and dummy cashed the K♥ (three tricks double
+  dummy).
+- `ai.NO_FUTILE_DRAW` (`_draw_plan`): when the best trump lead loses a trick to
+  every outstanding trump on every layout, and two or more are out, no trump
+  is led; the fallback `_lead` picks a side suit. Dummy now leads the 10♣. With
+  one defence trump out the test fires constantly and drawing is usually
+  right (left in, the lone trump overruffs a higher ruff, since of two trumps
+  the lower wins): those cases went 3 better, 8 worse card by card on 199
+  solved deals, so they're excluded.
+- Deal 102, hearts by East, trick 5: four trumps each way, so `_draw_trump`
+  declined; the fallback `_lead` reads only declarer's cards and picked the
+  10♥, never asking whether dummy (void in spades, the 6♥ left) could ruff the
+  K♠ (one trick double dummy).
+- `ai.RUFF_NOT_DRAW`: when the fallback picks a trump that `_draw_trump` didn't
+  choose, the declaring side leads a suit its visible partner is void in while
+  partner holds a trump (`_ruff_for_idle_trump` with `defence_trumps=True`).
+  Card by card on 199 solved deals: 4 better, 0 worse.
+- Seated head to head, 3 × 1,000 fresh deals: **+0.005, −0.001, +0.003 tricks**
+  (t 1.53, −0.35, 1.20); gross mistakes on 199 deals 2.57 / 0.39 / 2.11 (from
+  2.58 / 0.39 / 2.12). `tests/test_card_play_rules.py` holds both deals.
+- With `COUNT_LEAD` (v0.1.4-alpha): the count's lead never picks a trump for
+  the declaring side, so it would hide the trump `RUFF_NOT_DRAW` looks for (on
+  deal 102 it chose the Q♣, a trick worse than the K♠). `RUFF_NOT_DRAW` also
+  fires when `_lead`'s own pick is that trump, and its ruff suit's card, like
+  `NO_FUTILE_DRAW`'s side suit, comes from `_fallback_lead`. Order of the
+  discard rules: `COUNT_DISCARD` picks the suit, then `DISCARD_SUIT_PLAN` picks
+  the card in it. `test_shipped_rules_together_on_the_users_deals` holds deals
+  13, 102, 206 and 215 with every rule as shipped.

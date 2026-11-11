@@ -379,6 +379,8 @@ function opening(ctx: Ctx): Decision {
   if (h.hcp >= STRONG_2C && ctx.ok('2C')) return ['2C', '22+ HCP. Strong, forcing. Artificial.'];
   if (h.balanced && NT2[0] <= h.hcp && h.hcp <= NT2[1]) return ['2NT', '20-21 HCP, balanced.'];
   if (h.balanced && NT1[0] <= h.hcp && h.hcp <= NT1[1]) return ['1NT', '15-17 HCP, balanced.'];
+  const game = LONG_GAME && LONG_GAME_OPEN ? longGame(ctx, [...SUITS]) : null;
+  if (game) return game;
   const best = h.longest();
   if (fourth && best !== 'C' && h.len[best] >= 6
     && FOURTH_SEAT[0] <= h.points && h.points <= FOURTH_SEAT[1] && ctx.ok(`2${best}`)) {
@@ -4670,6 +4672,40 @@ function blastGame(ctx: Ctx, opening: string | null, their: string): Decision | 
   return null;
 }
 
+/** Fourth seat over (1x) P (1NT) P? -- they bid a suit and a 1NT response,
+ *  partner passed: a natural 5+ suit at the two level, else a takeout double
+ *  (the user's challenge deal 206, 2026-11-10). Was always a pass. */
+export const OVER_NT_RESPONSE: 'overcall' | 'x' | null = 'x';
+export const OVER_NT_RESPONSE_HCP: readonly [number, number] = [12, 17];
+export const OVER_NT_RESPONSE_LEN = 5;
+export const OVER_NT_RESPONSE_X: readonly [number, number] = [12, 18];
+
+function overNtResponse(ctx: Ctx): Decision | null {
+  if (!OVER_NT_RESPONSE) return null;
+  const seq = ctx.theirs.map(([, c]) => c);
+  if (seq.length !== 2 || seq[1] !== '1NT' || levelOf(seq[0]) !== 1
+    || !isSuit(strainOf(seq[0])) || ctx.seq.length
+    || ctx.calls.some(([w, c]) => w === ctx.pd && c !== 'Pass')) {
+    return null;
+  }
+  const h = ctx.h;
+  const [lo, hi] = OVER_NT_RESPONSE_HCP;
+  const their = strainOf(seq[0]) as Suit;
+  const own = SUITS.filter((s) => s !== their && h.len[s] >= OVER_NT_RESPONSE_LEN);
+  if (own.length && lo <= h.hcp && h.hcp <= hi) {
+    const s = maxBy(own, (x) => [h.len[x], SUITS.indexOf(x)]);
+    const call = `2${s}`;
+    if (ctx.ok(call)) return [call, `${OVER_NT_RESPONSE_LEN}+ ${SYM[s]}, ${lo}-${hi} HCP. Overcall.`];
+  }
+  if (OVER_NT_RESPONSE === 'x' && ctx.ok('X')) {
+    const [xlo, strong] = OVER_NT_RESPONSE_X;
+    let shape = h.len[their] <= 2 && SUITS.every((s) => s === their || h.len[s] >= 3);
+    if (MINORS.includes(their) && h.len.H >= 4 && h.len.S >= 4 && h.len[their] <= 3) shape = true;
+    if ((shape && h.hcp >= xlo) || h.hcp >= strong) return ['X', `Takeout: ${xlo}+ HCP.`];
+  }
+  return null;
+}
+
 function defend(ctx: Ctx): Decision | null {
   const h = ctx.h;
   const hcp = h.hcp;
@@ -4695,8 +4731,10 @@ function defend(ctx: Ctx): Decision | null {
     }
     return ['Pass', 'No action over 1NT.'];
   }
-  if (opening === '2C' || their === 'NT') return ['Pass', 'No action.'];
+  if (opening === '2C' || their === 'NT') return overNtResponse(ctx) ?? ['Pass', 'No action.'];
 
+  const game = LONG_GAME ? longGame(ctx, SUITS.filter((s) => !theirs.includes(s))) : null;
+  if (game) return game;
   const blast = blastGame(ctx, opening, their);
   if (blast) return blast;
   if (opening && levelOf(opening) === 1 && hcp >= TWO_SUITED_MIN) {
@@ -4906,8 +4944,12 @@ function advance(ctx: Ctx): Decision | null {
         return ['2NT', `12-14 HCP, ${SYM[their]} stopper.`];
       }
     }
+    const game = LONG_GAME ? longGame(ctx, SUITS.filter((s) => !theirs.includes(s) && s !== ps)) : null;
+    if (game) return game;
     const long = LONG_ADVANCE ? longSuitJump(ctx, SUITS.filter((s) => !theirs.includes(s) && s !== ps)) : null;
     if (long) return long;
+    const strong = LONG_ADVANCE_STRONG ? longSuitStrong(ctx, SUITS.filter((s) => !theirs.includes(s) && s !== ps)) : null;
+    if (strong) return strong;
     for (const s of SUITS) {
       if (!theirs.includes(s) && s !== ps && h.len[s] >= 5 && hcp >= 8) {
         const call = ctx.cheapest(s, 1);
@@ -4947,6 +4989,53 @@ function longSuitJump(ctx: Ctx, allowed: Suit[]): Decision | null {
     return [`4${s}`, alert];
   }
   if (levelOf(jump) <= 3 && ctx.ok(jump)) return [jump, alert];
+  return null;
+}
+
+/** The user's rule (Nov 9 2026): an eight-card major or a nine-card minor
+ *  bids game; it sets trump. Our first call over their opening (the
+ *  overcaller, before BLAST_GAME) and advancer's first call over partner's
+ *  overcall (before LONG_ADVANCE). At least LONG_GAME_HCP high-card points. */
+export const LONG_GAME = true;
+export const LONG_GAME_LEN: Record<Suit, number> = { S: 8, H: 8, D: 9, C: 9 };
+export const LONG_GAME_HCP = 4;
+/** The opening too (the user's challenge deal 51, Nov 9 2026: North
+ *  ♠5 ♥AKQJT9764 ♦J4 ♣3 opened 1♥ and rebid 2♥), ahead of the 4M pre-empt. */
+export const LONG_GAME_OPEN = true;
+
+function longGame(ctx: Ctx, allowed: Suit[]): Decision | null {
+  const h = ctx.h;
+  if (h.hcp < LONG_GAME_HCP) return null;
+  const longs = allowed.filter((x) => h.len[x] >= LONG_GAME_LEN[x]);
+  if (!longs.length) return null;
+  let s = longs[0];
+  for (const x of longs) {
+    if (h.len[x] > h.len[s] || (h.len[x] === h.len[s] && idx(x) > idx(s))) s = x;
+  }
+  const call = `${isMajor(s) ? 4 : 5}${s}`;
+  if (ctx.ok(call)) return [call, `${LONG_GAME_LEN[s]}+ ${SYM[s]}. To play.`];
+  return null;
+}
+
+/** The same long suit with 10+ HCP had no rule at all: LONG_ADVANCE stops at
+ *  9 HCP and the plain new suit needs the two level, so a three-level suit
+ *  passed. The user's board (Nov 9 2026): (1♠) 2♥ (P) ? with ♠Q8 ♥A9 ♦-
+ *  ♣AJ9875432, 11 HCP, passed three times; clubs by West make 11 tricks.
+ *  Named at the cheapest level, three at most: natural, constructive. */
+export const LONG_ADVANCE_STRONG = true;
+export const LONG_STRONG_LEN = 7;
+
+function longSuitStrong(ctx: Ctx, allowed: Suit[]): Decision | null {
+  const h = ctx.h;
+  if (h.hcp <= LONG_SUIT_HCP[1]) return null;
+  const longs = allowed.filter((x) => h.len[x] >= LONG_STRONG_LEN);
+  if (!longs.length) return null;
+  let s = longs[0];
+  for (const x of longs) {
+    if (h.len[x] > h.len[s] || (h.len[x] === h.len[s] && idx(x) > idx(s))) s = x;
+  }
+  const call = ctx.cheapest(s, 1);
+  if (call && levelOf(call) <= 3) return [call, `${LONG_STRONG_LEN}+ ${SYM[s]}, 10+ HCP.`];
   return null;
 }
 

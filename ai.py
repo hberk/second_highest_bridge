@@ -415,6 +415,14 @@ ADVANCE_JUMP_POINTS = 8        # guide: 0-7 cheapest, 8-12 a level higher
 #: is in `_points` (HCP + length); None turns it off.
 ADVANCE_GAME_POINTS = 9
 ADVANCE_GAME_LEN = 5
+#: The answer to partner's takeout double never names a suit they bid, only
+#: the last strain they named was left out, so after 1♠ P 1NT X P the
+#: advancer bid 2♠, the opener's own suit, and was doubled (the user's rule,
+#: 2026-11-10: partner never bids the opponents' suit).
+ADVANCE_NOT_THEIRS = True
+#: ...and the game answer (`_advance_game`) neither: 2♥ P 3♦ X P bid 4♥ on
+#: five hearts (the review of PR #68; the user's rule, 2026-11-11).
+ADVANCE_GAME_NOT_THEIRS = True
 
 # The guide's opener-rebid tiers. Partner passing has already denied a response,
 # so these decide whether to speak again at all, not how high to go.
@@ -629,6 +637,11 @@ def _advance_double(player: str, partner: str, auction: AuctionState, ev: dict,
     theirs = _their_suit(player, auction)
     pts = _points(groups)
     candidates = [s for s in SUITS if s != theirs]
+    named: set = set()
+    if ADVANCE_NOT_THEIRS:
+        named = {parse_bid(c)[1] for who, c in auction.calls
+                 if parse_bid(c) and who not in (player, partner)}
+        candidates = [s for s in candidates if s not in named] or candidates
     best = max(candidates, key=lambda s: (len(groups[s]), ev['suit_pts'][s],
                                           SUITS.index(s)))
     combined = ev['suit_pts'][best] + PROMISE_DOUBLED
@@ -647,7 +660,8 @@ def _advance_double(player: str, partner: str, auction: AuctionState, ev: dict,
             return f"{ADVANCE_JUMP_POINTS}+ points, longest suit, {sym}. Answering the double."
         return f"Longest suit other than theirs, {sym}. Answering the double."
 
-    game = _advance_game(theirs, groups, pts, legal)
+    game = _advance_game(theirs, groups, pts, legal,
+                         named if ADVANCE_GAME_NOT_THEIRS else frozenset())
     if game:
         return game
     call = _cheapest(best, start, legal)
@@ -673,11 +687,14 @@ def _advance_double(player: str, partner: str, auction: AuctionState, ev: dict,
 
 
 def _advance_game(theirs: str | None, groups: dict, pts: int,
-                  legal: list[str]) -> tuple | None:
-    """Game in a major over partner's takeout double of a three-level bid."""
+                  legal: list[str], named: set | frozenset = frozenset()) -> tuple | None:
+    """Game in a major over partner's takeout double of a three-level bid.
+
+    `named`: every strain they bid (`ADVANCE_NOT_THEIRS`), so 2♥ P 3♦ X P
+    never answers 4♥ in opener's suit (the user's rule, 2026-11-11)."""
     if ADVANCE_GAME_POINTS is None or pts < ADVANCE_GAME_POINTS:
         return None
-    majors = [s for s in ('S', 'H') if s != theirs
+    majors = [s for s in ('S', 'H') if s != theirs and s not in named
               and len(groups[s]) >= ADVANCE_GAME_LEN]
     if not majors:
         return None
@@ -1579,9 +1596,142 @@ def _gap(suit: str, hand: list[Card], played: list[Card]) -> int:
 _FULL_DECK = [Card(s, r) for s in SUITS for r in RANKS]
 
 
+# ── The table count ──────────────────────────────────────────────────────────
+#
+# What one seat knows at one moment of the play, worked out once and read by
+# every play rule: the cards it can see (its own, and dummy's, or declarer's
+# for dummy), the cards played, those still unseen, who has shown out of what,
+# how many cards each hand still holds and the lengths the auction showed.
+#
+# Each rule used to rebuild its own copy of this from `played`, `visible` and
+# `history` -- about fifteen copies, each a little different, and some rules
+# (the fallback lead, the discards) never built one, so they played blind to
+# dummy and to the count (docs/CHALLENGE.md, "The table count"). Now the count
+# is the one place a seat's knowledge is derived: a rule asks it, and a test
+# (`tests/test_table_count.py`) keeps the derivations here.
+
+class TableCount:
+    """One seat's knowledge of the table: built once per card by `ai_play`.
+
+    A rule called on its own (a test, or another rule asking what partner
+    would do) builds its own from the same arguments `ai_play` takes."""
+
+    def __init__(self, player: str, hand: list[Card], trick: list[tuple[str, Card]],
+                 trump: str | None, played: list[Card],
+                 visible: dict[str, list[Card]] | None = None,
+                 history: list | None = None,
+                 shown: dict[str, dict[str, int]] | None = None):
+        self.player = player
+        self.hand = hand
+        self.trick = trick
+        self.trump = trump
+        self.played = played
+        self.visible = visible or {}
+        self.history = history
+        self.shown = shown
+        self.partner = PARTNERS[player]
+        i = PLAYERS.index(player)
+        #: The opponents on my left (next to play) and right (previous).
+        self.left, self.right = PLAYERS[(i + 1) % 4], PLAYERS[(i + 3) % 4]
+        #: The cards on this trick, by seat.
+        self.down = dict(trick)
+        seen = set(played) | {c for _, c in trick} | set(hand)
+        for cards in self.visible.values():
+            seen |= set(cards)
+        #: Every card this seat has seen: played, on the table, its own, in view.
+        self.seen = seen
+        #: Every card it hasn't, in deck order.
+        self.unseen = [c for c in _FULL_DECK if c not in seen]
+        #: Cards gone from play: the finished tricks and this one.
+        self.gone = set(played) | {c for _, c in trick}
+        self._out: dict | None = None
+
+    @property
+    def out(self) -> dict[str, set[str]]:
+        """Suits each seat has shown out of, this trick included."""
+        if self._out is None:
+            self._out = _shown_out(self.history or [], self.trick)
+        return self._out
+
+    def unseen_in(self, suit: str) -> list[int]:
+        """The values of the unseen cards of `suit`, low to high."""
+        return sorted(c.value() for c in self.unseen if c.suit == suit)
+
+    def outstanding(self, suit: str) -> list[int]:
+        """`unseen_in` in deck order (high to low), as the trump and long-suit
+        plans enumerate it."""
+        return [c.value() for c in self.unseen if c.suit == suit]
+
+    def played_in(self, seat: str, suit: str) -> int:
+        """Cards of `suit` that `seat` has played, this trick included."""
+        return _played_in(seat, suit, self.history or [], self.trick)
+
+    def floor(self, seat: str, suit: str) -> int:
+        """The fewest cards of `suit` `seat` can still hold by its bidding."""
+        return (self.shown or {}).get(seat, {}).get(suit, 0) - self.played_in(seat, suit)
+
+    def size(self, seat: str) -> int:
+        """Cards `seat` holds besides any it has put on this trick, by the
+        tricks played."""
+        return 13 - len(self.history) - (seat in self.down)
+
+    def master(self, suit: str) -> Card | None:
+        """The suit's highest card still in play, whoever holds it."""
+        live = [c for c in _FULL_DECK if c.suit == suit and c not in self.gone]
+        return max(live, key=lambda c: c.value()) if live else None
+
+    def dead(self, card: Card, gone: set[Card] | None = None) -> bool:
+        """No other seat can play a higher card of this suit: every one is
+        gone or mine. `gone` defaults to the cards out of play."""
+        return _dead(card, self.hand, self.gone if gone is None else gone)
+
+    def unseen_cards(self, suit: str) -> list[Card]:
+        """The unseen cards of `suit`, in deck order."""
+        return [c for c in self.unseen if c.suit == suit]
+
+    def splits(self, suit: str, outstanding: list[int]) -> list:
+        """Every way the defence's cards in `suit` can lie, as (left, right, weight).
+
+        Rules out a split that gives cards to a defender who has shown out, and
+        weights each by how many ways the rest of the unseen cards fill the left
+        hand, so a 2-2 split counts for more than 4-0, as in bridge odds.
+        """
+        left, right = self.left, self.right
+        out = self.out
+        gone = {p: self.played_in(p, suit) for p in PLAYERS}
+        unseen = len(self.unseen)
+        slots = len(self.hand)                # every hand holds this many at a lead
+        shown = self.shown
+        others = unseen - len(outstanding)
+        layouts = []
+        for n in range(len(outstanding) + 1):
+            for picked in combinations(sorted(outstanding), n):
+                left_cards = tuple(picked)
+                right_cards = tuple(v for v in sorted(outstanding) if v not in picked)
+                if (left_cards and suit in out[left]) or (right_cards and suit in out[right]):
+                    continue
+                if len(left_cards) > slots or len(right_cards) > slots:
+                    continue
+                if shown and (len(left_cards) + gone[left] < shown.get(left, {}).get(suit, 0)
+                              or len(right_cards) + gone[right] < shown.get(right, {}).get(suit, 0)):
+                    continue                  # fewer than their bidding showed
+                weight = _choose(others, slots - len(left_cards))
+                if weight:
+                    layouts.append((left_cards, right_cards, weight))
+        return layouts
+
+    def fits_auction(self, seat: str, cards: list) -> bool:
+        """Could `seat` hold `cards` now and still have bid what it bid?"""
+        for suit, n in (self.shown or {}).get(seat, {}).items():
+            if sum(1 for c in cards if c.suit == suit) + self.played_in(seat, suit) < n:
+                return False
+        return True
+
+
 def _later_holdings(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                     played: list[Card], visible: dict[str, list[Card]],
-                    out: dict[str, set[str]] | None = None) -> set[Card]:
+                    out: dict[str, set[str]] | None = None,
+                    count: TableCount | None = None) -> set[Card]:
     """Cards the *opponents* still to act in this trick might hold.
 
     Partner is skipped: these cards are used to judge how a trick could be taken
@@ -1589,15 +1739,13 @@ def _later_holdings(player: str, hand: list[Card], trick: list[tuple[str, Card]]
     cards still sit in the unseen pool — nothing can separate them — but a
     visible partner (the dummy) is no longer counted as a threat.
     """
+    count = count or TableCount(player, hand, trick, None, played, visible)
     i = PLAYERS.index(player)
     later = [PLAYERS[(i + k) % 4] for k in range(1, 4 - len(trick))]
     opponents = [p for p in later if p != PARTNERS[player]]
     pool: set[Card] = set()
     if any(p not in visible for p in opponents):
-        seen = set(played) | {c for _, c in trick} | set(hand)
-        for h in visible.values():
-            seen |= set(h)
-        pool = {c for c in _FULL_DECK if c not in seen}
+        pool = set(count.unseen)
     # An opponent who has shown out of a suit holds none of it: drop those
     # cards from what they might play (there is at most one opponent still to
     # act after the second or third hand).
@@ -1681,32 +1829,37 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
     if not AUCTION_IN_PLAY:
         shown = None
 
+    count = TableCount(player, hand, trick, trump, played, visible, history, shown)
+
     if not trick and not played and shown:
         choice = (_partner_suit_lead(player, hand, trump, shown)
                   or (_singleton_lead(hand, trump) if SINGLETON_LEAD else None)
-                  or _fit_lead(player, hand, trump, shown, history, visible))
+                  or _fit_lead(player, hand, trump, shown, history, visible, count=count))
         if choice is not None:
             return choice
     if not trick:
         sure = None
-        choice = ((_draw_trump(player, hand, trump, played, visible, history, shown)
-                   if DRAW_TRUMPS else None)
-                  or (_entry_to_draw(player, hand, trump, played, visible, history, shown)
+        draw = (_draw_plan(player, hand, trump, played, visible, history, shown, count=count)
+                if DRAW_TRUMPS else None)
+        choice = ((draw if isinstance(draw, Card) else None)
+                  or (_entry_to_draw(player, hand, trump, played, visible, history, shown, count=count)
                       if ENTRY_TO_DRAW else None)
-                  or (_ruff_lead(player, hand, trump, played, visible)
+                  or (_ruff_lead(player, hand, trump, played, visible, count=count)
                       if RUFF_LEAD else None)
-                  or (_run_long_suit(player, hand, trump, played, visible, history, shown)
+                  or (_run_long_suit(player, hand, trump, played, visible, history, shown,
+                                     count=count)
                       if RUN_LONG_SUIT else None)
                   or (_run_long_suit(player, hand, trump, played, visible, history, shown,
-                                     max_losers=float('inf'))
+                                     max_losers=float('inf'), count=count)
                       if NT_SET_UP_SUIT and trump not in SUITS else None)
-                  or (_ruff_return(player, hand, trump, history, visible, shown)
+                  or (_ruff_return(player, hand, trump, history, visible, shown, count=count)
                       if RUFF_RETURN and PARTNERS[player] not in (visible or {}) else None)
-                  or ((sure := _sure_lead(player, hand, trump, played, visible, history))
+                  or ((sure := _sure_lead(player, hand, trump, played, visible, history,
+                                         count=count))
                       if SURE_LEAD else None)
-                  or (_fit_lead(player, hand, trump, shown, history, visible)
+                  or (_fit_lead(player, hand, trump, shown, history, visible, count=count)
                       if shown and PARTNERS[player] not in (visible or {}) else None)
-                  or (_nt_defence_suit(player, hand, trump, history, visible)
+                  or (_nt_defence_suit(player, hand, trump, history, visible, count=count)
                       if NT_DEFENCE_SUIT else None)
                   or (_nt_long_lead(player, hand, trump, played, visible)
                       if NT_LONG_LEAD else None))
@@ -1714,64 +1867,95 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
             # A sure trick is cashed as it is; another defence lead (the long
             # suit in notrump) still has its card planned.
             choice = _defender_suit_plan(player, hand, trump, played, visible, history,
-                                         shown, choice) or choice
+                                         shown, choice, count=count) or choice
         if choice is None:
-            choice = _lead(hand, trump, played)
+            choice = _fallback_lead(player, hand, trump, played, visible, count)
             if IDLE_TRUMP_FOR_RUFF and choice.suit == trump:
-                ruff = _ruff_for_idle_trump(player, hand, trump, played, visible)
+                ruff = _ruff_for_idle_trump(player, hand, trump, played, visible, count=count)
                 if ruff is not None:
-                    choice = _lead([c for c in hand if c.suit == ruff], trump, played)
+                    choice = _fallback_lead(player, [c for c in hand if c.suit == ruff],
+                                            trump, played, visible, count)
+            # COUNT_LEAD never leads a trump for the declaring side, so this
+            # also asks whether the hand's own lead (`_lead`) was the idle
+            # trump: the count's suit doesn't price partner's lone trump
+            # (deal 102: the count chose the Q♣, the K♠ for dummy to ruff is
+            # a trick better double dummy).
+            if (RUFF_NOT_DRAW and not isinstance(draw, Card)
+                    and trump in (choice.suit, _lead(hand, trump, played).suit)):
+                ruff = _ruff_for_idle_trump(player, hand, trump, played, visible,
+                                            count=count, defence_trumps=True)
+                if ruff is not None:
+                    choice = _fallback_lead(player, [c for c in hand if c.suit == ruff],
+                                            trump, played, visible, count)
+            if NO_FUTILE_DRAW and draw is _FUTILE_DRAW and choice.suit == trump:
+                side = [c for c in hand if c.suit != trump]
+                if side:
+                    choice = _fallback_lead(player, side, trump, played, visible, count)
             if DEFENDER_SUIT_PLAN:
                 choice = _defender_suit_plan(player, hand, trump, played, visible, history,
-                                             shown, choice) or choice
+                                             shown, choice, count=count) or choice
             if SURE_LEAD_DECLARER:
                 choice = _sure_lead_declarer(player, hand, trump, played, visible, history,
-                                             choice.suit) or choice
+                                             choice.suit, count=count) or choice
             if FORCE_DUMMY and choice.suit == trump:
-                choice = _force_dummy(player, hand, trump, visible, played) or choice
+                choice = _force_dummy(player, hand, trump, visible, played, count=count) or choice
     elif len(trick) == 3:
-        choice = _play_last(legal, trick, trump, hand, played)
+        choice = _play_last(legal, trick, trump, hand, played, count=count)
         if LAST_SUIT_PLAN and visible and PARTNERS[player] in visible:
             choice = _last_suit_plan(player, hand, legal, trick, trump, played, visible,
-                                     history, shown, choice)
+                                     history, shown, choice, count=count)
+        elif FOURTH_HAND_PLAN and visible:
+            choice = _third_hand_plan(player, hand, legal, trick, trump, played, visible,
+                                      history, shown, choice, count=count)
     else:
-        out = (_shown_out(history, trick)
-               if SHOWOUT_MIDDLE and history is not None else None)
-        later = _later_holdings(player, hand, trick, played, visible or {}, out)
+        out = count.out if SHOWOUT_MIDDLE and history is not None else None
+        later = _later_holdings(player, hand, trick, played, visible or {}, out, count=count)
         void = (_void_chance(player, hand, trick, played, visible or {}, history,
-                             out or _shown_out(history, trick))
+                             out or count.out, count=count)
                 if RUFF_IF_FOLLOWS and history is not None and len(trick) == 2 else 1.0)
         choice = _middle_play(player, legal, trick, trump, later, void)
         if THIRD_SEES_LAST and len(trick) == 2 and visible:
             choice = _third_sees_last(player, legal, trick, trump, visible, choice)
         if THIRD_HAND_PLAN and len(trick) == 2 and visible:
             choice = _third_hand_plan(player, hand, legal, trick, trump, played, visible,
-                                      history, shown, choice)
+                                      history, shown, choice, count=count)
+        if (DECLARER_THIRD_PLAN and len(trick) == 2 and visible
+                and PARTNERS[player] in visible):
+            choice = _declarer_third_plan(player, hand, legal, trick, trump, played,
+                                          visible, history, shown, choice, count=count)
 
     partner = PARTNERS[player]
     if len(trick) == 1 and visible and partner in visible and len(legal) > 1:
         choice = _cover_for_partner(player, hand, legal, trick, trump, played,
-                                    visible, choice, history, shown)
+                                    visible, choice, history, shown, count=count)
 
     elif (SECOND_HAND_COVER and len(trick) == 1 and visible and len(legal) > 1
             and (PLAYERS[(PLAYERS.index(player) + 1) % 4] in visible
                  or (SECOND_HAND_COVER_DUMMY_LED
                      and trick[0][0] in visible and player not in visible))):
         choice = _cover_unseen_partner(player, hand, legal, trick, trump, played,
-                                       visible, history, choice, shown)
+                                       visible, history, choice, shown, count=count)
 
     if RUFF_KEEPS_DRAW and trick:
         choice = _ruff_for_draw(player, hand, trick, trump, played, visible, history,
-                                shown, choice) or choice
+                                shown, choice, count=count) or choice
 
     if LOCATED_SUIT_PLAN and trick:
         choice = _located_suit_plan(player, hand, legal, trick, trump, played, visible,
-                                    history, choice)
+                                    history, choice, count=count)
 
-    if (history is not None and visible and len(legal) > 1
-            and len(hand) <= (DEEP_ENDGAME_CARDS if DEEP_ENDGAME else ENDGAME_CARDS)):
+    searched = (history is not None and visible and len(legal) > 1
+                and len(hand) <= (DEEP_ENDGAME_CARDS if DEEP_ENDGAME else ENDGAME_CARDS))
+    if COUNT_DISCARD and trick and history is not None and not searched:
+        choice = _count_discard(player, hand, trick, trump, visible, choice, count) or choice
+
+    if DISCARD_SUIT_PLAN and trick:
+        choice = _discard_suit_plan(player, hand, trick, trump, played, visible,
+                                    history, choice, count=count)
+
+    if searched:
         totals = _endgame_totals(player, hand, trick, trump, played, visible,
-                                 history, legal, shown)
+                                 history, legal, shown, count=count)
         if totals:
             best = max(totals.values())
             tied = [c for c in legal if totals[c] == best]
@@ -1795,7 +1979,9 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
 def _cover_for_partner(player: str, hand: list[Card], legal: list[Card],
                        trick: list[tuple[str, Card]], trump: str | None, played: list[Card],
                        visible: dict[str, list[Card]], choice: Card,
-                       history: list | None = None, shown: dict | None = None) -> Card:
+                       history: list | None = None, shown: dict | None = None,
+                       count: TableCount | None = None) -> Card:
+    count = count or TableCount(player, hand, trick, trump, played, visible, history, shown)
     partner = PARTNERS[player]
     third = PLAYERS[(PLAYERS.index(player) + 1) % 4]
     led = trick[0][1].suit
@@ -1804,10 +1990,7 @@ def _cover_for_partner(player: str, hand: list[Card], legal: list[Card],
     else:
         # The whole hand, not just the legal cards: following suit, this hand's
         # other suits are still its own, never the third player's ruff or discard.
-        seen = set(played) | {c for _, c in trick} | set(hand)
-        for cards in visible.values():
-            seen |= set(cards)
-        candidates = [c for c in _FULL_DECK if c not in seen]
+        candidates = list(count.unseen)
     follows = [c for c in candidates if c.suit == led]
     # A follow if they can; otherwise one ruff (if trump is live) and one discard.
     options = follows[:]
@@ -1840,14 +2023,12 @@ def _cover_for_partner(player: str, hand: list[Card], legal: list[Card],
         # The suit's top unplayed card isn't spent on a tie: of 26 second-hand
         # cards the plan chose that way, 1 was better double dummy, 6 worse
         # (its value outside the suit, which the plan can't see).
-        gone = set(played) | {c for _, c in trick}
-        top = max((c for c in _FULL_DECK if c.suit == led and c not in gone),
-                  key=lambda c: c.value())
+        top = count.master(led)
         if top in tied and top != choice:
             tied.remove(top)
     if COVER_SUIT_PLAN and len(tied) > 1:
         planned = _cover_suit_plan(player, hand, tied, trick, trump, played, visible,
-                                   history, shown)
+                                   history, shown, count=count)
         if planned:
             top = max(planned.values())
             tied = [c for c in tied if planned[c] == top]
@@ -1888,7 +2069,7 @@ COVER_KEEP_MASTER = True
 def _cover_suit_plan(player: str, hand: list[Card], tied: list[Card],
                      trick: list[tuple[str, Card]], trump: str | None, played: list[Card],
                      visible: dict[str, list[Card]], history: list | None,
-                     shown: dict | None) -> dict | None:
+                     shown: dict | None, count: TableCount | None = None) -> dict | None:
     """Our tricks in the led suit after playing each card of `tied`, summed over
     the layouts of the suit's unseen cards between the two opponents; None when
     the plan doesn't apply. Partner's hand must be in view."""
@@ -1904,22 +2085,19 @@ def _cover_suit_plan(player: str, hand: list[Card], tied: list[Card],
     left, right = PLAYERS[(i + 1) % 4], PLAYERS[(i + 3) % 4]
     if left in visible or right in visible:
         return None
-    seen = set(played) | {c for _, c in trick} | set(hand)
-    for cards in visible.values():
-        seen |= set(cards)
-    unseen_suit = sorted(c.value() for c in _FULL_DECK if c.suit == led and c not in seen)
+    count = count or TableCount(player, hand, trick, trump, played, visible, history, shown)
+    unseen_suit = count.unseen_in(led)
     if len(unseen_suit) > SUIT_PLAN_MAX_UNSEEN:
         return None
-    out = _shown_out(history, trick)
+    out = count.out
     # No ruffs: a void hand discards. A ruff takes the trick whichever card we
     # keep, so it only drowns the difference being chosen between (on board 26
     # every later heart was South's ruff, and the T and the 6 came out even).
     ruffs = (False, False, False, False)
-    down = dict(trick)
-    size = {p: 13 - len(history) - (p in down) for p in (left, right)}
-    others = sum(1 for c in _FULL_DECK if c not in seen) - len(unseen_suit)
-    floor = {p: (shown or {}).get(p, {}).get(led, 0) - _played_in(p, led, history, trick)
-             for p in (left, right)}
+    down = count.down
+    size = {p: count.size(p) for p in (left, right)}
+    others = len(count.unseen) - len(unseen_suit)
+    floor = {p: count.floor(p, led) for p in (left, right)}
 
     def held(p: str, cards) -> tuple:
         # A card already down this trick stays in its hand until the trick ends.
@@ -1960,7 +2138,7 @@ def _cover_suit_plan(player: str, hand: list[Card], tied: list[Card],
 def _last_suit_plan(player: str, hand: list[Card], legal: list[Card],
                     trick: list[tuple[str, Card]], trump: str | None, played: list[Card],
                     visible: dict[str, list[Card]], history: list | None,
-                    shown: dict | None, choice: Card) -> Card:
+                    shown: dict | None, choice: Card, count: TableCount | None = None) -> Card:
     """Of the cards that keep the trick for us, the one the suit plan rates best
     (`choice` when it is among them)."""
     ours = (player, PARTNERS[player])
@@ -1971,13 +2149,57 @@ def _last_suit_plan(player: str, hand: list[Card], legal: list[Card],
     if choice not in winning or len(winning) < 2:
         return choice
     planned = _cover_suit_plan(player, hand, winning, trick, trump, played, visible,
-                               history, shown)
+                               history, shown, count=count)
     if not planned:
         return choice
     top = max(planned.values())
     if planned[choice] == top:
         return choice
     return min((c for c in winning if planned[c] == top), key=lambda c: c.value())
+
+
+# ── Declarer's side third hand, the suit counted ─────────────────────────────
+#
+# Third hand on the declaring side played `_middle_play`'s card: the cheapest
+# one that keeps this trick, and nothing else. It never counted the suit. On
+# challenge deal 13, 4S by South, trick 2, dummy led the 9S, East covered with
+# the TS, and South held AKQJ86 with dummy's 5S left and West's 732 unseen. The
+# 8 and the 6 both leave the nine second-highest, so the six went; but the
+# eight keeps the 6 to sandwich West's 7 on the next round (dummy's 5, South's
+# 6) and the six gives West a second trump trick: double dummy 10 tricks
+# against 9. Declarer sees both hands, so the suit is played out over every
+# layout of its unseen cards between the two defenders (`_cover_suit_plan`),
+# this trick included, and the card that takes the most tricks in it is
+# played, as fourth hand already does. Only the trump suit and notrump: in a
+# side suit of a trump contract the plan can't see a defender's ruff.
+
+#: Third hand on the declaring side picks its card of the trump suit (or in
+#: notrump) by playing the suit out over the unseen layouts (measurement
+#: switch): 0 off, 1 trumps and notrump, 2 any suit.
+DECLARER_THIRD_PLAN = 1
+
+
+def _declarer_third_plan(player: str, hand: list[Card], legal: list[Card],
+                         trick: list[tuple[str, Card]], trump: str | None,
+                         played: list[Card], visible: dict[str, list[Card]],
+                         history: list | None, shown: dict | None, choice: Card,
+                         count: TableCount | None = None) -> Card:
+    """The card of `legal` that takes the most tricks in the led suit, summed
+    over the layouts of its unseen cards; `choice` when it is among the best,
+    or the plan doesn't apply."""
+    led = trick[0][1].suit
+    if len(legal) < 2 or any(c.suit != led for c in legal):
+        return choice
+    if DECLARER_THIRD_PLAN < 2 and trump in SUITS and led != trump:
+        return choice
+    planned = _cover_suit_plan(player, hand, legal, trick, trump, played, visible,
+                               history, shown, count=count)
+    if not planned:
+        return choice
+    top = max(planned.values())
+    if planned[choice] == top:
+        return choice
+    return min((c for c in legal if planned[c] == top), key=lambda c: c.value())
 
 
 # ── Every card of the suit located ───────────────────────────────────────────
@@ -2002,7 +2224,8 @@ LOCATED_SUIT_PLAN = 1
 def _located_suit_plan(player: str, hand: list[Card], legal: list[Card],
                        trick: list[tuple[str, Card]], trump: str | None,
                        played: list[Card], visible: dict[str, list[Card]] | None,
-                       history: list | None, choice: Card) -> Card:
+                       history: list | None, choice: Card,
+                       count: TableCount | None = None) -> Card:
     """The card of `legal` that takes the most tricks in the led suit when every
     card of it is located; `choice` when it is among the best, or the plan
     doesn't apply."""
@@ -2015,17 +2238,15 @@ def _located_suit_plan(player: str, hand: list[Card], legal: list[Card],
         return choice
     if any(c.suit == trump and c.suit != led for _, c in trick[1:]):
         return choice                   # a ruff already down decides the trick
-    seen = set(played) | {c for _, c in trick} | set(hand)
-    for cards in visible.values():
-        seen |= set(cards)
-    unseen = tuple(sorted(c.value() for c in _FULL_DECK if c.suit == led and c not in seen))
-    out = _shown_out(history, trick)
+    count = count or TableCount(player, hand, trick, trump, played, visible, history)
+    unseen = tuple(count.unseen_in(led))
+    out = count.out
     hidden = [p for p in PLAYERS if p != player and p not in visible and led not in out[p]]
     if unseen and len(hidden) != 1:
         return choice
     i = PLAYERS.index(player)
     seat = {PLAYERS[(i + k) % 4]: k for k in range(4)}
-    down = dict(trick)
+    down = count.down
 
     def held(p: str) -> tuple:
         if p == player:
@@ -2052,6 +2273,74 @@ def _located_suit_plan(player: str, hand: list[Card], legal: list[Card],
     if score[choice] == best:
         return choice
     return min((c for c in legal if score[c] == best), key=lambda c: c.value())
+
+
+# ── Which card of a located suit to discard ─────────────────────────────────
+#
+# The user's board (challenge deal 206, 3H by East, trick 5): East led the KH
+# and South, out of trumps, discarded from AJ752 with dummy's 43 the only other
+# spades left (all seven others had been seen). The fallback (`_shed`) threw the
+# lowest card, the 2, as in ordinary bridge. But in this game the LOWER card
+# wins a trick only two hands follow to: the 2 was the one spade under dummy's
+# 4 and 3, so it beat dummy's spades, and without it both of them became
+# winners. The ace beats nothing of dummy's and costs only length. So once
+# every card of the discard's suit is placed (seen, or with the one hidden hand
+# that hasn't shown out), the suit is played out (`_plan_suit`) with each of
+# our cards of it gone, and if throwing the chosen card loses a trick there,
+# the highest card whose loss costs nothing goes instead. The suit to discard
+# from stays the fallback's choice.
+
+#: A discard from a suit whose cards are all located keeps the card that
+#: takes a trick in it (measurement switch).
+DISCARD_SUIT_PLAN = True
+
+
+def _discard_suit_plan(player: str, hand: list[Card], trick: list[tuple[str, Card]],
+                       trump: str | None, played: list[Card],
+                       visible: dict[str, list[Card]] | None, history: list | None,
+                       choice: Card, count: TableCount | None = None) -> Card:
+    """The card of discard `choice`'s suit to throw: `choice` unless the suit,
+    every card located, shows it takes a trick some other card of it doesn't."""
+    if not visible or history is None:
+        return choice
+    suit = choice.suit
+    if suit == trick[0][1].suit or (trump in SUITS and suit == trump):
+        return choice
+    mine = [c for c in hand if c.suit == suit]
+    if len(mine) < 2:
+        return choice
+    count = count or TableCount(player, hand, trick, trump, played, visible, history)
+    unseen = tuple(count.unseen_in(suit))
+    out = count.out
+    hidden = [p for p in PLAYERS if p != player and p not in visible and suit not in out[p]]
+    if unseen and len(hidden) != 1:
+        return choice
+    i = PLAYERS.index(player)
+    order = [PLAYERS[(i + k) % 4] for k in range(4)]
+
+    def held(p: str) -> tuple:
+        if p in visible and p != player:
+            return tuple(sorted(c.value() for c in visible[p] if c.suit == suit))
+        return unseen if p in hidden else ()
+
+    others = [held(p) for p in order[1:]]
+    if not any(others[k] for k in (0, 2)):
+        return choice                   # the opponents hold none: every card is length
+    # Played out without ruffs: a ruff takes the same trick whichever card of
+    # the suit was thrown, and counting ruffs as unlimited (as the lead plan
+    # does) scores every card of a suit an opponent is void in alike.
+    ruffs = (False, False, False, False)
+    memo = _SUIT_PLAN_MEMO
+    if len(memo) > _TRUMP_MEMO_MAX:
+        memo.clear()
+    score = {}
+    for c in mine:
+        rest = tuple(sorted(d.value() for d in mine if d != c))
+        score[c] = _plan_suit((rest,) + tuple(others), ruffs, None, memo)
+    best = max(score.values())
+    if score[choice] == best:
+        return choice
+    return max((c for c in mine if score[c] == best), key=lambda c: c.value())
 
 
 # ── Second hand, dummy third and partner last, unseen ────────────────────────
@@ -2085,7 +2374,7 @@ SECOND_HAND_COVER_DUMMY_LED = True
 def _unseen_partner_plan(player: str, hand: list[Card], cards: list[Card],
                          trick: list[tuple[str, Card]], trump: str | None, played: list[Card],
                          visible: dict[str, list[Card]], history: list | None,
-                         shown: dict | None) -> dict | None:
+                         shown: dict | None, count: TableCount | None = None) -> dict | None:
     """Our tricks in the led suit after each of `cards`, summed over the layouts
     of the suit's unseen cards between partner and declarer (`_cover_suit_plan`
     with partner's hand the hidden one and dummy's in view); None when the plan
@@ -2100,19 +2389,16 @@ def _unseen_partner_plan(player: str, hand: list[Card], cards: list[Card],
     if partner in visible or (left in visible) == (right in visible):
         return None
     shown_seat, right = (left, right) if left in visible else (right, left)
-    seen = set(played) | {c for _, c in trick} | set(hand)
-    for cs in visible.values():
-        seen |= set(cs)
-    unseen_suit = sorted(c.value() for c in _FULL_DECK if c.suit == led and c not in seen)
+    count = count or TableCount(player, hand, trick, trump, played, visible, history, shown)
+    unseen_suit = count.unseen_in(led)
     if len(unseen_suit) > SUIT_PLAN_MAX_UNSEEN:
         return None
-    out = _shown_out(history, trick)
+    out = count.out
     ruffs = (False, False, False, False)
-    down = dict(trick)
-    size = {p: 13 - len(history) - (p in down) for p in (partner, right)}
-    others = sum(1 for c in _FULL_DECK if c not in seen) - len(unseen_suit)
-    floor = {p: (shown or {}).get(p, {}).get(led, 0) - _played_in(p, led, history, trick)
-             for p in (partner, right)}
+    down = count.down
+    size = {p: count.size(p) for p in (partner, right)}
+    others = len(count.unseen) - len(unseen_suit)
+    floor = {p: count.floor(p, led) for p in (partner, right)}
 
     def held(p: str, vals) -> tuple:
         extra = (down[p].value(),) if p in down and down[p].suit == led else ()
@@ -2155,18 +2441,20 @@ def _cover_unseen_partner(player: str, hand: list[Card], legal: list[Card],
                           trick: list[tuple[str, Card]], trump: str | None,
                           played: list[Card], visible: dict[str, list[Card]],
                           history: list | None, choice: Card,
-                          shown: dict | None = None) -> Card:
+                          shown: dict | None = None,
+                          count: TableCount | None = None) -> Card:
     led = trick[0][1].suit
     if not any(c.suit == led for c in legal):
         return choice
     scores = None
     if all(c.suit == led for c in legal):
         scores = _unseen_partner_plan(player, hand, legal, trick, trump, played, visible,
-                                      history, shown)
+                                      history, shown, count=count)
     if scores is None:
         if PLAYERS[(PLAYERS.index(player) + 1) % 4] not in visible:
             return choice
-        scores = _partner_chances(player, hand, legal, trick, trump, played, visible, history)
+        scores = _partner_chances(player, hand, legal, trick, trump, played, visible, history,
+                                  count=count)
     best = max(scores.values())
     if scores[choice] >= best - 1e-9:
         return choice
@@ -2175,18 +2463,17 @@ def _cover_unseen_partner(player: str, hand: list[Card], legal: list[Card],
 
 def _partner_chances(player: str, hand: list[Card], legal: list[Card],
                      trick: list[tuple[str, Card]], trump: str | None, played: list[Card],
-                     visible: dict[str, list[Card]], history: list | None) -> dict:
+                     visible: dict[str, list[Card]], history: list | None,
+                     count: TableCount | None = None) -> dict:
     """The chance, after dummy's best reply to each card, that partner holds a
     card that wins the trick for us; every unseen card of the suit is partner's
     at even odds. Used when the suit plan doesn't apply."""
     led = trick[0][1].suit
     partner = PARTNERS[player]
     third = PLAYERS[(PLAYERS.index(player) + 1) % 4]
-    seen = set(played) | {c for _, c in trick} | set(hand)
-    for cards in visible.values():
-        seen |= set(cards)
-    unseen = [c for c in _FULL_DECK if c.suit == led and c not in seen]
-    if history is not None and led in _shown_out(history, trick)[partner]:
+    count = count or TableCount(player, hand, trick, trump, played, visible, history)
+    unseen = count.unseen_cards(led)
+    if history is not None and led in count.out[partner]:
         unseen = []
     ours = (player, partner)
     replies = legal_plays(visible[third], led)
@@ -2324,15 +2611,6 @@ def _played_in(seat: str, suit: str, history: list, trick: list) -> int:
                if p == seat and c.suit == suit)
 
 
-def _fits_auction(seat: str, cards: list, history: list, trick: list,
-                  shown: dict[str, dict[str, int]]) -> bool:
-    """Could `seat` hold `cards` now and still have bid what it bid?"""
-    for suit, n in shown.get(seat, {}).items():
-        if sum(1 for c in cards if c.suit == suit) + _played_in(seat, suit, history, trick) < n:
-            return False
-    return True
-
-
 def _partner_suit_lead(player: str, hand: list[Card], trump: str | None,
                        shown: dict[str, dict[str, int]]) -> Card | None:
     """The opening lead in the suit partner's bidding showed, or None.
@@ -2356,12 +2634,14 @@ def _partner_suit_lead(player: str, hand: list[Card], trump: str | None,
 
 def _fit_lead(player: str, hand: list[Card], trump: str | None,
               shown: dict[str, dict[str, int]], history: list | None,
-              visible: dict[str, list[Card]] | None) -> Card | None:
+              visible: dict[str, list[Card]] | None,
+              count: TableCount | None = None) -> Card | None:
     """A defender's lead in a suit partner bid where I hold FIT_LEAD_MIN or
     more, or None. Not trumps, and not once an opponent (or the dummy I can
     see) is out of it, which would give a ruff. Led like any other suit."""
     partner = PARTNERS[player]
-    out = _shown_out(history or [], [])
+    count = count or TableCount(player, hand, [], trump, [], visible, history, shown)
+    out = count.out
     dummy = next((cards for seat, cards in (visible or {}).items() if seat != partner), None)
     suits = []
     for s in shown.get(partner, {}):
@@ -2391,7 +2671,8 @@ def _singleton_lead(hand: list[Card], trump: str | None) -> Card | None:
 
 def _ruff_return(player: str, hand: list[Card], trump: str | None,
                  history: list | None, visible: dict[str, list[Card]] | None = None,
-                 shown: dict[str, dict[str, int]] | None = None) -> Card | None:
+                 shown: dict[str, dict[str, int]] | None = None,
+                 count: TableCount | None = None) -> Card | None:
     """A suit partner has shown out of while partner may still hold a trump,
     led for the ruff (my lowest card of it), or None. With SHORT_LEAD_RETURN,
     also the suit of partner's opening lead when it reads as a singleton
@@ -2399,7 +2680,8 @@ def _ruff_return(player: str, hand: list[Card], trump: str | None,
     if trump not in SUITS or not history:
         return None
     partner = PARTNERS[player]
-    out = _shown_out(history, [])
+    count = count or TableCount(player, hand, [], trump, [], visible, history, shown)
+    out = count.out
     if trump in out[partner]:
         return None
     cards = [c for c in hand if c.suit != trump and c.suit in out[partner]]
@@ -2434,14 +2716,14 @@ def _short_lead(player: str, hand: list[Card], trump: str | None, history: list,
     if dummy_seat is None:
         return None
     declarer = next(p for p in PLAYERS if p not in (player, partner, dummy_seat))
-    seen = set(hand) | set(visible[dummy_seat]) | {c for plays in history for _, c in plays}
-    unseen = [c for c in _FULL_DECK if c not in seen]
+    count = TableCount(player, hand, [], trump, [c for plays in history for _, c in plays],
+                       {dummy_seat: visible[dummy_seat]}, history, shown)
+    unseen = count.unseen
     higher = sum(1 for c in unseen if c.suit == suit and c.value() > lead.value())
     lower = sum(1 for c in unseen if c.suit == suit and c.value() < lead.value())
     others = sum(1 for c in unseen if c.suit != suit)
     held = 13 - sum(1 for plays in history for p, _ in plays if p == partner)
-    floor = max(0, (shown or {}).get(declarer, {}).get(suit, 0)
-                - _played_in(declarer, suit, history, []))
+    floor = max(0, count.floor(declarer, suit))
     total = higher + lower
     single = comb(others, held) if total >= floor else 0
     if lead.value() >= SHORT_LEAD_HONOUR:
@@ -2761,22 +3043,22 @@ def _endgame_totals(player: str, hand: list[Card], trick: list[tuple[str, Card]]
                     trump: str | None, played: list[Card],
                     visible: dict[str, list[Card]], history: list,
                     legal: list[Card],
-                    shown: dict[str, dict[str, int]] | None = None) -> dict | None:
+                    shown: dict[str, dict[str, int]] | None = None,
+                    count: TableCount | None = None) -> dict | None:
     """Tricks for each legal card, summed over every layout that fits."""
+    count = count or TableCount(player, hand, trick, trump, played, visible, history, shown)
     known = {player: list(hand)}
-    seen = set(played) | {c for _, c in trick} | set(hand)
     for seat, cards in visible.items():
         if seat != player:
             known[seat] = list(cards)
-            seen |= set(cards)
     hidden = [p for p in PLAYERS if p not in known]
-    already = {seat for seat, _ in trick}
+    already = set(count.down)
     size = {p: len(hand) - (1 if p in already else 0) for p in PLAYERS}
-    unseen = sorted((c for c in _FULL_DECK if c not in seen), key=_card_order)
+    unseen = sorted(count.unseen, key=_card_order)
     if len(hidden) != 2 or len(unseen) != size[hidden[0]] + size[hidden[1]]:
         return None
     first, second = hidden
-    out = _shown_out(history, trick)
+    out = count.out
     leader = trick[0][0] if trick else player
     side = PARTNERSHIP[player]
     totals = {c: 0 for c in legal}
@@ -2787,8 +3069,7 @@ def _endgame_totals(player: str, hand: list[Card], trick: list[tuple[str, Card]]
         b = [unseen[i] for i in range(len(unseen)) if i not in chosen]
         if any(c.suit in out[first] for c in a) or any(c.suit in out[second] for c in b):
             continue
-        if shown and not (_fits_auction(first, a, history, trick, shown)
-                          and _fits_auction(second, b, history, trick, shown)):
+        if shown and not (count.fits_auction(first, a) and count.fits_auction(second, b)):
             continue
         layouts += 1
         held = {seat: list(cards) for seat, cards in known.items()}
@@ -2831,6 +3112,49 @@ def _endgame_totals(player: str, hand: list[Card], trick: list[tuple[str, Card]]
 
 #: Declaring side draws trumps when on lead (measurement switch).
 DRAW_TRUMPS = True
+
+# ── A draw that gains nothing ───────────────────────────────────────────────
+#
+# Drawing trumps is worth its cost when it stops the defence's trumps from
+# ruffing. When it would lose a trick to every trump the defence holds, on
+# every layout declarer can't rule out, it stops nothing: the defence makes
+# each trump anyway, and the declaring side has thrown two or more trumps a
+# round that could each have won a ruff (a trump alone in a trick wins). On a
+# user's board (deal 215, 2H by West, trick 5) South had shown out of hearts,
+# North held the 10 5, and dummy's A K sat over West's 8 4: whichever pair
+# led, North's 10 and 5 each took a round. Dummy cashed the K (9 tricks for
+# N/S double dummy, instead of 6). The user's rule: once drawing only loses
+# trump tricks, play for ruffs instead. So the declaring side leads a side
+# suit and keeps its trumps for ruffing.
+#
+# Only with two or more defence trumps out. A lone defence trump nearly always
+# takes its round, so the test fires all the time there, and drawing it is
+# usually right: left out, it overruffs a higher ruff (of two trumps the lower
+# wins) or ruffs a winner. Card by card on 199 solved deals the one-trump
+# cases went 3 better, 8 worse (deal 70: the 9H drawing West's lone Q was
+# worth two tricks).
+
+#: Declaring side doesn't lead trumps when drawing would lose a trick to every
+#: trump the defence holds, two or more (measurement switch).
+NO_FUTILE_DRAW = True
+
+#: `_draw_plan`'s answer when drawing would gain nothing.
+_FUTILE_DRAW = object()
+
+# The same blind spot when `_draw_trump` declines for its own reasons: on a
+# user's board (deal 102, hearts by East, trick 5) East held K83 of spades to
+# dummy's 2, dummy ruffed the second spade, and East held the K♠ with dummy
+# void in spades and the 6♥ left. The defence held four trumps to the
+# declaring side's four, so `_draw_trump` didn't draw; the fallback `_lead`
+# reads only East's cards and its gap analysis chose the 10♥ (a trick lost
+# double dummy). It never asked whether dummy could ruff the K♠ (a trump alone
+# in a trick wins). So when the fallback picks a trump that isn't a draw, the
+# declaring side leads a suit partner is void in while partner holds a trump,
+# as `IDLE_TRUMP_FOR_RUFF` does once the defence is out of trumps.
+
+#: The fallback lead, a trump that `_draw_trump` didn't choose, gives way to a
+#: suit visible partner can ruff (measurement switch).
+RUFF_NOT_DRAW = True
 
 
 def _distinct(cards: tuple, others: tuple) -> list:
@@ -2938,8 +3262,20 @@ def _trump_losers(ours: tuple, theirs: tuple, leader: int, memo: dict) -> int:
 def _draw_trump(player: str, hand: list[Card], trump: str | None,
                 played: list[Card], visible: dict[str, list[Card]] | None,
                 history: list | None,
-                shown: dict[str, dict[str, int]] | None = None) -> Card | None:
-    """The trump the declaring side should lead to draw trumps, or None.
+                shown: dict[str, dict[str, int]] | None = None,
+                count: TableCount | None = None) -> Card | None:
+    """The trump the declaring side should lead to draw trumps, or None."""
+    plan = _draw_plan(player, hand, trump, played, visible, history, shown, count=count)
+    return plan if isinstance(plan, Card) else None
+
+
+def _draw_plan(player: str, hand: list[Card], trump: str | None,
+               played: list[Card], visible: dict[str, list[Card]] | None,
+               history: list | None,
+               shown: dict[str, dict[str, int]] | None = None,
+               count: TableCount | None = None):
+    """`_draw_trump`'s card, or None, or `_FUTILE_DRAW` when drawing would
+    lose a trick to every trump the defence holds.
 
     Only for a hand whose partner it can see (declarer and dummy see each
     other; a defender sees only dummy, an opponent). Leads a trump when the
@@ -2952,8 +3288,8 @@ def _draw_trump(player: str, hand: list[Card], trump: str | None,
     theirs_partner = sorted(c.value() for c in visible[partner] if c.suit == trump)
     if not mine:
         return None
-    seen = set(played) | set(hand) | set(visible[partner])
-    outstanding = [c.value() for c in _FULL_DECK if c.suit == trump and c not in seen]
+    count = count or TableCount(player, hand, [], trump, played, visible, history, shown)
+    outstanding = count.outstanding(trump)
     if not outstanding or len(mine) + len(theirs_partner) <= len(outstanding):
         return None
 
@@ -2961,7 +3297,7 @@ def _draw_trump(player: str, hand: list[Card], trump: str | None,
     if ruff is not None:
         return ruff if ruff is not _NO_DRAW else None
 
-    layouts = _splits(player, hand, trump, outstanding, seen, history, shown)
+    layouts = count.splits(trump, outstanding)
     if not layouts:
         return None
 
@@ -2979,7 +3315,10 @@ def _draw_trump(player: str, hand: list[Card], trump: str | None,
             weights += weight
             worst = max(worst, losers)
         scored.append((total / weights, worst, card.value(), card))
-    return min(scored, key=lambda t: t[:3])[3]
+    best = min(scored, key=lambda t: t[:3])
+    if NO_FUTILE_DRAW and len(outstanding) >= 2 and best[0] >= len(outstanding):
+        return _FUTILE_DRAW
+    return best[3]
 
 
 # ── Crossing to the trump hand to draw trumps ──────────────────────────────
@@ -3007,7 +3346,8 @@ ENTRY_FOLLOW = 0.85
 def _entry_to_draw(player: str, hand: list[Card], trump: str | None,
                    played: list[Card], visible: dict[str, list[Card]] | None,
                    history: list | None,
-                   shown: dict[str, dict[str, int]] | None = None) -> Card | None:
+                   shown: dict[str, dict[str, int]] | None = None,
+                   count: TableCount | None = None) -> Card | None:
     """A side-suit lead partner ruffs, so partner can draw trumps, or None."""
     partner = PARTNERS[player]
     if trump not in SUITS or not visible or partner not in visible:
@@ -3017,16 +3357,15 @@ def _entry_to_draw(player: str, hand: list[Card], trump: str | None,
     partner_hand = visible[partner]
     if not any(c.suit == trump for c in partner_hand):
         return None
-    seen = set(played) | set(hand) | set(partner_hand)
-    if not any(c.suit == trump and c not in seen for c in _FULL_DECK):
+    count = count or TableCount(player, hand, [], trump, played, visible, history, shown)
+    if not count.outstanding(trump):
         return None                       # trumps are drawn already
     # Partner, once on lead, would draw them.
     if _draw_trump(partner, partner_hand, trump, played, {player: hand},
                    history, shown) is None:
         return None
-    out = _shown_out(history or [], [])
-    i = PLAYERS.index(player)
-    defence = (PLAYERS[(i + 1) % 4], PLAYERS[(i + 3) % 4])
+    out = count.out
+    defence = (count.left, count.right)
     best = None
     for suit in SUITS:
         if suit == trump or any(c.suit == suit for c in partner_hand):
@@ -3034,10 +3373,10 @@ def _entry_to_draw(player: str, hand: list[Card], trump: str | None,
         cards = [c for c in hand if c.suit == suit]
         if not cards or any(suit in out[p] for p in defence):
             continue
-        outstanding = [c.value() for c in _FULL_DECK if c.suit == suit and c not in seen]
+        outstanding = count.outstanding(suit)
         if not outstanding:
             continue
-        layouts = _splits(player, hand, suit, outstanding, seen, history, shown)
+        layouts = count.splits(suit, outstanding)
         total = sum(w for _, _, w in layouts)
         if not total:
             continue
@@ -3064,7 +3403,8 @@ RUFF_KEEPS_DRAW_VOID = 0.15
 def _ruff_for_draw(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                    trump: str | None, played: list[Card],
                    visible: dict[str, list[Card]] | None, history: list | None,
-                   shown: dict[str, dict[str, int]] | None, choice: Card) -> Card | None:
+                   shown: dict[str, dict[str, int]] | None, choice: Card,
+                   count: TableCount | None = None) -> Card | None:
     """The trump to ruff with that leaves the fewest trump losers, or None."""
     partner = PARTNERS[player]
     if (trump not in SUITS or not visible or partner not in visible or not trick
@@ -3077,17 +3417,15 @@ def _ruff_for_draw(player: str, hand: list[Card], trick: list[tuple[str, Card]],
     if len(trumps) < 2:
         return None
     partner_hand = visible[partner]
-    on_table = [c for _, c in trick]
-    seen = set(played) | set(hand) | set(partner_hand) | set(on_table)
-    out = _shown_out(history or [], trick)
-    i = PLAYERS.index(player)
+    count = count or TableCount(player, hand, trick, trump, played, visible, history, shown)
+    out = count.out
     if len(trick) == 2:
         # The fourth hand could still ruff lower and win: only when it surely follows.
-        fourth = PLAYERS[(i + 1) % 4]
+        fourth = count.left
         if led in out[fourth] or fourth in visible:
             return None
-        rest = [c for c in _FULL_DECK if c.suit == led and c not in seen]
-        unseen = sum(1 for c in _FULL_DECK if c not in seen)
+        rest = count.unseen_cards(led)
+        unseen = len(count.unseen)
         slots = len(hand)
         if not rest:
             return None
@@ -3095,11 +3433,11 @@ def _ruff_for_draw(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         void = _choose(unseen - len(rest), slots) / max(_choose(unseen, slots), 1)
         if void > RUFF_KEEPS_DRAW_VOID:
             return None
-    outstanding = [c.value() for c in _FULL_DECK if c.suit == trump and c not in seen]
+    outstanding = count.outstanding(trump)
     if not outstanding:
         return None
-    left, right = PLAYERS[(i + 1) % 4], PLAYERS[(i + 3) % 4]
-    unseen_all = sum(1 for c in _FULL_DECK if c not in seen)
+    left, right = count.left, count.right
+    unseen_all = len(count.unseen)
     others = unseen_all - len(outstanding)
     slots = len(hand) - 1                 # cards each hand holds at the next lead
     layouts = []
@@ -3132,34 +3470,9 @@ def _ruff_for_draw(player: str, hand: list[Card], trick: list[tuple[str, Card]],
 def _splits(player: str, hand: list[Card], suit: str, outstanding: list[int],
             seen: set, history: list | None,
             shown: dict[str, dict[str, int]] | None = None) -> list:
-    """Every way the defence's cards in `suit` can lie, as (left, right, weight).
-
-    Rules out a split that gives cards to a defender who has shown out, and
-    weights each by how many ways the rest of the unseen cards fill the left
-    hand, so a 2-2 split counts for more than 4-0, as in bridge odds.
-    """
-    left, right = PLAYERS[(PLAYERS.index(player) + 1) % 4], PLAYERS[(PLAYERS.index(player) + 3) % 4]
-    out = _shown_out(history or [], [])
-    gone = {p: _played_in(p, suit, history or [], []) for p in PLAYERS}
-    unseen = sum(1 for c in _FULL_DECK if c not in seen)
-    slots = len(hand)                     # every hand holds this many at a lead
-    others = unseen - len(outstanding)
-    layouts = []
-    for n in range(len(outstanding) + 1):
-        for picked in combinations(sorted(outstanding), n):
-            left_cards = tuple(picked)
-            right_cards = tuple(v for v in sorted(outstanding) if v not in picked)
-            if (left_cards and suit in out[left]) or (right_cards and suit in out[right]):
-                continue
-            if len(left_cards) > slots or len(right_cards) > slots:
-                continue
-            if shown and (len(left_cards) + gone[left] < shown.get(left, {}).get(suit, 0)
-                          or len(right_cards) + gone[right] < shown.get(right, {}).get(suit, 0)):
-                continue                  # fewer than their bidding showed
-            weight = _choose(others, slots - len(left_cards))
-            if weight:
-                layouts.append((left_cards, right_cards, weight))
-    return layouts
+    """`TableCount.splits` for a seat that has seen `seen` (its hand included)."""
+    return TableCount(player, hand, [], None, list(seen), None, history, shown).splits(
+        suit, outstanding)
 
 
 # ── Declarer runs a long suit ────────────────────────────────────────────────
@@ -3196,15 +3509,16 @@ def _run_long_suit(player: str, hand: list[Card], trump: str | None,
                    played: list[Card], visible: dict[str, list[Card]] | None,
                    history: list | None,
                    shown: dict[str, dict[str, int]] | None = None,
-                   max_losers: float | None = None) -> Card | None:
+                   max_losers: float | None = None,
+                   count: TableCount | None = None) -> Card | None:
     """A lead that runs the partnership's long suit without loss, or None.
 
     With `max_losers` raised, a suit that must lose tricks first: setting it up."""
     partner = PARTNERS[player]
     if not visible or partner not in visible:
         return None
-    seen = set(played) | set(hand) | set(visible[partner])
-    if trump in SUITS and any(c.suit == trump and c not in seen for c in _FULL_DECK):
+    count = count or TableCount(player, hand, [], trump, played, visible, history, shown)
+    if trump in SUITS and count.outstanding(trump):
         return None                       # the defence can still ruff
     best = None
     for suit in SUITS:
@@ -3214,7 +3528,7 @@ def _run_long_suit(player: str, hand: list[Card], trump: str | None,
         theirs_partner = sorted(c.value() for c in visible[partner] if c.suit == suit)
         if not mine:
             continue
-        outstanding = [c.value() for c in _FULL_DECK if c.suit == suit and c not in seen]
+        outstanding = count.outstanding(suit)
         # A long suit for the partnership (seven or more, so the defence holds
         # six at most and the search stays small), or one the defence is out
         # of, where every card left is a winner: keep running it.
@@ -3223,7 +3537,7 @@ def _run_long_suit(player: str, hand: list[Card], trump: str | None,
         tricks = max(len(mine), len(theirs_partner))
         cards = sorted((c for c in hand if c.suit == suit), key=lambda c: c.value())
         if outstanding:
-            layouts = _splits(player, hand, suit, outstanding, seen, history, shown)
+            layouts = count.splits(suit, outstanding)
             if not layouts:
                 continue
             memo = _trump_memo()
@@ -3275,7 +3589,7 @@ SURE_LEAD = True
 
 def _sure_lead(player: str, hand: list[Card], trump: str | None,
                played: list[Card], visible: dict[str, list[Card]] | None,
-               history: list | None) -> Card | None:
+               history: list | None, count: TableCount | None = None) -> Card | None:
     """The lowest card that wins the trick on every layout, or None.
 
     Only for a defender: one that sees dummy but not partner.
@@ -3284,9 +3598,9 @@ def _sure_lead(player: str, hand: list[Card], trump: str | None,
     if not visible or partner in visible or player in visible:
         return None
     dummy = next(iter(visible))
-    seen = set(played) | set(hand) | set(visible[dummy])
-    unseen = [c for c in _FULL_DECK if c not in seen]
-    out = _shown_out(history or [], [])
+    count = count or TableCount(player, hand, [], trump, played, visible, history)
+    unseen = count.unseen
+    out = count.out
     hidden = [p for p in PLAYERS if p not in (player, dummy)]
     order = [PLAYERS[(PLAYERS.index(player) + k) % 4] for k in (1, 2, 3)]
     ours = (player, partner)
@@ -3389,15 +3703,15 @@ def _dead(card: Card, hand: list[Card], gone: set[Card]) -> bool:
                if c.suit == card.suit and c.value() > card.value())
 
 
-def _shed_first(cards: list[Card], hand: list[Card], played: list[Card]) -> Card:
+def _shed_first(cards: list[Card], count: TableCount) -> Card:
     """The card of a suit to give up first: the lowest dead card, else the lowest."""
-    gone = set(played)
-    dead = [c for c in cards if _dead(c, hand, gone)]
+    dead = [c for c in cards if count.dead(c)]
     return min(dead or cards, key=lambda c: c.value())
 
 
 def _ruff_lead(player: str, hand: list[Card], trump: str | None,
-               played: list[Card], visible: dict[str, list[Card]] | None) -> Card | None:
+               played: list[Card], visible: dict[str, list[Card]] | None,
+               count: TableCount | None = None) -> Card | None:
     """A lead for partner to ruff, once the defence has no trumps, or None.
 
     Partner's lone trump in a trick wins it outright, so each ruff is a trick,
@@ -3408,12 +3722,11 @@ def _ruff_lead(player: str, hand: list[Card], trump: str | None,
     partner = PARTNERS[player]
     if trump not in SUITS or not visible or partner not in visible:
         return None
-    seen = set(played) | set(hand) | set(visible[partner])
-    if any(c.suit == trump and c not in seen for c in _FULL_DECK):
+    count = count or TableCount(player, hand, [], trump, played, visible)
+    if count.outstanding(trump):
         return None                       # the defence may still hold trumps
     if not any(c.suit == trump for c in visible[partner]):
         return None
-    gone = set(played)
     best = None
     for suit in SUITS:
         if suit == trump or any(c.suit == suit for c in visible[partner]):
@@ -3421,16 +3734,17 @@ def _ruff_lead(player: str, hand: list[Card], trump: str | None,
         cards = [c for c in hand if c.suit == suit]
         if not cards:
             continue
-        has_dead = any(_dead(c, hand, gone) for c in cards)
+        has_dead = any(count.dead(c) for c in cards)
         rank = (has_dead, len(cards), -SUITS.index(suit))
         if best is None or rank > best[0]:
-            best = (rank, _shed_first(cards, hand, played))
+            best = (rank, _shed_first(cards, count))
     return best[1] if best else None
 
 
 def _sure_lead_declarer(player: str, hand: list[Card], trump: str | None,
                         played: list[Card], visible: dict[str, list[Card]] | None,
-                        history: list | None, suit: str) -> Card | None:
+                        history: list | None, suit: str,
+                        count: TableCount | None = None) -> Card | None:
     """The lowest card of `suit` that wins the trick on every layout, or None.
 
     Card choice within a suit the other rules already chose, never the choice
@@ -3452,11 +3766,10 @@ def _sure_lead_declarer(player: str, hand: list[Card], trump: str | None,
     if not visible or partner not in visible:
         return None
     partner_hand = visible[partner]
-    seen = set(played) | set(hand) | set(partner_hand)
-    unseen = [c for c in _FULL_DECK if c not in seen]
-    out = _shown_out(history or [], [])
-    i = PLAYERS.index(player)
-    left, right = PLAYERS[(i + 1) % 4], PLAYERS[(i + 3) % 4]
+    count = count or TableCount(player, hand, [], trump, played, visible, history)
+    unseen = count.unseen
+    out = count.out
+    left, right = count.left, count.right
     ours = (player, partner)
     slots = len(hand)                     # every hand holds this many at a lead
     ruffing = trump if trump in SUITS else None
@@ -3523,7 +3836,8 @@ def _sure_lead_declarer(player: str, hand: list[Card], trump: str | None,
 
 
 def _force_dummy(player: str, hand: list[Card], trump: str | None,
-                 visible: dict[str, list[Card]] | None, played: list[Card]) -> Card | None:
+                 visible: dict[str, list[Card]] | None, played: list[Card],
+                 count: TableCount | None = None) -> Card | None:
     """A defender's lead in a suit dummy is void in while dummy has trumps, or None.
 
     Only asked when the ordinary lead would be a trump: leading trumps into
@@ -3543,7 +3857,8 @@ def _force_dummy(player: str, hand: list[Card], trump: str | None,
             continue
         rank = (len(cards), -SUITS.index(suit))
         if best is None or rank > best[0]:
-            best = (rank, _shed_first(cards, hand, played))
+            best = (rank, _shed_first(cards, count or TableCount(player, hand, [], trump,
+                                                                 played, visible)))
     return best[1] if best else None
 
 
@@ -3759,7 +4074,7 @@ def _plan_suit(hands: tuple, ruffs: tuple, leader: int | None, memo: dict) -> in
 def _defender_suit_plan(player: str, hand: list[Card], trump: str | None,
                         played: list[Card], visible: dict[str, list[Card]] | None,
                         history: list | None, shown: dict[str, dict[str, int]] | None,
-                        choice: Card) -> Card | None:
+                        choice: Card, count: TableCount | None = None) -> Card | None:
     """The card of `choice`'s suit that takes the most tricks in it, or None."""
     if not visible or PARTNERS[player] in visible or player in visible:
         return None
@@ -3774,20 +4089,19 @@ def _defender_suit_plan(player: str, hand: list[Card], trump: str | None,
     seat_of = {PLAYERS[(i + k) % 4]: k for k in range(4)}
     partner = PARTNERS[player]
     declarer = next(p for p in PLAYERS if p not in (player, partner, dummy))
-    seen = set(played) | set(hand) | set(visible[dummy])
-    unseen_suit = sorted(c.value() for c in _FULL_DECK if c.suit == suit and c not in seen)
+    count = count or TableCount(player, hand, [], trump, played, visible, history, shown)
+    unseen_suit = count.unseen_in(suit)
     if len(unseen_suit) > SUIT_PLAN_MAX_UNSEEN:
         return None
-    out = _shown_out(history or [], [])
+    out = count.out
     ruffing = trump in SUITS
     ruffs = [False] * 4
     ruffs[seat_of[dummy]] = ruffing and any(c.suit == trump for c in visible[dummy])
     ruffs[seat_of[declarer]] = ruffing and trump not in out[declarer]
     ruffs = tuple(ruffs)
     slots = len(hand)
-    others = sum(1 for c in _FULL_DECK if c not in seen) - len(unseen_suit)
-    floor = {p: (shown or {}).get(p, {}).get(suit, 0) - _played_in(p, suit, history or [], [])
-             for p in (partner, declarer)}
+    others = len(count.unseen) - len(unseen_suit)
+    floor = {p: count.floor(p, suit) for p in (partner, declarer)}
     dummy_cards = tuple(sorted(c.value() for c in visible[dummy] if c.suit == suit))
     own = tuple(sorted(c.value() for c in mine))
     memo = _SUIT_PLAN_MEMO
@@ -3838,14 +4152,16 @@ NT_DEFENCE_SUIT = True
 
 
 def _nt_defence_suit(player: str, hand: list[Card], trump: str | None,
-                     history: list | None, visible: dict[str, list[Card]] | None) -> Card | None:
+                     history: list | None, visible: dict[str, list[Card]] | None,
+                     count: TableCount | None = None) -> Card | None:
     """In notrump, the defence's opening-lead suit led again, or None."""
     if trump in SUITS or not history or (visible and PARTNERS[player] in visible):
         return None
     leader, card = history[0][0]
     if leader not in (player, PARTNERS[player]):
         return None
-    if card.suit in _shown_out(history, [])[leader]:
+    count = count or TableCount(player, hand, [], trump, [], visible, history)
+    if card.suit in count.out[leader]:
         return None
     cards = sorted((c for c in hand if c.suit == card.suit), key=lambda c: c.value(), reverse=True)
     return cards[min(1, len(cards) - 1)] if cards else None
@@ -3871,13 +4187,18 @@ IDLE_TRUMP_FOR_RUFF = True
 
 
 def _ruff_for_idle_trump(player: str, hand: list[Card], trump: str | None,
-                         played: list[Card], visible: dict[str, list[Card]] | None) -> str | None:
-    """The side suit to lead for a ruff in partner's hand instead of a trump, or None."""
+                         played: list[Card], visible: dict[str, list[Card]] | None,
+                         count: TableCount | None = None,
+                         defence_trumps: bool = False) -> str | None:
+    """The side suit to lead for a ruff in partner's hand instead of a trump, or None.
+
+    `defence_trumps` allows it while the defence still holds trumps
+    (`RUFF_NOT_DRAW`: the trump lead wasn't a draw)."""
     partner = PARTNERS[player]
     if trump not in SUITS or not visible or partner not in visible:
         return None
-    seen = set(played) | set(hand) | set(visible[partner])
-    if any(c.suit == trump and c not in seen for c in _FULL_DECK):
+    count = count or TableCount(player, hand, [], trump, played, visible)
+    if not defence_trumps and count.outstanding(trump):
         return None                       # the defence still holds trumps
     other = visible[partner]
     if not any(c.suit == trump for c in other):
@@ -3907,6 +4228,258 @@ def _lead(hand: list[Card], trump: str | None, played: list[Card]) -> Card:
         return (-dead, -g, -is_trump_penalty, len(groups[s]), SUITS.index(s))
 
     return lead_from(max(groups, key=suit_score))
+
+
+# ── The fallback lead's suit, from the count ────────────────────────────────
+#
+# `_lead` chooses its suit by `_gap`: the cards that could fall between its
+# own two highest, counted without dummy and with only `played` gone. It never
+# asks what leading the suit does, so it was the costliest rule in the robots'
+# play: 1.21 tricks a board double dummy, nearly all of it the wrong suit, not
+# the wrong card (docs/CHALLENGE.md, "The table count"). Declarer in notrump
+# alone gave away 0.33 tricks a board leading the wrong side suit.
+#
+# A seat that sees dummy (or declarer, for dummy) knows two hands and has the
+# count of the other two. So each suit is played out over every way its unseen
+# cards can lie between the two hidden hands (shown-out seats and the
+# auction's floors respected, weighted as `_splits` weights), with the suit
+# model `_defender_suit_plan` uses: the side that wins a round leads the next
+# one, and a void hand with trumps ruffs. Two numbers come out of it: U, the
+# tricks this side takes leading the suit now, and V, the tricks it takes in
+# the suit if the other side opens it instead. The suit led is the one with
+# the most U + (U - V): its tricks, plus what opening it ourselves gains over
+# leaving it to them. Measured one decision at a time against the solver on
+# the 2,448 fallback leads of 199 deals, each a weighted blend: U alone, U - V
+# alone, U + (U - V)/2: U + (U - V) did best in every group it was tried in.
+#
+# Not in a suit contract for the defence: there the plan's count of ruffs is
+# too rough (who has trumps left, and whether a ruff is a trump trick anyway),
+# and every version measured worse. Not the trump suit for declarer either:
+# drawing trumps is `_draw_trump`'s decision, and the plan cannot see what a
+# trump lead costs the ruffs. Nor the opening lead: nothing is in view yet.
+
+#: The fallback lead picks its suit by playing each suit out over the count
+#: (measurement switch).
+COUNT_LEAD = True
+
+
+def _count_lead_value(player: str, hand: list[Card], trump: str | None,
+                      visible: dict[str, list[Card]], suit: str,
+                      count: TableCount) -> tuple | None:
+    """(U + (U - V), the card of `suit` that takes the most) over the layouts,
+    or None when the suit is too open to enumerate."""
+    i = PLAYERS.index(player)
+    seats = [PLAYERS[(i + k) % 4] for k in range(4)]
+    mine = [c for c in hand if c.suit == suit]
+    hidden = [s for s in seats[1:] if s not in visible]
+    unseen = count.unseen_in(suit)
+    if len(hidden) != 2 or len(unseen) > SUIT_PLAN_MAX_UNSEEN:
+        return None
+    out = count.out
+    slots = len(count.hand)
+    others = len(count.unseen) - len(unseen)
+    known = {player: count.hand, **visible}
+    held = {s: tuple(sorted(c.value() for c in cards if c.suit == suit))
+            for s, cards in known.items()}
+    side_suit = trump in SUITS and suit != trump
+
+    def ruffs(seat: str) -> bool:
+        if not side_suit:
+            return False
+        if seat in known:
+            return any(c.suit == trump for c in known[seat])
+        return trump not in out[seat] and bool(count.unseen_in(trump))
+    can_ruff = tuple(ruffs(s) for s in seats)
+    turned = can_ruff[1:] + can_ruff[:1]
+    memo = _SUIT_PLAN_MEMO
+    if len(memo) > _TRUMP_MEMO_MAX:
+        memo.clear()
+    first, second = hidden
+    totals = {c: 0 for c in mine}
+    ours = theirs = weights = 0
+    for n in range(len(unseen) + 1):
+        for picked in combinations(unseen, n):
+            to_first = tuple(picked)
+            to_second = tuple(v for v in unseen if v not in picked)
+            if (to_first and suit in out[first]) or (to_second and suit in out[second]):
+                continue
+            if len(to_first) > slots or len(to_second) > slots:
+                continue
+            if (len(to_first) < count.floor(first, suit)
+                    or len(to_second) < count.floor(second, suit)):
+                continue
+            weight = _choose(others, slots - len(to_first))
+            if not weight:
+                continue
+            layout = {**held, first: to_first, second: to_second}
+            hands = tuple(layout[s] for s in seats)
+            weights += weight
+            best = 0
+            for c in mine:
+                tricks = _plan_trick(hands, can_ruff, [(0, c.value())], [0, 1, 2, 3], memo)
+                totals[c] += weight * tricks
+                best = max(best, tricks)
+            ours += weight * best
+            # The other side opens it: turn the table so the left hand is seat 0.
+            rounds = max(len(h) for h in hands)
+            theirs += weight * (rounds - _plan_suit(hands[1:] + hands[:1], turned, None, memo))
+    if not weights:
+        return None
+    card = max(mine, key=lambda c: (totals[c], c.value()))
+    return ((2 * ours - theirs) / weights, card)
+
+
+def _count_lead(player: str, hand: list[Card], trump: str | None,
+                visible: dict[str, list[Card]] | None, choice: Card,
+                count: TableCount) -> Card | None:
+    """The fallback lead's suit chosen by playing each suit out, or None.
+
+    `hand` is the cards the lead may come from (all of them, or the suits
+    partner is void in when an idle trump becomes a ruff)."""
+    if not visible:
+        return None
+    declaring = PARTNERS[player] in visible
+    if trump in SUITS and not declaring:
+        return None
+    values = {}
+    for suit in SUITS:
+        if not any(c.suit == suit for c in hand) or (declaring and suit == trump):
+            continue
+        value = _count_lead_value(player, hand, trump, visible, suit, count)
+        if value is None:
+            return None
+        values[suit] = value
+    if not values:
+        return None
+    best = max(values, key=lambda s: (values[s][0], s == choice.suit))
+    return None if best == choice.suit else values[best][1]
+
+
+# ── Declarer's discards, from the count ─────────────────────────────────────
+#
+# A robot that can't follow and doesn't ruff throws `_shed`'s card: the lowest
+# side card in the hand, whatever suit it is in. That is the costliest blind
+# rule after the lead (docs/CHALLENGE.md, "The table count"): of the 0.98
+# tricks a board lost on the cards played while void, about half is a discard
+# from the wrong suit. Declarer threw the 2 from a suit whose 2 was its only
+# card under dummy's, and kept a useless one in another.
+#
+# So the declaring side (it sees partner) prices each card it could throw: its
+# suit is played out over every layout of the unseen cards between the two
+# defenders, as `_count_lead` plays a suit, with and without the card, and the
+# card's cost is the tricks the side loses in the suit by throwing it. A
+# suit's tricks are the average of the two openings, ours and theirs, since a
+# discard doesn't decide who leads the suit later. The card thrown is the
+# cheapest, but only when `_shed`'s card costs half a trick more: the model
+# sees one suit at a time, and below that margin it was wrong as often as
+# right. Scored one decision at a time against the solver on the 199 deals:
+# the declaring side's void cards 0.55 -> 0.47 tricks a board (margin 0.25:
+# 0.49, 1.0: 0.49). The defence keeps `_shed`: there the model, which lets
+# either defender lead the suit whenever it likes, can't see partner's
+# entries, and every margin measured worse (0.43 -> 0.45 at 0.75).
+
+#: The declaring side's discard is priced by playing each suit out over the
+#: count (measurement switch).
+COUNT_DISCARD = True
+#: ...and replaces `_shed`'s card only when that costs this much more.
+COUNT_DISCARD_MARGIN = 0.5
+
+
+def _count_discard_costs(player: str, hand: list[Card], trump: str | None,
+                         visible: dict[str, list[Card]], suit: str,
+                         count: TableCount) -> dict | None:
+    """{card: the tricks in `suit` its discard loses, on average}, or None
+    when the suit is too open to enumerate."""
+    i = PLAYERS.index(player)
+    seats = [PLAYERS[(i + k) % 4] for k in range(4)]
+    mine = [c for c in hand if c.suit == suit]
+    hidden = [s for s in seats[1:] if s not in visible]
+    unseen = count.unseen_in(suit)
+    if len(hidden) != 2 or len(unseen) > SUIT_PLAN_MAX_UNSEEN:
+        return None
+    out = count.out
+    others = len(count.unseen) - len(unseen)
+    known = {player: hand, **visible}
+    held = {s: tuple(sorted(c.value() for c in cards if c.suit == suit))
+            for s, cards in known.items()}
+    side_suit = trump in SUITS and suit != trump
+
+    def ruffs(seat: str) -> bool:
+        if not side_suit:
+            return False
+        if seat in known:
+            return any(c.suit == trump for c in known[seat])
+        return trump not in out[seat] and bool(count.unseen_in(trump))
+    can_ruff = tuple(ruffs(s) for s in seats)
+    turned = can_ruff[1:] + can_ruff[:1]
+    memo = _SUIT_PLAN_MEMO
+    if len(memo) > _TRUMP_MEMO_MAX:
+        memo.clear()
+
+    def twice_ours(hands: tuple) -> int:
+        """Our tricks in the suit, ours opening it plus theirs opening it."""
+        rounds = max(len(h) for h in hands)
+        return (_plan_suit(hands, can_ruff, None, memo)
+                + rounds - _plan_suit(hands[1:] + hands[:1], turned, None, memo))
+    first, second = hidden
+    room = {s: count.size(s) for s in hidden}
+    totals = {c: 0 for c in mine}
+    weights = 0
+    for n in range(len(unseen) + 1):
+        for picked in combinations(unseen, n):
+            to_first = tuple(picked)
+            to_second = tuple(v for v in unseen if v not in picked)
+            if (to_first and suit in out[first]) or (to_second and suit in out[second]):
+                continue
+            if len(to_first) > room[first] or len(to_second) > room[second]:
+                continue
+            if (len(to_first) < count.floor(first, suit)
+                    or len(to_second) < count.floor(second, suit)):
+                continue
+            weight = _choose(others, room[first] - len(to_first))
+            if not weight:
+                continue
+            layout = {**held, first: to_first, second: to_second}
+            hands = tuple(layout[s] for s in seats)
+            full = twice_ours(hands)
+            weights += weight
+            for c in mine:
+                without = tuple(v for v in hands[0] if v != c.value())
+                totals[c] += weight * (full - twice_ours((without,) + hands[1:]))
+    if not weights:
+        return None
+    return {c: totals[c] / (2 * weights) for c in mine}
+
+
+def _count_discard(player: str, hand: list[Card], trick: list[tuple[str, Card]],
+                   trump: str | None, visible: dict[str, list[Card]] | None,
+                   choice: Card, count: TableCount) -> Card | None:
+    """The declaring side's discard priced over the count, or None to keep `choice`."""
+    if (not trick or not visible or PARTNERS[player] not in visible
+            or choice.suit in (trick[0][1].suit, trump)):
+        return None
+    costs = {}
+    for suit in SUITS:
+        if suit == trump or not any(c.suit == suit for c in hand):
+            continue
+        priced = _count_discard_costs(player, hand, trump, visible, suit, count)
+        if priced is None:
+            return None
+        costs.update(priced)
+    cheapest = min(costs.values())
+    if costs[choice] <= cheapest + COUNT_DISCARD_MARGIN:
+        return None
+    return min((c for c in costs if costs[c] == cheapest),
+               key=lambda c: (c.value(), SUITS.index(c.suit)))
+
+
+def _fallback_lead(player: str, hand: list[Card], trump: str | None, played: list[Card],
+                   visible: dict[str, list[Card]] | None, count: TableCount) -> Card:
+    """`_lead`, its suit chosen from the count where it can be."""
+    choice = _lead(hand, trump, played)
+    if COUNT_LEAD:
+        choice = _count_lead(player, hand, trump, visible, choice, count) or choice
+    return choice
 
 
 # ── Giving up a trick ────────────────────────────────────────────────────────
@@ -4019,11 +4592,27 @@ def _third_sees_last(player: str, legal: list[Card], trick: list[tuple[str, Card
 #: last.
 THIRD_HAND_PLAN = 2
 
+# Fourth hand on defence. `_play_last` plays the cheapest card that keeps the
+# trick, or with none the lowest (a dead one first): the one trick only. But
+# fourth hand's card also decides what is left of the suit, and in this game
+# the cards beside it matter as much as the top: a nine kept between dummy's
+# ten and declarer's eight wins a later round. The plan above is written for
+# any position, the trick so far in `plays`, so fourth hand follows suit with
+# it too. Card by card on 199 solved deals the defence's fourth-hand cards in
+# the led suit lost 0.215 tricks a board, 0.122 with the plan (notrump 0.085
+# -> 0.062, suit contracts 0.130 -> 0.060); its discards keep `_shed` (see
+# `COUNT_DISCARD`), and the declaring side has `LAST_SUIT_PLAN`.
+
+#: Fourth hand on defence, following suit, plays the led suit out with the
+#: third-hand plan (measurement switch).
+FOURTH_HAND_PLAN = True
+
 
 def _third_hand_plan(player: str, hand: list[Card], legal: list[Card],
                      trick: list[tuple[str, Card]], trump: str | None, played: list[Card],
                      visible: dict[str, list[Card]], history: list | None,
-                     shown: dict | None, choice: Card) -> Card:
+                     shown: dict | None, choice: Card,
+                     count: TableCount | None = None) -> Card:
     """The card of `legal` that takes the most tricks in the led suit, summed
     over the layouts of its unseen cards; `choice` when it is among the best,
     or the plan doesn't apply."""
@@ -4045,23 +4634,20 @@ def _third_hand_plan(player: str, hand: list[Card], legal: list[Card],
     if any(c.suit == trump and c.suit != led for _, c in trick):
         return choice                   # a ruff already down decides the trick
     seat = {PLAYERS[(i + k) % 4]: k for k in range(4)}
-    seen = set(played) | {c for _, c in trick} | set(hand)
-    for cs in visible.values():
-        seen |= set(cs)
-    unseen_suit = sorted(c.value() for c in _FULL_DECK if c.suit == led and c not in seen)
+    count = count or TableCount(player, hand, trick, trump, played, visible, history, shown)
+    unseen_suit = count.unseen_in(led)
     if len(unseen_suit) > SUIT_PLAN_MAX_UNSEEN:
         return choice
-    out = _shown_out(history, trick)
+    out = count.out
     ruffs = [False] * 4
     if trump in SUITS and led != trump:
         ruffs[seat[dummy]] = any(c.suit == trump for c in visible[dummy])
         ruffs[seat[declarer]] = trump not in out[declarer]
     ruffs = tuple(ruffs)
-    down = dict(trick)
-    size = {p: 13 - len(history) - (p in down) for p in (partner, declarer)}
-    others = sum(1 for c in _FULL_DECK if c not in seen) - len(unseen_suit)
-    floor = {p: (shown or {}).get(p, {}).get(led, 0) - _played_in(p, led, history, trick)
-             for p in (partner, declarer)}
+    down = count.down
+    size = {p: count.size(p) for p in (partner, declarer)}
+    others = len(count.unseen) - len(unseen_suit)
+    floor = {p: count.floor(p, led) for p in (partner, declarer)}
 
     def held(p: str, vals) -> tuple:
         extra = (down[p].value(),) if p in down and down[p].suit == led else ()
@@ -4125,7 +4711,7 @@ RUFF_IF_FOLLOWS = True
 
 def _void_chance(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                  played: list[Card], visible: dict[str, list[Card]], history: list,
-                 out: dict[str, set[str]]) -> float:
+                 out: dict[str, set[str]], count: TableCount | None = None) -> float:
     """The chance the opponent still to play this trick holds none of the led suit,
     counting every split of the unseen cards between the unseen hands as equally
     likely."""
@@ -4140,14 +4726,11 @@ def _void_chance(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         return 0.0 if any(c.suit == led for c in visible[opp]) else 1.0
     if led in out.get(opp, ()):
         return 1.0
-    seen = set(played) | {c for _, c in trick} | set(hand)
-    for cards in visible.values():
-        seen |= set(cards)
-    unseen = sum(1 for c in _FULL_DECK if c.suit == led and c not in seen)
+    count = count or TableCount(player, hand, trick, None, played, visible, history)
+    unseen = len(count.unseen_cards(led))
     if unseen == 0:
         return 1.0
-    in_trick = {p for p, _ in trick}
-    size = {p: 13 - len(history) - (1 if p in in_trick else 0) for p in PLAYERS}
+    size = {p: count.size(p) for p in PLAYERS}
     rest = sum(size[p] for p in PLAYERS
                if p not in visible and p not in (player, opp) and led not in out.get(p, ()))
     if rest < unseen:
@@ -4173,7 +4756,8 @@ PARTNER_WINS_NO_RUFF = True
 
 
 def _play_last(legal: list[Card], trick: list[tuple[str, Card]], trump: str | None,
-               hand: list[Card] | None = None, played: list[Card] | None = None) -> Card:
+               hand: list[Card] | None = None, played: list[Card] | None = None,
+               count: TableCount | None = None) -> Card:
     """Simulate each legal card; pick the smallest that keeps the trick for the
     PARTNERSHIP, else dump the lowest.
 
@@ -4187,6 +4771,9 @@ def _play_last(legal: list[Card], trick: list[tuple[str, Card]], trump: str | No
     (`DEAD_CARD_LAST`): on deal 156 North's AC and KC could never win a trick,
     while the 5C it dumped could."""
     partner = trick[1][0]                     # fourth hand's partner played second
+    if count is None and hand is not None:
+        me = PLAYERS[(PLAYERS.index(trick[-1][0]) + 1) % 4]
+        count = TableCount(me, hand, trick, trump, played or [])
     ours = (_AI_TAG, partner) if LAST_HAND_FOR_PARTNER else (_AI_TAG,)
     winning = [
         c for c in legal
@@ -4199,15 +4786,13 @@ def _play_last(legal: list[Card], trick: list[tuple[str, Card]], trump: str | No
                     and side:
                 return _shed(side, trump)
         if DEAD_WINNER_FIRST and hand is not None:
-            gone = set(played or []) | {c for _, c in trick}
-            dead = [c for c in winning if _dead(c, hand, gone)]
+            dead = [c for c in winning if count.dead(c)]
             if dead:
                 return min(dead, key=lambda c: c.value())
         return min(winning, key=lambda c: c.value())
     if DEAD_CARD_LAST and hand is not None:
         led = trick[0][1].suit
-        gone = set(played or []) | {c for _, c in trick}
-        dead = [c for c in legal if c.suit == led and _dead(c, hand, gone)]
+        dead = [c for c in legal if c.suit == led and count.dead(c)]
         if dead:
             return min(dead, key=lambda c: c.value())
     return _shed(legal, trump)

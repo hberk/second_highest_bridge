@@ -4,7 +4,9 @@ Each is a switch in ai.py (SURE_LEAD_DECLARER, RUFF_LEAD, FORCE_DUMMY,
 DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT, DEFENDER_SUIT_PLAN, DEAD_WINNER_FIRST, RUFF_IF_FOLLOWS,
 PARTNER_HONOUR_LEAD, COVER_SUIT_PLAN, COVER_PLAN_LOW, LAST_SUIT_PLAN, SECOND_HAND_COVER,
 SECOND_HAND_COVER_DUMMY_LED, PARTNER_WINS_NO_RUFF, LOCATED_SUIT_PLAN, THIRD_SEES_LAST,
-THIRD_HAND_PLAN, SURE_LEAD_UNRUFFED). Every test sets the switches it needs and puts them back, so
+THIRD_HAND_PLAN, SURE_LEAD_UNRUFFED, ENTRY_TO_DRAW, RUFF_KEEPS_DRAW, DECLARER_THIRD_PLAN,
+DISCARD_SUIT_PLAN, COUNT_LEAD, COUNT_DISCARD, FOURTH_HAND_PLAN, NO_FUTILE_DRAW, RUFF_NOT_DRAW).
+Every test sets the switches it needs and puts them back, so
 the result doesn't depend on which rules are adopted.
 """
 from __future__ import annotations
@@ -26,7 +28,9 @@ RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'COVER_SUIT_PLAN', 'COVER_PLAN_LOW', 'LAST_SUIT_PLAN', 'COVER_KEEP_MASTER',
          'SECOND_HAND_COVER', 'SECOND_HAND_COVER_DUMMY_LED', 'PARTNER_WINS_NO_RUFF',
          'LOCATED_SUIT_PLAN', 'THIRD_SEES_LAST', 'THIRD_HAND_PLAN', 'SURE_LEAD_UNRUFFED',
-         'ENTRY_TO_DRAW', 'RUFF_KEEPS_DRAW')
+         'ENTRY_TO_DRAW', 'RUFF_KEEPS_DRAW', 'DECLARER_THIRD_PLAN',
+         'DISCARD_SUIT_PLAN', 'COUNT_LEAD', 'COUNT_DISCARD', 'FOURTH_HAND_PLAN',
+         'NO_FUTILE_DRAW', 'RUFF_NOT_DRAW')
 
 
 @contextmanager
@@ -523,14 +527,16 @@ def test_deal_114_dummy_keeps_the_seven_after_the_ten():
 
 
 def test_deal_114_robot_table_wins_two_hearts_for_east_west():
-    """The whole board as shipped: E/W win trick 2 and a later heart."""
+    """The whole board as shipped: E/W win trick 2 and a later heart (with
+    COUNT_LEAD, two later hearts: North is left to open them)."""
     table = challenge.robot_table(114, 'East', 'Both')
     log = table['tricks_log']
     assert log[0]['plays'][0] == ('South', C('QH'))
     assert dict(log[1]['plays'])['East'] == C('6H')
+    assert log[1]['winner'] in ('East', 'West')
     hearts_ew = [t for t in log if t['plays'][0][1].suit == 'H'
                  and t['winner'] in ('East', 'West')]
-    assert len(hearts_ew) == 2
+    assert len(hearts_ew) >= 2
 
 
 # The user's board (Oct 30): trick 7, West declaring leads the TS; North holds
@@ -779,6 +785,132 @@ def test_deal_80_ruff_keeps_draw_ruffs_high():
         assert _east_ruffs_80() in (C('JH'), C('AH'))
     with rules():
         assert _east_ruffs_80() == C('2H')
+
+
+# Deal 13, 4S by South. Trick 2: dummy led the 9S and East covered with the TS.
+# South holds AKQJ86, dummy has the 5S left and West's 732 are unseen.
+DEAL_13 = ['W:10H N:JH E:2H S:AH']
+
+
+def _south_13() -> Card:
+    hands, played, history = replay(13, DEAL_13)
+    hands['North'].remove(C('9S'))
+    hands['East'].remove(C('10S'))
+    view = {'North': hands['North'], 'South': hands['South']}
+    trick = [('North', C('9S')), ('East', C('10S'))]
+    return ai.ai_play('South', hands['South'], trick, 'S', played, view, history)
+
+
+def test_deal_13_played_the_six():
+    with rules():
+        assert _south_13() == C('6S')
+
+
+def test_deal_13_declarer_third_plan_keeps_the_six():
+    # The 8 and the 6 both leave the nine second-highest; the 8 keeps the 6
+    # to sandwich West's 7 between dummy's 5 and South's 6 next round.
+    with rules(DECLARER_THIRD_PLAN=1):
+        assert _south_13() == C('8S')
+
+
+# Deal 206, 3H by East (the user's board, 2026-11-10). Trick 5: East leads the
+# KH and South, out of trumps, holds AJ752 with dummy's 43 the only other
+# spades left. The lower card wins a trick only two hands follow to, so the 2
+# beats dummy's spades and the ace beats nothing: throw the ace.
+
+def _south_discards_206():
+    t = challenge.robot_table(206, 'South', 'None')
+    contract = t['contract']
+    shown = ai.shown_lengths(t['calls'], t['alerts'])
+    tricks = ['S:KS W:8S N:9S E:10S', 'E:JH S:4H W:10H N:2H',
+              'W:5H N:QH E:8H S:9H', 'S:QS W:6S N:7H E:3H']
+    hands, played, history = replay(206, tricks)
+    return ai.ai_play('South', hands['South'], [('East', C('KH'))], 'H', played,
+                      visible=ai.visible_hands('South', contract, hands),
+                      history=history, shown=shown)
+
+
+def test_deal_206_threw_the_two_of_spades():
+    with rules():
+        assert _south_discards_206() == C('2S')
+
+
+def test_deal_206_discard_suit_plan_throws_the_ace():
+    with rules(DISCARD_SUIT_PLAN=True):
+        assert _south_discards_206() == C('AS')
+
+
+# Deal 215, 2H by West, dummy East, a user's board. After trick 4 dummy is on
+# lead with S 7, H AK, D Q7, C QT84; West holds S 985, H 84, D AJ2, C J.
+# South has shown out of hearts, so North's 10 5 are the defence's trumps.
+DEAL_215 = ['N:QS E:JS S:KS W:3S', 'N:KD E:4D S:8D W:10D',
+            'W:7H N:2H E:9H S:6H', 'W:QH N:3H E:JH S:5C']
+
+
+def _east_215():
+    hands, played, history = replay(215, DEAL_215)
+    view = {'West': hands['West'], 'East': hands['East']}
+    return ai.ai_play('East', hands['East'], [], 'H', played, view, history)
+
+
+def test_deal_215_dummy_cashed_a_high_trump():
+    with rules():
+        assert _east_215() in (C('KH'), C('AH'))
+
+
+def test_deal_215_futile_draw_plays_a_side_suit():
+    # Whichever pair leads, North's 10 and 5 each take a round: drawing loses
+    # a trick to every trump the defence holds and gains nothing. Double
+    # dummy the K or A gives N/S 9 tricks, the best side-suit leads 6.
+    with rules(NO_FUTILE_DRAW=True):
+        assert _east_215().suit != 'H'
+
+
+def test_deal_215_draw_plan_is_futile_only_with_the_switch():
+    hands, played, history = replay(215, DEAL_215)
+    view = {'West': hands['West'], 'East': hands['East']}
+    with rules(NO_FUTILE_DRAW=True):
+        assert ai._draw_plan('East', hands['East'], 'H', played, view, history) is ai._FUTILE_DRAW
+        assert ai._draw_trump('East', hands['East'], 'H', played, view, history) is None
+    with rules():
+        assert ai._draw_trump('East', hands['East'], 'H', played, view, history) in (C('KH'), C('AH'))
+
+
+# Deal 102, hearts by East, dummy West, a user's board. After trick 4 East is
+# on lead with S K, H JT3, D 82, C Q73; dummy has S void, H 6, D Q964,
+# C AJ42. The defence holds four trumps (North 7 4, South K 8).
+DEAL_102 = ['S:QH W:5H N:2H E:9H', 'E:3S S:JS W:2S N:7S',
+            'N:10S E:8S S:AS W:AH', 'W:JD N:5D E:KD S:AD']
+
+
+def _east_102():
+    hands, played, history = replay(102, DEAL_102)
+    view = {'West': hands['West'], 'East': hands['East']}
+    return ai.ai_play('East', hands['East'], [], 'H', played, view, history)
+
+
+def test_deal_102_declarer_led_a_trump_that_draws_nothing():
+    # Four trumps each way: `_draw_trump` declines, and `_lead` picks the 10H.
+    with rules():
+        assert _east_102() == C('10H')
+
+
+def test_deal_102_ruff_not_draw_leads_the_king_for_dummy_to_ruff():
+    # Dummy's lone 6H wins the K♠ alone in the trick. Double dummy the K♠
+    # holds N/S to 4 tricks, the 10H gives them 5.
+    with rules(RUFF_NOT_DRAW=True):
+        assert _east_102() == C('KS')
+
+
+
+def test_shipped_rules_together_on_the_users_deals():
+    # The rules as shipped, all at once (the Nov 10 combined branch): COUNT_LEAD
+    # and COUNT_DISCARD sit in front of DISCARD_SUIT_PLAN, NO_FUTILE_DRAW and
+    # RUFF_NOT_DRAW, and each user's board keeps its fix.
+    assert _south_discards_206() == C('AS')   # keeps the 2S over dummy's spades
+    assert _east_215().suit != 'H'            # no futile trump draw
+    assert _east_102() == C('KS')             # dummy ruffs with its lone trump
+    assert _south_13() == C('8S')             # keeps the 6S
 
 
 if __name__ == '__main__':
