@@ -255,10 +255,9 @@
 
       <section class="bt-card">
         <div class="bt-dd">
-          <span class="bt-dd-l">makes</span>
+          <span></span>
           {#each ['C', 'D', 'H', 'S', 'NT'] as s (s)}
-            {@const n = recap.dd[s as StrainT]}
-            <span class:best={recap.par.side === 'N/S' && recap.par.strain === s}>{#if n >= 7}<Strain level={n - 6} strain={s as StrainT} />{:else}—{/if}</span>
+            <span><Strain level="" strain={s as StrainT} /></span>
           {/each}
           <span class="bt-dd-l">tricks</span>
           {#each ['C', 'D', 'H', 'S', 'NT'] as s (s)}
