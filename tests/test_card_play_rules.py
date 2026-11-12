@@ -30,7 +30,7 @@ RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'LOCATED_SUIT_PLAN', 'THIRD_SEES_LAST', 'THIRD_HAND_PLAN', 'SURE_LEAD_UNRUFFED',
          'ENTRY_TO_DRAW', 'RUFF_KEEPS_DRAW', 'DECLARER_THIRD_PLAN',
          'DISCARD_SUIT_PLAN', 'COUNT_LEAD', 'COUNT_DISCARD', 'FOURTH_HAND_PLAN',
-         'NO_FUTILE_DRAW', 'RUFF_NOT_DRAW')
+         'NO_FUTILE_DRAW', 'RUFF_NOT_DRAW', 'LONE_TRUMP_DRAW')
 
 
 @contextmanager
@@ -901,6 +901,29 @@ def test_deal_102_ruff_not_draw_leads_the_king_for_dummy_to_ruff():
     with rules(RUFF_NOT_DRAW=True):
         assert _east_102() == C('KS')
 
+
+
+# Deal 66, 3H by West, trick 6 (the Fable review's finding 2). West is on lead
+# with H K, D AK876, C Q3 opposite dummy's H 4, D Q95432, C 9; North's lone 9H
+# is the only trump out. Whichever trump is led, the 9 is the second-highest
+# and wins the round.
+def _west_66():
+    def mk(spec):
+        return [C(r + s) for s, rs in spec.items() for r in rs]
+    west = mk({'H': ['K'], 'D': ['A', 'K', '8', '7', '6'], 'C': ['Q', '3']})
+    east = mk({'H': ['4'], 'D': ['Q', '9', '5', '4', '3', '2'], 'C': ['9']})
+    north = mk({'S': ['Q', '4', '3'], 'H': ['9'], 'D': ['J'], 'C': ['K', '5', '2']})
+    south = mk({'S': ['10'], 'D': ['10'], 'C': ['A', 'J', '10', '7', '6', '4']})
+    held = set(west + east + north + south)
+    played = [Card(s, r) for s in ai.SUITS for r in ai.RANKS if Card(s, r) not in held]
+    return ai.ai_play('West', west, [], 'H', played, {'West': west, 'East': east}, [])
+
+
+def test_deal_66_lone_trump_is_not_led_when_it_wins_the_round():
+    with rules():
+        assert _west_66() == C('KH')
+    with rules(LONE_TRUMP_DRAW=True):
+        assert _west_66().suit != 'H'
 
 
 def test_shipped_rules_together_on_the_users_deals():

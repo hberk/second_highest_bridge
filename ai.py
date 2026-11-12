@@ -3141,6 +3141,14 @@ NO_FUTILE_DRAW = True
 #: `_draw_plan`'s answer when drawing would gain nothing.
 _FUTILE_DRAW = object()
 
+#: The same test for a single defence trump out: draw it only when a trump
+#: lead wins the trick (measurement switch). With one of ours above it and one
+#: below, the lone trump is the second-highest and wins (deal 66, 3H by West,
+#: trick 6: West's K with East's 4 against North's 9 lost the round and the
+#: diamonds, cashable first, were never cashed). When every trump lead loses
+#: the round the lone trump is not drawn, it is only paid for.
+LONE_TRUMP_DRAW = False
+
 # The same blind spot when `_draw_trump` declines for its own reasons: on a
 # user's board (deal 102, hearts by East, trick 5) East held K83 of spades to
 # dummy's 2, dummy ruffed the second spade, and East held the K♠ with dummy
@@ -3317,6 +3325,8 @@ def _draw_plan(player: str, hand: list[Card], trump: str | None,
         scored.append((total / weights, worst, card.value(), card))
     best = min(scored, key=lambda t: t[:3])
     if NO_FUTILE_DRAW and len(outstanding) >= 2 and best[0] >= len(outstanding):
+        return _FUTILE_DRAW
+    if LONE_TRUMP_DRAW and len(outstanding) == 1 and best[0] >= 1:
         return _FUTILE_DRAW
     return best[3]
 

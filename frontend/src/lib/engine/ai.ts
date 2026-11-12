@@ -2861,6 +2861,9 @@ function drawTrump(player: Seat, hand: Card[], trump: string | null, played: Car
  *  trump the defence holds (see ai.py's NO_FUTILE_DRAW). */
 export const NO_FUTILE_DRAW = true;
 const FUTILE_DRAW = Symbol('futile draw');
+/** The same test for a single defence trump out: draw it only when a trump
+ *  lead wins the trick (see ai.py's LONE_TRUMP_DRAW). */
+export const LONE_TRUMP_DRAW = false;
 /** The fallback lead, a trump drawTrump didn't choose, gives way to a suit
  *  visible partner can ruff (see ai.py's RUFF_NOT_DRAW). */
 export const RUFF_NOT_DRAW = true;
@@ -2902,6 +2905,7 @@ function drawPlan(player: Seat, hand: Card[], trump: string | null, played: Card
   }
   const best = minBy(scored, (t) => [t[0], t[1], t[2]]);
   if (NO_FUTILE_DRAW && outstanding.length >= 2 && best[0] >= outstanding.length) return FUTILE_DRAW;
+  if (LONE_TRUMP_DRAW && outstanding.length === 1 && best[0] >= 1) return FUTILE_DRAW;
   return best[3];
 }
 
