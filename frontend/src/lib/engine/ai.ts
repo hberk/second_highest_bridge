@@ -757,6 +757,19 @@ function partnerMiddle(partner: Seat, auction: AuctionState, alerts: Record<numb
   return (lo + Math.max(lo, hi)) / 2;
 }
 
+export const PENALTY_FOUR_NO_FIT = true;
+
+/** Have both opponents bid this suit? */
+function oppFitShown(player: Seat, auction: AuctionState, suit: string): boolean {
+  const named = new Set<Seat>();
+  for (const [who, c] of auction.calls) {
+    if (who === player || who === PARTNERS[player]) continue;
+    const p = parseBid(c);
+    if (p && p[1] === suit) named.add(who);
+  }
+  return named.size === 2;
+}
+
 function penaltyDouble(player: Seat, hand: Card[], auction: AuctionState,
   alerts: Record<number, string>): Decision | null {
   const hb = auction.highestBid;
@@ -770,7 +783,8 @@ function penaltyDouble(player: Seat, hand: Card[], auction: AuctionState,
   });
   if ((alerts[at] ?? '').toLowerCase().includes('artificial')) return null;
   const n = hand.filter((c) => c.suit === suit).length;
-  const need = level <= 2 ? 5 : 4;
+  let need = level <= 2 ? 5 : 4;
+  if (PENALTY_FOUR_NO_FIT && need === 4 && oppFitShown(player, auction, suit)) need = 5;
   if (n < need) return null;
   if (PENALTY_STRONG_STOP && level < (suit === 'H' || suit === 'S' ? 4 : 5)
     && oppShownStrong(player, auction, alerts)) return null;

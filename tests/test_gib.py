@@ -1991,3 +1991,19 @@ def test_game_over_a_takeout_double_never_in_their_suit():
     assert call[1:] != 'H', call
     spades = '4H 3H AS KS QS JS 9S 2C KC 3C 7C 5D 4D'
     assert bid(spades, '2H', 'Pass', '3D', 'X', 'Pass')[0] == '4S'
+
+
+def test_four_trump_penalty_double_needs_no_fit_shown():
+    """1♠ (3♦) 4♠ P P: East's ♠QJT4 doubled a nine-card fit, and 4♠X made
+    (Fable review finding 6, deal 88). Four trumps double only where the
+    opponents have not both named the suit; five still double."""
+    east = hand('QS JS 10S 4S AH 5H 3H KD 9D 4D 5C 3C 2C')
+    calls = ('1S', '3D', '4S', 'Pass', 'Pass')
+    saved = ai.PENALTY_FOUR_NO_FIT
+    try:
+        ai.PENALTY_FOUR_NO_FIT = False
+        assert ai.ai_bid_explained('East', east, after(*calls), {})[0] == 'X'
+        ai.PENALTY_FOUR_NO_FIT = True
+        assert ai.ai_bid_explained('East', east, after(*calls), {})[0] == 'Pass'
+    finally:
+        ai.PENALTY_FOUR_NO_FIT = saved

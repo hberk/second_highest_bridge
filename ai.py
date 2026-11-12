@@ -1179,6 +1179,21 @@ def _opp_shown_strong(player: str, auction: AuctionState, alerts: dict) -> bool:
     return False
 
 
+#: Four trumps double only where the opponents have shown no fit (the user,
+#: 2026-11-12, from the Fable review, finding 6): both of them naming the
+#: suit is a fit shown, and four of their trumps then sit over a partner
+#: with none. Five trumps double as before.
+PENALTY_FOUR_NO_FIT = True
+
+
+def _opp_fit_shown(player: str, auction: AuctionState, suit: str) -> bool:
+    """Have both opponents bid this suit?"""
+    named = {who for who, c in auction.calls
+             if who not in (player, PARTNERS[player])
+             and (parse_bid(c) or (0, None))[1] == suit}
+    return len(named) == 2
+
+
 def _penalty_double(player: str, hand: list[Card], auction: AuctionState,
                     alerts: dict) -> tuple | None:
     hb = auction.highest_bid
@@ -1192,6 +1207,8 @@ def _penalty_double(player: str, hand: list[Card], auction: AuctionState,
         return None
     n = sum(1 for c in hand if c.suit == suit)
     need = 5 if level <= 2 else 4
+    if PENALTY_FOUR_NO_FIT and need == 4 and _opp_fit_shown(player, auction, suit):
+        need = 5
     if n < need:
         return None
     if (PENALTY_STRONG_STOP and level < (4 if suit in ('H', 'S') else 5)
