@@ -1953,6 +1953,13 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         choice = _discard_suit_plan(player, hand, trick, trump, played, visible,
                                     history, choice, count=count)
 
+    if (SAMPLED_LOOKAHEAD and not searched and history is not None and visible
+            and len(legal) > 1 and SAMPLED_MIN_CARDS <= len(hand) <= SAMPLED_MAX_CARDS):
+        import ai_sampled
+        choice = ai_sampled.sampled_choice(player, hand, trick, trump, played, visible,
+                                           history, shown, legal, choice, count,
+                                           lambda c: c.value()) or choice
+
     if searched:
         totals = _endgame_totals(player, hand, trick, trump, played, visible,
                                  history, legal, shown, count=count)
@@ -2795,6 +2802,12 @@ def _search(hands: dict[str, list[Card]], trick: list[tuple[str, Card]],
 #: (docs/CHALLENGE.md), the user's call, 2026-10-22.
 DEEP_ENDGAME = True
 DEEP_ENDGAME_CARDS = 5
+
+#: Sampled double dummy look-ahead in the middle game (experiment, off by
+#: default; research/solver-rs `sample_values`; ai_sampled.py).
+SAMPLED_LOOKAHEAD = True
+SAMPLED_MIN_CARDS = 6
+SAMPLED_MAX_CARDS = 8
 
 
 # ── The same search on bit patterns ─────────────────────────────────────────
