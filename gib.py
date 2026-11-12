@@ -2637,8 +2637,9 @@ def _major_over_notrump(ctx: Ctx, decision: tuple | None) -> tuple | None:
 #: Bid the fit, not notrump (the Fable review, finding 4, 2026-11-12): where
 #: a rule is about to bid 3NT "To play" (FIT_OVER_3NT) or 2NT (FIT_OVER_2NT)
 #: and the auction has shown an eight-card fit, bid that suit at the same
-#: level or one lower (FIT_NT_MAX_DOWN levels). Never higher.
-FIT_OVER_3NT = False
+#: level or one lower (FIT_NT_MAX_DOWN levels). Never higher. On for 3NT
+#: (the user, 2026-11-12); 2NT measured flat and stays off.
+FIT_OVER_3NT = True
 FIT_OVER_2NT = False
 FIT_NT_MAX_DOWN = 1
 

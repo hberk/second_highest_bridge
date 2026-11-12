@@ -310,6 +310,7 @@ export function gibBid(player: Seat, cards: Card[], auction: AuctionState): Deci
   }
   decision = totalTricks(ctx, decision) ?? decision;
   decision = majorOverNotrump(ctx, decision) ?? decision;
+  decision = fitOverNotrump(ctx, decision) ?? decision;
   if (decision === null) return null;
   if (!ctx.legal.includes(decision[0] as string)) {
     ILLEGAL.push([ctx.calls, decision]);
@@ -2435,6 +2436,44 @@ function majorOverNotrump(ctx: Ctx, decision: Decision | null): Decision | null 
   }
   if (best === null) return null;
   return [`4${best[1]}`, TO_PLAY];
+}
+
+/** Bid the fit, not notrump (the Fable review, finding 4, 2026-11-12): where
+ *  a rule is about to bid 3NT "To play" (FIT_OVER_3NT) or 2NT (FIT_OVER_2NT)
+ *  and the auction has shown an eight-card fit, bid that suit at the same
+ *  level or one lower (FIT_NT_MAX_DOWN levels). Never higher. On for 3NT
+ *  (the user, 2026-11-12); 2NT measured flat and stays off. See gib.py. */
+export const FIT_OVER_3NT = true;
+export const FIT_OVER_2NT = false;
+export const FIT_NT_MAX_DOWN = 1;
+
+function fitOverNotrump(ctx: Ctx, decision: Decision | null): Decision | null {
+  if (decision === null || (decision[0] !== '3NT' && decision[0] !== '2NT')) return null;
+  if (decision[0] === '3NT' && (!FIT_OVER_3NT || decision[1] !== TO_PLAY)) return null;
+  if (decision[0] === '2NT' && !FIT_OVER_2NT) return null;
+  if (decision[1].includes('rtificial') || ctx.auction.doubled !== 'None') return null;
+  const lvl = levelOf(decision[0]);
+  const theirs = theirSuits(ctx);
+  let best: [[number, number, number], string] | null = null;
+  for (const s of SUITS) {
+    if (theirs.includes(s)) continue;
+    const nt = ntLength(ctx);
+    const n = ctx.h.len[s] + (transferred(ctx, s) ? nt : (partnerLength(ctx, s) || 0));
+    if (n < 8) continue;
+    for (let l = Math.max(1, lvl - FIT_NT_MAX_DOWN); l <= lvl; l++) {
+      const call = `${l}${s}`;
+      if (ctx.ok(call)) {
+        const key: [number, number, number] = [n, MAJORS.includes(s) ? 1 : 0, -l];
+        if (best === null || key[0] > best[0][0] || (key[0] === best[0][0]
+          && (key[1] > best[0][1] || (key[1] === best[0][1] && key[2] > best[0][2])))) {
+          best = [key, call];
+        }
+        break;
+      }
+    }
+  }
+  if (best === null) return null;
+  return [best[1], TO_PLAY];
 }
 
 /** Have both of us bid `s` naturally? */
