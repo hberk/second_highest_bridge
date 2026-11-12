@@ -333,6 +333,7 @@ def gib_bid(player: str, cards: list[Card], auction: AuctionState) -> tuple | No
         decision = _jam_game(ctx) or decision
     decision = _total_tricks(ctx, decision) or decision
     decision = _major_over_notrump(ctx, decision) or decision
+    decision = _fit_over_notrump(ctx, decision) or decision
     if decision is None:
         return None
     if decision[0] not in ctx.legal:
@@ -2609,6 +2610,46 @@ def _major_over_notrump(ctx: Ctx, decision: tuple | None) -> tuple | None:
     if best is None:
         return None
     return f"4{best[1]}", TO_PLAY
+
+
+#: Bid the fit, not notrump (the Fable review, finding 4, 2026-11-12): where
+#: a rule is about to bid 3NT "To play" (FIT_OVER_3NT) or 2NT (FIT_OVER_2NT)
+#: and the auction has shown an eight-card fit, bid that suit at the same
+#: level or one lower (FIT_NT_MAX_DOWN levels). Never higher.
+FIT_OVER_3NT = False
+FIT_OVER_2NT = False
+FIT_NT_MAX_DOWN = 1
+
+
+def _fit_over_notrump(ctx: Ctx, decision: tuple | None) -> tuple | None:
+    if decision is None or decision[0] not in ('3NT', '2NT'):
+        return None
+    if decision[0] == '3NT' and (not FIT_OVER_3NT or decision[1] != TO_PLAY):
+        return None
+    if decision[0] == '2NT' and not FIT_OVER_2NT:
+        return None
+    if 'rtificial' in decision[1] or ctx.auction.doubled != 'None':
+        return None
+    lvl = level_of(decision[0])
+    theirs = _their_suits(ctx)
+    best = None
+    for s in SUITS:
+        if s in theirs:
+            continue
+        nt = _nt_length(ctx)
+        n = ctx.h.len[s] + (nt if _transferred(ctx, s) else (_partner_length(ctx, s) or 0))
+        if n < 8:
+            continue
+        for l in range(max(1, lvl - FIT_NT_MAX_DOWN), lvl + 1):
+            call = f"{l}{s}"
+            if ctx.ok(call):
+                key = (n, s in MAJORS, -l)
+                if best is None or key > best[0]:
+                    best = (key, call)
+                break
+    if best is None:
+        return None
+    return best[1], TO_PLAY
 
 
 def _agreed(ctx: Ctx, s: str) -> bool:
