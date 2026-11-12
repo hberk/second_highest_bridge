@@ -919,6 +919,11 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
         if choice:
             return choice
 
+    if OPENER_TWO_SUITS:
+        back = _back_to_opening_suit(partner, auction, groups, p_strain, legal)
+        if back:
+            return back
+
     if p_strain in SUITS and len(groups[p_strain]) >= SUPPORT_LENGTH \
             and not _thin_minor_raise(partner, auction, groups, p_strain):
         held = len(groups[p_strain])
@@ -947,8 +952,58 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
         call, why = _place(best_suit, combined, legal, best_len)
         if call != 'Pass':
             why = f"6+ {SUIT_SYM[best_suit]}, rebidding the suit."
+            if OPENER_TWO_SUITS and all(strain != best_suit for _, strain in mine):
+                why = _new_suit_alert(player, auction, best_suit)
         return call, why
     return 'Pass', "No fit, nothing more to show."
+
+
+#: Opener names a new suit after opening one of a suit (the user's board,
+#: 2026-11-12: P 1♦ (1♥) 1♠ (4♥) 5♣ P on ♠95 ♥5 ♦KQJT9 ♣AKQT8 opposite
+#: ♠AQJ432 ♥T7 ♦A85 ♣95, passed out in 5♣ with 5♦ the better spot). The
+#: opening suit is the longest (`gib.opening_suit`), so the new suit shows
+#: two suits with the first at least as long: partner holding as many of the
+#: first as of the second goes back to it at the same level. Off, the new
+#: suit was alerted "rebidding the suit" and partner never gave preference.
+OPENER_TWO_SUITS = True
+
+
+def _opened_one_of(seat: str, auction: AuctionState) -> str | None:
+    """The suit `seat` opened at the one level, or None if `seat` did not open."""
+    first = next(((who, call) for who, call in auction.calls if call != 'Pass'), None)
+    if not first or first[0] != seat:
+        return None
+    parsed = parse_bid(first[1])
+    return parsed[1] if parsed and parsed[0] == 1 and parsed[1] in SUITS else None
+
+
+def _new_suit_alert(player: str, auction: AuctionState, suit: str) -> str:
+    """A suit this hand has not bid before: a second suit, with the opening
+    suit at least as long when this hand opened one of a suit."""
+    opened = _opened_one_of(player, auction)
+    if opened and opened != suit:
+        return (f"Two suits: 5+ {SUIT_SYM[suit]}, "
+                f"{SUIT_SYM[opened]} as long or longer.")
+    return f"6+ {SUIT_SYM[suit]}, a new suit."
+
+
+def _back_to_opening_suit(partner: str, auction: AuctionState, groups: dict,
+                          p_strain: str, legal: list[str]) -> tuple | None:
+    """Partner opened one of a suit and has now bid a new suit, the last bid
+    at the table: with as many cards in the opened suit, prefer it at the same
+    level."""
+    opened = _opened_one_of(partner, auction)
+    hb = auction.highest_bid
+    if (not opened or p_strain == opened or p_strain not in SUITS
+            or hb is None or hb[2] != partner or hb[1] != p_strain
+            or _first_namer(auction, p_strain) != partner
+            or len(groups[opened]) < len(groups[p_strain])):
+        return None
+    call = f"{hb[0]}{opened}"
+    if call not in legal:
+        return None
+    return call, (f"Preference: as many {SUIT_SYM[opened]} as "
+                  f"{SUIT_SYM[p_strain]}.")
 
 
 #: Partner opened one of a minor and has not bid it again: that promises

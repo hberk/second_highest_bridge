@@ -674,6 +674,11 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
     if (choice) return choice;
   }
 
+  if (OPENER_TWO_SUITS) {
+    const back = backToOpeningSuit(partner, auction, groups, pStrain, legal);
+    if (back) return back;
+  }
+
   if (isSuit(pStrain) && groups[pStrain].length >= SUPPORT_LENGTH
       && !thinMinorRaise(partner, auction, groups, pStrain)) {
     const combined = withShortness(
@@ -699,9 +704,47 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
 
   if (bestLen >= OPEN_SUIT_LENGTH + 1) {
     const [call, why] = place(bestSuit, ev.suit_pts[bestSuit] + PROMISE_RESPONDED_1, legal);
-    return call !== 'Pass' ? [call, `6+ ${SUIT_SYM[bestSuit]}, rebidding the suit.`] : [call, why];
+    if (call === 'Pass') return [call, why];
+    if (OPENER_TWO_SUITS && mine.every(([, strain]) => strain !== bestSuit)) {
+      return [call, newSuitAlert(player, auction, bestSuit)];
+    }
+    return [call, `6+ ${SUIT_SYM[bestSuit]}, rebidding the suit.`];
   }
   return ['Pass', 'No fit, nothing more to show.'];
+}
+
+/** Opener names a new suit after opening one of a suit (the user's board,
+ *  2026-11-12: P 1♦ (1♥) 1♠ (4♥) 5♣ P): two suits, the opening suit at least
+ *  as long, so partner with as many of the first goes back to it at the same
+ *  level. See ai.py. */
+export const OPENER_TWO_SUITS = true;
+
+function openedOneOf(seat: Seat, auction: AuctionState): Suit | null {
+  const first = auction.calls.find(([, call]) => call !== 'Pass');
+  if (!first || first[0] !== seat) return null;
+  const parsed = parseBid(first[1]);
+  return parsed && parsed[0] === 1 && isSuit(parsed[1]) ? parsed[1] as Suit : null;
+}
+
+function newSuitAlert(player: Seat, auction: AuctionState, suit: Suit): string {
+  const opened = openedOneOf(player, auction);
+  if (opened && opened !== suit) {
+    return `Two suits: 5+ ${SUIT_SYM[suit]}, ${SUIT_SYM[opened]} as long or longer.`;
+  }
+  return `6+ ${SUIT_SYM[suit]}, a new suit.`;
+}
+
+function backToOpeningSuit(partner: Seat, auction: AuctionState, groups: Groups,
+  pStrain: string, legal: string[]): Decision | null {
+  const opened = openedOneOf(partner, auction);
+  const hb = auction.highestBid;
+  if (!opened || pStrain === opened || !isSuit(pStrain)
+    || !hb || hb[2] !== partner || hb[1] !== pStrain
+    || firstNamer(auction, pStrain) !== partner
+    || groups[opened].length < groups[pStrain as Suit].length) return null;
+  const call = `${hb[0]}${opened}`;
+  if (!legal.includes(call)) return null;
+  return [call, `Preference: as many ${SUIT_SYM[opened]} as ${SUIT_SYM[pStrain]}.`];
 }
 
 /** The call this hand makes, and an alert saying what it shows. */
