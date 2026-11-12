@@ -2049,6 +2049,21 @@ def _game_forced(seq: list[str], ctx: Ctx) -> bool:
 #: advancer with 3+ in one of the suits and game values (judge + 8 >= 25)
 #: bids game in it instead of the cheapest preference (deal 163).
 TWO_SUITER_GAME = True
+#: Advancer jumps to game in partner's major with TWO_SUITER_BLAST or more
+#: cards of it, whatever the strength (the user's call, 2026-11-12: (1♣) 2♣
+#: (2♠) 3♥ on ♠- ♥KQJ963 ♦AJT73 ♣65 should be 4♥). 0 is off. With
+#: TWO_SUITER_BLAST_SHORT set, only with a suit that short (0 a void, 1 a
+#: singleton) too.
+TWO_SUITER_BLAST = 0
+TWO_SUITER_BLAST_SHORT = None
+
+
+def _two_suiter_game_alert(s: str) -> str:
+    if TWO_SUITER_BLAST:
+        return f"3+ {SYM[s]}: game values or a long fit. To play."
+    return f"3+ {SYM[s]}, game values. To play."
+
+
 #: ...and the later rounds read it as two suits, not as a 2NT opening
 #: whose next bids are Stayman and transfers.
 TWO_SUITER_READ = True
@@ -5277,6 +5292,22 @@ BLAST_LEN = 8
 BLAST_HCP = (9, 15)
 
 
+#: Michaels with both majors, 5-5, over their minor on less than
+#: TWO_SUITED_MIN (the user's deal, 2026-11-12: (1♣) P on ♠QJT65 ♥AT842 ♦65
+#: ♣9, 7 HCP, 8 judgement points; partner held six hearts and a spade void
+#: and 4♥ made). The minimum for this one shape is MICHAELS_MAJORS_MIN, in
+#: HCP, or in judgement points when MICHAELS_MAJORS_JUDGE.
+MICHAELS_MAJORS_MIN = 8
+MICHAELS_MAJORS_JUDGE = False
+
+
+def _light_michaels(h, their: str) -> bool:
+    if their not in MINORS or h.len['H'] < 5 or h.len['S'] < 5:
+        return False
+    pts = h.judge if MICHAELS_MAJORS_JUDGE else h.hcp
+    return pts >= MICHAELS_MAJORS_MIN
+
+
 def _blast_game(ctx: Ctx, opening: str | None, their: str) -> tuple | None:
     h = ctx.h
     if (not BLAST_GAME or not opening or level_of(opening) != 1 or their not in SUITS
@@ -5371,8 +5402,11 @@ def _defend(ctx: Ctx) -> tuple | None:
     if blast:
         return blast
     # Two-suited overcalls over a one-level opening.
-    if opening and level_of(opening) == 1 and hcp >= TWO_SUITED_MIN:
+    if opening and level_of(opening) == 1 and (hcp >= TWO_SUITED_MIN
+                                               or _light_michaels(h, their)):
         fives = {s for s in SUITS if s != their and h.len[s] >= 5}
+        if hcp < TWO_SUITED_MIN:
+            fives &= {'H', 'S'}
         if len(fives) >= 2:
             cue = f"2{their}"
             if their in MINORS and {'H', 'S'} <= fives and ctx.ok(cue):
@@ -5543,10 +5577,15 @@ def _advance(ctx: Ctx) -> tuple | None:
         else:
             choice = max((a, b), key=lambda s: (h.len[s], SUITS.index(s)))
         game = f"{4 if choice in MAJORS else 5}{choice}"
+        if TWO_SUITER_BLAST and choice in MAJORS and choice in (a, b) \
+                and h.len[choice] >= TWO_SUITER_BLAST \
+                and (TWO_SUITER_BLAST_SHORT is None or min(h.len.values()) <= TWO_SUITER_BLAST_SHORT) \
+                and ctx.ok(game):
+            return game, _two_suiter_game_alert(choice)
         if (TWO_SUITER_GAME and choice in (a, b) and h.len[choice] >= 3
                 and h.judge + TWO_SUITED_MIN >= (GAME_MAJOR if choice in MAJORS else GAME)
                 and ctx.ok(game)):
-            return game, f"3+ {SYM[choice]}, game values. To play."
+            return game, _two_suiter_game_alert(choice)
         call = ctx.cheapest(choice, 2)
         if (TWO_SUITER_FREE and call and level_of(ctx.calls[-1][1])
                 and (choice not in (a, b) or level_of(call) > h.len[choice] + 5 - 6)):
