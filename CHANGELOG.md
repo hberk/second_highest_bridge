@@ -32,6 +32,8 @@ bidding fixes +0.53 / +0.35 / +0.22 (long suits) and +0.02 / +0.21 / +0.22
   (12-17 HCP) or doubles for takeout (12+ HCP with the shape, or 18+)
   instead of always passing, and the answer to a takeout double never names
   a suit they bid, game in a major included (2♥ P 3♦ X P is not 4♥).
+- Opener no longer doubles an opposing bid on 18+ HCP alone ("extra values"): partner
+  left it in; opener passes (+1.0 a board over 10,000 fresh deals, three seeds).
 - The fallback lead picks its suit by playing each suit out over the layouts
   the count allows.
 - Declarer and dummy price each discard by what it costs in its suit.

@@ -74,6 +74,12 @@ NEGATIVE = {1: 6, 2: 8, 3: 10}
 #: 6+ HCP, 2♠ on 10+ (the user's call, 2026-10-28: 1♦ (1♥) X on ♠AKJT53
 #: lost the spade fit). The negative double then shows exactly four.
 NEG_BIDS_FIVE = True
+#: Opener's double of their raise-or-overcall on 18+ HCP, any shape ("extra
+#: values"), is not made: partner has no way to answer it as a takeout double
+#: and leaves it in (deal 110: 1♠ (2♣) P (3♣) X with a void in clubs, 3♣
+#: doubled made for 670). Opener passes. 120 boards on 16 deals +4.5 a board,
+#: 10 deals better, 0 worse, t = 2.9 (the user's call, 2026-11-12).
+EXTRAS_DOUBLE = False
 #: Opener answers partner's negative double once. Having passed when they
 #: competed, a minimum does not come back in at the three level: 1♦ (1♥) X
 #: (2♦) P (2♥) P P bid 3♣ "4+ ♣", the answer to a double already passed.
@@ -2895,6 +2901,8 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
     hb = ctx.auction.highest_bid
     if (ctx.i_am_opener() and level_of(first) == 1 and len(seq) == 1 and not artificial
             and h.hcp >= 18 and ctx.ok('X') and hb and hb[2] not in (ctx.me, ctx.pd)):
+        if not EXTRAS_DOUBLE:
+            return 'Pass', "No double without a shape to defend."
         return 'X', "18+ HCP, extra values."
     if ctx.i_am_opener() and level_of(first) == 1 and len(seq) == 2:
         y = strain_of(seq[1])

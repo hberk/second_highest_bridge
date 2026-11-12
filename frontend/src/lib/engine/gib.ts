@@ -45,6 +45,7 @@ const NEGATIVE: Record<number, number> = { 1: 6, 2: 8, 3: 10 };
 /** Over a minor opening, bid a five-card unbid major (1M on 6+ HCP, 2M on
  *  10+) rather than make a negative double (the user's call, 2026-10-28). See gib.py. */
 export const NEG_BIDS_FIVE = true;
+export const EXTRAS_DOUBLE = false;
 export const TWO_SUITED_MIN = 8;
 /** Game by judgement points (the user's call, 2026-10-23): GAME for every game
  *  but a major suit's, GAME_MAJOR for a major, NT_GAME opposite our 1NT/2NT. See gib.py. */
@@ -2667,6 +2668,7 @@ function weOpenedContested(ctx: Ctx): Decision | null {
   const hb = ctx.auction.highestBid;
   if (ctx.iAmOpener() && levelOf(first) === 1 && seq.length === 1 && !artificial
     && h.hcp >= 18 && ctx.ok('X') && hb && hb[2] !== ctx.me && hb[2] !== ctx.pd) {
+    if (!EXTRAS_DOUBLE) return ['Pass', 'No double without a shape to defend.'];
     return ['X', '18+ HCP, extra values.'];
   }
   if (ctx.iAmOpener() && levelOf(first) === 1 && seq.length === 2) {

@@ -364,6 +364,12 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     opener's suit; it now answers 3♠. No robot auction changed on seeds 7M,
     8M, 9M (10,000 deals each): it only meets a human's double.
     `/mnt/project-files/advance-game-not-theirs/`.
+  - **Opener no longer doubles for "extra values"** (`EXTRAS_DOUBLE = False`,
+    finding 5 of the Fable review, the user's call 2026-11-12): 1♠ (2♣) P (3♣)
+    with 18+ HCP doubled on points alone, and partner, answering as to an
+    opening, left it in (deal 110, 3♣ doubled made, 670). Opener passes.
+    Seeds 7M, 8M, 9M: +1.03, +1.03, +0.94 a board, t +8.99, +8.82, +7.91.
+    `/mnt/project-files/extras-double/`.
   - **The Cappelletti relay is answered** (`RELAY_ANSWER`, `_answer_relay`;
     challenge board 79, 2026-11-07): (1NT) 2♣ (P) 2♦ (P) asks which suit.
     No branch answered it, so `continuation` read 2♦ as forcing and a

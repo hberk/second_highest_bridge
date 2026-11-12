@@ -1991,3 +1991,12 @@ def test_game_over_a_takeout_double_never_in_their_suit():
     assert call[1:] != 'H', call
     spades = '4H 3H AS KS QS JS 9S 2C KC 3C 7C 5D 4D'
     assert bid(spades, '2H', 'Pass', '3D', 'X', 'Pass')[0] == '4S'
+
+
+def test_opener_does_not_double_for_extra_values():
+    """1♠ (2♣) P (3♣) with 19 HCP and a club void doubled, "18+ HCP, extra
+    values", and partner left it in: 3♣ doubled made for 670 (deal 110;
+    EXTRAS_DOUBLE, the user's call, 2026-11-12). Opener passes."""
+    hand = 'AS KS QS JS 3S 2S QH 9H 4H 2H AD KD 5D'
+    call, _ = bid(hand, '1S', '2C', 'Pass', '3C')
+    assert call == 'Pass', call
