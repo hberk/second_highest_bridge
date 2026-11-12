@@ -1965,6 +1965,20 @@ function fitLead(player: Seat, hand: Card[], trump: string | null, shown: Shown,
 
 /** A suit partner has shown out of while partner may still hold a trump,
  *  or partner's opening-lead suit read as a singleton, for the ruff (see ai.py). */
+/** A defender doesn't lead for partner's ruff when declarer's bid shows every
+ *  trump left unseen (see ai.py's RUFF_RETURN_COUNTS_TRUMPS). */
+export const RUFF_RETURN_COUNTS_TRUMPS = true;
+
+function declarerHasEveryTrump(player: Seat, count: TableCount, visible: Partial<Record<Seat, Card[]>>,
+  trump: string): boolean {
+  const partner = PARTNERS[player];
+  const dummy = (Object.keys(visible) as Seat[]).find((p) => p !== player && p !== partner);
+  if (dummy === undefined) return false;
+  const declarer = PLAYERS.find((p) => p !== player && p !== partner && p !== dummy)!;
+  const unseen = count.unseenIn(trump).length;
+  return unseen > 0 && count.floor(declarer, trump) >= unseen;
+}
+
 function ruffReturn(player: Seat, hand: Card[], trump: string | null, history: AnyPlay[][] | null,
   visible: Partial<Record<Seat, Card[]>>, shown: Shown | null, count: TableCount | null = null): Card | null {
   if (trump === null || !(SUITS as readonly string[]).includes(trump) || !history || !history.length) return null;
@@ -1972,6 +1986,7 @@ function ruffReturn(player: Seat, hand: Card[], trump: string | null, history: A
   count ??= new TableCount(player, hand, [], trump, [], visible, history, shown);
   const out = count.out;
   if (out[partner].has(trump)) return null;
+  if (RUFF_RETURN_COUNTS_TRUMPS && declarerHasEveryTrump(player, count, visible, trump)) return null;
   let cards = hand.filter((c) => c.suit !== trump && out[partner].has(c.suit));
   if (!cards.length && SHORT_LEAD_RETURN) {
     const suit = shortLead(player, hand, trump, history, visible, shown);
