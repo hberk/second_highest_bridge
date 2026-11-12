@@ -438,6 +438,18 @@ REBID_LENGTH = 6               # extra length is its own reason to bid again
 #: own suit shows six. 20,000 fresh deals: +0.50 a board, t = +5.1 (BIDDING.md).
 REBID_ALONE_SIX_FROM = 2
 
+#: The tricks a lone rebid credits to partner, who has passed throughout
+#: (training deal 362, 2026-11-12: 1H 1S 2D P 2H 2S 3D P 3H 3S 4D P P 4S 5D P
+#: P 5S, North AKQT962 alone at 8.9 tricks plus a responder's 2.9 for a
+#: partner who never spoke, so the ceiling reached five). None: a 1-level
+#: response's promise (PROMISE_RESPONDED_1). LONE_REBID_MAX caps the level.
+LONE_REBID_CREDIT: float | None = None
+LONE_REBID_MAX: int | None = None
+#: The same for rebidding my own long suit after partner bid another suit
+#: and never raised mine (East's 3D 4D 5D opposite West's hearts on deal 362).
+MISFIT_REBID_CREDIT: float | None = None
+MISFIT_REBID_MAX: int | None = None
+
 # The cuebid -- advancer bidding the OPPONENTS' suit to show a good raise of
 # partner's overcall -- has no threshold constant because the AI does not make the
 # call. The card's 11+ points with 3+ support was implemented and measured at
@@ -726,8 +738,11 @@ def _rebid_alone(player: str, auction: AuctionState, ev: dict, groups: dict,
     # The guide's minimum-rebid tier, and it measured best of the five bars
     # tried (+1.2 per board against never rebidding alone's -3.3).
     if held >= REBID_LENGTH or (pts >= REBID_MINIMUM and held >= OPEN_SUIT_LENGTH):
-        combined = ev['suit_pts'][my_first] + PROMISE_RESPONDED_1
+        credit = PROMISE_RESPONDED_1 if LONE_REBID_CREDIT is None else LONE_REBID_CREDIT
+        combined = ev['suit_pts'][my_first] + credit
         ceiling = max(1, int(combined) - 6)
+        if LONE_REBID_MAX is not None:
+            ceiling = min(ceiling, LONE_REBID_MAX)
         call = _cheapest(my_first, PARTSCORE_LEVEL, legal)
         # The CEILING decides, not a hard clamp to the partscore. Clamping
         # here meant a lone rebid could never go above the two level, so once
@@ -943,8 +958,12 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
         return call, why
 
     if best_len >= OPEN_SUIT_LENGTH + 1:
-        combined = ev['suit_pts'][best_suit] + PROMISE_RESPONDED_1
+        credit = PROMISE_RESPONDED_1 if MISFIT_REBID_CREDIT is None else MISFIT_REBID_CREDIT
+        combined = ev['suit_pts'][best_suit] + credit
         call, why = _place(best_suit, combined, legal, best_len)
+        if (MISFIT_REBID_MAX is not None and parse_bid(call)
+                and parse_bid(call)[0] > MISFIT_REBID_MAX):
+            return 'Pass', "No fit, nothing more to show."
         if call != 'Pass':
             why = f"6+ {SUIT_SYM[best_suit]}, rebidding the suit."
         return call, why
@@ -1205,6 +1224,58 @@ def _penalty_double(player: str, hand: list[Card], auction: AuctionState,
     return 'X', PENALTY_ALERT.format(n=need, sym=SUIT_SYM[suit])
 
 
+#: Training deal 362 (2026-11-12): we competed in our suit to the four
+#: level, they bid five over it, and the robots either bid on or passed.
+#: With this on, the hand that bid our suit last doubles their five-level
+#: contract instead of passing, holding OUTBID_X_QUICK quick tricks outside
+#: their suit. Off (None): pass. The double is takeout nowhere here, but
+#: `_double_is_free` still has to agree.
+OUTBID_X_QUICK: float | None = None
+OUTBID_X_ALERT = "They outbid our suit at the five level: penalty."
+
+
+def _quick_tricks(hand: list[Card], skip: str) -> float:
+    qt = 0.0
+    for s in SUITS:
+        if s == skip:
+            continue
+        r = {c.rank for c in hand if c.suit == s}
+        if 'A' in r and 'K' in r:
+            qt += 2
+        elif 'A' in r and 'Q' in r:
+            qt += 1.5
+        elif 'A' in r:
+            qt += 1
+        elif 'K' in r and 'Q' in r:
+            qt += 1
+        elif 'K' in r and len(r) >= 2:
+            qt += 0.5
+    return qt
+
+
+def _outbid_double(player: str, hand: list[Card], auction: AuctionState) -> tuple | None:
+    if OUTBID_X_QUICK is None:
+        return None
+    hb = auction.highest_bid
+    if (hb is None or PARTNERSHIP[hb[2]] == PARTNERSHIP[player] or auction.doubled != 'None'
+            or hb[0] != 5 or hb[1] not in SUITS or 'X' not in auction.legal_calls()):
+        return None
+    ours = [b for b in _bids_by(player, auction) + _bids_by(PARTNERS[player], auction)]
+    mine = _bids_by(player, auction)
+    if not mine or mine[-1][0] < 4 or mine[-1][1] == hb[1]:
+        return None
+    # Our last bid is the one they outbid: nothing since but their bid and passes.
+    last_ours = max(i for i, (w, c) in enumerate(auction.calls)
+                    if w in (player, PARTNERS[player]) and parse_bid(c))
+    if auction.calls[last_ours][0] != player or not ours:
+        return None
+    if _quick_tricks(hand, hb[1]) < OUTBID_X_QUICK:
+        return None
+    if not _double_is_free(auction):
+        return None
+    return 'X', OUTBID_X_ALERT
+
+
 _FREE: dict[tuple, bool] = {}
 
 
@@ -1446,7 +1517,8 @@ def _doubled_or_base(player: str, hand: list[Card], auction: AuctionState,
             return 'Pass', "Partner's penalty double stands."
         decision = _ai_bid_explained(player, hand, auction)
         if decision[0] == 'Pass':
-            return _penalty_double(player, hand, auction, alerts) or decision
+            return (_penalty_double(player, hand, auction, alerts)
+                    or _outbid_double(player, hand, auction) or decision)
         return decision
     return _ai_bid_explained(player, hand, auction)
 
