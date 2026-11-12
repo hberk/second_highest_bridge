@@ -8,10 +8,22 @@ what it was measured to be worth is in
 
 ## v0.1.5-alpha (unreleased)
 
-The fixes from the Nov 11 robot review.
+Four fixes from the Nov 11 robot review.
 
+- A robot about to bid 3NT "to play" on a known eight-card fit bids the fit
+  instead, at the same level or one lower (+0.16 a board, three seeds).
+- Five bidding logic bugs: Cappelletti only directly over 1NT; six of the
+  major after a transfer no longer says "5"; opener passes 1NT 2♦ 2♥ (X) P P;
+  the Lebensohl 2NT relay after a runout is answered; a transfer doubled after
+  our 1NT overcall is completed or bid by responder.
+- A defender doesn't lead for partner's ruff when declarer's bidding accounts
+  for every trump left.
 - Opener no longer doubles an opposing bid on 18+ HCP alone ("extra values"): partner
   left it in; opener passes (+1.0 a board over 10,000 fresh deals, three seeds).
+
+Measured and left out: look-ahead play in tricks 6 to 8 (+0.13 tricks a
+board, needs the web app's sampler and async robots first), the lone-trump
+draw (flat), penalty doubles on four trumps only without a fit (a tie).
 
 ## v0.1.4-alpha (2026-11-10)
 

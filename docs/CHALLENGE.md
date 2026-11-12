@@ -123,7 +123,9 @@ seats, which nets out a change both declarer and defenders use.)
   Seated on 600 fresh deals: **+0.62 points, t = +0.48, 860 of 9,504 boards
   changed** (4+: -0.22, t = -0.21).
   A defender on lead returns a suit partner has shown out of while partner
-  may still hold a trump (`_ruff_return`, `RUFF_RETURN`), and partner's
+  may still hold a trump (`_ruff_return`, `RUFF_RETURN`; not when
+  declarer's shown trump length covers every unseen trump,
+  `RUFF_RETURN_COUNTS_TRUMPS`, deal 103), and partner's
   opening-lead suit when it reads as a singleton (`_short_lead`,
   `SHORT_LEAD_RETURN`, `SHORT_LEAD_PCT` = 20): the robots lead the
   second-highest from two or more, so from length partner holds exactly one
