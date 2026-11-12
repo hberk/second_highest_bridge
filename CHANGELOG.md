@@ -6,6 +6,13 @@ Releases are tagged on main, and the tag matches the version in
 what it was measured to be worth is in
 [docs/ROBOT_PROGRESS.md](docs/ROBOT_PROGRESS.md).
 
+## v0.1.5-alpha (unreleased)
+
+The fixes from the Nov 11 robot review.
+
+- Opener no longer doubles an opposing bid on 18+ HCP alone ("extra values"): partner
+  left it in; opener passes (+1.0 a board over 10,000 fresh deals, three seeds).
+
 ## v0.1.4-alpha (2026-11-10)
 
 The Nov 10 fixes from played boards, and the table count: every card-play

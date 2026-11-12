@@ -2050,3 +2050,12 @@ def test_transfer_doubled_after_our_nt_overcall_is_not_passed_out():
     west = 'JC 6C 5C 4C 2C AD 2D 7H QS JS 8S 4S 3S'
     call, why = bid(west, 'Pass', 'Pass', '1H', '1NT', 'Pass', '2H', 'X', 'Pass', 'Pass', dealer='South')
     assert call == '2S' and 'to play' in why, (call, why)
+
+
+def test_opener_does_not_double_for_extra_values():
+    """1♠ (2♣) P (3♣) with 19 HCP and a club void doubled, "18+ HCP, extra
+    values", and partner left it in: 3♣ doubled made for 670 (deal 110;
+    EXTRAS_DOUBLE, the user's call, 2026-11-12). Opener passes."""
+    hand = 'AS KS QS JS 3S 2S QH 9H 4H 2H AD KD 5D'
+    call, _ = bid(hand, '1S', '2C', 'Pass', '3C')
+    assert call == 'Pass', call

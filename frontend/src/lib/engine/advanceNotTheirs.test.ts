@@ -18,3 +18,10 @@ test('game over a takeout double is never in a suit they bid', () => {
   const [s] = aiBidExplained(spades.currentPlayer(), hand('4H 3H AS KS QS JS 9S 2C KC 3C 7C 5D 4D'), spades);
   expect(s).toBe('4S');
 });
+
+// tests/test_gib.py: test_opener_does_not_double_for_extra_values (deal 110).
+test('opener passes instead of the 18+ extra-values double', () => {
+  const a = after(['1S', '2C', 'Pass', '3C'], 'South');
+  const [c] = aiBidExplained(a.currentPlayer(), hand('AS KS QS JS 3S 2S QH 9H 4H 2H AD KD 5D'), a);
+  expect(c).toBe('Pass');
+});
