@@ -123,7 +123,9 @@ seats, which nets out a change both declarer and defenders use.)
   Seated on 600 fresh deals: **+0.62 points, t = +0.48, 860 of 9,504 boards
   changed** (4+: -0.22, t = -0.21).
   A defender on lead returns a suit partner has shown out of while partner
-  may still hold a trump (`_ruff_return`, `RUFF_RETURN`), and partner's
+  may still hold a trump (`_ruff_return`, `RUFF_RETURN`; not when
+  declarer's shown trump length covers every unseen trump,
+  `RUFF_RETURN_COUNTS_TRUMPS`, deal 103), and partner's
   opening-lead suit when it reads as a singleton (`_short_lead`,
   `SHORT_LEAD_RETURN`, `SHORT_LEAD_PCT` = 20): the robots lead the
   second-highest from two or more, so from length partner holds exactly one
@@ -272,7 +274,25 @@ Its summary adds each side's costly cards up (tricks given away a board by
 the declaring side, on the opening lead and by the defence); that, not the
 net figure, is what to quote for card play, and `--compare before.jsonl`
 gives a fix's before and after on the same deals. Planning runs on every
-worker too; 200 deals take about 45 minutes on four.
+worker too; 200 deals take about 45 minutes on four, solved from scratch.
+
+**The value cache** (2026-11-12). A line's values depend only on the deal and
+its cards, never on the robot code that chose them, so every solved line also
+goes into `research/data/robot_line_values.jsonl` (committed), and a line found
+there, from any robot version, is copied instead of solved: a fix that changes
+a few dozen lines solves only those. Of the 63 main lines solved on 2026-11-12,
+60 were already in the combined branch's run, and 182 lines repeated across the
+older saved runs, every one with identical values. The cache is tied to a hash
+of the Rust solver's source (`solver_version`): change the solver and nothing
+in it is reused. A copied line passes the same value-chain check as a solved
+one. Lines still to solve start slowest first, by the stored times for the same
+deal and contract (a deal never solved counts as slowest): on 2026-11-12 deal
+197 started last and ran 29 minutes alone after the rest had finished.
+`--no-cache` solves everything afresh; `--adopt FILE...` adds the lines of a
+presolve output to the cache. For a combined PR, run main's lines first and the
+branch's second (not side by side), so the branch copies every line it shares
+with main; then commit the cache with the PR, so the next PR finds main's
+lines already solved.
 
     python research/presolve_robot_lines.py --deals 100
     python research/robot_line_report.py

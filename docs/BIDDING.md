@@ -364,6 +364,42 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     opener's suit; it now answers 3♠. No robot auction changed on seeds 7M,
     8M, 9M (10,000 deals each): it only meets a human's double.
     `/mnt/project-files/advance-game-not-theirs/`.
+  - **Opener no longer doubles for "extra values"** (`EXTRAS_DOUBLE = False`,
+    finding 5 of the Fable review, the user's call 2026-11-12): 1♠ (2♣) P (3♣)
+    with 18+ HCP doubled on points alone, and partner, answering as to an
+    opening, left it in (deal 110, 3♣ doubled made, 670). Opener passes.
+    Seeds 7M, 8M, 9M: +1.03, +1.03, +0.94 a board, t +8.99, +8.82, +7.91.
+    `/mnt/project-files/extras-double/`.
+  - **Bid the fit, not 3NT** (`FIT_OVER_3NT`, `_fit_over_notrump`, finding 4
+    of the Fable review, the user's call 2026-11-12): where a rule is about to
+    bid 3NT "To play" and the auction has shown an eight-card fit in a suit
+    they haven't bid, bid the suit at the same level or one lower, never
+    higher; the longest fit first, then a major. Seeds 7, 8, 9 (5,000 deals):
+    -0.06, +0.25, +0.28 a board. The same for 2NT (`FIT_OVER_2NT`) was flat
+    (-0.18, -0.05, +0.16) and stays off. `/mnt/project-files/fit-over-nt/`.
+    Two guards from the Opus review of v0.1.5-alpha (`FIT_NT_GUARDS`): never
+    inside our notrump system (1NT P 3NT became 2♣ "To play", answered as
+    Stayman), and partner's New Minor Forcing shows no length (1♦ 1♥ 1NT 2♣
+    3NT became 3♣, passed with seven hearts, -880). With them: +0.09, +0.29,
+    +0.28 a board (t +1.0, +3.9, +4.1), 29, 16, 10 auctions worse instead of
+    43, 21, 19. `/mnt/project-files/fit-over-nt-fix/`.
+  - **Five logic bugs from the Fable review** (finding 7, 2026-11-12), each
+    behind its own switch: a 2♥/2♠ after our Stayman or transfer is the
+    natural overcall it was alerted as, Cappelletti only directly over 1NT
+    (`CAPPELLETTI_DIRECT_ONLY`); six of the major after a transfer bids 4M
+    with game values or 3M to invite, never "5" or notrump
+    (`SIX_CARD_TRANSFER_REBID`); 1NT 2♦ 2♥ (X) P P, opener passes instead of
+    running responder's rule (`OPENER_NOT_RESPONDER`); the Lebensohl 2NT
+    relay after a runout is answered 3♣ (`LEBENSOHL_AFTER_RUNOUT`); after
+    (1♥) 1NT (P) 2♥ (X), opener completes the transfer with three spades and
+    otherwise the transfer bidder bids 2♠ (`NT_OVERCALL_INTERFERED`; a 3♣
+    transfer over their club opening, the review's deal 1227, is still open).
+    17 of the review's 3,000 fresh auctions end differently.
+  - Measured and left off: **penalty doubles on four trumps only without a
+    fit shown** (`PENALTY_FOUR_NO_FIT`, finding 6): at the three level and up
+    four trumps double only if they haven't both named the suit. Seeds 7M-9M
+    (10,000 deals): -0.10, +0.17, -0.22, a tie, more auctions worse than
+    better on every seed. Branch `claude/project-thread-e0klhw`.
   - **The Cappelletti relay is answered** (`RELAY_ANSWER`, `_answer_relay`;
     challenge board 79, 2026-11-07): (1NT) 2♣ (P) 2♦ (P) asks which suit.
     No branch answered it, so `continuation` read 2♦ as forcing and a

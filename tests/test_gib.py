@@ -1991,3 +1991,99 @@ def test_game_over_a_takeout_double_never_in_their_suit():
     assert call[1:] != 'H', call
     spades = '4H 3H AS KS QS JS 9S 2C KC 3C 7C 5D 4D'
     assert bid(spades, '2H', 'Pass', '3D', 'X', 'Pass')[0] == '4S'
+
+
+# ── The five logic bugs of the Nov 11 robot review (REPORT finding 7) ─────────
+# Each hand is the one from a fresh random deal the review flagged.
+
+def test_natural_overcall_over_stayman_is_not_cappelletti():
+    """1NT P 2♣ 2♥: partner's 2♥ is the natural overcall it was alerted as,
+    not a two-suiter, so 2NT "Asks for partner's minor" was a bug (deal 2397)."""
+    east = '10C 8C 7C 6C 4C AD 6D 5D 4H QS 8S 5S 4S'
+    call, why = bid(east, '1NT', 'Pass', '2C', '2H', 'Pass', dealer='East')
+    assert call != '2NT' and 'minor' not in why, (call, why)
+    # Directly over their 1NT, 2♥ is still Cappelletti: 2NT asks for the minor.
+    call, why = bid(east, '1NT', '2H', 'Pass', dealer='South')
+    assert call == '2NT' and 'minor' in why, (call, why)
+
+
+def test_six_card_major_after_transfer_never_says_five():
+    """1NT 2♥ 2♠ with six spades: 3♠ invitational (or 4♠), never "5 ♠", and
+    never notrump with a known fit (deal 982)."""
+    east = 'QC 8C 4C 9D 5D 10H 3H KS QS 8S 5S 4S 2S'
+    call, why = bid(east, 'Pass', '1NT', 'Pass', '2H', 'Pass', '2S', 'Pass', dealer='South')
+    assert call == '3S' and '6+' in why, (call, why)
+    # With five it is still the choice of games / invitational NT.
+    five = 'QC 8C 4C 9D 5D 10H 3H KS QS 8S 5S 4S AH'
+    call, why = bid(five, 'Pass', '1NT', 'Pass', '2H', 'Pass', '2S', 'Pass', dealer='South')
+    assert call in ('2NT', '3NT') and '5 ♠' in why, (call, why)
+
+
+def test_opener_does_not_run_responders_rule_after_a_double():
+    """1NT 2♦ 2♥ (X) P P back to the opener: Pass, not 3NT "5 ♥, choice of
+    games" with three hearts (deals 968 and 2102)."""
+    north = 'AC 4C 2C AD KD 8D 2D KH 6H 2H KS 10S 9S'
+    calls = ('1NT', 'Pass', '2D', 'Pass', '2H', 'Pass', 'Pass', 'X')
+    call, why = bid(north, *calls, dealer='North')
+    assert call == 'Pass', (call, why)
+    south = 'AC 6C 4C 2C KD 8D 6D KH 2H AS KS 6S 4S'
+    call, why = bid(south, '1NT', 'Pass', '2H', 'Pass', '2S', 'X', 'Pass', 'Pass', dealer='South')
+    assert call == 'Pass', (call, why)
+
+
+def test_lebensohl_relay_after_a_runout_is_answered():
+    """1NT (X) P (2♥) P (2♠) 2NT (P): opener completes the relay with 3♣
+    instead of passing "Nothing to add" (deal 1225)."""
+    west = 'AC 8C 2C 9D 7D 6D 4D AH KH 9H 3H AS 4S'
+    calls = ('Pass', 'Pass', '1NT', 'X', 'Pass', '2H', 'Pass', '2S', '2NT', 'Pass')
+    call, why = bid(west, *calls, dealer='East')
+    assert call == '3C' and 'relay' in why, (call, why)
+
+
+def test_transfer_doubled_after_our_nt_overcall_is_not_passed_out():
+    """(1♥) 1NT (P) 2♥ (X): opener completes the transfer with three spades;
+    with fewer, the transfer bidder bids 2♠ itself (deals 813, 1018, 2708)."""
+    opener = 'AC QC 9C JD 9D 6D 3D AH 10H 7H KS QS 7S'
+    call, why = bid(opener, 'Pass', '1H', '1NT', 'Pass', '2H', 'X', dealer='East')
+    assert call == '2S' and 'transfer' in why, (call, why)
+    # Opener with two spades passes, and the transfer bidder bids 2♠ itself.
+    west = 'JC 6C 5C 4C 2C AD 2D 7H QS JS 8S 4S 3S'
+    call, why = bid(west, 'Pass', 'Pass', '1H', '1NT', 'Pass', '2H', 'X', 'Pass', 'Pass', dealer='South')
+    assert call == '2S' and 'to play' in why, (call, why)
+
+
+def test_opener_does_not_double_for_extra_values():
+    """1♠ (2♣) P (3♣) with 19 HCP and a club void doubled, "18+ HCP, extra
+    values", and partner left it in: 3♣ doubled made for 670 (deal 110;
+    EXTRAS_DOUBLE, the user's call, 2026-11-12). Opener passes."""
+    hand = 'AS KS QS JS 3S 2S QH 9H 4H 2H AD KD 5D'
+    call, _ = bid(hand, '1S', '2C', 'Pass', '3C')
+    assert call == 'Pass', call
+
+
+# ── Bid the fit, not 3NT (FIT_OVER_3NT), and its guards (the Opus review) ─────
+
+def test_fit_over_3nt_in_a_two_over_one_auction():
+    """1♦ 2♣ 2♦ with four diamonds: 3♦ "To play", not 3NT (deal 887, seed 7M)."""
+    west = '7S 4S 3S AH 5H KD 10D 8D 7D AC KC 4C 2C'
+    call, why = bid(west, '1D', 'Pass', '2C', 'Pass', '2D', 'Pass', dealer='East')
+    assert call == '3D' and 'To play' in why, (call, why)
+
+
+def test_new_minor_forcing_shows_no_length():
+    """1♦ 1♥ 1NT 2♣ is New Minor Forcing: opener's 3NT stays 3NT, not 3♣ "To
+    play", which partner passed holding ♥AQJ7652 (deal 4272, seed 7M)."""
+    west = 'JS 7S 6S KH 10H KD 8D 6D 2D AC KC 10C 8C'
+    call, _ = bid(west, '1D', 'Pass', '1H', 'Pass', '1NT', 'Pass', '2C', 'Pass', dealer='West')
+    assert call == '3NT', call
+    west = 'KS 7S 9H 8H QD JD 8D 2D AC QC JC 8C 3C'               # deal 3107: 1♣ ... 2♦
+    call, _ = bid(west, '1C', 'Pass', '1H', 'Pass', '1NT', 'Pass', '2D', 'Pass', dealer='West')
+    assert call == '3NT', call
+
+
+def test_fit_over_3nt_never_lands_on_stayman():
+    """1NT P with eight clubs: 3NT, not 2♣ "To play" that opener answers as
+    Stayman (deal 3859, seed 7M)."""
+    south = 'JS KH QH 2H JD KC JC 9C 7C 5C 4C 3C 2C'
+    call, _ = bid(south, '1NT', 'Pass', dealer='North')
+    assert call == '3NT', call

@@ -27,6 +27,7 @@ python tests/test_challenge.py            # challenge grading: par = bidding + p
 python tests/test_card_play_rules.py      # the card-play rules from deals 92, 156, 174
 python tests/test_slam_deals.py           # slam deal generator: filter, screen, finish, resume
 python tests/test_table_count.py          # the table count: rules read it, it's true of the deal
+python tests/test_presolve_cache.py       # robot-line presolve: value cache, slowest-first order
 ```
 
 `run_all.py` reports a test that raises `unittest.SkipTest` as SKIP (the Rust
