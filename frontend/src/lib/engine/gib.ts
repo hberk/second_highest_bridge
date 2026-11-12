@@ -1264,6 +1264,10 @@ function ntRange(seq: string[], start: number): [number, number] {
   return seq[start] === '1NT' ? NT1 : NT2;
 }
 
+// 1NT 2D 2H (X) P P back to the opener: it ran responder's second rule and
+// bid 3NT "5 hearts, choice of games" with three of them.
+export const OPENER_NOT_RESPONDER = true;
+
 function notrump(ctx: Ctx, start: number): Decision {
   const seq = ctx.seq.slice(start);
   const n = seq.length;
@@ -1278,7 +1282,12 @@ function notrump(ctx: Ctx, start: number): Decision {
     return ntResponse(ctx, base, lo, hi);
   }
   if (n === 2) return ntOpenerAnswer(ctx, base, seq[1], lo, hi);
-  if (n === 3) return ntResponderSecond(ctx, base, seq, lo, hi);
+  if (n === 3) {
+    // Responder passed (over their double, say) and it is back to the
+    // notrump bidder: responder's second call is not mine to make.
+    if (OPENER_NOT_RESPONDER && ctx.me === ctx.opener) return ['Pass', 'Partner left it in.'];
+    return ntResponderSecond(ctx, base, seq, lo, hi);
+  }
   if (n === 4) return ntOpenerThird(ctx, base, seq, lo, hi);
   return continuation(ctx);
 }
@@ -1431,6 +1440,10 @@ function ntOpenerAnswer(ctx: Ctx, base: number, r: string, lo: number, hi: numbe
   return ['Pass', 'Partner placed the contract.'];
 }
 
+// After a Jacoby transfer a responder with six or more of the major bids it
+// (4M with game values, 3M invitational); it never says "5" or offers 3NT.
+export const SIX_CARD_TRANSFER_REBID = true;
+
 function ntResponderSecond(ctx: Ctx, base: number, seq: string[], lo: number, hi: number): Decision {
   const h = ctx.h;
   const hcp = h.judge;
@@ -1461,6 +1474,13 @@ function ntResponderSecond(ctx: Ctx, base: number, seq: string[], lo: number, hi
     if (r === code[key]) {
       if (o === `3${s}` && base === 1) return hcp >= 4 ? [`4${s}`, TO_PLAY] : ['Pass', 'Weak.'];
       if (hcp + lo >= SLAM && ctx.ok('4NT')) return ['4NT', 'Quantitative: invites 6NT.'];
+      if (SIX_CARD_TRANSFER_REBID && h.len[s] >= 6) {
+        // Six or more: no "5" in the alert and no notrump with a known fit;
+        // game or an invitation in the suit itself.
+        if (hcp + lo >= NT_GAME) return placed(ctx, [`4${s}`, TO_PLAY]);
+        if (hcp + hi >= NT_GAME && ctx.ok(`3${s}`)) return [`3${s}`, `6+ ${SYM[s]}, invitational.`];
+        return ['Pass', 'Weak.'];
+      }
       if (hcp + lo >= NT_GAME) return placed(ctx, ['3NT', `5 ${SYM[s]}, choice of games.`]);
       if (hcp + hi >= NT_GAME && ctx.ok('2NT')) return ['2NT', `5 ${SYM[s]}, invitational.`];
       return ['Pass', 'Weak.'];
@@ -1493,7 +1513,7 @@ function ntOpenerThird(ctx: Ctx, base: number, seq: string[], lo: number, hi: nu
     if (h.len[five] >= 3) return [`4${five}`, `3 ${SYM[five]}, to play.`];
     return ['3NT', `Fewer than 3 ${SYM[five]}, to play.`];
   }
-  if (last === '2NT' || ((last === '3H' || last === '3S') && r === code.stayman
+  if (last === '2NT' || ((last === '3H' || last === '3S') && (r === code.stayman || r === code.to_h || r === code.to_s)
     && strainOf(seq[2]) === strainOf(last))) {
     if (h.judge >= hi - 1) {
       if (last === '3H' || last === '3S') return [`4${strainOf(last)}`, TO_PLAY];
@@ -3717,6 +3737,10 @@ function runoutCalls(ctx: Ctx): Rec[] | null {
   return ctx.calls.slice(i + 1).filter(([x]) => us(x));
 }
 
+// Partner's 2NT over their runout is the Lebensohl relay, answered by
+// `ntInterference` (3C), not passed here.
+export const LEBENSOHL_AFTER_RUNOUT = true;
+
 function ntRunout(ctx: Ctx): Decision | null {
   const ours = runoutCalls(ctx);
   if (ours === null) return null;
@@ -3777,6 +3801,10 @@ function ntRunout(ctx: Ctx): Decision | null {
       }
       return ['Pass', 'Nothing to add.'];
     }
+  }
+  if (LEBENSOHL_AFTER_RUNOUT && opener && interrupted && ctx.calls.length >= 3
+    && ctx.calls[ctx.calls.length - 2][0] === ctx.pd && ctx.calls[ctx.calls.length - 2][1] === '2NT') {
+    return null; // the Lebensohl relay is answered with 3C
   }
   return ['Pass', 'Nothing to add.'];
 }
@@ -4302,6 +4330,8 @@ function penaltyXOf1NT(ctx: Ctx): boolean {
 // review of PR #65, 2026-11-05: 1NT (2♣) 2♥ (X) P (P) P played 2♥ doubled
 // on ♥93; opener passed with three spades, reading 2♥ as natural).
 export const TRANSFER_INTERFERED = true;
+// ...and over our own 1NT overcall of their one-level opening.
+export const NT_OVERCALL_INTERFERED = true;
 
 /** Our first call was `lead` over their `theirFirst`, partner then made a
  *  systems-on transfer, and they have called over it. */
@@ -4357,6 +4387,16 @@ function theyOpened(ctx: Ctx): Decision | null {
   if (!seq.length) return defend(ctx);
   const systems = ntXSystems(ctx);
   if (systems) return systems;
+  if (NT_OVERCALL_INTERFERED && !ctx.ntOvercall) {
+    // Our 1NT overcall, partner's transfer, then they doubled it: the
+    // systems-on rule is off, so both partners fell to the general rules.
+    const openingCall = ctx.calls.find(([, c]) => c !== 'Pass');
+    const first = openingCall ? openingCall[1] : '';
+    if (seq[0] === '1NT' && levelOf(first) === 1 && first !== '1NT') {
+      const interfered = transferInterfered(ctx, '1NT', first);
+      if (interfered) return interfered;
+    }
+  }
   const mine = ctx.mine();
   const partners = ctx.partners();
   if (wasLeadDouble(ctx, ctx.me) && !partners.length) return ['Pass', 'My double showed my suit, for the lead.'];
@@ -4847,6 +4887,19 @@ function takeoutAfterNotrump(ctx: Ctx): boolean {
  *  fit (five opposite), else pass. */
 export const TWO_SUITER_FREE = true;
 
+// The two-suiter and minor-ask readings of partner's 2H/2S apply only to an
+// overcall made over their 1NT with nobody having bid since (passes aside).
+export const CAPPELLETTI_DIRECT_ONLY = true;
+
+/** Is partner's first call the first bid after their opening? */
+function directOverOpening(ctx: Ctx): boolean {
+  let at = -1;
+  for (let i = 0; i < ctx.calls.length; i++) {
+    if (ctx.calls[i][0] === ctx.pd && ctx.calls[i][1] !== 'Pass') { at = i; break; }
+  }
+  return ctx.calls.slice(0, at).filter(([, c]) => c !== 'Pass').length === 1;
+}
+
 function advance(ctx: Ctx): Decision | null {
   const h = ctx.h;
   const hcp = h.hcp;
@@ -4863,6 +4916,11 @@ function advance(ctx: Ctx): Decision | null {
   if (p === 'X' && opening === '1NT') {
     if (NT_X_ADVANCE_FIX && !(ctx.partners().length === 1 && ctx.partners()[0] === 'X')) return null;
     return ['Pass', 'Penalty double: passing.'];
+  }
+  if (opening === '1NT' && CAPPELLETTI_DIRECT_ONLY && !directOverOpening(ctx)) {
+    // Partner's call came after our side's Stayman or transfer, so it is
+    // the natural overcall it was alerted as, not Cappelletti.
+    return null;
   }
   if (opening === '1NT') {
     if (p === '2C') return ctx.ok('2D') ? ['2D', 'Relay. Artificial.'] : ['Pass', 'No room.'];

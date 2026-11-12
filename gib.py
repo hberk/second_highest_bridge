@@ -1379,6 +1379,11 @@ def _nt_range(seq: list[str], start: int) -> tuple[int, int]:
     return NT1 if seq[start] == '1NT' else NT2
 
 
+#: 1NT 2D 2H (X) P P back to the opener: it ran responder's second rule and
+#: bid 3NT "5 hearts, choice of games" with three of them.
+OPENER_NOT_RESPONDER = True
+
+
 def notrump(ctx: Ctx, start: int) -> tuple:
     """1NT, 2NT and 2C-2D-2NT: Stayman with Smolen, Jacoby and Texas
     transfers, minor suit Stayman, minor transfers (over 1NT), shortness
@@ -1396,6 +1401,10 @@ def notrump(ctx: Ctx, start: int) -> tuple:
     if n == 2:
         return _nt_opener_answer(ctx, base, seq[1], lo, hi)
     if n == 3:
+        if OPENER_NOT_RESPONDER and ctx.me == ctx.opener:
+            # Responder passed (over their double, say) and it is back to the
+            # notrump bidder: responder's second call is not mine to make.
+            return 'Pass', "Partner left it in."
         return _nt_responder_second(ctx, base, seq, lo, hi)
     if n == 4:
         return _nt_opener_third(ctx, base, seq, lo, hi)
@@ -1550,6 +1559,11 @@ def _nt_opener_answer(ctx: Ctx, base: int, r: str, lo: int, hi: int) -> tuple:
     return 'Pass', "Partner placed the contract."
 
 
+#: After a Jacoby transfer a responder with six or more of the major bids it
+#: (4M with game values, 3M invitational); it never says "5" or offers 3NT.
+SIX_CARD_TRANSFER_REBID = True
+
+
 def _nt_responder_second(ctx: Ctx, base: int, seq: list[str], lo: int, hi: int) -> tuple:
     h = ctx.h
     hcp = h.judge
@@ -1581,6 +1595,14 @@ def _nt_responder_second(ctx: Ctx, base: int, seq: list[str], lo: int, hi: int) 
                 return (f"4{s}", TO_PLAY) if hcp >= 4 else ('Pass', "Weak.")
             if hcp + lo >= SLAM and ctx.ok('4NT'):
                 return '4NT', "Quantitative: invites 6NT."
+            if SIX_CARD_TRANSFER_REBID and h.len[s] >= 6:
+                # Six or more: no "5" in the alert and no notrump with a
+                # known fit; game or an invitation in the suit itself.
+                if hcp + lo >= NT_GAME:
+                    return placed(ctx, (f"4{s}", TO_PLAY))
+                if hcp + hi >= NT_GAME and ctx.ok(f"3{s}"):
+                    return f"3{s}", f"6+ {SYM[s]}, invitational."
+                return 'Pass', "Weak."
             if hcp + lo >= NT_GAME:
                 return placed(ctx, ('3NT', f"5 {SYM[s]}, choice of games."))
             if hcp + hi >= NT_GAME and ctx.ok('2NT'):
@@ -1612,7 +1634,7 @@ def _nt_opener_third(ctx: Ctx, base: int, seq: list[str], lo: int, hi: int) -> t
         if h.len[five] >= 3:
             return f"4{five}", f"3 {SYM[five]}, to play."
         return '3NT', f"Fewer than 3 {SYM[five]}, to play."
-    if last == '2NT' or (last in ('3H', '3S') and r == code['stayman']
+    if last == '2NT' or (last in ('3H', '3S') and r in (code['stayman'], code['to_h'], code['to_s'])
                          and strain_of(seq[2]) == strain_of(last)):
         if h.judge >= hi - 1:
             if last in ('3H', '3S'):
@@ -4118,6 +4140,11 @@ def _runout_calls(ctx: Ctx) -> list | None:
     return [(w, c) for w, c in ctx.calls[i + 1:] if w in (ctx.me, ctx.pd)]
 
 
+#: Partner's 2NT over their runout is the Lebensohl relay, answered by
+#: `_nt_interference` (3C), not passed here.
+LEBENSOHL_AFTER_RUNOUT = True
+
+
 def _nt_runout(ctx: Ctx) -> tuple | None:
     ours = _runout_calls(ctx)
     if ours is None:
@@ -4176,6 +4203,9 @@ def _nt_runout(ctx: Ctx) -> tuple | None:
             if other and ctx.ok(f"2{other[0]}"):
                 return f"2{other[0]}", f"Runout: 4+ {SYM[other[0]]}, the other suit."
             return 'Pass', "Nothing to add."
+    if (LEBENSOHL_AFTER_RUNOUT and opener and interrupted and ctx.calls[-3:-2]
+            and ctx.calls[-2][0] == ctx.pd and ctx.calls[-2][1] == '2NT'):
+        return None             # the Lebensohl relay is answered with 3C
     return 'Pass', "Nothing to add."
 
 
@@ -4750,6 +4780,10 @@ NT_X_TRANSFERS = {'2D': 'H', '2H': 'S', '4D': 'H', '4H': 'S'}
 TRANSFER_INTERFERED = True
 
 
+#: ...and over our own 1NT overcall of their one-level opening.
+NT_OVERCALL_INTERFERED = True
+
+
 def _transfer_interfered(ctx: Ctx, lead: str, their_first: str) -> tuple | None:
     """Our first call was `lead` over their `their_first`, partner then made a
     systems-on transfer, and they have called over it."""
@@ -4815,6 +4849,15 @@ def they_opened(ctx: Ctx) -> tuple | None:
     systems = _nt_x_systems(ctx)
     if systems:
         return systems
+    if NT_OVERCALL_INTERFERED and not ctx.nt_overcall:
+        # Our 1NT overcall, partner's transfer, then they doubled it: the
+        # systems-on rule above is off, so both partners fell to the general
+        # rules and passed the doubled transfer out (five of 3,000 fresh deals).
+        first = next((c for _, c in ctx.calls if c != 'Pass'), '')
+        if seq[0] == '1NT' and level_of(first) == 1 and first != '1NT':
+            interfered = _transfer_interfered(ctx, '1NT', first)
+            if interfered:
+                return interfered
     mine = ctx.mine()
     partners = ctx.partners()
     if _was_lead_double(ctx, ctx.me) and not partners:
@@ -5365,6 +5408,18 @@ def _takeout_after_notrump(ctx: Ctx) -> bool:
 TWO_SUITER_FREE = True
 
 
+#: The two-suiter and minor-ask readings of partner's 2H/2S apply only to an
+#: overcall made over their 1NT with nobody having bid since (passes aside).
+CAPPELLETTI_DIRECT_ONLY = True
+
+
+def _direct_over_opening(ctx: Ctx) -> bool:
+    """Is partner's last call the first bid after their opening?"""
+    at = min(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.pd and c != 'Pass')
+    bids = [c for _, c in ctx.calls[:at] if c != 'Pass']
+    return len(bids) == 1
+
+
 def _advance(ctx: Ctx) -> tuple | None:
     """Partner acted over their opening; this is my first call."""
     h = ctx.h
@@ -5381,6 +5436,11 @@ def _advance(ctx: Ctx) -> tuple | None:
         if NT_X_ADVANCE_FIX and ctx.partners() != ['X']:
             return None
         return 'Pass', "Penalty double: passing."
+    if opening == '1NT' and CAPPELLETTI_DIRECT_ONLY and not _direct_over_opening(ctx):
+        # Partner's call came after our side's Stayman or transfer, so it is
+        # the natural overcall it was alerted as, not Cappelletti (a fresh
+        # deal: 1NT P 2C 2H P 2NT "Asks for partner's minor", passed out).
+        return None
     if opening == '1NT':
         if p == '2C':
             return ('2D', "Relay. Artificial.") if ctx.ok('2D') else ('Pass', "No room.")
