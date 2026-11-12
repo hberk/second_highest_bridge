@@ -175,9 +175,10 @@ describe('Bidding training', () => {
 
   it('lets a person run the auction long: it still ends in the recap', () => {
     // Found by fuzzing: robots stopped calling at 60 calls, and the board froze.
+    // (Deal 307 until FIT_OVER_3NT shortened its auction, 2026-11-12.)
     const t = new Trainer(null, prng(1));
     t.boardNum = 452;
-    t.newBoard(307);
+    t.newBoard(356);
     const mine = ['1H', '4C', '4D', '4H', '4S', '4NT', '5C', '6S', '6NT', '7C', '7D', '7H', '7S', '7NT', 'XX'];
     for (const call of mine) {
       if (t.recap) break;
