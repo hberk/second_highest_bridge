@@ -2805,7 +2805,7 @@ DEEP_ENDGAME_CARDS = 5
 
 #: Sampled double dummy look-ahead in the middle game (experiment, off by
 #: default; research/solver-rs `sample_values`; ai_sampled.py).
-SAMPLED_LOOKAHEAD = True
+SAMPLED_LOOKAHEAD = False
 SAMPLED_MIN_CARDS = 6
 SAMPLED_MAX_CARDS = 8
 
