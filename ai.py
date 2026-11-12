@@ -1891,6 +1891,10 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                 side = [c for c in hand if c.suit != trump]
                 if side:
                     choice = _fallback_lead(player, side, trump, played, visible, count)
+            if LONE_TRUMP_CASH and draw is _FUTILE_DRAW:
+                cash = _lone_trump_cash(hand, trump, count)
+                if cash is not None and len(count.outstanding(trump)) == 1:
+                    choice = cash
             if DEFENDER_SUIT_PLAN:
                 choice = _defender_suit_plan(player, hand, trump, played, visible, history,
                                              shown, choice, count=count) or choice
@@ -3148,6 +3152,39 @@ _FUTILE_DRAW = object()
 #: diamonds, cashable first, were never cashed). When every trump lead loses
 #: the round the lone trump is not drawn, it is only paid for.
 LONE_TRUMP_DRAW = False
+#: With `LONE_TRUMP_DRAW`: skip the draw only when the hand on lead can cash a
+#: side-suit master that both defenders follow to, so the lone trump has
+#: nothing to ruff (measurement switch; the plain rule above is `False`).
+LONE_TRUMP_CASH = False
+#: How likely both defenders must be to follow the cashed suit.
+LONE_CASH_FOLLOW = 0.5
+
+
+def _lone_trump_cash(hand: list[Card], trump: str, count: TableCount) -> Card | None:
+    """A master of a side suit, led from this hand, that both defenders follow."""
+    best = None
+    for suit in SUITS:
+        if suit == trump:
+            continue
+        top = count.master(suit)
+        if top is None or top not in hand:
+            continue
+        outstanding = count.outstanding(suit)
+        if outstanding:
+            if any(suit in count.out[p] for p in (count.left, count.right)):
+                continue
+            layouts = count.splits(suit, outstanding)
+            total = sum(w for _, _, w in layouts)
+            if not total:
+                continue
+            both = sum(w for left, right, w in layouts if left and right) / total
+            if both < LONE_CASH_FOLLOW:
+                continue
+        else:
+            both = 1.0
+        if best is None or both > best[0]:
+            best = (both, top)
+    return best[1] if best else None
 
 # The same blind spot when `_draw_trump` declines for its own reasons: on a
 # user's board (deal 102, hearts by East, trick 5) East held K83 of spades to
@@ -3327,7 +3364,8 @@ def _draw_plan(player: str, hand: list[Card], trump: str | None,
     if NO_FUTILE_DRAW and len(outstanding) >= 2 and best[0] >= len(outstanding):
         return _FUTILE_DRAW
     if LONE_TRUMP_DRAW and len(outstanding) == 1 and best[0] >= 1:
-        return _FUTILE_DRAW
+        if not LONE_TRUMP_CASH or _lone_trump_cash(hand, trump, count) is not None:
+            return _FUTILE_DRAW
     return best[3]
 
 
