@@ -14,11 +14,24 @@ run just resumes. Slow lines are never skipped or timed out: that would bias
 any summary towards easy deals.
 
 Every record carries `robot_version`, a hash of the code that decides the
-robots' play. A change to ai.py or gib.py changes the robots' lines; records
-from another version are not reused, so rerun after any such change.
+robots' play. A change to ai.py or gib.py changes the robots' lines, so rerun
+after any such change: --out keeps one version's lines at a time.
+
+A line's values depend only on the deal and its cards, never on the code that
+chose them. So every solved line also goes into a shared value cache
+(research/data/robot_line_values.jsonl, committed), and a line found there,
+from any robot version, is copied rather than solved again. A robot change
+that alters a few dozen lines only solves those. The cache is tied to a hash
+of the Rust solver's source (`solver_version`); change the solver and nothing
+in it is reused. A copied line is checked like a solved one (`check`).
+
+Lines still to solve start slowest first, by the solve times stored for the
+same deal and contract, so one slow deal doesn't run alone at the end while
+the other workers sit idle.
 
     python research/presolve_robot_lines.py --deals 10       # first 10 deals
     python research/presolve_robot_lines.py                  # all 400
+    python research/presolve_robot_lines.py --no-cache       # solve every line afresh
 
 Build the binary first: `cargo build --release` in research/solver-rs/.
 """
@@ -33,7 +46,8 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from statistics import median
+from typing import Dict, List, Optional, Sequence, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -47,6 +61,8 @@ from research.dd_dataset import free_memory_gb
 LINE_EXE = ROOT / 'research' / 'solver-rs' / 'target' / 'release' / (
     'line_values.exe' if os.name == 'nt' else 'line_values')
 DEFAULT_OUT = ROOT / 'research' / 'data' / 'robot_lines.jsonl'
+DEFAULT_CACHE = ROOT / 'research' / 'data' / 'robot_line_values.jsonl'
+SOLVER_SOURCES = ROOT / 'research' / 'solver-rs' / 'src'
 
 #: Files whose code decides what the robot table bids and plays.
 ROBOT_SOURCES = ('ai.py', 'gib.py', 'game.py', 'card.py', 'challenge.py',
@@ -62,11 +78,26 @@ GB_PER_WORKER = 4.0
 BOARDS = 16
 
 
+def _source_bytes(path: Path) -> bytes:
+    # Line endings normalised: a Windows checkout (CRLF) and a Linux one hash alike.
+    return path.read_bytes().replace(b'\r\n', b'\n')
+
+
 def robot_version() -> str:
     digest = hashlib.sha256()
     for name in ROBOT_SOURCES:
         digest.update(name.encode())
-        digest.update((ROOT / name).read_bytes())
+        digest.update(_source_bytes(ROOT / name))
+    return digest.hexdigest()[:12]
+
+
+def solver_version() -> str:
+    """A hash of the Rust solver's source: the cache's values are only reused
+    under the solver that computed them."""
+    digest = hashlib.sha256()
+    for path in sorted(SOLVER_SOURCES.rglob('*.rs')):
+        digest.update(path.relative_to(SOLVER_SOURCES).as_posix().encode())
+        digest.update(_source_bytes(path))
     return digest.hexdigest()[:12]
 
 
@@ -102,6 +133,72 @@ def plan(deal_ids: Sequence[int]) -> List[dict]:
     return list(lines.values())
 
 
+#: What a line's values depend on, and all the cache keeps beside them.
+POSITION = ('deal_id', 'hands', 'plays')
+VALUES = ('decisions', 'seconds', 'nodes', 'table_entries')
+
+
+def same_position(line: dict, cached: dict) -> bool:
+    return (all(line[k] == cached[k] for k in POSITION)
+            and line['contract']['strain'] == cached['strain']
+            and line['contract']['leader'] == cached['leader'])
+
+
+def read_jsonl(path: Path) -> List[dict]:
+    records = []
+    if path.exists():
+        for raw in path.read_text(encoding='utf-8').splitlines():
+            try:
+                records.append(json.loads(raw))
+            except json.JSONDecodeError:
+                continue   # a line cut off by a hard kill
+    return records
+
+
+def load_cache(path: Path, solver: str) -> Dict[str, dict]:
+    """The cache's lines solved by this solver, by key."""
+    return {r['key']: r for r in read_jsonl(path) if r.get('solver_version') == solver}
+
+
+def cache_entry(record: dict, solver: str) -> dict:
+    return {'key': record['key'], **{k: record[k] for k in POSITION},
+            'strain': record['contract']['strain'], 'leader': record['contract']['leader'],
+            **{k: record[k] for k in VALUES}, 'solver_version': solver}
+
+
+def append_line(handle, record: dict) -> None:
+    # One write per line, so two runs sharing the cache don't interleave mid-line.
+    handle.write(json.dumps(record) + '\n')
+    handle.flush()
+    os.fsync(handle.fileno())
+
+
+def end_with_newline(path: Path) -> None:
+    if path.exists() and path.stat().st_size and not path.read_bytes().endswith(b'\n'):
+        with path.open('ab') as handle:
+            handle.write(b'\n')
+
+
+def estimate(line: dict, timings: Dict[Tuple, float]) -> float:
+    """Expected solve time: the slowest stored line with the same deal and
+    contract, else the same deal; a deal never solved counts as slowest."""
+    c = line['contract']
+    for k in ((line['deal_id'], c['strain'], c['leader']), (line['deal_id'],)):
+        if k in timings:
+            return timings[k]
+    return float('inf')
+
+
+def timings_from(records) -> Dict[Tuple, float]:
+    out: Dict[Tuple, float] = {}
+    for r in records:
+        strain = r['strain'] if 'strain' in r else r['contract']['strain']
+        leader = r['leader'] if 'leader' in r else r['contract']['leader']
+        for k in ((r['deal_id'], strain, leader), (r['deal_id'],)):
+            out[k] = max(out.get(k, 0.0), r['seconds'])
+    return out
+
+
 def solve(line: dict) -> dict:
     """Run line_values on one line and check what comes back."""
     payload = {'hands': line['hands'], 'strain': line['contract']['strain'],
@@ -114,7 +211,15 @@ def solve(line: dict) -> dict:
     check(line, out['decisions'])
     return {**line, 'decisions': out['decisions'], 'seconds': out['seconds'],
             'nodes': out['nodes'], 'table_entries': out['table_entries'],
-            'robot_version': robot_version()}
+            'robot_version': robot_version(), 'solver_version': solver_version()}
+
+
+def reuse(line: dict, cached: dict, version: str, solver: str) -> dict:
+    """A line already solved, under another robot version or another run."""
+    record = {**line, **{k: cached[k] for k in VALUES}, 'reused': True,
+              'robot_version': version, 'solver_version': solver}
+    check(line, record['decisions'])
+    return record
 
 
 def check(line: dict, decisions: List[dict]) -> None:
@@ -138,17 +243,8 @@ def check(line: dict, decisions: List[dict]) -> None:
                              f"{played_value(decisions[-1])}, robots took {line['ns_tricks']}")
 
 
-def completed(out: Path, version: str) -> set:
-    done = set()
-    if out.exists():
-        for raw in out.read_text(encoding='utf-8').splitlines():
-            try:
-                record = json.loads(raw)
-            except json.JSONDecodeError:
-                continue   # a line cut off by a hard kill; solved again
-            if record.get('robot_version') == version:
-                done.add(record['key'])
-    return done
+def completed(records: List[dict], version: str) -> set:
+    return {r['key'] for r in records if r.get('robot_version') == version}
 
 
 def safe_workers() -> int:
@@ -159,12 +255,44 @@ def safe_workers() -> int:
     return max(1, min(by_cpu, int(free * 0.8 / GB_PER_WORKER)))
 
 
+def adopt(paths: Sequence[Path], cache_path: Path) -> int:
+    solver = solver_version()
+    cache = load_cache(cache_path, solver)
+    added = 0
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    end_with_newline(cache_path)
+    with cache_path.open('a', encoding='utf-8') as store:
+        for path in paths:
+            for record in read_jsonl(path):
+                if record.get('solver_version', solver) != solver or record['key'] in cache:
+                    continue
+                check(record, record['decisions'])
+                entry = cache_entry(record, solver)
+                append_line(store, entry)
+                cache[record['key']] = entry
+                added += 1
+    print(f"{added} lines added; the cache holds {len(cache)} under solver {solver}")
+    return 0
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--deals', type=int, default=None, help="first N deals (default: all)")
     parser.add_argument('--out', type=Path, default=DEFAULT_OUT)
     parser.add_argument('--workers', type=int, default=None, help="default: what free memory allows")
+    parser.add_argument('--cache', type=Path, default=DEFAULT_CACHE,
+                        help="solved values shared across robot versions (read, and appended to)")
+    parser.add_argument('--no-cache', action='store_true',
+                        help="solve every line afresh: no values copied from the cache or added to it "
+                             "(its solve times still order the work)")
+    parser.add_argument('--adopt', type=Path, nargs='+', default=None, metavar='JSONL',
+                        help="add the lines in these presolve outputs to the cache, then stop. Lines "
+                             "written before the cache existed carry no solver version and are taken "
+                             "as this solver's (the solver hasn't changed since 2026-10-22)")
     args = parser.parse_args(argv)
+
+    if args.adopt:
+        return adopt(args.adopt, args.cache)
 
     if not LINE_EXE.exists():
         print(f"{LINE_EXE} is missing: run `cargo build --release` in research/solver-rs/")
@@ -181,28 +309,45 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                      for line in found]
     else:
         lines = plan(deal_ids)
-    done = completed(args.out, version)
+    previous = read_jsonl(args.out)
+    done = completed(previous, version)
     todo = [line for line in lines if line['key'] not in done]
+    solver = solver_version()
+    stored = load_cache(args.cache, solver)
+    cache = {} if args.no_cache else stored
+    hits = [line for line in todo if line['key'] in cache and same_position(line, cache[line['key']])]
+    hit_keys = {line['key'] for line in hits}
+    todo = [line for line in todo if line['key'] not in hit_keys]
+    timings = timings_from(list(stored.values()) + previous)   # times only, even with --no-cache
+    todo.sort(key=lambda line: -estimate(line, timings))
     print(f"{len(deal_ids)} deals, {len(lines)} distinct robot lines "
-          f"(planned in {time.perf_counter() - started:.0f}s), {len(lines) - len(todo)} already done, "
-          f"{len(todo)} to solve, {workers} worker(s), robot version {version}", flush=True)
-    if not todo:
-        return 0
+          f"(planned in {time.perf_counter() - started:.0f}s), "
+          f"{len(lines) - len(todo) - len(hits)} already done, {len(hits)} copied from the cache, "
+          f"{len(todo)} to solve, {workers} worker(s), robot version {version}, "
+          f"solver {solver}", flush=True)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    if args.out.exists() and args.out.stat().st_size and not args.out.read_bytes().endswith(b'\n'):
-        with args.out.open('ab') as handle:
-            handle.write(b'\n')
+    end_with_newline(args.out)
+    with args.out.open('a', encoding='utf-8') as sink:
+        for line in hits:
+            append_line(sink, reuse(line, cache[line['key']], version, solver))
+    if not todo:
+        return 0
+    if not args.no_cache:
+        args.cache.parent.mkdir(parents=True, exist_ok=True)
+        end_with_newline(args.cache)
 
     started = time.perf_counter()
     pool = multiprocessing.Pool(workers) if workers > 1 else None
+    # Lines are handed out in list order (slowest first); results come back as they finish.
     results = pool.imap_unordered(solve, todo, chunksize=1) if pool else map(solve, todo)
     try:
         with args.out.open('a', encoding='utf-8') as sink:
             for n, record in enumerate(results, 1):
-                sink.write(json.dumps(record) + '\n')
-                sink.flush()
-                os.fsync(sink.fileno())
+                append_line(sink, record)
+                if not args.no_cache:
+                    with args.cache.open('a', encoding='utf-8') as store:
+                        append_line(store, cache_entry(record, solver))
                 elapsed = time.perf_counter() - started
                 c = record['contract']
                 print(f"[{n}/{len(todo)}] deal {record['deal_id']:>3} {c['level']}{c['strain']:<2} by "
