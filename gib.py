@@ -5567,6 +5567,9 @@ def _advance(ctx: Ctx) -> tuple | None:
                     call = ctx.cheapest(s, 1)
                     if call and level_of(call) <= 3:
                         return call, f"4+ {SYM[s]}, 6+ HCP. Free advance."
+            light = _free_advance_long(ctx, theirs) if FREE_ADVANCE_LONG else None
+            if light:
+                return light
             return 'Pass', "Not forced after their bid."
         return None                                           # ai.py answers it
     ps = strain_of(p)
@@ -5608,6 +5611,34 @@ def _advance(ctx: Ctx) -> tuple | None:
                     return call, f"5+ {SYM[s]}, 8+ HCP."
         return 'Pass', "Nothing to add."
     return None
+
+
+#: Partner's takeout double, RHO bid (usually raised opener's suit): a weak
+#: hand with a long unbid suit still competes for the part score at the two
+#: level, rather than passing for want of the free advance's 6 HCP. The
+#: user's deal, 2026-11-12: P P 1C X 2C P P P with T76543 75 Q3 K75 (5 HCP,
+#: partner 4-3-4-2 with four spades) passed 2C out for -130 while 2S, ten
+#: trumps, was one off at most.
+FREE_ADVANCE_LONG = False
+FREE_ADVANCE_LONG_LEN = 6
+FREE_ADVANCE_LONG_HCP = 3
+FREE_ADVANCE_LONG_MAJORS = True
+FREE_ADVANCE_LONG_LEVEL = 2
+
+
+def _free_advance_long(ctx: Ctx, theirs: list[str]) -> tuple | None:
+    h = ctx.h
+    if not FREE_ADVANCE_LONG_HCP <= h.hcp < 6:
+        return None
+    suits = [s for s in (MAJORS if FREE_ADVANCE_LONG_MAJORS else SUITS)
+             if s not in theirs and h.len[s] >= FREE_ADVANCE_LONG_LEN]
+    if not suits:
+        return None
+    s = max(suits, key=lambda x: (h.len[x], SUITS.index(x)))
+    call = ctx.cheapest(s, 1)
+    if not call or level_of(call) > FREE_ADVANCE_LONG_LEVEL:
+        return None
+    return call, f"{FREE_ADVANCE_LONG_LEN}+ {SYM[s]}, under 6 HCP. To play."
 
 
 #: A weak hand advancing partner's overcall with a long suit of its own
