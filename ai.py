@@ -2669,6 +2669,23 @@ def _singleton_lead(hand: list[Card], trump: str | None) -> Card | None:
     return min(singles, key=lambda c: (c.value(), SUITS.index(c.suit))) if singles else None
 
 
+#: A defender doesn't lead for partner's ruff when declarer's bid shows at least
+#: as many trumps as are unseen: partner holds none (measurement switch).
+RUFF_RETURN_COUNTS_TRUMPS = True
+
+
+def _declarer_has_every_trump(player: str, count: TableCount,
+                              visible: dict[str, list[Card]] | None) -> bool:
+    """True if declarer's shown trump length covers every trump I can't see."""
+    partner = PARTNERS[player]
+    dummy = next((p for p in (visible or {}) if p not in (player, partner)), None)
+    if dummy is None:
+        return False
+    declarer = next(p for p in PLAYERS if p not in (player, partner, dummy))
+    unseen = len(count.unseen_in(count.trump))
+    return unseen > 0 and count.floor(declarer, count.trump) >= unseen
+
+
 def _ruff_return(player: str, hand: list[Card], trump: str | None,
                  history: list | None, visible: dict[str, list[Card]] | None = None,
                  shown: dict[str, dict[str, int]] | None = None,
@@ -2683,6 +2700,8 @@ def _ruff_return(player: str, hand: list[Card], trump: str | None,
     count = count or TableCount(player, hand, [], trump, [], visible, history, shown)
     out = count.out
     if trump in out[partner]:
+        return None
+    if RUFF_RETURN_COUNTS_TRUMPS and _declarer_has_every_trump(player, count, visible):
         return None
     cards = [c for c in hand if c.suit != trump and c.suit in out[partner]]
     if not cards and SHORT_LEAD_RETURN:

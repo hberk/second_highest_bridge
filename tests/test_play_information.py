@@ -250,6 +250,29 @@ def test_a_defender_leads_back_the_suit_partner_is_out_of():
     assert ai._ruff_return('East', hand, 'S', history, {'North': [C('9D')]}) is None
 
 
+def test_no_ruff_return_when_declarer_shows_every_unseen_trump():
+    """Deal 103's gap: partner (West) is out of clubs, but declarer's bid shows
+    as many spades as are unseen, so partner holds none to ruff with."""
+    hand = [C('KC'), C('4C'), C('AD'), C('5D'), C('8S'), C('9S')]
+    dummy = [C('9D'), C('2S'), C('3S'), C('4S'), C('5S')]
+    history = [[('East', C('2H')), ('South', C('3H')), ('West', C('4H')), ('North', C('5H'))],
+               [('East', C('3C')), ('South', C('5C')), ('West', C('7S')), ('North', C('6C'))]]
+    six = {'North': {}, 'East': {}, 'South': {'S': 6}, 'West': {}}
+    five = {**six, 'South': {'S': 5}}
+    played = [c for plays in history for _, c in plays]
+    def ruff(shown):    # 2 + 4 spades in view and the 7S played: 6 unseen
+        count = ai.TableCount('East', hand, [], 'S', played, {'North': dummy}, history, shown)
+        return ai._ruff_return('East', hand, 'S', history, {'North': dummy}, shown, count)
+    assert ruff(five) == C('4C')
+    assert ruff(six) is None
+    old = ai.RUFF_RETURN_COUNTS_TRUMPS
+    try:
+        ai.RUFF_RETURN_COUNTS_TRUMPS = False
+        assert ruff(six) == C('4C')
+    finally:
+        ai.RUFF_RETURN_COUNTS_TRUMPS = old
+
+
 def test_partners_lead_reads_as_a_singleton_when_the_higher_cards_are_in_sight():
     """West led the 10 of diamonds. Every higher diamond is in my hand or
     dummy's, and the robots lead the second-highest from two or more, so the
