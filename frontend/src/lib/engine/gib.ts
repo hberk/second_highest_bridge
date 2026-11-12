@@ -2447,19 +2447,43 @@ function majorOverNotrump(ctx: Ctx, decision: Decision | null): Decision | null 
 export const FIT_OVER_3NT = true;
 export const FIT_OVER_2NT = false;
 export const FIT_NT_MAX_DOWN = 1;
+/** Not in our notrump system (our 1NT/2NT, or 2C-2D-2NT): there the two- and
+ *  three-level calls are Stayman and transfers. And partner's New Minor
+ *  Forcing shows no length in the minor. The Opus review, 2026-11-12. */
+export const FIT_NT_GUARDS = true;
+
+/** Is our call i responder's New Minor Forcing (1x 1M 1NT 2m)? */
+function newMinorForcing(seq: string[], i: number): boolean {
+  return i === 3 && seq.length > 3 && levelOf(seq[0]) === 1 && isSuit(strainOf(seq[0]))
+    && levelOf(seq[1]) === 1 && MAJORS.includes(strainOf(seq[1]) as Suit) && seq[2] === '1NT'
+    && seq[3] === (strainOf(seq[0]) === 'C' ? '2D' : '2C');
+}
+
+function inNotrumpSystem(ctx: Ctx): boolean {
+  const seq = ctx.seq;
+  return seq.length > 0 && (seq[0] === '1NT' || seq[0] === '2NT' || ctx.ntOvercall
+    || (seq[0] === '2C' && seq[1] === '2D' && seq[2] === '2NT' && !ctx.natural));
+}
 
 function fitOverNotrump(ctx: Ctx, decision: Decision | null): Decision | null {
   if (decision === null || (decision[0] !== '3NT' && decision[0] !== '2NT')) return null;
   if (decision[0] === '3NT' && (!FIT_OVER_3NT || decision[1] !== TO_PLAY)) return null;
   if (decision[0] === '2NT' && !FIT_OVER_2NT) return null;
   if (decision[1].includes('rtificial') || ctx.auction.doubled !== 'None') return null;
+  if (FIT_NT_GUARDS && inNotrumpSystem(ctx)) return null;
+  let nmf: string | null = null;
+  if (FIT_NT_GUARDS) {
+    const at = ctx.ours.findIndex(([w], i) => w === ctx.pd && newMinorForcing(ctx.seq, i));
+    if (at >= 0) nmf = strainOf(ctx.ours[at][1]);
+  }
   const lvl = levelOf(decision[0]);
   const theirs = theirSuits(ctx);
   let best: [[number, number, number], string] | null = null;
   for (const s of SUITS) {
     if (theirs.includes(s)) continue;
     const nt = ntLength(ctx);
-    const n = ctx.h.len[s] + (transferred(ctx, s) ? nt : (partnerLength(ctx, s) || 0));
+    const shown = s === nmf ? 0 : (partnerLength(ctx, s) || 0);
+    const n = ctx.h.len[s] + (transferred(ctx, s) ? nt : shown);
     if (n < 8) continue;
     for (let l = Math.max(1, lvl - FIT_NT_MAX_DOWN); l <= lvl; l++) {
       const call = `${l}${s}`;

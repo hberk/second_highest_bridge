@@ -377,6 +377,12 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     higher; the longest fit first, then a major. Seeds 7, 8, 9 (5,000 deals):
     -0.06, +0.25, +0.28 a board. The same for 2NT (`FIT_OVER_2NT`) was flat
     (-0.18, -0.05, +0.16) and stays off. `/mnt/project-files/fit-over-nt/`.
+    Two guards from the Opus review of v0.1.5-alpha (`FIT_NT_GUARDS`): never
+    inside our notrump system (1NT P 3NT became 2♣ "To play", answered as
+    Stayman), and partner's New Minor Forcing shows no length (1♦ 1♥ 1NT 2♣
+    3NT became 3♣, passed with seven hearts, -880). With them: +0.09, +0.29,
+    +0.28 a board (t +1.0, +3.9, +4.1), 29, 16, 10 auctions worse instead of
+    43, 21, 19. `/mnt/project-files/fit-over-nt-fix/`.
   - **Five logic bugs from the Fable review** (finding 7, 2026-11-12), each
     behind its own switch: a 2♥/2♠ after our Stayman or transfer is the
     natural overcall it was alerted as, Cappelletti only directly over 1NT

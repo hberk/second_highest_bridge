@@ -2059,3 +2059,31 @@ def test_opener_does_not_double_for_extra_values():
     hand = 'AS KS QS JS 3S 2S QH 9H 4H 2H AD KD 5D'
     call, _ = bid(hand, '1S', '2C', 'Pass', '3C')
     assert call == 'Pass', call
+
+
+# ── Bid the fit, not 3NT (FIT_OVER_3NT), and its guards (the Opus review) ─────
+
+def test_fit_over_3nt_in_a_two_over_one_auction():
+    """1♦ 2♣ 2♦ with four diamonds: 3♦ "To play", not 3NT (deal 887, seed 7M)."""
+    west = '7S 4S 3S AH 5H KD 10D 8D 7D AC KC 4C 2C'
+    call, why = bid(west, '1D', 'Pass', '2C', 'Pass', '2D', 'Pass', dealer='East')
+    assert call == '3D' and 'To play' in why, (call, why)
+
+
+def test_new_minor_forcing_shows_no_length():
+    """1♦ 1♥ 1NT 2♣ is New Minor Forcing: opener's 3NT stays 3NT, not 3♣ "To
+    play", which partner passed holding ♥AQJ7652 (deal 4272, seed 7M)."""
+    west = 'JS 7S 6S KH 10H KD 8D 6D 2D AC KC 10C 8C'
+    call, _ = bid(west, '1D', 'Pass', '1H', 'Pass', '1NT', 'Pass', '2C', 'Pass', dealer='West')
+    assert call == '3NT', call
+    west = 'KS 7S 9H 8H QD JD 8D 2D AC QC JC 8C 3C'               # deal 3107: 1♣ ... 2♦
+    call, _ = bid(west, '1C', 'Pass', '1H', 'Pass', '1NT', 'Pass', '2D', 'Pass', dealer='West')
+    assert call == '3NT', call
+
+
+def test_fit_over_3nt_never_lands_on_stayman():
+    """1NT P with eight clubs: 3NT, not 2♣ "To play" that opener answers as
+    Stayman (deal 3859, seed 7M)."""
+    south = 'JS KH QH 2H JD KC JC 9C 7C 5C 4C 3C 2C'
+    call, _ = bid(south, '1NT', 'Pass', dealer='North')
+    assert call == '3NT', call

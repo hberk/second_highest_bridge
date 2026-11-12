@@ -37,3 +37,18 @@ test('a transfer doubled after our 1NT overcall is completed or bid', () => {
   const west = 'JC 6C 5C 4C 2C AD 2D 7H QS JS 8S 4S 3S';
   expect(bid(west, 'South', ['Pass', 'Pass', '1H', '1NT', 'Pass', '2H', 'X', 'Pass', 'Pass']).call).toBe('2S');
 });
+// tests/test_gib.py: FIT_OVER_3NT and its guards (the Opus review, 2026-11-12).
+test('bid the fit, not 3NT, in a 2/1 auction', () => {
+  const west = '7S 4S 3S AH 5H KD 10D 8D 7D AC KC 4C 2C';
+  expect(bid(west, 'East', ['1D', 'Pass', '2C', 'Pass', '2D', 'Pass']).call).toBe('3D');
+});
+test('New Minor Forcing shows no length in the minor', () => {
+  const west = 'JS 7S 6S KH 10H KD 8D 6D 2D AC KC 10C 8C';
+  expect(bid(west, 'West', ['1D', 'Pass', '1H', 'Pass', '1NT', 'Pass', '2C', 'Pass']).call).toBe('3NT');
+  const w2 = 'KS 7S 9H 8H QD JD 8D 2D AC QC JC 8C 3C';
+  expect(bid(w2, 'West', ['1C', 'Pass', '1H', 'Pass', '1NT', 'Pass', '2D', 'Pass']).call).toBe('3NT');
+});
+test('the fit rule never lands on Stayman over 1NT', () => {
+  const south = 'JS KH QH 2H JD KC JC 9C 7C 5C 4C 3C 2C';
+  expect(bid(south, 'North', ['1NT', 'Pass']).call).toBe('3NT');
+});

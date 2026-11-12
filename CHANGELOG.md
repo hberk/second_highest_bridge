@@ -11,7 +11,9 @@ what it was measured to be worth is in
 Four fixes from the Nov 11 robot review.
 
 - A robot about to bid 3NT "to play" on a known eight-card fit bids the fit
-  instead, at the same level or one lower (+0.16 a board, three seeds).
+  instead, at the same level or one lower (+0.22 a board, three seeds). Not
+  over partner's notrump, where the cheap calls are Stayman and transfers,
+  and New Minor Forcing doesn't count as length.
 - Five bidding logic bugs: Cappelletti only directly over 1NT; six of the
   major after a transfer no longer says "5"; opener passes 1NT 2♦ 2♥ (X) P P;
   the Lebensohl 2NT relay after a runout is answered; a transfer doubled after

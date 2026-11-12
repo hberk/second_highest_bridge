@@ -2648,6 +2648,25 @@ def _major_over_notrump(ctx: Ctx, decision: tuple | None) -> tuple | None:
 FIT_OVER_3NT = True
 FIT_OVER_2NT = False
 FIT_NT_MAX_DOWN = 1
+#: Not in our notrump system (our 1NT/2NT, or 2C-2D-2NT): there the two- and
+#: three-level calls are Stayman and transfers (1NT P 3NT became 2C "To play",
+#: answered as Stayman). And partner's New Minor Forcing shows no length in
+#: the minor (1D 1H 1NT 2C 3NT became 3C, passed with seven hearts). The
+#: Opus review of v0.1.5-alpha, 2026-11-12.
+FIT_NT_GUARDS = True
+
+
+def _new_minor_forcing(seq: list[str], i: int) -> bool:
+    """Is our call i responder's New Minor Forcing (1x 1M 1NT 2m)?"""
+    return (i == 3 and len(seq) > 3 and level_of(seq[0]) == 1 and strain_of(seq[0]) in SUITS
+            and level_of(seq[1]) == 1 and strain_of(seq[1]) in MAJORS and seq[2] == '1NT'
+            and seq[3] == ('2D' if strain_of(seq[0]) == 'C' else '2C'))
+
+
+def _in_notrump_system(ctx: Ctx) -> bool:
+    seq = ctx.seq
+    return bool(seq) and (seq[0] in ('1NT', '2NT') or ctx.nt_overcall
+                          or (seq[:3] == ['2C', '2D', '2NT'] and not ctx.natural))
 
 
 def _fit_over_notrump(ctx: Ctx, decision: tuple | None) -> tuple | None:
@@ -2659,6 +2678,12 @@ def _fit_over_notrump(ctx: Ctx, decision: tuple | None) -> tuple | None:
         return None
     if 'rtificial' in decision[1] or ctx.auction.doubled != 'None':
         return None
+    if FIT_NT_GUARDS and _in_notrump_system(ctx):
+        return None
+    nmf = None
+    if FIT_NT_GUARDS:
+        nmf = next((strain_of(c) for i, (w, c) in enumerate(ctx.ours)
+                    if w == ctx.pd and _new_minor_forcing(ctx.seq, i)), None)
     lvl = level_of(decision[0])
     theirs = _their_suits(ctx)
     best = None
@@ -2666,7 +2691,8 @@ def _fit_over_notrump(ctx: Ctx, decision: tuple | None) -> tuple | None:
         if s in theirs:
             continue
         nt = _nt_length(ctx)
-        n = ctx.h.len[s] + (nt if _transferred(ctx, s) else (_partner_length(ctx, s) or 0))
+        shown = 0 if s == nmf else (_partner_length(ctx, s) or 0)
+        n = ctx.h.len[s] + (nt if _transferred(ctx, s) else shown)
         if n < 8:
             continue
         for l in range(max(1, lvl - FIT_NT_MAX_DOWN), lvl + 1):
