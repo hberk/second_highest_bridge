@@ -383,6 +383,21 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     3NT became 3♣, passed with seven hearts, -880). With them: +0.09, +0.29,
     +0.28 a board (t +1.0, +3.9, +4.1), 29, 16, 10 auctions worse instead of
     43, 21, 19. `/mnt/project-files/fit-over-nt-fix/`.
+  - **No 3NT on a minor fit with a short suit** (`MINOR_NO_3NT`,
+    `_minor_not_notrump`, the user's deal 2026-11-12: 1♦ 1♥ 1♠ 3♦ 3NT on
+    ♠KQJ9 ♥A94 ♦AQT85 ♣4 opposite ♠T ♥KQJ5 ♦KJ42 ♣Q972, -100). Where a rule
+    is about to bid 3NT "To play", partner has shown a minor that makes eight,
+    and I hold a singleton or void in a suit partner hasn't shown: pass
+    partner's three of the minor when the auction isn't game forcing
+    (`MINOR_NO_3NT_PASS`), else five of it. The 3NTs it replaces came from
+    `continuation` (2♣ 2♦ 3♣, 2/1 auctions), `_cuebid_raise_reply`,
+    `responder_rebid` and `opener_third` (none looked at stoppers). Seeds 7M,
+    8M, 9M, 5,000 deals: five +0.15, +0.31, +0.37; four (partner then always
+    passes) +0.22, +0.22, +0.28; pass +0.34, +0.27, +0.33 (but it passed 2♣
+    2♦ 3♣ game forces); pass when not game forced +0.27, +0.29, +0.34 (t +3.8,
+    +4.0, +4.2; 104 of 115 changed auctions better). A doubleton as short
+    (`MINOR_SHORT = 2`): +0.27, +0.36, +0.23 with a third of 331 worse.
+    `/mnt/project-files/minor-no-stopper/`.
   - **Five logic bugs from the Fable review** (finding 7, 2026-11-12), each
     behind its own switch: a 2♥/2♠ after our Stayman or transfer is the
     natural overcall it was alerted as, Cappelletti only directly over 1NT
