@@ -1898,6 +1898,14 @@ function gameForced(seq: string[], ctx: Ctx): boolean {
  *  advancer with 3+ in one of the suits and game values (judge + 8 >= 25)
  *  bids game in it instead of the cheapest preference (deal 163). */
 export const TWO_SUITER_GAME = true;
+/** Advancer jumps to game in partner's major with TWO_SUITER_BLAST or more
+ *  cards of it, whatever the strength (the user's call, 2026-11-12). 0 is off. */
+export const TWO_SUITER_BLAST: number = 6;
+
+function twoSuiterGameAlert(s: Suit): string {
+  if (TWO_SUITER_BLAST) return `3+ ${SYM[s]}: game values or a long fit. To play.`;
+  return `3+ ${SYM[s]}, game values. To play.`;
+}
 /** ...and the later rounds read it as two suits, not as a 2NT opening
  *  whose next bids are Stayman and transfers. */
 export const TWO_SUITER_READ = true;
@@ -5054,9 +5062,13 @@ function advance(ctx: Ctx): Decision | null {
     if (b === null) choice = h.len[a] >= 2 ? a : maxBy(MINORS, (s) => [h.len[s], idx(s)]);
     else choice = maxBy([a, b], (s) => [h.len[s], idx(s)]);
     const game = `${isMajor(choice) ? 4 : 5}${choice}`;
+    if (TWO_SUITER_BLAST && isMajor(choice) && (choice === a || choice === b)
+      && h.len[choice] >= TWO_SUITER_BLAST && ctx.ok(game)) {
+      return [game, twoSuiterGameAlert(choice)];
+    }
     if (TWO_SUITER_GAME && (choice === a || choice === b) && h.len[choice] >= 3
       && h.judge + TWO_SUITED_MIN >= (isMajor(choice) ? GAME_MAJOR : GAME) && ctx.ok(game)) {
-      return [game, `3+ ${SYM[choice]}, game values. To play.`];
+      return [game, twoSuiterGameAlert(choice)];
     }
     const call = ctx.cheapest(choice, 2);
     if (TWO_SUITER_FREE && call && levelOf(ctx.calls[ctx.calls.length - 1][1])

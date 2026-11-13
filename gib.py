@@ -2050,6 +2050,21 @@ def _game_forced(seq: list[str], ctx: Ctx) -> bool:
 #: advancer with 3+ in one of the suits and game values (judge + 8 >= 25)
 #: bids game in it instead of the cheapest preference (deal 163).
 TWO_SUITER_GAME = True
+#: Advancer jumps to game in partner's major with TWO_SUITER_BLAST or more
+#: cards of it, whatever the strength (the user's call, 2026-11-12: (1♣) 2♣
+#: (2♠) 3♥ on ♠- ♥KQJ963 ♦AJT73 ♣65 should be 4♥, which made). 0 is off.
+#: Fresh deals filtered for the hand, 3 x 4,000 boards: +3.8/+4.3/+3.8 a
+#: board, t 3.6-5.1; also needing a singleton +2.8, a void +0.3. Michaels on
+#: 7 HCP with both majors was noise (+0.5) and is not in.
+TWO_SUITER_BLAST = 6
+
+
+def _two_suiter_game_alert(s: str) -> str:
+    if TWO_SUITER_BLAST:
+        return f"3+ {SYM[s]}: game values or a long fit. To play."
+    return f"3+ {SYM[s]}, game values. To play."
+
+
 #: ...and the later rounds read it as two suits, not as a 2NT opening
 #: whose next bids are Stayman and transfers.
 TWO_SUITER_READ = True
@@ -5593,10 +5608,13 @@ def _advance(ctx: Ctx) -> tuple | None:
         else:
             choice = max((a, b), key=lambda s: (h.len[s], SUITS.index(s)))
         game = f"{4 if choice in MAJORS else 5}{choice}"
+        if TWO_SUITER_BLAST and choice in MAJORS and choice in (a, b) \
+                and h.len[choice] >= TWO_SUITER_BLAST and ctx.ok(game):
+            return game, _two_suiter_game_alert(choice)
         if (TWO_SUITER_GAME and choice in (a, b) and h.len[choice] >= 3
                 and h.judge + TWO_SUITED_MIN >= (GAME_MAJOR if choice in MAJORS else GAME)
                 and ctx.ok(game)):
-            return game, f"3+ {SYM[choice]}, game values. To play."
+            return game, _two_suiter_game_alert(choice)
         call = ctx.cheapest(choice, 2)
         if (TWO_SUITER_FREE and call and level_of(ctx.calls[-1][1])
                 and (choice not in (a, b) or level_of(call) > h.len[choice] + 5 - 6)):

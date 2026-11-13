@@ -281,6 +281,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     in it. Before, advancer always took the cheapest preference: deal 163,
     (1♦) 2NT (P) with five clubs and a 10-card fit bid 3♣, and N/S defended
     4♦ where 7♣ makes; now 5♣, 13 tricks.
+  - `TWO_SUITER_BLAST` (`_advance`, the user's call, 2026-11-13): with six
+    or more of a major partner showed, advancer bids 4M at once, whatever
+    the strength: (1♣) 2♣ (2♠) on ♠- ♥KQJ963 ♦AJT73 ♣65 bid 3♥ (no game
+    values), and 4♥ made. Measured on deals filtered for the hand, +3.9 a
+    filtered board on three seeds (`ROBOT_PROGRESS.md`). The 4M alert for
+    both rules reads "game values or a long fit", since an alert depends only
+    on the auction. Michaels on 7 HCP with both majors (`TWO_SUITED_MIN` is
+    8) measured as noise and stays out.
   - `TWO_SUITER_READ` (`continuation`, `_our_two_suiter`,
     `_two_suiter_lengths`): the later rounds read the overcall as 8+ HCP and
     5-5 in its suits, and advancer's suit bids as a preference (3) or a suit
