@@ -925,9 +925,11 @@ def _rebid_over_new_suit(ctx: Ctx, x: str, y: str) -> tuple:
 #: (14 HCP, 17 judgement points) passed, because the known 4-4 fit counts
 #: FIT_POINTS × (8 - FIT_BASE) = -6, so 11 + 14 fell one short of an invitation.
 #: Experiment, off: RAISE_TRY_BONUS adds to the hand's points for both game and
-#: the invitation; RAISE_TRY_INVITE lowers only the invitation's bar.
+#: the invitation; RAISE_TRY_INVITE lowers only the invitation's bar, and
+#: RAISE_TRY_GAME only the bar for bidding game directly.
 RAISE_TRY_BONUS = 0
 RAISE_TRY_INVITE = 0
+RAISE_TRY_GAME = 0
 
 
 def opener_range(seq: list[str]) -> tuple[int, int]:
@@ -1011,7 +1013,7 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
             if ol >= 4:
                 return 'Pass', "Partner placed the contract."
             fit = hcp + _fit_bonus(h, y, 4) + RAISE_TRY_BONUS
-            if fit + lo >= GAME_MAJOR:
+            if fit + lo + RAISE_TRY_GAME >= GAME_MAJOR:
                 return f"4{y}", TO_PLAY
             if fit + hi + RAISE_TRY_INVITE >= GAME_MAJOR and ol == 2:
                 return f"3{y}", "Invitational."
