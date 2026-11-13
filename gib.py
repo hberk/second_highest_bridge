@@ -4222,7 +4222,8 @@ LEBENSOHL_AFTER_RUNOUT = True
 #: ...and after opener's 3C the relayer bids his long suit, as over an
 #: overcall (found 2026-11-13: 1NT X P 2H P 2S 2NT P 3C, and responder passed
 #: 3C with ♥Q8762 ♣T8, "Nothing to add": 3C doubled went five down).
-LEBENSOHL_RELAYER_FIX = False
+#: Measured on the same deals: +6.11, +2.69, +4.71 a board (t 5.9, 3.0, 5.8).
+LEBENSOHL_RELAYER_FIX = True
 
 
 def _nt_runout(ctx: Ctx) -> tuple | None:
@@ -5348,8 +5349,12 @@ def _over_nt_response(ctx: Ctx) -> tuple | None:
 #: doubles only when it has none. 'two': only the two-suiters (2♦, 2♥, 2♠,
 #: 2NT) bid; a one-suiter still doubles, its long suit the lead against
 #: 1NT doubled. 'strict': an unbalanced hand never doubles, it bids
-#: Cappelletti or passes.
-NT_X_SHAPE: str | None = None
+#: Cappelletti or passes. Measured on deals with a 1NT opener and a strong
+#: unbalanced opponent (0.8% of deals), 3 seeds x 1,000: 'two' +0.49, +3.67,
+#: +3.04 a board (t 0.5, 3.6, 2.5); 'cappelletti' -1.20/+0.65/+2.84 (the 2C
+#: one-suiters lost on every seed); 'strict' -3.22/-1.65/+2.08. The user
+#: picked 'two'.
+NT_X_SHAPE: str | None = 'two'
 
 
 def _defend(ctx: Ctx) -> tuple | None:

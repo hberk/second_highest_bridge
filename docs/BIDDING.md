@@ -400,6 +400,19 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     four trumps double only if they haven't both named the suit. Seeds 7M-9M
     (10,000 deals): -0.10, +0.17, -0.22, a tie, more auctions worse than
     better on every seed. Branch `claude/project-thread-e0klhw`.
+  - **The penalty double of 1NT is for balanced hands** (`NT_X_SHAPE = 'two'`;
+    the user's deal, 2026-11-13): 1NT P P X with ♠AT865 ♥J ♦AK5 ♣QJT4, partner
+    transferred to hearts on 0-5-4-4 (systems on) and 2♥ played on a 5-1 fit.
+    An unbalanced 15+ hand with a Cappelletti two-suiter (2♦, 2♥/2♠, 2NT) now
+    bids it; a one-suiter still doubles, its long suit the lead against 1NT
+    doubled. On deals with a 1NT opener and a strong unbalanced opponent (0.8%
+    of deals), 3 x 1,000: +0.49, +3.67, +3.04 a board. Every unbalanced hand
+    bidding (2♣ too) was -1.20/+0.65/+2.84, the 2♣ one-suiters losing on every
+    seed. /mnt/project-files/nt-x-shape/REPORT.md.
+  - **The Lebensohl relayer names his suit after the runout double**
+    (`LEBENSOHL_RELAYER_FIX`): 1NT X P 2♥ P 2♠ 2NT P 3♣ P, and the relayer
+    passed 3♣ on two clubs ("Nothing to add" in `_nt_runout`). Same deals:
+    +6.11, +2.69, +4.71 a board.
   - **The Cappelletti relay is answered** (`RELAY_ANSWER`, `_answer_relay`;
     challenge board 79, 2026-11-07): (1NT) 2♣ (P) 2♦ (P) asks which suit.
     No branch answered it, so `continuation` read 2♦ as forcing and a
