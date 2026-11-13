@@ -4219,6 +4219,10 @@ def _runout_calls(ctx: Ctx) -> list | None:
 #: Partner's 2NT over their runout is the Lebensohl relay, answered by
 #: `_nt_interference` (3C), not passed here.
 LEBENSOHL_AFTER_RUNOUT = True
+#: ...and after opener's 3C the relayer bids his long suit, as over an
+#: overcall (found 2026-11-13: 1NT X P 2H P 2S 2NT P 3C, and responder passed
+#: 3C with ♥Q8762 ♣T8, "Nothing to add": 3C doubled went five down).
+LEBENSOHL_RELAYER_FIX = False
 
 
 def _nt_runout(ctx: Ctx) -> tuple | None:
@@ -4282,6 +4286,9 @@ def _nt_runout(ctx: Ctx) -> tuple | None:
     if (LEBENSOHL_AFTER_RUNOUT and opener and interrupted and ctx.calls[-3:-2]
             and ctx.calls[-2][0] == ctx.pd and ctx.calls[-2][1] == '2NT'):
         return None             # the Lebensohl relay is answered with 3C
+    if (LEBENSOHL_RELAYER_FIX and not opener and interrupted and mine and mine[-1] == '2NT'
+            and his and his[-1] == '3C' and ctx.calls[-2][0] == ctx.pd):
+        return None             # ...and the relayer then names his suit there
     return 'Pass', "Nothing to add."
 
 

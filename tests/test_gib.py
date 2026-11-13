@@ -630,6 +630,23 @@ def test_penalty_double_of_1nt_is_for_balanced_hands():
         gib.NT_X_SHAPE = saved
 
 
+def test_lebensohl_relayer_names_his_suit_after_the_runout_double():
+    # Found measuring NT_X_SHAPE (2026-11-13): 1NT X P 2H P 2S 2NT P 3C P,
+    # and responder passed 3C on two clubs; 3C doubled went five down.
+    north = 'QS 7S QH 8H 7H 6H 2H JD 9D 6D 4D 10C 8C'
+    calls = ('1NT', 'X', 'Pass', '2H', 'Pass', '2S', '2NT', 'Pass', '3C', 'Pass')
+    saved = gib.LEBENSOHL_RELAYER_FIX
+    try:
+        gib.LEBENSOHL_RELAYER_FIX = False
+        assert bid(north, *calls, dealer='South')[0] == 'Pass'
+        gib.LEBENSOHL_RELAYER_FIX = True
+        assert bid(north, *calls, dealer='South')[0] == '3H'
+        south = 'AS KS 9S 3S AH 5H 4H 3H KD 3D 2D JC 7C'
+        assert bid(south, *calls, '3H', 'Pass', dealer='South')[0] == 'Pass'
+    finally:
+        gib.LEBENSOHL_RELAYER_FIX = saved
+
+
 def test_takeout_doubles_stop_at_4h():
     strong = 'AS KS QH JH 7H 2H AD QD 9D 6D AC 5C 3C'
     assert bid(strong, '4H')[0] == 'X'
