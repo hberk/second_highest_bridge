@@ -3854,6 +3854,9 @@ function runoutCalls(ctx: Ctx): Rec[] | null {
 // Partner's 2NT over their runout is the Lebensohl relay, answered by
 // `ntInterference` (3C), not passed here.
 export const LEBENSOHL_AFTER_RUNOUT = true;
+// ...and after opener's 3C the relayer bids his long suit, as over an
+// overcall (2026-11-13: 1NT X P 2H P 2S 2NT P 3C, and responder passed 3C).
+export const LEBENSOHL_RELAYER_FIX = true;
 
 function ntRunout(ctx: Ctx): Decision | null {
   const ours = runoutCalls(ctx);
@@ -3919,6 +3922,10 @@ function ntRunout(ctx: Ctx): Decision | null {
   if (LEBENSOHL_AFTER_RUNOUT && opener && interrupted && ctx.calls.length >= 3
     && ctx.calls[ctx.calls.length - 2][0] === ctx.pd && ctx.calls[ctx.calls.length - 2][1] === '2NT') {
     return null; // the Lebensohl relay is answered with 3C
+  }
+  if (LEBENSOHL_RELAYER_FIX && !opener && interrupted && mine.length && mine[mine.length - 1] === '2NT'
+    && his.length && his[his.length - 1] === '3C' && ctx.calls[ctx.calls.length - 2][0] === ctx.pd) {
+    return null; // ...and the relayer then names his suit there
   }
   return ['Pass', 'Nothing to add.'];
 }
@@ -4868,6 +4875,13 @@ function firstBid1nt(ctx: Ctx): boolean {
   return (ctx.calls.find(([, c]) => c !== 'Pass')?.[1] ?? null) === '1NT';
 }
 
+// The penalty double of their 1NT opening is for strong balanced hands (the
+// user's call, 2026-11-13). null: any 15+ doubles. 'cappelletti': an
+// unbalanced hand makes its Cappelletti call, doubling only without one.
+// 'two': only two-suiters bid; a one-suiter still doubles. 'strict': an
+// unbalanced hand bids Cappelletti or passes.
+export const NT_X_SHAPE: 'cappelletti' | 'two' | 'strict' | null = 'two';
+
 function defend(ctx: Ctx): Decision | null {
   const h = ctx.h;
   const hcp = h.hcp;
@@ -4880,7 +4894,8 @@ function defend(ctx: Ctx): Decision | null {
   if (lead) return lead;
 
   if (opening === '1NT') {
-    if (hcp >= 15 && ctx.ok('X')) return ['X', '15+ HCP. Penalty.'];
+    const xOk = hcp >= 15 && ctx.ok('X');
+    if (xOk && (NT_X_SHAPE === null || h.balanced)) return ['X', '15+ HCP. Penalty.'];
     if (hcp >= 10) {
       if (h.len.H >= 4 && h.len.S >= 4 && h.len.H + h.len.S >= 9) {
         return ['2D', `4+ ${SYM.H} and 4+ ${SYM.S}. Artificial.`];
@@ -4889,8 +4904,9 @@ function defend(ctx: Ctx): Decision | null {
         if (h.len[m] >= 5 && MINORS.some((x) => h.len[x] >= 4)) return [`2${m}`, `5+ ${SYM[m]} and a 4+ minor.`];
       }
       if (h.len.C >= 5 && h.len.D >= 5) return ['2NT', `5+ ${SYM.C} and 5+ ${SYM.D}.`];
-      if (h.shape[0] >= 6) return ['2C', 'One long suit, 6+. Artificial.'];
+      if (h.shape[0] >= 6 && !(xOk && NT_X_SHAPE === 'two')) return ['2C', 'One long suit, 6+. Artificial.'];
     }
+    if (xOk && (NT_X_SHAPE === 'cappelletti' || NT_X_SHAPE === 'two')) return ['X', '15+ HCP. Penalty.'];
     return ['Pass', 'No action over 1NT.'];
   }
   if (opening === '2C' || their === 'NT') return overNtResponse(ctx) ?? ['Pass', 'No action.'];

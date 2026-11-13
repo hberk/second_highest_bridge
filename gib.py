@@ -4284,6 +4284,11 @@ def _runout_calls(ctx: Ctx) -> list | None:
 #: Partner's 2NT over their runout is the Lebensohl relay, answered by
 #: `_nt_interference` (3C), not passed here.
 LEBENSOHL_AFTER_RUNOUT = True
+#: ...and after opener's 3C the relayer bids his long suit, as over an
+#: overcall (found 2026-11-13: 1NT X P 2H P 2S 2NT P 3C, and responder passed
+#: 3C with ♥Q8762 ♣T8, "Nothing to add": 3C doubled went five down).
+#: Measured on the same deals: +6.11, +2.69, +4.71 a board (t 5.9, 3.0, 5.8).
+LEBENSOHL_RELAYER_FIX = True
 
 
 def _nt_runout(ctx: Ctx) -> tuple | None:
@@ -4347,6 +4352,9 @@ def _nt_runout(ctx: Ctx) -> tuple | None:
     if (LEBENSOHL_AFTER_RUNOUT and opener and interrupted and ctx.calls[-3:-2]
             and ctx.calls[-2][0] == ctx.pd and ctx.calls[-2][1] == '2NT'):
         return None             # the Lebensohl relay is answered with 3C
+    if (LEBENSOHL_RELAYER_FIX and not opener and interrupted and mine and mine[-1] == '2NT'
+            and his and his[-1] == '3C' and ctx.calls[-2][0] == ctx.pd):
+        return None             # ...and the relayer then names his suit there
     return 'Pass', "Nothing to add."
 
 
@@ -5412,6 +5420,21 @@ OVERCALL_3_AFTER_1NT = 6
 def _first_bid_1nt(ctx: Ctx) -> bool:
     return next((c for w, c in ctx.calls if c != 'Pass'), None) == '1NT'
 
+#: The penalty double of their 1NT opening is for strong balanced hands
+#: (the user's call, 2026-11-13: 1NT P P X with ♠AT865 ♥J ♦AK5 ♣QJT4, partner
+#: transferred to hearts on 0-5-4-4 and 2♥ played on a 5-1 fit). None: any
+#: 15+ HCP doubles (the old rule). 'cappelletti': an unbalanced 15+ hand
+#: shows its suits with the Cappelletti call it has (2♣/2♦/2♥/2♠/2NT) and
+#: doubles only when it has none. 'two': only the two-suiters (2♦, 2♥, 2♠,
+#: 2NT) bid; a one-suiter still doubles, its long suit the lead against
+#: 1NT doubled. 'strict': an unbalanced hand never doubles, it bids
+#: Cappelletti or passes. Measured on deals with a 1NT opener and a strong
+#: unbalanced opponent (0.8% of deals), 3 seeds x 1,000: 'two' +0.49, +3.67,
+#: +3.04 a board (t 0.5, 3.6, 2.5); 'cappelletti' -1.20/+0.65/+2.84 (the 2C
+#: one-suiters lost on every seed); 'strict' -3.22/-1.65/+2.08. The user
+#: picked 'two'.
+NT_X_SHAPE: str | None = 'two'
+
 
 def _defend(ctx: Ctx) -> tuple | None:
     """Our first action after they opened."""
@@ -5428,7 +5451,8 @@ def _defend(ctx: Ctx) -> tuple | None:
         return lead
 
     if opening == '1NT':                                      # Cappelletti
-        if hcp >= 15 and ctx.ok('X'):
+        x_ok = hcp >= 15 and ctx.ok('X')
+        if x_ok and (NT_X_SHAPE is None or h.balanced):
             return 'X', "15+ HCP. Penalty."
         if hcp >= 10:
             if h.len['H'] >= 4 and h.len['S'] >= 4 and h.len['H'] + h.len['S'] >= 9:
@@ -5438,8 +5462,10 @@ def _defend(ctx: Ctx) -> tuple | None:
                     return f"2{m}", f"5+ {SYM[m]} and a 4+ minor."
             if h.len['C'] >= 5 and h.len['D'] >= 5:
                 return '2NT', f"5+ {SYM['C']} and 5+ {SYM['D']}."
-            if h.shape[0] >= 6:
+            if h.shape[0] >= 6 and not (x_ok and NT_X_SHAPE == 'two'):
                 return '2C', "One long suit, 6+. Artificial."
+        if x_ok and NT_X_SHAPE in ('cappelletti', 'two'):
+            return 'X', "15+ HCP. Penalty."
         return 'Pass', "No action over 1NT."
     if opening == '2C' or their == 'NT':
         return _over_nt_response(ctx) or ('Pass', "No action.")
