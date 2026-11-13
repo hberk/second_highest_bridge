@@ -543,6 +543,16 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   trick fit's ~9.7.
   - All three switches together: **+4.66 per board, t = +5.48, 113 auctions
     changed** (`FIT_COUNT` and `LOTT` alone: +4.39, t = +5.23, 106).
+  - **Except responder's game after a single raise** (`RAISE_TRY_GAME = 6`;
+    the user's deal, 2026-11-13). In 1x-1M-2M a 4-4 fit counts −6, so
+    responder needed 21 judgement points for game and 18 to invite: East
+    passed 1♦-1♥-2♥ on ♠Q3 ♥A1095 ♦KQ975 ♣K10 (17) and E/W take 12 tricks
+    in hearts. The direct game test now adds 6 back (game on 15+ with four
+    trumps, 12+ with five); the invitation is unchanged, so in practice
+    responder bids game or passes. Three seeds of 25,000 fresh deals:
+    **+0.24, +0.27, +0.29 a board (t = +6.8 to +8.3, ~500 auctions changed
+    a seed)**, games made 55%. Adding invitations lost: opener declines most
+    of them, and 3M fails where 2M made (`/mnt/project-files/raise-try/`).
 - **Slam bidding doesn't pay here** (2026-10-23, the 101 slam deals of
   `research/data/dd_slam.jsonl`; [SOLVER.md](SOLVER.md) for how they were
   found). The robots bid slam on 0 of their 404 auctions: the opponents buy

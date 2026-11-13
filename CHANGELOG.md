@@ -6,6 +6,12 @@ Releases are tagged on main, and the tag matches the version in
 what it was measured to be worth is in
 [docs/ROBOT_PROGRESS.md](docs/ROBOT_PROGRESS.md).
 
+## Unreleased
+
+- After opener's single raise of responder's major (1♦ 1♥ 2♥), responder
+  bids game on 15+ judgement points with four trumps instead of needing 21
+  (+0.24 to +0.29 a board, three seeds).
+
 ## v0.1.5-alpha (unreleased)
 
 Four fixes from the Nov 11 robot review.

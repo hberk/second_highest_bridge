@@ -831,6 +831,11 @@ function rebidOverNewSuit(ctx: Ctx, x: Suit, y: Suit): Decision {
 
 // ── Responder's second call, opener's third ───────────────────────────────────
 
+/** Responder after opener's single raise of a one-level major (1x-1M-2M):
+ *  added to the hand for the direct game test only, cancelling the 4-4 fit's
+ *  -6 (the user's deal of 2026-11-13; gib.py has the measurement). */
+export const RAISE_TRY_GAME = 6;
+
 function openerRange(seq: string[]): [number, number] {
   const x = strainOf(seq[0]) as Suit;
   const r = seq[1];
@@ -906,7 +911,7 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
       if (hcp + lo >= SLAM && ctx.ok('4NT')) return ['4NT', `Keycard Blackwood for ${SYM[y]}. Artificial.`];
       if (ol >= 4) return ['Pass', 'Partner placed the contract.'];
       const fit = hcp + fitBonus(h, y, 4);
-      if (fit + lo >= GAME_MAJOR) return [`4${y}`, TO_PLAY];
+      if (fit + lo + RAISE_TRY_GAME >= GAME_MAJOR) return [`4${y}`, TO_PLAY];
       if (fit + hi >= GAME_MAJOR && ol === 2) return [`3${y}`, 'Invitational.'];
       return ['Pass', 'No game.'];
     }
