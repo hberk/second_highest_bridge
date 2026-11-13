@@ -626,6 +626,11 @@ def test_penalty_double_of_1nt_is_for_balanced_hands():
         assert bid(no_cappelletti, '1NT', 'Pass', 'Pass', dealer='South')[0] == 'X'
         gib.NT_X_SHAPE = 'strict'
         assert bid(no_cappelletti, '1NT', 'Pass', 'Pass', dealer='South')[0] == 'Pass'
+        # 'two': the two-suiter bids, the strong one-suiter still doubles.
+        gib.NT_X_SHAPE = 'two'
+        assert bid(east, '1NT', 'Pass', 'Pass', dealer='South')[0] == '2S'
+        one = 'KS QS JS 9S 6S 5S JH AD KD 5D QC 10C 4C'
+        assert bid(one, '1NT', 'Pass', 'Pass', dealer='South')[0] == 'X'
     finally:
         gib.NT_X_SHAPE = saved
 

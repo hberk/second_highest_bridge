@@ -5345,8 +5345,10 @@ def _over_nt_response(ctx: Ctx) -> tuple | None:
 #: transferred to hearts on 0-5-4-4 and 2♥ played on a 5-1 fit). None: any
 #: 15+ HCP doubles (the old rule). 'cappelletti': an unbalanced 15+ hand
 #: shows its suits with the Cappelletti call it has (2♣/2♦/2♥/2♠/2NT) and
-#: doubles only when it has none. 'strict': an unbalanced hand never
-#: doubles, it bids Cappelletti or passes.
+#: doubles only when it has none. 'two': only the two-suiters (2♦, 2♥, 2♠,
+#: 2NT) bid; a one-suiter still doubles, its long suit the lead against
+#: 1NT doubled. 'strict': an unbalanced hand never doubles, it bids
+#: Cappelletti or passes.
 NT_X_SHAPE: str | None = None
 
 
@@ -5376,9 +5378,9 @@ def _defend(ctx: Ctx) -> tuple | None:
                     return f"2{m}", f"5+ {SYM[m]} and a 4+ minor."
             if h.len['C'] >= 5 and h.len['D'] >= 5:
                 return '2NT', f"5+ {SYM['C']} and 5+ {SYM['D']}."
-            if h.shape[0] >= 6:
+            if h.shape[0] >= 6 and not (x_ok and NT_X_SHAPE == 'two'):
                 return '2C', "One long suit, 6+. Artificial."
-        if x_ok and NT_X_SHAPE == 'cappelletti':
+        if x_ok and NT_X_SHAPE in ('cappelletti', 'two'):
             return 'X', "15+ HCP. Penalty."
         return 'Pass', "No action over 1NT."
     if opening == '2C' or their == 'NT':
