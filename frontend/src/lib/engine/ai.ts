@@ -747,7 +747,7 @@ function backToOpeningSuit(partner: Seat, auction: AuctionState, groups: Groups,
   const opened = openedOneOf(partner, auction);
   const hb = auction.highestBid;
   if (!opened || pStrain === opened || !isSuit(pStrain)
-    || !hb || hb[2] !== partner || hb[1] !== pStrain
+    || !hb || hb[2] !== partner || hb[1] !== pStrain || auction.doubled !== 'None'
     || firstNamer(auction, pStrain) !== partner
     || groups[opened].length < groups[pStrain as Suit].length) return null;
   const call = `${hb[0]}${opened}`;

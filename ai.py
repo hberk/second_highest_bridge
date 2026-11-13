@@ -1002,11 +1002,14 @@ def _back_to_opening_suit(partner: str, auction: AuctionState, groups: dict,
                           p_strain: str, legal: list[str]) -> tuple | None:
     """Partner opened one of a suit and has now bid a new suit, the last bid
     at the table: with as many cards in the opened suit, prefer it at the same
-    level."""
+    level. Not once they double it: on fresh deals (3 x 10,000) the
+    preference over 1H P 1S P 2D (X) cost 0.07 a board, the robots' takeout
+    doubles running into penalty doubles and opener raising the preference to
+    a doubled game; undoubled it was flat."""
     opened = _opened_one_of(partner, auction)
     hb = auction.highest_bid
     if (not opened or p_strain == opened or p_strain not in SUITS
-            or hb is None or hb[2] != partner or hb[1] != p_strain
+            or hb is None or hb[2] != partner or hb[1] != p_strain or auction.doubled != 'None'
             or _first_namer(auction, p_strain) != partner
             or len(groups[opened]) < len(groups[p_strain])):
         return None
