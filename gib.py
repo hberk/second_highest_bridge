@@ -35,6 +35,10 @@ _HCP = {'A': 4, 'K': 3, 'Q': 2, 'J': 1}
 # ── The numbers in GIB's notes ────────────────────────────────────────────────
 OPEN_MIN = 11                 # 12+, or 11 by the rule of 20
 NT1 = (15, 17)                # 1NT: balanced 15-17, may hold a five-card major
+#: A balanced 15-17 with a five-card major opens 1M, not 1NT (the user's
+#: experiment, 2026-11-12: notrump is hard when the second-highest card wins).
+#: Opener's rebids already treat 15-17 as inside the one-level range.
+MAJOR_NOT_1NT = False
 NT2 = (20, 21)                # 2NT: balanced 20-21
 NT_AFTER_2C = (22, 24)        # 2C-2D-2NT
 STRONG_2C = 22                # 2C: strong, artificial, 22+ HCP
@@ -429,7 +433,8 @@ def opening(ctx: Ctx) -> tuple:
         return '2C', "22+ HCP. Strong, forcing. Artificial."
     if h.balanced and NT2[0] <= h.hcp <= NT2[1]:
         return '2NT', "20-21 HCP, balanced."
-    if h.balanced and NT1[0] <= h.hcp <= NT1[1]:
+    if h.balanced and NT1[0] <= h.hcp <= NT1[1] and not (
+            MAJOR_NOT_1NT and max(h.len[m] for m in MAJORS) >= 5):
         return '1NT', "15-17 HCP, balanced."
     game = _long_game(ctx, SUITS) if LONG_GAME and LONG_GAME_OPEN else None
     if game:
