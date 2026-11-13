@@ -5624,12 +5624,19 @@ FREE_ADVANCE_LONG_LEN = 6
 FREE_ADVANCE_LONG_HCP = 3
 FREE_ADVANCE_LONG_MAJORS = True
 FREE_ADVANCE_LONG_LEVEL = 2
+#: Only when RHO's bid raised opener's suit (P P 1C X 2C), not a new suit.
+FREE_ADVANCE_LONG_RAISE_ONLY = False
 
 
 def _free_advance_long(ctx: Ctx, theirs: list[str]) -> tuple | None:
     h = ctx.h
     if not FREE_ADVANCE_LONG_HCP <= h.hcp < 6:
         return None
+    if FREE_ADVANCE_LONG_RAISE_ONLY:
+        bids = [c for w, c in ctx.calls if w not in (ctx.me, ctx.pd) and parse_bid(c)]
+        if len(bids) != 2 or strain_of(bids[0]) != strain_of(bids[1]) \
+                or strain_of(bids[0]) not in SUITS:
+            return None
     suits = [s for s in (MAJORS if FREE_ADVANCE_LONG_MAJORS else SUITS)
              if s not in theirs and h.len[s] >= FREE_ADVANCE_LONG_LEN]
     if not suits:
