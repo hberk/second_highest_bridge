@@ -900,15 +900,21 @@ def test_competes_to_the_level_of_the_fit():
 def test_game_is_judged_on_the_fit():
     """Deal 248: 1♣ (P) 1♠ (P) 2♠ (P) with ♠Q985 ♥KQ9 ♦J10965 ♣10. Opener's
     raise shows four, so eight trumps, two short of the ten a game wants
-    here: the hand passes 2♠ (ten tricks were not there) instead of 4♠."""
+    here: the hand passes 2♠ (ten tricks were not there) instead of 4♠.
+    Since RAISE_TRY_GAME (2026-11-13) the direct game test adds the six back,
+    so this 15-point hand bids 4♠ again: the fresh deals measured that as a
+    gain overall, deal 248 is one it loses."""
     north = 'QS 9S 8S 5S KH QH 9H JD 10D 9D 6D 5D 10C'
     auction = ('Pass', '1C', 'Pass', '1S', 'Pass', '2S', 'Pass')
-    assert bid(north, *auction, dealer='East')[0] == 'Pass'
-    gib.FIT_COUNT = False
+    assert bid(north, *auction, dealer='East')[0] == '4S'
+    gib.RAISE_TRY_GAME = 0
     try:
+        assert bid(north, *auction, dealer='East')[0] == 'Pass'
+        gib.FIT_COUNT = False
         assert bid(north, *auction, dealer='East')[0] == '4S'
     finally:
         gib.FIT_COUNT = True
+        gib.RAISE_TRY_GAME = 6
     # A void opposite the fit counts too.
     assert gib._fit_bonus(gib.Hand(hand(north)), 'S', 4) == -6
     assert gib._fit_bonus(gib.Hand(hand('QS 9S 8S 5S 4S KH QH 9H JD 10D 9D 6D 5D')), 'S', 5) == 3
@@ -2087,3 +2093,13 @@ def test_fit_over_3nt_never_lands_on_stayman():
     south = 'JS KH QH 2H JD KC JC 9C 7C 5C 4C 3C 2C'
     call, _ = bid(south, '1NT', 'Pass', dealer='North')
     assert call == '3NT', call
+
+
+# ── Responder's game after opener's single raise (RAISE_TRY_GAME) ─────────────
+
+def test_responder_bids_game_over_a_single_raise():
+    """1♦ 1♥ 2♥ with ♠Q3 ♥A1095 ♦KQ975 ♣K10 (17 judgement points): 4♥, not
+    pass (the user's deal, 2026-11-13; East-West take 12 tricks)."""
+    east = 'QS 3S AH 10H 9H 5H KD QD 9D 7D 5D KC 10C'
+    call, why = bid(east, '1D', 'Pass', '1H', 'Pass', '2H', 'Pass', dealer='West')
+    assert call == '4H' and 'To play' in why, (call, why)

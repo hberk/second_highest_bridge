@@ -922,14 +922,14 @@ def _rebid_over_new_suit(ctx: Ctx, x: str, y: str) -> tuple:
 # What opener's rebid showed, (low, high) HCP.
 #: Responder after opener's single raise of a one-level major (1x-1M-2M), the
 #: user's deal of 2026-11-13: W 1♦ E 1♥ W 2♥ with East ♠Q3 ♥A1095 ♦KQ975 ♣K10
-#: (14 HCP, 17 judgement points) passed, because the known 4-4 fit counts
-#: FIT_POINTS × (8 - FIT_BASE) = -6, so 11 + 14 fell one short of an invitation.
-#: Experiment, off: RAISE_TRY_BONUS adds to the hand's points for both game and
-#: the invitation; RAISE_TRY_INVITE lowers only the invitation's bar, and
-#: RAISE_TRY_GAME only the bar for bidding game directly.
-RAISE_TRY_BONUS = 0
-RAISE_TRY_INVITE = 0
-RAISE_TRY_GAME = 0
+#: (17 judgement points) passed, because the known 4-4 fit counts
+#: FIT_POINTS × (8 - FIT_BASE) = -6, and 11 + 14 fell one short of even an
+#: invitation; East-West take 12 tricks in hearts. RAISE_TRY_GAME is added to
+#: the hand for the direct game test only: game on 15+ with four trumps, 12+
+#: with five. 3 seeds × 25,000 fresh deals: +0.24, +0.27, +0.29 a board
+#: (t = +6.8 to +8.3, ~500 auctions changed a seed). More invitations lost
+#: (opener declines, and 3M fails where 2M made), so the invitation is untouched.
+RAISE_TRY_GAME = 6
 
 
 def opener_range(seq: list[str]) -> tuple[int, int]:
@@ -1012,10 +1012,10 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
                 return '4NT', f"Keycard Blackwood for {SYM[y]}. Artificial."
             if ol >= 4:
                 return 'Pass', "Partner placed the contract."
-            fit = hcp + _fit_bonus(h, y, 4) + RAISE_TRY_BONUS
+            fit = hcp + _fit_bonus(h, y, 4)
             if fit + lo + RAISE_TRY_GAME >= GAME_MAJOR:
                 return f"4{y}", TO_PLAY
-            if fit + hi + RAISE_TRY_INVITE >= GAME_MAJOR and ol == 2:
+            if fit + hi >= GAME_MAJOR and ol == 2:
                 return f"3{y}", "Invitational."
             return 'Pass', "No game."
         if hcp + lo >= GAME:
