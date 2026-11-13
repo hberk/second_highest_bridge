@@ -2087,3 +2087,21 @@ def test_fit_over_3nt_never_lands_on_stayman():
     south = 'JS KH QH 2H JD KC JC 9C 7C 5C 4C 3C 2C'
     call, _ = bid(south, '1NT', 'Pass', dealer='North')
     assert call == '3NT', call
+
+
+# ── No 3NT on a minor fit with a short suit (MINOR_NO_3NT) ────────────────────
+
+def test_no_3nt_on_a_minor_fit_with_a_singleton():
+    """The user's deal (2026-11-12): 1♦ 1♥ 1♠ 3♦ with a singleton club. 3NT
+    went down; pass partner's invitation instead."""
+    south = 'KS QS JS 9S AH 9H 4H AD QD 10D 8D 5D 4C'
+    call, _ = bid(south, '1D', 'Pass', '1H', 'Pass', '1S', 'Pass', '3D', 'Pass', dealer='South')
+    assert call == 'Pass', call
+
+
+def test_no_pass_of_a_game_force_with_a_void():
+    """2♣ 2♦ 3♣ is game forcing: with a void in diamonds, 5♣, not 3NT and
+    not a pass (deal 276, seed 7M)."""
+    south = 'QS 9S 8S 7S JH 9H 6H 5H 4H 10C 6C 4C 2C'
+    call, why = bid(south, '2C', 'Pass', '2D', 'Pass', '3C', 'Pass', dealer='North')
+    assert call == '5C' and 'To play' in why, (call, why)

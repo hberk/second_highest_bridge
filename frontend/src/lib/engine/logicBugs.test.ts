@@ -52,3 +52,12 @@ test('the fit rule never lands on Stayman over 1NT', () => {
   const south = 'JS KH QH 2H JD KC JC 9C 7C 5C 4C 3C 2C';
   expect(bid(south, 'North', ['1NT', 'Pass']).call).toBe('3NT');
 });
+// tests/test_gib.py: MINOR_NO_3NT (the user's deal, 2026-11-12).
+test('no 3NT on a minor fit with a singleton: pass the invitation', () => {
+  const south = 'KS QS JS 9S AH 9H 4H AD QD 10D 8D 5D 4C';
+  expect(bid(south, 'South', ['1D', 'Pass', '1H', 'Pass', '1S', 'Pass', '3D', 'Pass']).call).toBe('Pass');
+});
+test('no pass of a game force: 5C with a void', () => {
+  const south = 'QS 9S 8S 7S JH 9H 6H 5H 4H 10C 6C 4C 2C';
+  expect(bid(south, 'North', ['2C', 'Pass', '2D', 'Pass', '3C', 'Pass']).call).toBe('5C');
+});

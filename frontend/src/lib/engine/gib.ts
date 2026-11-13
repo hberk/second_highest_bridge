@@ -312,6 +312,7 @@ export function gibBid(player: Seat, cards: Card[], auction: AuctionState): Deci
   decision = totalTricks(ctx, decision) ?? decision;
   decision = majorOverNotrump(ctx, decision) ?? decision;
   decision = fitOverNotrump(ctx, decision) ?? decision;
+  decision = minorNotNotrump(ctx, decision) ?? decision;
   if (decision === null) return null;
   if (!ctx.legal.includes(decision[0] as string)) {
     ILLEGAL.push([ctx.calls, decision]);
@@ -2499,6 +2500,46 @@ function fitOverNotrump(ctx: Ctx, decision: Decision | null): Decision | null {
   }
   if (best === null) return null;
   return [best[1], TO_PLAY];
+}
+
+/** No 3NT on a minor fit with a suit nobody has stopped (the user's deal,
+ *  2026-11-12: 1♦ 1♥ 1♠ 3♦ 3NT on ♠KQJ9 ♥A94 ♦AQT85 ♣4, -100 with 5♦ cold).
+ *  Where a rule is about to bid 3NT "To play", the auction has shown an
+ *  eight-card minor fit, and I hold MINOR_SHORT or fewer cards in a suit
+ *  partner hasn't shown, bid five of the minor instead, or
+ *  (MINOR_NO_3NT_PASS) pass partner's three of it where the auction is not
+ *  game forcing. See gib.py. */
+export const MINOR_NO_3NT = true;
+export const MINOR_NO_3NT_PASS = true;
+export const MINOR_NO_3NT_LEVEL = 5;
+export const MINOR_SHORT = 1;
+
+function minorNotNotrump(ctx: Ctx, decision: Decision | null): Decision | null {
+  if (!MINOR_NO_3NT || decision === null || decision[0] !== '3NT' || decision[1] !== TO_PLAY) return null;
+  if (ctx.auction.doubled !== 'None' || inNotrumpSystem(ctx)) return null;
+  const theirs = theirSuits(ctx);
+  let best: [number, Suit] | null = null;
+  for (const m of MINORS) {
+    if (theirs.includes(m)) continue;
+    const shown = partnerLength(ctx, m);
+    const n = ctx.h.len[m] + shown;
+    if (shown && n >= 8 && (best === null || n > best[0])) best = [n, m];
+  }
+  if (best === null) return null;
+  const m = best[1];
+  const mine = new Set<string | null>();
+  ctx.ours.forEach(([w], i) => { if (w === ctx.me) mine.add(shownSuit(ctx.seq, i, ctx.natural)); });
+  const short = SUITS.filter((s) => s !== m && ctx.h.len[s] <= MINOR_SHORT
+    && !partnerLength(ctx, s) && !mine.has(s));
+  if (short.length === 0) return null;
+  const hb = ctx.auction.highestBid;
+  if (MINOR_NO_3NT_PASS && hb && hb[0] === 3 && hb[1] === m && hb[2] === ctx.pd
+    && !gameForced(ctx.seq, ctx)) {
+    return ['Pass', 'Declining the invitation.'];
+  }
+  const call = ctx.cheapest(m, MINOR_NO_3NT_LEVEL);
+  if (call && levelOf(call) <= 5) return [call, TO_PLAY];
+  return null;
 }
 
 /** Have both of us bid `s` naturally? */

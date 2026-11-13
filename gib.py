@@ -340,6 +340,7 @@ def gib_bid(player: str, cards: list[Card], auction: AuctionState) -> tuple | No
     decision = _total_tricks(ctx, decision) or decision
     decision = _major_over_notrump(ctx, decision) or decision
     decision = _fit_over_notrump(ctx, decision) or decision
+    decision = _minor_not_notrump(ctx, decision) or decision
     if decision is None:
         return None
     if decision[0] not in ctx.legal:
@@ -2705,6 +2706,55 @@ def _fit_over_notrump(ctx: Ctx, decision: tuple | None) -> tuple | None:
     if best is None:
         return None
     return best[1], TO_PLAY
+
+
+#: No 3NT on a minor fit with a suit nobody has stopped (the user's deal,
+#: 2026-11-12: 1♦ 1♥ 1♠ 3♦ 3NT on ♠KQJ9 ♥A94 ♦AQT85 ♣4 opposite ♠T ♥KQJ5
+#: ♦KJ42 ♣Q972, -100 with 5♦ cold). Where a rule is about to bid 3NT "To
+#: play", the auction has shown an eight-card minor fit, and I hold
+#: MINOR_SHORT or fewer cards in a suit partner hasn't shown, bid five of
+#: the minor instead, or (MINOR_NO_3NT_PASS) pass partner's three of it
+#: where the auction is not game forcing. 3 x 5,000 fresh deals: five +0.28
+#: a board, four +0.24, pass +0.31 (but it passed game forces), pass when not
+#: game forced +0.30 (t = +3.8 to +4.2, 104 of 115 changed auctions better).
+#: A doubleton as short too (MINOR_SHORT = 2) +0.29, three times the changes
+#: and a third of them worse.
+MINOR_NO_3NT = True
+MINOR_NO_3NT_PASS = True
+MINOR_NO_3NT_LEVEL = 5
+MINOR_SHORT = 1
+
+
+def _minor_not_notrump(ctx: Ctx, decision: tuple | None) -> tuple | None:
+    if not MINOR_NO_3NT or decision is None or decision[0] != '3NT' or decision[1] != TO_PLAY:
+        return None
+    if ctx.auction.doubled != 'None' or _in_notrump_system(ctx):
+        return None
+    theirs = _their_suits(ctx)
+    best = None
+    for m in MINORS:
+        if m in theirs:
+            continue
+        shown = _partner_length(ctx, m)
+        n = ctx.h.len[m] + shown
+        if shown and n >= 8 and (best is None or n > best[0]):
+            best = (n, m)
+    if best is None:
+        return None
+    m = best[1]
+    mine = {shown_suit(ctx.seq, i, ctx.natural) for i, (w, _) in enumerate(ctx.ours) if w == ctx.me}
+    short = [s for s in SUITS if s != m and ctx.h.len[s] <= MINOR_SHORT
+             and not _partner_length(ctx, s) and s not in mine]
+    if not short:
+        return None
+    hb = ctx.auction.highest_bid
+    if (MINOR_NO_3NT_PASS and hb is not None and (hb[0], hb[1], hb[2]) == (3, m, ctx.pd)
+            and not _game_forced(ctx.seq, ctx)):
+        return 'Pass', "Declining the invitation."
+    call = ctx.cheapest(m, MINOR_NO_3NT_LEVEL)
+    if call and level_of(call) <= 5:
+        return call, TO_PLAY
+    return None
 
 
 def _agreed(ctx: Ctx, s: str) -> bool:
