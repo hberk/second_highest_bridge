@@ -4136,6 +4136,46 @@ function negXCompeted(ctx: Ctx): Decision | null {
 // 1NT 2♣ would uncontested; other hands keep Lebensohl (below).
 // Measured on 60,000 fresh boards: +0.00 a board. Kept as the user's system.
 export const NT_2C_SYSTEMS = true;
+// ...but the double promises a four-card major (the user, 2026-11-13). The
+// uncontested system also uses Stayman as its invitation with no major
+// (1NT 2♣ 2♦ 2NT), so 1NT (2♣) X was explained as Stayman on
+// ♠763 ♥KQJ ♦- ♣K976532: seven of their suit, no major. Without a major the
+// hand takes the Lebensohl answers below (which pass it).
+export const NT_2C_X_MAJOR = false;
+// The double's alert: the uncontested system's Stayman, which may hold no
+// major (an invitation), and Lebensohl's double, which holds one.
+const STAYMAN_DOUBLE = 'Stayman: a 4-card major, or invitational values. Artificial.';
+// Their bid over our Stayman double (1NT (2♣) X (2♦)): the auction runs as
+// Stayman contested (STAYMAN_CONTESTED): opener shows a four-card major it
+// can bid at the two level, responder raises or carries on. Before, opener's
+// 2♠ had no agreed meaning and the robots passed.
+export const STAYMAN_X_CONTESTED = false;
+
+/** 1NT (2♣) X, our double Stayman, then they bid again: answered as
+ *  1NT P 2♣ and their bid (`staymanContested`). */
+function staymanXContested(ctx: Ctx): Decision | null {
+  const seq = ctx.seq;
+  const calls = ctx.calls;
+  if (!(STAYMAN_X_CONTESTED && NT_2C_SYSTEMS && STAYMAN_CONTESTED
+        && seq.length >= 2 && seq[0] === '1NT' && seq[1] === 'X')) return null;
+  const us = (w: Seat) => w === ctx.me || w === ctx.pd;
+  const i = calls.findIndex(([, c]) => c === '1NT');
+  if (i + 2 >= calls.length || calls[i + 1][1] !== '2C' || calls[i + 2][1] !== 'X'
+      || calls[i + 2][0] === ctx.opener
+      || calls.slice(0, i).some(([w, c]) => !us(w) && c !== 'Pass')) return null;
+  // Theirs only passes: systems on.
+  if (!calls.slice(i + 3).some(([w, c]) => !us(w) && c !== 'Pass')) return null;
+  const mapped: Rec[] = [...calls.slice(0, i + 1), [calls[i + 1][0], 'Pass'],
+    [calls[i + 2][0], '2C'], ...calls.slice(i + 3)];
+  const ours = mapped.filter(([w, c]) => us(w) && c !== 'Pass');
+  const asStayman = Object.assign(Object.create(Object.getPrototypeOf(ctx)), ctx, {
+    calls: mapped,
+    ours,
+    theirs: mapped.filter(([w, c]) => !us(w) && c !== 'Pass'),
+    seq: ours.map(([, c]) => c),
+  }) as Ctx;
+  return staymanContested(asStayman);
+}
 
 /** `ctx` with our calls read as `seq`, for the uncontested notrump system. */
 function withSeq(ctx: Ctx, seq: string[]): Ctx {
@@ -4152,7 +4192,11 @@ function nt2CSystems(ctx: Ctx): Decision | null {
   if (seq.length === 1) {
     if (ctx.iAmOpener() || ctx.calls[ctx.calls.length - 1][1] !== '2C') return null;
     const decision = ntResponse(asOpened, 1, NT1[0], NT1[1]);
-    if (decision[0] === '2C' && ctx.ok('X')) return ['X', 'Stayman. Artificial.'];
+    if (decision[0] === '2C' && NT_2C_X_MAJOR) {
+      if (!MAJORS.some((m) => ctx.h.len[m] >= 4)) return null;
+      if (ctx.ok('X')) return ['X', 'Stayman: 4+ cards in a major. Artificial.'];
+    }
+    if (decision[0] === '2C' && ctx.ok('X')) return ['X', STAYMAN_DOUBLE];
     if (['2D', '2H', '4D', '4H'].includes(decision[0]) && ctx.ok(decision[0])) return decision;
     return null;
   }
@@ -4183,6 +4227,8 @@ function ntInterference(ctx: Ctx): Decision | null {
   }
   const systems = nt2CSystems(ctx);
   if (systems) return systems;
+  const staymanX = staymanXContested(ctx);
+  if (staymanX) return staymanX;
   if (STAYMAN_CONTESTED && (first === '1NT' || first === '2NT')) {
     const stayman = staymanContested(ctx);
     if (stayman) return stayman;
@@ -4202,7 +4248,7 @@ function ntInterference(ctx: Ctx): Decision | null {
   const their = strainOf(lb);
   if (seq.length === 1 && !ctx.iAmOpener()) {
     if (lb === '2C' && lastCall[1] === '2C' && ctx.ok('X') && MAJORS.some((m) => h.len[m] >= 4) && h.hcp >= 8) {
-      return ['X', 'Stayman. Artificial.'];
+      return ['X', STAYMAN_DOUBLE];
     }
     if (!negXSpot(ctx) && isSuit(their) && lb !== '2C' && h.len[their] >= 4 && h.hcp >= 8 && ctx.ok('X')) {
       return ['X', 'Penalty: 8+ HCP.'];

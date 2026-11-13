@@ -1934,6 +1934,34 @@ def test_systems_on_over_their_2c():
     assert call == '2NT', call
 
 
+
+def test_stayman_double_over_their_2c_shows_a_major():
+    """The user's deal, 2026-11-13: 1NT (2♣) X (2♦) and North's double was
+    explained as Stayman on ♠763 ♥KQJ ♦- ♣K976532: no major, seven of their
+    suit. With NT_2C_X_MAJOR the double promises a four-card major (the hand
+    passes 2♣); with STAYMAN_X_CONTESTED opener answers it over their 2♦."""
+    north = '7S 6S 3S KH QH JH KC 9C 7C 6C 5C 3C 2C'
+    south = 'AS KS 10S 8S 2S AH 9H 8H 10D 9D 7D AC 10C'
+    with_major = '7S 6S 3S 2S KH QH JH KC 9C 7C 5C 3C 2C'
+    saved = gib.NT_2C_X_MAJOR, gib.STAYMAN_X_CONTESTED
+    try:
+        gib.NT_2C_X_MAJOR = gib.STAYMAN_X_CONTESTED = False
+        # The double says what it shows: a major, or an invitation without one.
+        assert bid(north, '1NT', '2C', dealer='South') == ('X', gib.STAYMAN_DOUBLE)
+        assert 'invitational' in gib.STAYMAN_DOUBLE and len(gib.STAYMAN_DOUBLE) < 70
+        assert bid(south, '1NT', '2C', 'X', '2D', dealer='South')[0] == 'Pass'
+        gib.NT_2C_X_MAJOR = gib.STAYMAN_X_CONTESTED = True
+        assert bid(north, '1NT', '2C', dealer='South')[0] == 'Pass'
+        call, why = bid(with_major, '1NT', '2C', dealer='South')
+        assert call == 'X' and '4+' in why and 'major' in why, (call, why)
+        assert bid(south, '1NT', '2C', 'X', '2D', dealer='South') == ('2S', '4+ ♠.')
+        call, _ = bid(with_major, '1NT', '2C', 'X', '2D', '2S', 'Pass', dealer='South')
+        assert call in ('3S', '4S'), call
+        # They only passed: systems on, as before.
+        assert bid(south, '1NT', '2C', 'X', 'Pass', dealer='South')[0] == '2S'
+    finally:
+        gib.NT_2C_X_MAJOR, gib.STAYMAN_X_CONTESTED = saved
+
 TRANSFER_INTERFERED_CASES = [
     # (dealer, calls, hand, call): the review of PR #65, 2026-11-05.
     ('West', ('1NT', '2C', '2H', 'X'), 'KS 8S 4S KH JH 4H QD 10D 7D AC 7C 5C 4C', '2S'),

@@ -261,7 +261,7 @@ const PLAIN: Record<string, string> = {
   'Reopening double': "Asks partner to bid, but partner may pass and defend if they hold the opponents' suit.",
   Transfer: 'Asks partner to bid the next suit up, so the stronger hand plays the contract.',
   'Texas transfer': 'A transfer at the four level: partner bids the next suit up, and that is usually where you play.',
-  Stayman: 'Asks partner whether they have four cards in a major suit. It says nothing about clubs.',
+  Stayman: 'Asks partner for a four-card major. The asker holds one, or has an invitation without one. It says nothing about clubs.',
   'Minor Stayman': 'Asks partner about the minor suits, looking for a fit there.',
   Smolen: 'After Stayman finds no major, bids the four-card major to show five of the other one, so the notrump hand plays it.',
   Gerber: 'Asks partner how many aces they hold, on the way to a slam.',
