@@ -829,10 +829,10 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   (`STAYMAN_X_CONTESTED`) both measured worse (ROBOT_PROGRESS, 11-13): off.
   The minor transfers (2NT clubs, 3♣ diamonds; `NT_2C_MINOR_TRANSFERS`)
   measured neutral, +0.06 a board over three seeds, and are on (the user's
-  system, 2026-11-13). With them on, Lebensohl's 2NT relay is gone over 2♣:
-  the weak five-card diamond hand it relayed to 3♦ transfers with 3♣ instead,
-  so 3♣ is alerted "5+ ♦" (`NT_2C_TO_D`; the PR #70 review: 1NT (2♣) 2NT was
-  "Lebensohl", opener completed the club transfer, and 3♣ was passed with ♣52).
+  system, 2026-11-13). With them on, Lebensohl's 2NT relay is gone over 2♣
+  (the PR #70 review: 1NT (2♣) 2NT was "Lebensohl", opener completed the club
+  transfer, and 3♣ was passed with ♣52). A minor transfer wants six (the
+  user, 2026-11-13), so the weak five-card diamond hand it relayed to 3♦ passes.
 - **A doubled or overcalled systems-on transfer** (`TRANSFER_INTERFERED`,
   `_transfer_interfered`; the review of PR #65, 2026-11-05). Over their 2♣ and
   over our double of their 1NT, when they double our 2♦/2♥ transfer or bid

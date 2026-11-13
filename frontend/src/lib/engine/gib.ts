@@ -4247,9 +4247,9 @@ function withSeq(ctx: Ctx, seq: string[]): Ctx {
   return Object.assign(Object.create(Object.getPrototypeOf(ctx)), ctx, { seq }) as Ctx;
 }
 
-// Over their 2♣ the transfer to diamonds (3♣) also takes the weak five-card
-// hands that Lebensohl relayed through 2NT, which is now the club transfer.
-const NT_2C_TO_D = `Transfer: 5+ ${SYM.D}. Artificial.`;
+// With the minor transfers on over their 2♣, 2NT is the club transfer, so
+// Lebensohl's 2NT relay is gone there; a minor transfer wants six (the user,
+// 2026-11-13), so the weak five-card diamond hand passes 2♣.
 
 /** Our 1NT, their 2♣ straight after it, and nothing else from them. */
 function nt2CSystemsOn(ctx: Ctx): boolean {
@@ -4273,9 +4273,7 @@ function nt2CSystems(ctx: Ctx): Decision | null {
     }
     if (decision[0] === '2C' && ctx.ok('X')) return ['X', STAYMAN_DOUBLE];
     if (['2D', '2H', '4D', '4H'].includes(decision[0]) && ctx.ok(decision[0])) return decision;
-    if (NT_2C_MINOR_TRANSFERS && ['2NT', '3C'].includes(decision[0]) && ctx.ok(decision[0])) {
-      return decision[0] === '3C' ? ['3C', NT_2C_TO_D] : decision;
-    }
+    if (NT_2C_MINOR_TRANSFERS && ['2NT', '3C'].includes(decision[0]) && ctx.ok(decision[0])) return decision;
     return null;
   }
   if (!['X', '2D', '2H', ...(NT_2C_MINOR_TRANSFERS ? ['2NT', '3C'] : [])].includes(seq[1])) return null;
@@ -4354,11 +4352,7 @@ function ntInterference(ctx: Ctx): Decision | null {
         if (NT_2C_SYSTEMS && lb === '2C' && (call === '2D' || call === '2H')) call = `3${s}`;   // transfers
         if (call && levelOf(call) === 2) return [call, `5+ ${SYM[s]}, to play.`];
         if (call && levelOf(call) === 3 && h.hcp <= 9 && ctx.ok('2NT')) {
-          if (nt2CSystemsOn(ctx) && NT_2C_MINOR_TRANSFERS) {
-            // 2NT is the transfer to clubs here: diamonds transfer.
-            if (s === 'D' && ctx.ok('3C')) return ['3C', NT_2C_TO_D];
-            continue;
-          }
+          if (nt2CSystemsOn(ctx) && NT_2C_MINOR_TRANSFERS) continue;   // 2NT is the club transfer; 3♣ wants six ♦
           return ['2NT', 'Lebensohl: relay to 3C. Artificial.'];
         }
       }

@@ -4696,11 +4696,11 @@ def _stayman_x_contested(ctx: Ctx) -> tuple | None:
     return _stayman_contested(as_stayman)
 
 
-#: Over their 2♣ the transfer to diamonds (3♣) also takes the weak five-card
-#: hands that Lebensohl relayed through 2NT, which is now the club transfer
-#: (found reviewing v0.1.6-alpha: 1NT (2♣) 2NT "Lebensohl", opener completed
-#: the club transfer and responder passed 3♣ with ♣52 and five diamonds).
-NT_2C_TO_D = f"Transfer: 5+ {SYM['D']}. Artificial."
+#: With the minor transfers on over their 2♣, 2NT is the club transfer, so
+#: Lebensohl's 2NT relay is gone there (found reviewing v0.1.6-alpha: 1NT (2♣)
+#: 2NT "Lebensohl", opener completed the club transfer and responder passed 3♣
+#: with ♣52 and five diamonds). A minor transfer wants six (the user,
+#: 2026-11-13), so the weak five-card diamond hand passes 2♣.
 
 
 def _nt_2c_systems_on(ctx: Ctx) -> bool:
@@ -4732,7 +4732,7 @@ def _nt_2c_systems(ctx: Ctx) -> tuple | None:
         if decision[0] in ('2D', '2H', '4D', '4H') and ctx.ok(decision[0]):
             return decision
         if NT_2C_MINOR_TRANSFERS and decision[0] in ('2NT', '3C') and ctx.ok(decision[0]):
-            return (decision[0], NT_2C_TO_D) if decision[0] == '3C' else decision
+            return decision
         return None
     if seq[1] not in ('X', '2D', '2H') + (('2NT', '3C') if NT_2C_MINOR_TRANSFERS else ()):
         return None
@@ -4814,10 +4814,7 @@ def _nt_interference(ctx: Ctx) -> tuple | None:
                     return call, f"5+ {SYM[s]}, to play."
                 if call and level_of(call) == 3 and h.hcp <= 9 and ctx.ok('2NT'):
                     if _nt_2c_systems_on(ctx) and NT_2C_MINOR_TRANSFERS:
-                        # 2NT is the transfer to clubs here: diamonds transfer.
-                        if s == 'D' and ctx.ok('3C'):
-                            return '3C', NT_2C_TO_D
-                        continue
+                        continue    # 2NT is the club transfer; 3♣ wants six ♦
                     return '2NT', "Lebensohl: relay to 3C. Artificial."
         return 'Pass', "Nothing to show."
     competed = _neg_x_competed(ctx)

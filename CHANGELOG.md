@@ -26,8 +26,8 @@ one screen fix.
   one-suiters; two-suiters bid Cappelletti. After the Lebensohl runout
   double, the 2NT relayer names his suit over 3♣.
 - Over our 1NT and their 2♣, the Stayman double's alert says what it shows,
-  and systems on keeps the minor transfers (2NT clubs, 3♣ diamonds; 3♣ also
-  takes the weak five-card diamond hands that relayed through 2NT before).
+  and systems on keeps the minor transfers (2NT clubs, 3♣ diamonds, six
+  cards); Lebensohl's 2NT relay is gone there.
 - Bidding training: the double dummy table has suit headers over the tricks
   row.
 
