@@ -15,8 +15,8 @@ one screen fix.
   bids game on 15+ judgement points with four trumps instead of needing 21
   (+0.24 to +0.29 a board, three seeds).
 - No 3NT "to play" on an eight-card minor fit with a singleton or void in a
-  suit partner hasn't shown: pass partner's three of the minor, or bid five
-  of it when game forced (+0.27 to +0.34 a board).
+  suit partner hasn't shown: pass partner's three of the minor when the
+  auction isn't game forcing, otherwise bid five of it (+0.27 to +0.34 a board).
 - After our Michaels or Unusual 2NT, advancer with six of partner's major
   bids game in it at once.
 - Opener's new suit after one of a suit shows two suits; partner with as many
@@ -26,7 +26,8 @@ one screen fix.
   one-suiters; two-suiters bid Cappelletti. After the Lebensohl runout
   double, the 2NT relayer names his suit over 3♣.
 - Over our 1NT and their 2♣, the Stayman double's alert says what it shows,
-  and systems on keeps the minor transfers (2NT clubs, 3♣ diamonds).
+  and systems on keeps the minor transfers (2NT clubs, 3♣ diamonds; 3♣ also
+  takes the weak five-card diamond hands that relayed through 2NT before).
 - Bidding training: the double dummy table has suit headers over the tricks
   row.
 

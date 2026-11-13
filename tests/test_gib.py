@@ -2019,6 +2019,11 @@ def test_systems_on_over_their_2c():
     opener = 'AS KS 10S 8S AH 9H 8H 10D 9D 7D AC 10C 3C'
     assert bid(opener, '1NT', '2C', '2NT', 'Pass', dealer='West')[0] == '3C'
     assert bid(opener, '1NT', '2C', '3C', 'Pass', dealer='West')[0] == '3D'
+    # A weak five-card diamond suit transfers too: 2NT, Lebensohl's relay
+    # before, is the club transfer now, and opener would complete it.
+    five = '8S 5S 3S 7H 4H 2H QD JD 9D 7D 6D 5C 2C'
+    assert bid(five, '1NT', '2C', dealer='West') == ('3C', gib.NT_2C_TO_D)
+    assert bid(five, '1NT', '2C', '3C', 'Pass', '3D', 'Pass', dealer='West')[0] == 'Pass'
 
 
 

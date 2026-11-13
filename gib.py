@@ -930,6 +930,8 @@ def _rebid_over_new_suit(ctx: Ctx, x: str, y: str) -> tuple:
 #: with five. 3 seeds × 25,000 fresh deals: +0.24, +0.27, +0.29 a board
 #: (t = +6.8 to +8.3, ~500 auctions changed a seed). More invitations lost
 #: (opener declines, and 3M fails where 2M made), so the invitation is untouched.
+#: The same test answers opener's jump raise (1x-1M-3M, 15-17), so there too
+#: game comes 6 points sooner; those auctions were in the measurement.
 RAISE_TRY_GAME = 6
 
 
@@ -4694,12 +4696,25 @@ def _stayman_x_contested(ctx: Ctx) -> tuple | None:
     return _stayman_contested(as_stayman)
 
 
-def _nt_2c_systems(ctx: Ctx) -> tuple | None:
+#: Over their 2♣ the transfer to diamonds (3♣) also takes the weak five-card
+#: hands that Lebensohl relayed through 2NT, which is now the club transfer
+#: (found reviewing v0.1.6-alpha: 1NT (2♣) 2NT "Lebensohl", opener completed
+#: the club transfer and responder passed 3♣ with ♣52 and five diamonds).
+NT_2C_TO_D = f"Transfer: 5+ {SYM['D']}. Artificial."
+
+
+def _nt_2c_systems_on(ctx: Ctx) -> bool:
+    """Our 1NT, their 2♣ straight after it, and nothing else from them."""
     seq = ctx.seq
     if not NT_2C_SYSTEMS or not seq or seq[0] != '1NT' or [c for _, c in ctx.theirs] != ['2C']:
-        return None
+        return False
     i = next(k for k, (w, c) in enumerate(ctx.calls) if c == '1NT')
-    if i + 1 >= len(ctx.calls) or ctx.calls[i + 1][1] != '2C':
+    return i + 1 < len(ctx.calls) and ctx.calls[i + 1][1] == '2C'
+
+
+def _nt_2c_systems(ctx: Ctx) -> tuple | None:
+    seq = ctx.seq
+    if not _nt_2c_systems_on(ctx):
         return None
     as_opened = copy.copy(ctx)
     as_opened.seq = seq[:1] + ['2C' if c == 'X' and k == 1 else c for k, c in enumerate(seq[1:], 1)]
@@ -4717,7 +4732,7 @@ def _nt_2c_systems(ctx: Ctx) -> tuple | None:
         if decision[0] in ('2D', '2H', '4D', '4H') and ctx.ok(decision[0]):
             return decision
         if NT_2C_MINOR_TRANSFERS and decision[0] in ('2NT', '3C') and ctx.ok(decision[0]):
-            return decision
+            return (decision[0], NT_2C_TO_D) if decision[0] == '3C' else decision
         return None
     if seq[1] not in ('X', '2D', '2H') + (('2NT', '3C') if NT_2C_MINOR_TRANSFERS else ()):
         return None
@@ -4798,6 +4813,11 @@ def _nt_interference(ctx: Ctx) -> tuple | None:
                 if call and level_of(call) == 2:
                     return call, f"5+ {SYM[s]}, to play."
                 if call and level_of(call) == 3 and h.hcp <= 9 and ctx.ok('2NT'):
+                    if _nt_2c_systems_on(ctx) and NT_2C_MINOR_TRANSFERS:
+                        # 2NT is the transfer to clubs here: diamonds transfer.
+                        if s == 'D' and ctx.ok('3C'):
+                            return '3C', NT_2C_TO_D
+                        continue
                     return '2NT', "Lebensohl: relay to 3C. Artificial."
         return 'Pass', "Nothing to show."
     competed = _neg_x_competed(ctx)

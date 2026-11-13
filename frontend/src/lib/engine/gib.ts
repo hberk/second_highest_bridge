@@ -4247,12 +4247,22 @@ function withSeq(ctx: Ctx, seq: string[]): Ctx {
   return Object.assign(Object.create(Object.getPrototypeOf(ctx)), ctx, { seq }) as Ctx;
 }
 
-function nt2CSystems(ctx: Ctx): Decision | null {
+// Over their 2♣ the transfer to diamonds (3♣) also takes the weak five-card
+// hands that Lebensohl relayed through 2NT, which is now the club transfer.
+const NT_2C_TO_D = `Transfer: 5+ ${SYM.D}. Artificial.`;
+
+/** Our 1NT, their 2♣ straight after it, and nothing else from them. */
+function nt2CSystemsOn(ctx: Ctx): boolean {
   const seq = ctx.seq;
   if (!NT_2C_SYSTEMS || !seq.length || seq[0] !== '1NT'
-      || ctx.theirs.length !== 1 || ctx.theirs[0][1] !== '2C') return null;
+      || ctx.theirs.length !== 1 || ctx.theirs[0][1] !== '2C') return false;
   const i = ctx.calls.findIndex(([, c]) => c === '1NT');
-  if (i + 1 >= ctx.calls.length || ctx.calls[i + 1][1] !== '2C') return null;
+  return i + 1 < ctx.calls.length && ctx.calls[i + 1][1] === '2C';
+}
+
+function nt2CSystems(ctx: Ctx): Decision | null {
+  const seq = ctx.seq;
+  if (!nt2CSystemsOn(ctx)) return null;
   const asOpened = withSeq(ctx, seq.map((c, k) => (k === 1 && c === 'X' ? '2C' : c)));
   if (seq.length === 1) {
     if (ctx.iAmOpener() || ctx.calls[ctx.calls.length - 1][1] !== '2C') return null;
@@ -4263,7 +4273,9 @@ function nt2CSystems(ctx: Ctx): Decision | null {
     }
     if (decision[0] === '2C' && ctx.ok('X')) return ['X', STAYMAN_DOUBLE];
     if (['2D', '2H', '4D', '4H'].includes(decision[0]) && ctx.ok(decision[0])) return decision;
-    if (NT_2C_MINOR_TRANSFERS && ['2NT', '3C'].includes(decision[0]) && ctx.ok(decision[0])) return decision;
+    if (NT_2C_MINOR_TRANSFERS && ['2NT', '3C'].includes(decision[0]) && ctx.ok(decision[0])) {
+      return decision[0] === '3C' ? ['3C', NT_2C_TO_D] : decision;
+    }
     return null;
   }
   if (!['X', '2D', '2H', ...(NT_2C_MINOR_TRANSFERS ? ['2NT', '3C'] : [])].includes(seq[1])) return null;
@@ -4342,6 +4354,11 @@ function ntInterference(ctx: Ctx): Decision | null {
         if (NT_2C_SYSTEMS && lb === '2C' && (call === '2D' || call === '2H')) call = `3${s}`;   // transfers
         if (call && levelOf(call) === 2) return [call, `5+ ${SYM[s]}, to play.`];
         if (call && levelOf(call) === 3 && h.hcp <= 9 && ctx.ok('2NT')) {
+          if (nt2CSystemsOn(ctx) && NT_2C_MINOR_TRANSFERS) {
+            // 2NT is the transfer to clubs here: diamonds transfer.
+            if (s === 'D' && ctx.ok('3C')) return ['3C', NT_2C_TO_D];
+            continue;
+          }
           return ['2NT', 'Lebensohl: relay to 3C. Artificial.'];
         }
       }
