@@ -4811,6 +4811,14 @@ function overNtResponse(ctx: Ctx): Decision | null {
   return null;
 }
 
+// After their 1NT opening, a three-level simple overcall needs six cards; a
+// five-card hand passes (gib.py OVERCALL_3_AFTER_1NT, 2026-11-13).
+export const OVERCALL_3_AFTER_1NT = 6;
+
+function firstBid1nt(ctx: Ctx): boolean {
+  return (ctx.calls.find(([, c]) => c !== 'Pass')?.[1] ?? null) === '1NT';
+}
+
 function defend(ctx: Ctx): Decision | null {
   const h = ctx.h;
   const hcp = h.hcp;
@@ -4906,7 +4914,12 @@ function defend(ctx: Ctx): Decision | null {
         }
       }
       const need = [base[0] - bal, base[1]];
+      const three = levelOf(call) === 3 && firstBid1nt(ctx) ? OVERCALL_3_AFTER_1NT : 0;
       if (!weak2 && levelOf(call) <= 3 && need[0] <= hcp && hcp <= need[1] && (levelOf(call) <= 2 || hcp >= 12 - bal)) {
+        if (three) {
+          if (h.len[s] < three) return ['Pass', 'No action.'];
+          return [call, `${three}+ ${SYM[s]}, ${12 - bal}-${need[1]} HCP. Overcall.`];
+        }
         if (bal) return [call, `5+ ${SYM[s]}, ${need[0]}-${need[1]} HCP. Balancing.`];
         return [call, `5+ ${SYM[s]}, ${need[0]}-${need[1]} HCP. Overcall.`];
       }

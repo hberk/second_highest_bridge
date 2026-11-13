@@ -1458,6 +1458,18 @@ def test_balancing_over_a_weak_two_needs_six_cards():
     assert bid('QS JS 10S 7S 4S 2S AH 10H 9D 2D 10C 7C 5C', '2D')[0] == 'Pass'
 
 
+def test_three_level_overcall_after_their_1nt_needs_six_cards():
+    # 1NT P 2NT P 3♣ P P (the user's deal, 2026-11-13): AK Q64 K9842 965 no
+    # longer bids 3♦ on five poor diamonds, and does not double instead.
+    auction = ('1NT', 'Pass', '2NT', 'Pass', '3C', 'Pass', 'Pass')
+    assert bid('AS KS QH 6H 4H KD 9D 8D 4D 2D 9C 6C 5C', *auction) == ('Pass', 'No action.')
+    # Six diamonds still compete, and say so.
+    assert bid('AS KS QH 6H KD 9D 8D 4D 3D 2D 9C 6C 5C', *auction) == \
+        ('3D', '6+ ♦, 12-17 HCP. Overcall.')
+    # Over a weak two, five cards still overcall at the three level.
+    assert bid('AS 4S QH 6H 4H AD KD 8D 4D 2D 9C 6C 5C', '2S')[0] == '3D'
+
+
 def test_lott_total_competes_one_level_more_with_values_only():
     # 1♠ 2♥ 3♠: nine hearts, a singleton spade, their eight-card fit: 4♥ with
     # 6 HCP, but never with 3 (the user's call after review).

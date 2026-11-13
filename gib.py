@@ -5333,30 +5333,19 @@ def _over_nt_response(ctx: Ctx) -> tuple | None:
     return None
 
 
-#: A simple overcall at the three level on any five-card suit with 12+ HCP:
-#: South's ♠AK ♥Q64 ♦K9842 ♣965 bid 3♦ over 1NT P 2NT P 3♣ P P and went
-#: -500 doubled against -130 (the user's deal, 2026-11-13). None keeps it;
-#: 'len6' needs six cards at the three level; 'good' needs six cards or a
-#: good five-card suit; 'nt' needs six cards only when their first bid was
-#: 1NT (a strong hand behind the suit, and a fit found).
-OVERCALL_3: str | None = None
-#: ... and a hand it stops passes, rather than trying a takeout double.
-OVERCALL_3_PASS = False
+#: After their 1NT opening, a simple overcall at the three level needs six
+#: cards; a five-card hand passes (it does not double instead). South's ♠AK
+#: ♥Q64 ♦K9842 ♣965 bid 3♦ over 1NT P 2NT P 3♣ P P and went -500 doubled
+#: against -130 (the user's deal, 2026-11-13): after their third bid the
+#: Cappelletti branch no longer applies, and the plain overcall took any five
+#: cards. Experts bid a five-card suit there once in 118 hands. Measured
+#: +0.06/-0.01/+0.09 a board (3 x 10,000 deals); six cards everywhere measured
+#: +0.15, but the user chose the narrower rule.
+OVERCALL_3_AFTER_1NT = 6
 
 
 def _first_bid_1nt(ctx: Ctx) -> bool:
     return next((c for w, c in ctx.calls if c != 'Pass'), None) == '1NT'
-
-
-def _overcall_3_suit(h: Hand, s: str, mode: str) -> bool:
-    return h.len[s] >= 6 or (mode == 'good' and h.good_suit(s))
-
-
-def _overcall_3_alert(s: str, mode: str, lo: int, hi: int, bal: int) -> str:
-    kind = "Balancing." if bal else "Overcall."
-    if mode == 'good':
-        return f"6+ {SYM[s]} or a good 5, {lo}-{hi} HCP. {kind}"
-    return f"6+ {SYM[s]}, {lo}-{hi} HCP. {kind}"
 
 
 def _defend(ctx: Ctx) -> tuple | None:
@@ -5456,16 +5445,14 @@ def _defend(ctx: Ctx) -> tuple | None:
                                       f"{low}-{need[1]} HCP. Balancing.")
                     return call, f"{n}+ {SYM[s]}, 12-{need[1]} HCP. Balancing."
             need = (need[0] - bal, need[1])
-            three = OVERCALL_3 if level_of(call) == 3 else None
-            if three == 'nt' and not _first_bid_1nt(ctx):
-                three = None
+            three = (OVERCALL_3_AFTER_1NT if level_of(call) == 3 and _first_bid_1nt(ctx)
+                     else 0)
             if not weak2 and level_of(call) <= 3 and need[0] <= hcp <= need[1] and \
-                    (level_of(call) <= 2 or hcp >= 12 - bal) and \
-                    (not three or _overcall_3_suit(h, s, three) or OVERCALL_3_PASS):
-                if three and OVERCALL_3_PASS and not _overcall_3_suit(h, s, three):
-                    return 'Pass', "No action."  # not a double instead
+                    (level_of(call) <= 2 or hcp >= 12 - bal):
                 if three:
-                    return call, _overcall_3_alert(s, three, 12 - bal, need[1], bal)
+                    if h.len[s] < three:
+                        return 'Pass', "No action."
+                    return call, f"{three}+ {SYM[s]}, {12 - bal}-{need[1]} HCP. Overcall."
                 if bal:
                     return call, f"5+ {SYM[s]}, {need[0]}-{need[1]} HCP. Balancing."
                 return call, f"5+ {SYM[s]}, {need[0]}-{need[1]} HCP. Overcall."
