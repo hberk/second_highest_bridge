@@ -147,6 +147,19 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   South's QJ1065 of hearts behind declarer's suit is a textbook trap pass,
   yet E/W take 9 tricks in hearts -- under second-highest rules a trump stack
   of honours is not the penalty it is in ordinary bridge.
+- **Back to opener's first suit** (`ai.OPENER_TWO_SUITS`,
+  `_back_to_opening_suit`, `_new_suit_alert`; the user's board, 2026-11-12:
+  P 1♦ (1♥) 1♠ (4♥) 5♣ passed out at -400 on ♠95 ♥5 ♦KQJT9 ♣AKQT8 opposite
+  ♠AQJ432 ♥T7 ♦A85 ♣95). One of a suit is the longest suit
+  (`gib.opening_suit`), so opener's new suit shows two suits, the first at
+  least as long: alerted "Two suits: 5+ ♣, ♦ as long or longer." (it read
+  "6+ ♣, rebidding the suit"). In `_rebid`, partner holding as many of the
+  opened suit as of the new one bids the opened suit at the same level, when
+  the new suit is the last bid and undoubled, unless its own six-card suit
+  would be rebid anyway (1♥ 2♣ 2♠ P 3♦ P, seven spades: 4♠). Seeds 7M-9M,
+  10,000 each: see ROBOT_PROGRESS. Over their double it cost 0.07 a board
+  (the robots' takeout double runs into a penalty double; opener raised one
+  preference to a doubled 4♥), so a doubled new suit is left alone.
 - **Preference after a negative double** (`NEG_PREFERENCE`,
   `_negative_doubler_preference`, `_preference_stands`; the user's board,
   2026-11-09: P 1♦ (1♠) X (P) 2♣ passed out on ♠AQ875 ♥9432 ♦AK4 ♣J).
