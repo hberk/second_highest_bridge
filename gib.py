@@ -5398,6 +5398,21 @@ def _over_nt_response(ctx: Ctx) -> tuple | None:
     return None
 
 
+#: After their 1NT opening, a simple overcall at the three level needs six
+#: cards; a five-card hand passes (it does not double instead). South's ♠AK
+#: ♥Q64 ♦K9842 ♣965 bid 3♦ over 1NT P 2NT P 3♣ P P and went -500 doubled
+#: against -130 (the user's deal, 2026-11-13): after their third bid the
+#: Cappelletti branch no longer applies, and the plain overcall took any five
+#: cards. Experts bid a five-card suit there once in 118 hands. Measured
+#: +0.06/-0.01/+0.09 a board (3 x 10,000 deals); six cards everywhere measured
+#: +0.15, but the user chose the narrower rule.
+OVERCALL_3_AFTER_1NT = 6
+
+
+def _first_bid_1nt(ctx: Ctx) -> bool:
+    return next((c for w, c in ctx.calls if c != 'Pass'), None) == '1NT'
+
+
 def _defend(ctx: Ctx) -> tuple | None:
     """Our first action after they opened."""
     h = ctx.h
@@ -5495,8 +5510,14 @@ def _defend(ctx: Ctx) -> tuple | None:
                                       f"{low}-{need[1]} HCP. Balancing.")
                     return call, f"{n}+ {SYM[s]}, 12-{need[1]} HCP. Balancing."
             need = (need[0] - bal, need[1])
+            three = (OVERCALL_3_AFTER_1NT if level_of(call) == 3 and _first_bid_1nt(ctx)
+                     else 0)
             if not weak2 and level_of(call) <= 3 and need[0] <= hcp <= need[1] and \
                     (level_of(call) <= 2 or hcp >= 12 - bal):
+                if three:
+                    if h.len[s] < three:
+                        return 'Pass', "No action."
+                    return call, f"{three}+ {SYM[s]}, {12 - bal}-{need[1]} HCP. Overcall."
                 if bal:
                     return call, f"5+ {SYM[s]}, {need[0]}-{need[1]} HCP. Balancing."
                 return call, f"5+ {SYM[s]}, {need[0]}-{need[1]} HCP. Overcall."

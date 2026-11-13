@@ -1038,6 +1038,19 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     takeout double is unchanged. Experts acted on 7 of 13 hands with a six-card
     suit and 7-10 HCP there, never with 6 or fewer. +0.04, +0.08, +0.07 a
     board on three sets of 3,000 fresh deals, within noise.
+  - **A three-level overcall after their 1NT needs six cards**
+    (`OVERCALL_3_AFTER_1NT = 6`, 2026-11-13). Once they have bid more than
+    the 1NT opening (1NT P 2NT P 3♣ P P), the Cappelletti branch no longer
+    applies and the plain overcall took any five cards with 12+ HCP: the
+    user's 3♦ on ♠AK ♥Q64 ♦K9842 ♣965 went -500 doubled against -130. Now a
+    five-card hand passes there (not a takeout double instead), and six cards
+    say "6+ ♦, 12-17 HCP. Overcall." Experts bid a five-card suit there once
+    in 118 hands. Three sets of 10,000 fresh deals: +0.06, -0.01, +0.09 a
+    board (t = +1.7, -0.3, +2.1; 62-85 auctions changed). Measured and left
+    off: six cards for every three-level overcall +0.07, +0.05, +0.34 (about
+    730 auctions); six or a good five +0.13, -0.04, +0.09; letting the
+    stopped hand double instead lost about 0.05 a board in each case. The user
+    chose the narrow rule. Data: /mnt/project-files/overcall-3level/.
   - **One level past the LoTT over their three level** (`LOTT_TOTAL = 18`).
     When they bid and raised their suit to three, and our known fit plus 8 plus
     one for my singleton (two for a void) in it reaches 18, `_total_tricks`
