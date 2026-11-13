@@ -932,6 +932,24 @@ def test_advancer_bids_game_over_a_two_suited_overcall():
                dealer='West')[0] == '3C'
 
 
+def test_advancer_blasts_game_with_six_of_partners_major():
+    """The user's deal (2026-11-12): (1♣) 2♣ (2♠) with ♠- ♥KQJ963 ♦AJT73
+    ♣65 bid 3♥, not game values; 4♥ made. Six of partner's major is game."""
+    north = 'KH QH JH 9H 6H 3H AD JD 10D 7D 3D 6C 5C'
+    call, why = bid(north, '1C', '2C', '2S', dealer='East')
+    assert call == '4H' and 'long fit' in why, (call, why)
+    assert bid(north, '1C', '2C', 'Pass', dealer='East')[0] == '4H'
+    # Five of them, without game values, still takes the cheapest bid.
+    five = 'KH QH JH 9H 6H AD JD 10D 7D 3D 6C 5C 2C'
+    assert bid(five, '1C', '2C', '2S', dealer='East')[0] == '3H'
+    blast = gib.TWO_SUITER_BLAST
+    gib.TWO_SUITER_BLAST = 0
+    try:
+        assert bid(north, '1C', '2C', '2S', dealer='East')[0] == '3H'
+    finally:
+        gib.TWO_SUITER_BLAST = blast
+
+
 def test_later_rounds_read_our_two_suiter_as_two_suits():
     """After (1♦) 2NT, partner's 3♣ is a preference, not Stayman over a 2NT
     opening: the overcaller sees the club fit."""
