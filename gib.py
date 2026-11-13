@@ -4650,6 +4650,48 @@ def _neg_x_competed(ctx: Ctx) -> tuple | None:
 #: 1NT 2♣ would uncontested; other hands keep Lebensohl (below).
 #: Measured on 60,000 fresh boards: +0.00 a board. Kept as the user's system.
 NT_2C_SYSTEMS = True
+#: ...but the double promises a four-card major (the user, 2026-11-13). The
+#: uncontested system also uses Stayman as its invitation with no major
+#: (1NT 2♣ 2♦ 2NT), so 1NT (2♣) X was explained as Stayman on
+#: ♠763 ♥KQJ ♦- ♣K976532: seven of their suit, no major. Without a major the
+#: hand takes the Lebensohl answers below (which pass it).
+NT_2C_X_MAJOR = False
+#: The double's alert: the uncontested system's Stayman, which may hold no
+#: major (an invitation), and Lebensohl's double, which holds one.
+STAYMAN_DOUBLE = "Stayman: a 4-card major, or invitational values. Artificial."
+#: Their bid over our Stayman double (1NT (2♣) X (2♦)): the auction runs as
+#: Stayman contested (STAYMAN_CONTESTED): opener shows a four-card major it
+#: can bid at the two level, responder raises or carries on. Before, opener's
+#: 2♠ had no agreed meaning and the robots passed.
+STAYMAN_X_CONTESTED = False
+#: Systems on keeps the minor transfers too (the user, 2026-11-13): 2NT
+#: transfers to clubs and 3♣ to diamonds, as over 1NT uncontested. Before,
+#: only the double and 2♦/2♥ ran, and a long minor took Lebensohl.
+NT_2C_MINOR_TRANSFERS = True
+
+
+def _stayman_x_contested(ctx: Ctx) -> tuple | None:
+    """1NT (2♣) X, our double Stayman, then they bid again: answered as
+    1NT P 2♣ and their bid (`_stayman_contested`)."""
+    seq, calls = ctx.seq, ctx.calls
+    if not (STAYMAN_X_CONTESTED and NT_2C_SYSTEMS and STAYMAN_CONTESTED
+            and len(seq) >= 2 and seq[:2] == ['1NT', 'X']):
+        return None
+    us = (ctx.me, ctx.pd)
+    i = next(k for k, (w, c) in enumerate(calls) if c == '1NT')
+    if (i + 2 >= len(calls) or calls[i + 1][1] != '2C' or calls[i + 2][1] != 'X'
+            or calls[i + 2][0] == ctx.opener
+            or any(w not in us and c != 'Pass' for w, c in calls[:i])):
+        return None
+    if not any(w not in us and c != 'Pass' for w, c in calls[i + 3:]):
+        return None                                  # theirs only passes: systems on
+    as_stayman = copy.copy(ctx)
+    as_stayman.calls = (calls[:i + 1] + [(calls[i + 1][0], 'Pass'), (calls[i + 2][0], '2C')]
+                        + calls[i + 3:])
+    as_stayman.ours = [(w, c) for w, c in as_stayman.calls if w in us and c != 'Pass']
+    as_stayman.theirs = [(w, c) for w, c in as_stayman.calls if w not in us and c != 'Pass']
+    as_stayman.seq = [c for _, c in as_stayman.ours]
+    return _stayman_contested(as_stayman)
 
 
 def _nt_2c_systems(ctx: Ctx) -> tuple | None:
@@ -4665,12 +4707,19 @@ def _nt_2c_systems(ctx: Ctx) -> tuple | None:
         if ctx.i_am_opener() or ctx.calls[-1][1] != '2C':
             return None
         decision = _nt_response(as_opened, 1, *NT1)
+        if decision[0] == '2C' and NT_2C_X_MAJOR:
+            if not any(ctx.h.len[m] >= 4 for m in MAJORS):
+                return None
+            if ctx.ok('X'):
+                return 'X', "Stayman: 4+ cards in a major. Artificial."
         if decision[0] == '2C' and ctx.ok('X'):
-            return 'X', "Stayman. Artificial."
+            return 'X', STAYMAN_DOUBLE
         if decision[0] in ('2D', '2H', '4D', '4H') and ctx.ok(decision[0]):
             return decision
+        if NT_2C_MINOR_TRANSFERS and decision[0] in ('2NT', '3C') and ctx.ok(decision[0]):
+            return decision
         return None
-    if seq[1] not in ('X', '2D', '2H'):
+    if seq[1] not in ('X', '2D', '2H') + (('2NT', '3C') if NT_2C_MINOR_TRANSFERS else ()):
         return None
     if len(seq) == 2 and ctx.i_am_opener() and seq[1] != 'X':
         return _nt_opener_answer(as_opened, 1, seq[1], *NT1)
@@ -4699,6 +4748,9 @@ def _nt_interference(ctx: Ctx) -> tuple | None:
     systems = _nt_2c_systems(ctx)
     if systems:
         return systems
+    stayman_x = _stayman_x_contested(ctx)
+    if stayman_x:
+        return stayman_x
     if STAYMAN_CONTESTED and first in ('1NT', '2NT'):
         stayman = _stayman_contested(ctx)
         if stayman:
@@ -4717,7 +4769,7 @@ def _nt_interference(ctx: Ctx) -> tuple | None:
     if len(seq) == 1 and not ctx.i_am_opener():
         if lb == '2C' and ctx.calls[-1][1] == '2C' and ctx.ok('X') and \
                 any(h.len[m] >= 4 for m in MAJORS) and h.hcp >= 8:
-            return 'X', "Stayman. Artificial."
+            return 'X', STAYMAN_DOUBLE
         if (not _neg_x_spot(ctx) and their in SUITS and lb != '2C' and h.len[their] >= 4
                 and h.hcp >= 8 and ctx.ok('X')):
             return 'X', "Penalty: 8+ HCP."
