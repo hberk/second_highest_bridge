@@ -449,6 +449,11 @@ LONE_REBID_MAX: int | None = None
 #: and never raised mine (East's 3D 4D 5D opposite West's hearts on deal 362).
 MISFIT_REBID_CREDIT: float | None = None
 MISFIT_REBID_MAX: int | None = None
+#: "The five level belongs to them": no lone or misfit rebid over THEIR
+#: five-level bid (bidding five over their four stays allowed: capping lone
+#: rebids at four measured -0.25 a board, every changed board a lost save).
+LONE_NOT_OVER_FIVE = False
+MISFIT_NOT_OVER_FIVE = False
 
 # The cuebid -- advancer bidding the OPPONENTS' suit to show a good raise of
 # partner's overcall -- has no threshold constant because the AI does not make the
@@ -753,6 +758,9 @@ def _rebid_alone(player: str, auction: AuctionState, ev: dict, groups: dict,
         # Capping at 3 as well measured identically (the ceiling never exceeds
         # 3 in practice), so the clamp buys nothing and is left out.
         level = parse_bid(call)[0] if call else 0
+        hb = auction.highest_bid
+        if (LONE_NOT_OVER_FIVE and hb and hb[0] >= 5 and hb[2] not in (player, PARTNERS[player])):
+            return 'Pass', "Partner has passed; not enough to bid again alone."
         long_only = REBID_ALONE_SIX_FROM and level >= REBID_ALONE_SIX_FROM
         if call and long_only and held < REBID_LENGTH:
             return 'Pass', "Partner has passed; not enough to bid again alone."
@@ -961,6 +969,10 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
         credit = PROMISE_RESPONDED_1 if MISFIT_REBID_CREDIT is None else MISFIT_REBID_CREDIT
         combined = ev['suit_pts'][best_suit] + credit
         call, why = _place(best_suit, combined, legal, best_len)
+        hb = auction.highest_bid
+        if (MISFIT_NOT_OVER_FIVE and parse_bid(call) and hb and hb[0] >= 5
+                and hb[2] not in (player, partner)):
+            return 'Pass', "No fit, nothing more to show."
         if (MISFIT_REBID_MAX is not None and parse_bid(call)
                 and parse_bid(call)[0] > MISFIT_REBID_MAX):
             return 'Pass', "No fit, nothing more to show."
