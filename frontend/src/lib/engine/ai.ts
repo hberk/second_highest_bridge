@@ -676,7 +676,7 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
 
   if (OPENER_TWO_SUITS) {
     const back = backToOpeningSuit(partner, auction, groups, pStrain, legal);
-    if (back) return back;
+    if (back && !ownLongSuitBids(mine, ev, bestSuit, bestLen, legal)) return back;
   }
 
   if (isSuit(pStrain) && groups[pStrain].length >= SUPPORT_LENGTH
@@ -724,6 +724,14 @@ function openedOneOf(seat: Seat, auction: AuctionState): Suit | null {
   if (!first || first[0] !== seat) return null;
   const parsed = parseBid(first[1]);
   return parsed && parsed[0] === 1 && isSuit(parsed[1]) ? parsed[1] as Suit : null;
+}
+
+/** Would this hand rebid its own six-card suit instead? Then that comes
+ *  first (fresh deal 7,000,475: 1H 2C 2S P 3D P, seven spades, bids 4S). */
+function ownLongSuitBids(mine: Bid[], ev: HandEval, bestSuit: Suit, bestLen: number,
+  legal: string[]): boolean {
+  if (bestLen < OPEN_SUIT_LENGTH + 1 || mine.every(([, strain]) => strain !== bestSuit)) return false;
+  return place(bestSuit, ev.suit_pts[bestSuit] + PROMISE_RESPONDED_1, legal)[0] !== 'Pass';
 }
 
 function newSuitAlert(player: Seat, auction: AuctionState, suit: Suit): string {

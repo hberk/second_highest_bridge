@@ -921,7 +921,7 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
 
     if OPENER_TWO_SUITS:
         back = _back_to_opening_suit(partner, auction, groups, p_strain, legal)
-        if back:
+        if back and not _own_long_suit_bids(mine, ev, best_suit, best_len, legal):
             return back
 
     if p_strain in SUITS and len(groups[p_strain]) >= SUPPORT_LENGTH \
@@ -975,6 +975,17 @@ def _opened_one_of(seat: str, auction: AuctionState) -> str | None:
         return None
     parsed = parse_bid(first[1])
     return parsed[1] if parsed and parsed[0] == 1 and parsed[1] in SUITS else None
+
+
+def _own_long_suit_bids(mine: list, ev: dict, best_suit: str, best_len: int,
+                        legal: list[str]) -> bool:
+    """Would this hand rebid its own six-card suit instead (the last branch of
+    `_rebid`)? Then that comes first: 1H 2C 2S P 3D P on seven spades and two
+    hearts bids 4S, not a preference to 3H (fresh deal 7,000,475)."""
+    if best_len < OPEN_SUIT_LENGTH + 1 or all(strain != best_suit for _, strain in mine):
+        return False
+    combined = ev['suit_pts'][best_suit] + PROMISE_RESPONDED_1
+    return _place(best_suit, combined, legal, best_len)[0] != 'Pass'
 
 
 def _new_suit_alert(player: str, auction: AuctionState, suit: str) -> str:
