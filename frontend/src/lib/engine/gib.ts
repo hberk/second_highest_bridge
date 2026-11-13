@@ -4150,6 +4150,10 @@ const STAYMAN_DOUBLE = 'Stayman: a 4-card major, or invitational values. Artific
 // can bid at the two level, responder raises or carries on. Before, opener's
 // 2♠ had no agreed meaning and the robots passed.
 export const STAYMAN_X_CONTESTED = false;
+// Systems on keeps the minor transfers too (the user, 2026-11-13): 2NT
+// transfers to clubs and 3♣ to diamonds, as over 1NT uncontested. Before,
+// only the double and 2♦/2♥ ran, and a long minor took Lebensohl.
+export const NT_2C_MINOR_TRANSFERS = false;
 
 /** 1NT (2♣) X, our double Stayman, then they bid again: answered as
  *  1NT P 2♣ and their bid (`staymanContested`). */
@@ -4198,9 +4202,10 @@ function nt2CSystems(ctx: Ctx): Decision | null {
     }
     if (decision[0] === '2C' && ctx.ok('X')) return ['X', STAYMAN_DOUBLE];
     if (['2D', '2H', '4D', '4H'].includes(decision[0]) && ctx.ok(decision[0])) return decision;
+    if (NT_2C_MINOR_TRANSFERS && ['2NT', '3C'].includes(decision[0]) && ctx.ok(decision[0])) return decision;
     return null;
   }
-  if (!['X', '2D', '2H'].includes(seq[1])) return null;
+  if (!['X', '2D', '2H', ...(NT_2C_MINOR_TRANSFERS ? ['2NT', '3C'] : [])].includes(seq[1])) return null;
   if (seq.length === 2 && ctx.iAmOpener() && seq[1] !== 'X') {
     return ntOpenerAnswer(asOpened, 1, seq[1], NT1[0], NT1[1]);
   }

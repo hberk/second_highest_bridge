@@ -4579,6 +4579,10 @@ STAYMAN_DOUBLE = "Stayman: a 4-card major, or invitational values. Artificial."
 #: can bid at the two level, responder raises or carries on. Before, opener's
 #: 2♠ had no agreed meaning and the robots passed.
 STAYMAN_X_CONTESTED = False
+#: Systems on keeps the minor transfers too (the user, 2026-11-13): 2NT
+#: transfers to clubs and 3♣ to diamonds, as over 1NT uncontested. Before,
+#: only the double and 2♦/2♥ ran, and a long minor took Lebensohl.
+NT_2C_MINOR_TRANSFERS = False
 
 
 def _stayman_x_contested(ctx: Ctx) -> tuple | None:
@@ -4627,8 +4631,10 @@ def _nt_2c_systems(ctx: Ctx) -> tuple | None:
             return 'X', STAYMAN_DOUBLE
         if decision[0] in ('2D', '2H', '4D', '4H') and ctx.ok(decision[0]):
             return decision
+        if NT_2C_MINOR_TRANSFERS and decision[0] in ('2NT', '3C') and ctx.ok(decision[0]):
+            return decision
         return None
-    if seq[1] not in ('X', '2D', '2H'):
+    if seq[1] not in ('X', '2D', '2H') + (('2NT', '3C') if NT_2C_MINOR_TRANSFERS else ()):
         return None
     if len(seq) == 2 and ctx.i_am_opener() and seq[1] != 'X':
         return _nt_opener_answer(as_opened, 1, seq[1], *NT1)
