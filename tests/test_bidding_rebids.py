@@ -305,6 +305,33 @@ def test_michaels_bidder_lets_partners_choice_stand():
     assert ai.ai_bid('East', strong, a) == '4H'
 
 
+
+def test_back_to_the_opening_suit_after_a_new_suit():
+    """The user's board (2026-11-12): P 1D (1H) 1S (4H) 5C (P). Opener's
+    new suit shows two suits, diamonds at least as long, so North with
+    three diamonds and two clubs goes back to 5D; with longer clubs, passes."""
+    north = hand('AS QS JS 4S 3S 2S 10H 7H AD 8D 5D 9C 5C')
+    a = auction_after('Pass', '1D', '1H', '1S', '4H', '5C', 'Pass', dealer='East')
+    call, why = ai.ai_bid_explained('North', north, a)
+    assert call == '5D' and 'Preference' in why
+    longer_clubs = hand('AS QS JS 4S 3S 2S 10H 7H 8D 5D 9C 5C 2C')
+    assert ai.ai_bid('North', longer_clubs, a) != '5D'
+    ai.OPENER_TWO_SUITS = False
+    try:
+        assert ai.ai_bid('North', north, a) == 'Pass'
+    finally:
+        ai.OPENER_TWO_SUITS = True
+
+
+def test_opener_new_suit_alert_names_two_suits():
+    """The same board from South's seat: a new suit is not 'rebidding the
+    suit'. Any 6+ club hand the robots would bid 5C with explains it."""
+    south = hand('9S 5S 5H AD 9D 2D AC KC QC 10C 9C 8C 3C')
+    a = auction_after('Pass', '1D', '1H', '1S', '4H', dealer='East')
+    assert ai.ai_bid_explained('South', south, a) == (
+        '5C', 'Two suits: 5+ ♣, ♦ as long or longer.')
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_') and callable(fn):

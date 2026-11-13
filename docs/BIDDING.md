@@ -147,6 +147,19 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   South's QJ1065 of hearts behind declarer's suit is a textbook trap pass,
   yet E/W take 9 tricks in hearts -- under second-highest rules a trump stack
   of honours is not the penalty it is in ordinary bridge.
+- **Back to opener's first suit** (`ai.OPENER_TWO_SUITS`,
+  `_back_to_opening_suit`, `_new_suit_alert`; the user's board, 2026-11-12:
+  P 1♦ (1♥) 1♠ (4♥) 5♣ passed out at -400 on ♠95 ♥5 ♦KQJT9 ♣AKQT8 opposite
+  ♠AQJ432 ♥T7 ♦A85 ♣95). One of a suit is the longest suit
+  (`gib.opening_suit`), so opener's new suit shows two suits, the first at
+  least as long: alerted "Two suits: 5+ ♣, ♦ as long or longer." (it read
+  "6+ ♣, rebidding the suit"). In `_rebid`, partner holding as many of the
+  opened suit as of the new one bids the opened suit at the same level, when
+  the new suit is the last bid and undoubled, unless its own six-card suit
+  would be rebid anyway (1♥ 2♣ 2♠ P 3♦ P, seven spades: 4♠). Seeds 7M-9M,
+  10,000 each: see ROBOT_PROGRESS. Over their double it cost 0.07 a board
+  (the robots' takeout double runs into a penalty double; opener raised one
+  preference to a doubled 4♥), so a doubled new suit is left alone.
 - **Preference after a negative double** (`NEG_PREFERENCE`,
   `_negative_doubler_preference`, `_preference_stands`; the user's board,
   2026-11-09: P 1♦ (1♠) X (P) 2♣ passed out on ♠AQ875 ♥9432 ♦AK4 ♣J).
@@ -281,6 +294,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     in it. Before, advancer always took the cheapest preference: deal 163,
     (1♦) 2NT (P) with five clubs and a 10-card fit bid 3♣, and N/S defended
     4♦ where 7♣ makes; now 5♣, 13 tricks.
+  - `TWO_SUITER_BLAST` (`_advance`, the user's call, 2026-11-13): with six
+    or more of a major partner showed, advancer bids 4M at once, whatever
+    the strength: (1♣) 2♣ (2♠) on ♠- ♥KQJ963 ♦AJT73 ♣65 bid 3♥ (no game
+    values), and 4♥ made. Measured on deals filtered for the hand, +3.9 a
+    filtered board on three seeds (`ROBOT_PROGRESS.md`). The 4M alert for
+    both rules reads "game values or a long fit", since an alert depends only
+    on the auction. Michaels on 7 HCP with both majors (`TWO_SUITED_MIN` is
+    8) measured as noise and stays out.
   - `TWO_SUITER_READ` (`continuation`, `_our_two_suiter`,
     `_two_suiter_lengths`): the later rounds read the overcall as 8+ HCP and
     5-5 in its suits, and advancer's suit bids as a preference (3) or a suit
@@ -383,6 +404,21 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     3NT became 3♣, passed with seven hearts, -880). With them: +0.09, +0.29,
     +0.28 a board (t +1.0, +3.9, +4.1), 29, 16, 10 auctions worse instead of
     43, 21, 19. `/mnt/project-files/fit-over-nt-fix/`.
+  - **No 3NT on a minor fit with a short suit** (`MINOR_NO_3NT`,
+    `_minor_not_notrump`, the user's deal 2026-11-12: 1♦ 1♥ 1♠ 3♦ 3NT on
+    ♠KQJ9 ♥A94 ♦AQT85 ♣4 opposite ♠T ♥KQJ5 ♦KJ42 ♣Q972, -100). Where a rule
+    is about to bid 3NT "To play", partner has shown a minor that makes eight,
+    and I hold a singleton or void in a suit partner hasn't shown: pass
+    partner's three of the minor when the auction isn't game forcing
+    (`MINOR_NO_3NT_PASS`), else five of it. The 3NTs it replaces came from
+    `continuation` (2♣ 2♦ 3♣, 2/1 auctions), `_cuebid_raise_reply`,
+    `responder_rebid` and `opener_third` (none looked at stoppers). Seeds 7M,
+    8M, 9M, 5,000 deals: five +0.15, +0.31, +0.37; four (partner then always
+    passes) +0.22, +0.22, +0.28; pass +0.34, +0.27, +0.33 (but it passed 2♣
+    2♦ 3♣ game forces); pass when not game forced +0.27, +0.29, +0.34 (t +3.8,
+    +4.0, +4.2; 104 of 115 changed auctions better). A doubleton as short
+    (`MINOR_SHORT = 2`): +0.27, +0.36, +0.23 with a third of 331 worse.
+    `/mnt/project-files/minor-no-stopper/`.
   - **Five logic bugs from the Fable review** (finding 7, 2026-11-12), each
     behind its own switch: a 2♥/2♠ after our Stayman or transfer is the
     natural overcall it was alerted as, Cappelletti only directly over 1NT
@@ -400,6 +436,19 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     four trumps double only if they haven't both named the suit. Seeds 7M-9M
     (10,000 deals): -0.10, +0.17, -0.22, a tie, more auctions worse than
     better on every seed. Branch `claude/project-thread-e0klhw`.
+  - **The penalty double of 1NT is for balanced hands** (`NT_X_SHAPE = 'two'`;
+    the user's deal, 2026-11-13): 1NT P P X with ♠AT865 ♥J ♦AK5 ♣QJT4, partner
+    transferred to hearts on 0-5-4-4 (systems on) and 2♥ played on a 5-1 fit.
+    An unbalanced 15+ hand with a Cappelletti two-suiter (2♦, 2♥/2♠, 2NT) now
+    bids it; a one-suiter still doubles, its long suit the lead against 1NT
+    doubled. On deals with a 1NT opener and a strong unbalanced opponent (0.8%
+    of deals), 3 x 1,000: +0.49, +3.67, +3.04 a board. Every unbalanced hand
+    bidding (2♣ too) was -1.20/+0.65/+2.84, the 2♣ one-suiters losing on every
+    seed. /mnt/project-files/nt-x-shape/REPORT.md.
+  - **The Lebensohl relayer names his suit after the runout double**
+    (`LEBENSOHL_RELAYER_FIX`): 1NT X P 2♥ P 2♠ 2NT P 3♣ P, and the relayer
+    passed 3♣ on two clubs ("Nothing to add" in `_nt_runout`). Same deals:
+    +6.11, +2.69, +4.71 a board.
   - **The Cappelletti relay is answered** (`RELAY_ANSWER`, `_answer_relay`;
     challenge board 79, 2026-11-07): (1NT) 2♣ (P) 2♦ (P) asks which suit.
     No branch answered it, so `continuation` read 2♦ as forcing and a
@@ -494,6 +543,16 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   trick fit's ~9.7.
   - All three switches together: **+4.66 per board, t = +5.48, 113 auctions
     changed** (`FIT_COUNT` and `LOTT` alone: +4.39, t = +5.23, 106).
+  - **Except responder's game after a single raise** (`RAISE_TRY_GAME = 6`;
+    the user's deal, 2026-11-13). In 1x-1M-2M a 4-4 fit counts −6, so
+    responder needed 21 judgement points for game and 18 to invite: East
+    passed 1♦-1♥-2♥ on ♠Q3 ♥A1095 ♦KQ975 ♣K10 (17) and E/W take 12 tricks
+    in hearts. The direct game test now adds 6 back (game on 15+ with four
+    trumps, 12+ with five); the invitation is unchanged, so in practice
+    responder bids game or passes. Three seeds of 25,000 fresh deals:
+    **+0.24, +0.27, +0.29 a board (t = +6.8 to +8.3, ~500 auctions changed
+    a seed)**, games made 55%. Adding invitations lost: opener declines most
+    of them, and 3M fails where 2M made (`/mnt/project-files/raise-try/`).
 - **Slam bidding doesn't pay here** (2026-10-23, the 101 slam deals of
   `research/data/dd_slam.jsonl`; [SOLVER.md](SOLVER.md) for how they were
   found). The robots bid slam on 0 of their 404 auctions: the opponents buy
@@ -762,8 +821,18 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   0.00 a board on 60,000 fresh boards.
 - **Systems on over their 2♣ overcall of our 1NT** (`NT_2C_SYSTEMS`,
   `_nt_2c_systems`; the user's system, 2026-11-04): X is Stayman, 2♦/2♥
-  transfer, and the uncontested continuations run while they pass. A long
-  diamond suit relays through 2NT. +0.00 a board on 60,000 fresh boards.
+  transfer, and the uncontested continuations run while they pass. +0.00 a board on 60,000 fresh boards.
+  The double is the uncontested 2♣, which is also the invitation with no
+  major (1NT 2♣ 2♦ 2NT), so its alert says "a 4-card major, or invitational
+  values" (`STAYMAN_DOUBLE`; the user's deal 2026-11-13, ♠763 ♥KQJ ♦- ♣K976532).
+  Making it promise a major (`NT_2C_X_MAJOR`) and answering it over their bid
+  (`STAYMAN_X_CONTESTED`) both measured worse (ROBOT_PROGRESS, 11-13): off.
+  The minor transfers (2NT clubs, 3♣ diamonds; `NT_2C_MINOR_TRANSFERS`)
+  measured neutral, +0.06 a board over three seeds, and are on (the user's
+  system, 2026-11-13). With them on, Lebensohl's 2NT relay is gone over 2♣
+  (the PR #70 review: 1NT (2♣) 2NT was "Lebensohl", opener completed the club
+  transfer, and 3♣ was passed with ♣52). A minor transfer wants six (the
+  user, 2026-11-13), so the weak five-card diamond hand it relayed to 3♦ passes.
 - **A doubled or overcalled systems-on transfer** (`TRANSFER_INTERFERED`,
   `_transfer_interfered`; the review of PR #65, 2026-11-05). Over their 2♣ and
   over our double of their 1NT, when they double our 2♦/2♥ transfer or bid
@@ -1002,6 +1071,19 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     takeout double is unchanged. Experts acted on 7 of 13 hands with a six-card
     suit and 7-10 HCP there, never with 6 or fewer. +0.04, +0.08, +0.07 a
     board on three sets of 3,000 fresh deals, within noise.
+  - **A three-level overcall after their 1NT needs six cards**
+    (`OVERCALL_3_AFTER_1NT = 6`, 2026-11-13). Once they have bid more than
+    the 1NT opening (1NT P 2NT P 3♣ P P), the Cappelletti branch no longer
+    applies and the plain overcall took any five cards with 12+ HCP: the
+    user's 3♦ on ♠AK ♥Q64 ♦K9842 ♣965 went -500 doubled against -130. Now a
+    five-card hand passes there (not a takeout double instead), and six cards
+    say "6+ ♦, 12-17 HCP. Overcall." Experts bid a five-card suit there once
+    in 118 hands. Three sets of 10,000 fresh deals: +0.06, -0.01, +0.09 a
+    board (t = +1.7, -0.3, +2.1; 62-85 auctions changed). Measured and left
+    off: six cards for every three-level overcall +0.07, +0.05, +0.34 (about
+    730 auctions); six or a good five +0.13, -0.04, +0.09; letting the
+    stopped hand double instead lost about 0.05 a board in each case. The user
+    chose the narrow rule. Data: /mnt/project-files/overcall-3level/.
   - **One level past the LoTT over their three level** (`LOTT_TOTAL = 18`).
     When they bid and raised their suit to three, and our known fit plus 8 plus
     one for my singleton (two for a void) in it reaches 18, `_total_tricks`

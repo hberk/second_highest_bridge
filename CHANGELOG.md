@@ -6,6 +6,31 @@ Releases are tagged on main, and the tag matches the version in
 what it was measured to be worth is in
 [docs/ROBOT_PROGRESS.md](docs/ROBOT_PROGRESS.md).
 
+## v0.1.6-alpha (unreleased)
+
+Eight approved changes from the Nov 12-13 boards: seven bidding fixes and
+one screen fix.
+
+- After opener's single raise of responder's major (1♦ 1♥ 2♥), responder
+  bids game on 15+ judgement points with four trumps instead of needing 21
+  (+0.24 to +0.29 a board, three seeds).
+- No 3NT "to play" on an eight-card minor fit with a singleton or void in a
+  suit partner hasn't shown: pass partner's three of the minor when the
+  auction isn't game forcing, otherwise bid five of it (+0.27 to +0.34 a board).
+- After our Michaels or Unusual 2NT, advancer with six of partner's major
+  bids game in it at once.
+- Opener's new suit after one of a suit shows two suits; partner with as many
+  of the first goes back to it.
+- After their 1NT opening, a three-level overcall needs six cards.
+- The penalty double of their 1NT is for strong balanced hands and strong
+  one-suiters; two-suiters bid Cappelletti. After the Lebensohl runout
+  double, the 2NT relayer names his suit over 3♣.
+- Over our 1NT and their 2♣, the Stayman double's alert says what it shows,
+  and systems on keeps the minor transfers (2NT clubs, 3♣ diamonds, six
+  cards); Lebensohl's 2NT relay is gone there.
+- Bidding training: the double dummy table has suit headers over the tricks
+  row.
+
 ## v0.1.5-alpha (unreleased)
 
 Four fixes from the Nov 11 robot review.

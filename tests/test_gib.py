@@ -607,6 +607,51 @@ def test_cappelletti_over_their_1nt():
     assert call == '2D' and 'Artificial' in why
 
 
+def test_penalty_double_of_1nt_is_for_balanced_hands():
+    # The user's deal (2026-11-13): 1NT P P X with 5-1-3-4 15 HCP, partner
+    # transferred to hearts on a void in spades, and 2H played on a 5-1 fit.
+    east = 'AS 10S 8S 6S 5S JH AD KD 5D QC JC 10C 4C'
+    balanced = 'AS 10S 8S JH 5H AD KD 5D QC JC 10C 4C 3C'
+    no_cappelletti = 'AS 10S 8S 6S JH AD KD 5D 3D QC JC 10C 4C'   # 4-1-4-4
+    saved = gib.NT_X_SHAPE
+    try:
+        gib.NT_X_SHAPE = None
+        assert bid(east, '1NT', 'Pass', 'Pass', dealer='South')[0] == 'X'
+        for mode in ('cappelletti', 'strict'):
+            gib.NT_X_SHAPE = mode
+            call, why = bid(east, '1NT', 'Pass', 'Pass', dealer='South')
+            assert call == '2S' and 'minor' in why, (mode, call, why)
+            assert bid(balanced, '1NT', 'Pass', 'Pass', dealer='South')[0] == 'X'
+        gib.NT_X_SHAPE = 'cappelletti'
+        assert bid(no_cappelletti, '1NT', 'Pass', 'Pass', dealer='South')[0] == 'X'
+        gib.NT_X_SHAPE = 'strict'
+        assert bid(no_cappelletti, '1NT', 'Pass', 'Pass', dealer='South')[0] == 'Pass'
+        # 'two': the two-suiter bids, the strong one-suiter still doubles.
+        gib.NT_X_SHAPE = 'two'
+        assert bid(east, '1NT', 'Pass', 'Pass', dealer='South')[0] == '2S'
+        one = 'KS QS JS 9S 6S 5S JH AD KD 5D QC 10C 4C'
+        assert bid(one, '1NT', 'Pass', 'Pass', dealer='South')[0] == 'X'
+    finally:
+        gib.NT_X_SHAPE = saved
+
+
+def test_lebensohl_relayer_names_his_suit_after_the_runout_double():
+    # Found measuring NT_X_SHAPE (2026-11-13): 1NT X P 2H P 2S 2NT P 3C P,
+    # and responder passed 3C on two clubs; 3C doubled went five down.
+    north = 'QS 7S QH 8H 7H 6H 2H JD 9D 6D 4D 10C 8C'
+    calls = ('1NT', 'X', 'Pass', '2H', 'Pass', '2S', '2NT', 'Pass', '3C', 'Pass')
+    saved = gib.LEBENSOHL_RELAYER_FIX
+    try:
+        gib.LEBENSOHL_RELAYER_FIX = False
+        assert bid(north, *calls, dealer='South')[0] == 'Pass'
+        gib.LEBENSOHL_RELAYER_FIX = True
+        assert bid(north, *calls, dealer='South')[0] == '3H'
+        south = 'AS KS 9S 3S AH 5H 4H 3H KD 3D 2D JC 7C'
+        assert bid(south, *calls, '3H', 'Pass', dealer='South')[0] == 'Pass'
+    finally:
+        gib.LEBENSOHL_RELAYER_FIX = saved
+
+
 def test_takeout_doubles_stop_at_4h():
     strong = 'AS KS QH JH 7H 2H AD QD 9D 6D AC 5C 3C'
     assert bid(strong, '4H')[0] == 'X'
@@ -900,15 +945,21 @@ def test_competes_to_the_level_of_the_fit():
 def test_game_is_judged_on_the_fit():
     """Deal 248: 1♣ (P) 1♠ (P) 2♠ (P) with ♠Q985 ♥KQ9 ♦J10965 ♣10. Opener's
     raise shows four, so eight trumps, two short of the ten a game wants
-    here: the hand passes 2♠ (ten tricks were not there) instead of 4♠."""
+    here: the hand passes 2♠ (ten tricks were not there) instead of 4♠.
+    Since RAISE_TRY_GAME (2026-11-13) the direct game test adds the six back,
+    so this 15-point hand bids 4♠ again: the fresh deals measured that as a
+    gain overall, deal 248 is one it loses."""
     north = 'QS 9S 8S 5S KH QH 9H JD 10D 9D 6D 5D 10C'
     auction = ('Pass', '1C', 'Pass', '1S', 'Pass', '2S', 'Pass')
-    assert bid(north, *auction, dealer='East')[0] == 'Pass'
-    gib.FIT_COUNT = False
+    assert bid(north, *auction, dealer='East')[0] == '4S'
+    gib.RAISE_TRY_GAME = 0
     try:
+        assert bid(north, *auction, dealer='East')[0] == 'Pass'
+        gib.FIT_COUNT = False
         assert bid(north, *auction, dealer='East')[0] == '4S'
     finally:
         gib.FIT_COUNT = True
+        gib.RAISE_TRY_GAME = 6
     # A void opposite the fit counts too.
     assert gib._fit_bonus(gib.Hand(hand(north)), 'S', 4) == -6
     assert gib._fit_bonus(gib.Hand(hand('QS 9S 8S 5S 4S KH QH 9H JD 10D 9D 6D 5D')), 'S', 5) == 3
@@ -930,6 +981,24 @@ def test_advancer_bids_game_over_a_two_suited_overcall():
     # A weak hand still takes the cheapest preference.
     assert bid('8S 2S 2H 9D 8D 7D 5D 4D 10C 9C 6C 3C 2C', '1D', '2NT', 'Pass',
                dealer='West')[0] == '3C'
+
+
+def test_advancer_blasts_game_with_six_of_partners_major():
+    """The user's deal (2026-11-12): (1♣) 2♣ (2♠) with ♠- ♥KQJ963 ♦AJT73
+    ♣65 bid 3♥, not game values; 4♥ made. Six of partner's major is game."""
+    north = 'KH QH JH 9H 6H 3H AD JD 10D 7D 3D 6C 5C'
+    call, why = bid(north, '1C', '2C', '2S', dealer='East')
+    assert call == '4H' and 'long fit' in why, (call, why)
+    assert bid(north, '1C', '2C', 'Pass', dealer='East')[0] == '4H'
+    # Five of them, without game values, still takes the cheapest bid.
+    five = 'KH QH JH 9H 6H AD JD 10D 7D 3D 6C 5C 2C'
+    assert bid(five, '1C', '2C', '2S', dealer='East')[0] == '3H'
+    blast = gib.TWO_SUITER_BLAST
+    gib.TWO_SUITER_BLAST = 0
+    try:
+        assert bid(north, '1C', '2C', '2S', dealer='East')[0] == '3H'
+    finally:
+        gib.TWO_SUITER_BLAST = blast
 
 
 def test_later_rounds_read_our_two_suiter_as_two_suits():
@@ -1458,6 +1527,18 @@ def test_balancing_over_a_weak_two_needs_six_cards():
     assert bid('QS JS 10S 7S 4S 2S AH 10H 9D 2D 10C 7C 5C', '2D')[0] == 'Pass'
 
 
+def test_three_level_overcall_after_their_1nt_needs_six_cards():
+    # 1NT P 2NT P 3♣ P P (the user's deal, 2026-11-13): AK Q64 K9842 965 no
+    # longer bids 3♦ on five poor diamonds, and does not double instead.
+    auction = ('1NT', 'Pass', '2NT', 'Pass', '3C', 'Pass', 'Pass')
+    assert bid('AS KS QH 6H 4H KD 9D 8D 4D 2D 9C 6C 5C', *auction) == ('Pass', 'No action.')
+    # Six diamonds still compete, and say so.
+    assert bid('AS KS QH 6H KD 9D 8D 4D 3D 2D 9C 6C 5C', *auction) == \
+        ('3D', '6+ ♦, 12-17 HCP. Overcall.')
+    # Over a weak two, five cards still overcall at the three level.
+    assert bid('AS 4S QH 6H 4H AD KD 8D 4D 2D 9C 6C 5C', '2S')[0] == '3D'
+
+
 def test_lott_total_competes_one_level_more_with_values_only():
     # 1♠ 2♥ 3♠: nine hearts, a singleton spade, their eight-card fit: 4♥ with
     # 6 HCP, but never with 3 (the user's call after review).
@@ -1929,10 +2010,48 @@ def test_systems_on_over_their_2c():
     assert call == '2S', call
     call, why = bid(east, '1NT', '2C', 'X', 'Pass', '2D', 'Pass', dealer='West')
     assert call == '2NT', (call, why)
-    # A long diamond suit can't bid 2♦ (a transfer): it relays through 2NT.
-    call, _ = bid('8S 5S 3S 7H 4H JD 9D 7D 6D 4D 2D 5C 2C', '1NT', '2C', dealer='West')
-    assert call == '2NT', call
+    # The minor transfers stay on (NT_2C_MINOR_TRANSFERS, the user 2026-11-13):
+    # 3♣ shows diamonds, 2NT clubs, and opener completes.
+    call, why = bid('8S 5S 3S 7H 4H JD 9D 7D 6D 4D 2D 5C 2C', '1NT', '2C', dealer='West')
+    assert call == '3C' and 'Transfer' in why and '♦' in why, (call, why)
+    call, why = bid('8S 5S 3S 7H 4H 2D QC JC 9C 7C 6C 4C 2C', '1NT', '2C', dealer='West')
+    assert call == '2NT' and 'Transfer' in why and '♣' in why, (call, why)
+    opener = 'AS KS 10S 8S AH 9H 8H 10D 9D 7D AC 10C 3C'
+    assert bid(opener, '1NT', '2C', '2NT', 'Pass', dealer='West')[0] == '3C'
+    assert bid(opener, '1NT', '2C', '3C', 'Pass', dealer='West')[0] == '3D'
+    # A weak five-card diamond suit passes: 2NT, Lebensohl's relay before, is
+    # the club transfer now, and a minor transfer wants six (the user).
+    five = '8S 5S 3S 7H 4H 2H QD JD 9D 7D 6D 5C 2C'
+    assert bid(five, '1NT', '2C', dealer='West')[0] == 'Pass'
 
+
+
+def test_stayman_double_over_their_2c_shows_a_major():
+    """The user's deal, 2026-11-13: 1NT (2♣) X (2♦) and North's double was
+    explained as Stayman on ♠763 ♥KQJ ♦- ♣K976532: no major, seven of their
+    suit. With NT_2C_X_MAJOR the double promises a four-card major (the hand
+    passes 2♣); with STAYMAN_X_CONTESTED opener answers it over their 2♦."""
+    north = '7S 6S 3S KH QH JH KC 9C 7C 6C 5C 3C 2C'
+    south = 'AS KS 10S 8S 2S AH 9H 8H 10D 9D 7D AC 10C'
+    with_major = '7S 6S 3S 2S KH QH JH KC 9C 7C 5C 3C 2C'
+    saved = gib.NT_2C_X_MAJOR, gib.STAYMAN_X_CONTESTED
+    try:
+        gib.NT_2C_X_MAJOR = gib.STAYMAN_X_CONTESTED = False
+        # The double says what it shows: a major, or an invitation without one.
+        assert bid(north, '1NT', '2C', dealer='South') == ('X', gib.STAYMAN_DOUBLE)
+        assert 'invitational' in gib.STAYMAN_DOUBLE and len(gib.STAYMAN_DOUBLE) < 70
+        assert bid(south, '1NT', '2C', 'X', '2D', dealer='South')[0] == 'Pass'
+        gib.NT_2C_X_MAJOR = gib.STAYMAN_X_CONTESTED = True
+        assert bid(north, '1NT', '2C', dealer='South')[0] == 'Pass'
+        call, why = bid(with_major, '1NT', '2C', dealer='South')
+        assert call == 'X' and '4+' in why and 'major' in why, (call, why)
+        assert bid(south, '1NT', '2C', 'X', '2D', dealer='South') == ('2S', '4+ ♠.')
+        call, _ = bid(with_major, '1NT', '2C', 'X', '2D', '2S', 'Pass', dealer='South')
+        assert call in ('3S', '4S'), call
+        # They only passed: systems on, as before.
+        assert bid(south, '1NT', '2C', 'X', 'Pass', dealer='South')[0] == '2S'
+    finally:
+        gib.NT_2C_X_MAJOR, gib.STAYMAN_X_CONTESTED = saved
 
 TRANSFER_INTERFERED_CASES = [
     # (dealer, calls, hand, call): the review of PR #65, 2026-11-05.
@@ -2087,3 +2206,31 @@ def test_fit_over_3nt_never_lands_on_stayman():
     south = 'JS KH QH 2H JD KC JC 9C 7C 5C 4C 3C 2C'
     call, _ = bid(south, '1NT', 'Pass', dealer='North')
     assert call == '3NT', call
+
+
+# ── No 3NT on a minor fit with a short suit (MINOR_NO_3NT) ────────────────────
+
+def test_no_3nt_on_a_minor_fit_with_a_singleton():
+    """The user's deal (2026-11-12): 1♦ 1♥ 1♠ 3♦ with a singleton club. 3NT
+    went down; pass partner's invitation instead."""
+    south = 'KS QS JS 9S AH 9H 4H AD QD 10D 8D 5D 4C'
+    call, _ = bid(south, '1D', 'Pass', '1H', 'Pass', '1S', 'Pass', '3D', 'Pass', dealer='South')
+    assert call == 'Pass', call
+
+
+def test_no_pass_of_a_game_force_with_a_void():
+    """2♣ 2♦ 3♣ is game forcing: with a void in diamonds, 5♣, not 3NT and
+    not a pass (deal 276, seed 7M)."""
+    south = 'QS 9S 8S 7S JH 9H 6H 5H 4H 10C 6C 4C 2C'
+    call, why = bid(south, '2C', 'Pass', '2D', 'Pass', '3C', 'Pass', dealer='North')
+    assert call == '5C' and 'To play' in why, (call, why)
+
+
+# ── Responder's game after opener's single raise (RAISE_TRY_GAME) ─────────────
+
+def test_responder_bids_game_over_a_single_raise():
+    """1♦ 1♥ 2♥ with ♠Q3 ♥A1095 ♦KQ975 ♣K10 (17 judgement points): 4♥, not
+    pass (the user's deal, 2026-11-13; East-West take 12 tricks)."""
+    east = 'QS 3S AH 10H 9H 5H KD QD 9D 7D 5D KC 10C'
+    call, why = bid(east, '1D', 'Pass', '1H', 'Pass', '2H', 'Pass', dealer='West')
+    assert call == '4H' and 'To play' in why, (call, why)
