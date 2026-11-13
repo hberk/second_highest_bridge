@@ -762,15 +762,15 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   0.00 a board on 60,000 fresh boards.
 - **Systems on over their 2♣ overcall of our 1NT** (`NT_2C_SYSTEMS`,
   `_nt_2c_systems`; the user's system, 2026-11-04): X is Stayman, 2♦/2♥
-  transfer, and the uncontested continuations run while they pass. A long
-  diamond suit relays through 2NT. +0.00 a board on 60,000 fresh boards.
+  transfer, and the uncontested continuations run while they pass. +0.00 a board on 60,000 fresh boards.
   The double is the uncontested 2♣, which is also the invitation with no
   major (1NT 2♣ 2♦ 2NT), so its alert says "a 4-card major, or invitational
   values" (`STAYMAN_DOUBLE`; the user's deal 2026-11-13, ♠763 ♥KQJ ♦- ♣K976532).
   Making it promise a major (`NT_2C_X_MAJOR`) and answering it over their bid
   (`STAYMAN_X_CONTESTED`) both measured worse (ROBOT_PROGRESS, 11-13): off.
   The minor transfers (2NT clubs, 3♣ diamonds; `NT_2C_MINOR_TRANSFERS`)
-  measured neutral, +0.06 a board over three seeds.
+  measured neutral, +0.06 a board over three seeds, and are on (the user's
+  system, 2026-11-13).
 - **A doubled or overcalled systems-on transfer** (`TRANSFER_INTERFERED`,
   `_transfer_interfered`; the review of PR #65, 2026-11-05). Over their 2♣ and
   over our double of their 1NT, when they double our 2♦/2♥ transfer or bid

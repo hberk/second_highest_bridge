@@ -4153,7 +4153,7 @@ export const STAYMAN_X_CONTESTED = false;
 // Systems on keeps the minor transfers too (the user, 2026-11-13): 2NT
 // transfers to clubs and 3♣ to diamonds, as over 1NT uncontested. Before,
 // only the double and 2♦/2♥ ran, and a long minor took Lebensohl.
-export const NT_2C_MINOR_TRANSFERS = false;
+export const NT_2C_MINOR_TRANSFERS = true;
 
 /** 1NT (2♣) X, our double Stayman, then they bid again: answered as
  *  1NT P 2♣ and their bid (`staymanContested`). */

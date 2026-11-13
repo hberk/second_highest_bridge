@@ -4582,7 +4582,7 @@ STAYMAN_X_CONTESTED = False
 #: Systems on keeps the minor transfers too (the user, 2026-11-13): 2NT
 #: transfers to clubs and 3♣ to diamonds, as over 1NT uncontested. Before,
 #: only the double and 2♦/2♥ ran, and a long minor took Lebensohl.
-NT_2C_MINOR_TRANSFERS = False
+NT_2C_MINOR_TRANSFERS = True
 
 
 def _stayman_x_contested(ctx: Ctx) -> tuple | None:

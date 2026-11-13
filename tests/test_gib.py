@@ -1929,9 +1929,15 @@ def test_systems_on_over_their_2c():
     assert call == '2S', call
     call, why = bid(east, '1NT', '2C', 'X', 'Pass', '2D', 'Pass', dealer='West')
     assert call == '2NT', (call, why)
-    # A long diamond suit can't bid 2♦ (a transfer): it relays through 2NT.
-    call, _ = bid('8S 5S 3S 7H 4H JD 9D 7D 6D 4D 2D 5C 2C', '1NT', '2C', dealer='West')
-    assert call == '2NT', call
+    # The minor transfers stay on (NT_2C_MINOR_TRANSFERS, the user 2026-11-13):
+    # 3♣ shows diamonds, 2NT clubs, and opener completes.
+    call, why = bid('8S 5S 3S 7H 4H JD 9D 7D 6D 4D 2D 5C 2C', '1NT', '2C', dealer='West')
+    assert call == '3C' and 'Transfer' in why and '♦' in why, (call, why)
+    call, why = bid('8S 5S 3S 7H 4H 2D QC JC 9C 7C 6C 4C 2C', '1NT', '2C', dealer='West')
+    assert call == '2NT' and 'Transfer' in why and '♣' in why, (call, why)
+    opener = 'AS KS 10S 8S AH 9H 8H 10D 9D 7D AC 10C 3C'
+    assert bid(opener, '1NT', '2C', '2NT', 'Pass', dealer='West')[0] == '3C'
+    assert bid(opener, '1NT', '2C', '3C', 'Pass', dealer='West')[0] == '3D'
 
 
 
