@@ -607,6 +607,29 @@ def test_cappelletti_over_their_1nt():
     assert call == '2D' and 'Artificial' in why
 
 
+def test_penalty_double_of_1nt_is_for_balanced_hands():
+    # The user's deal (2026-11-13): 1NT P P X with 5-1-3-4 15 HCP, partner
+    # transferred to hearts on a void in spades, and 2H played on a 5-1 fit.
+    east = 'AS 10S 8S 6S 5S JH AD KD 5D QC JC 10C 4C'
+    balanced = 'AS 10S 8S JH 5H AD KD 5D QC JC 10C 4C 3C'
+    no_cappelletti = 'AS 10S 8S 6S JH AD KD 5D 3D QC JC 10C 4C'   # 4-1-4-4
+    saved = gib.NT_X_SHAPE
+    try:
+        gib.NT_X_SHAPE = None
+        assert bid(east, '1NT', 'Pass', 'Pass', dealer='South')[0] == 'X'
+        for mode in ('cappelletti', 'strict'):
+            gib.NT_X_SHAPE = mode
+            call, why = bid(east, '1NT', 'Pass', 'Pass', dealer='South')
+            assert call == '2S' and 'minor' in why, (mode, call, why)
+            assert bid(balanced, '1NT', 'Pass', 'Pass', dealer='South')[0] == 'X'
+        gib.NT_X_SHAPE = 'cappelletti'
+        assert bid(no_cappelletti, '1NT', 'Pass', 'Pass', dealer='South')[0] == 'X'
+        gib.NT_X_SHAPE = 'strict'
+        assert bid(no_cappelletti, '1NT', 'Pass', 'Pass', dealer='South')[0] == 'Pass'
+    finally:
+        gib.NT_X_SHAPE = saved
+
+
 def test_takeout_doubles_stop_at_4h():
     strong = 'AS KS QH JH 7H 2H AD QD 9D 6D AC 5C 3C'
     assert bid(strong, '4H')[0] == 'X'
