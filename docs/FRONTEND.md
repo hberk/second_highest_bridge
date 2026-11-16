@@ -26,9 +26,9 @@ remains the reference.
   `ai.py`/`gib.py`/`challenge.py`. It is
   held to the Python by `engine.test.ts` against fixtures from
   `tests/fixtures/export_ts_fixtures.py`: every legal-call list, call, alert and
-  card over 1,200 games (half with a random human South, to reach states an
+  card over 800 games (half with a random human South, to reach states an
   all-robot table never does), every scoring case, 1,600 hand evaluations, and
-  the robot table, grade and par of all 400 library deals. Exact equality,
+  the robot table, grade and par of two of every three of the 400 library deals. Exact equality,
   floats included. **Change `ai.py` and the port fails until it follows** --
   CI regenerates the fixtures on every run. Port details that matter: Python's
   `max`/`min` keep the first of tied items (`maxBy`/`minBy`), and 3.12's

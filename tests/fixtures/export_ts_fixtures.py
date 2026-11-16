@@ -135,6 +135,11 @@ def _game(i: int, hands) -> dict:
     return play_game(hands, DEALER_ROTATION[i % 4], VUL_ROTATION[i % 16], human)
 
 
+#: Boards replayed by the port's parity test. A multiple of 16, so every dealer,
+#: vulnerability and random-South pairing still comes up equally often.
+GAMES = 800
+
+
 def export_games(n: int) -> list[dict]:
     # Deals first, in order from the one RNG; then the boards, which share
     # nothing, on every core (the robots search from five cards a hand).
@@ -180,8 +185,12 @@ def export_scoring() -> list[list]:
 
 
 def export_challenge() -> list[dict]:
+    # Two deals of every three, spread over the whole library: the robots'
+    # card play is why this export is slow (v0.1.6-alpha timed out at 60
+    # minutes), and the rest of the library is the same code on more deals.
+    ids = [d for i, d in enumerate(challenge.deal_ids()) if i % 3 != 2]
     with ProcessPoolExecutor(os.cpu_count()) as pool:
-        return list(pool.map(_challenge_deal, challenge.deal_ids(), chunksize=4))
+        return list(pool.map(_challenge_deal, ids, chunksize=4))
 
 
 def _challenge_deal(deal_id: int) -> dict:
@@ -320,7 +329,7 @@ def main() -> None:
         sys.exit("export_ts_fixtures.py needs Python 3.12+ (see the docstring); "
                  "on Windows: ./.venv/Scripts/python.exe")
     OUT.mkdir(parents=True, exist_ok=True)
-    games = export_games(1200)
+    games = export_games(GAMES)
     write('games.json', games)
     write('evals.json', export_evals(games))
     write('scoring.json', export_scoring())

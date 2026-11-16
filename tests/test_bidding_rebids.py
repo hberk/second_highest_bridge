@@ -332,6 +332,18 @@ def test_opener_new_suit_alert_names_two_suits():
         '5C', 'Two suits: 5+ ♣, ♦ as long or longer.')
 
 
+def test_responder_new_suit_is_not_a_rebid():
+    """Training board 376 (2026-11-16): P 1H P 1S 2C P P, then South's 2D,
+    and after P 3D P South's 3H. South never bid either suit, so neither
+    is 'rebidding the suit' (the bidding box and the recap read gib_alert)."""
+    import meanings
+    a = auction_after('Pass', '1H', 'Pass', '1S', '2C', 'Pass', 'Pass', dealer='West')
+    assert meanings.gib_alert(a, '2D') == '6+ ♦, a new suit.'
+    for call in ('2D', 'Pass', '3D', 'Pass'):
+        a.apply_call(a.current_player(), call)
+    assert meanings.gib_alert(a, '3H') == '6+ ♥, a new suit.'
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_') and callable(fn):

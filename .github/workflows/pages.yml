@@ -85,7 +85,9 @@ jobs:
     runs-on: ubuntu-latest
     # Fixtures plus the engine parity games, slower since the table count
     # (v0.1.4-alpha): over 30 minutes on the PR, 21 for npm test alone locally.
-    timeout-minutes: 60
+    # The v0.1.6-alpha deploy from main hit 60 (fixtures alone took 41), so the
+    # site stayed on v0.1.5-alpha until a rerun.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
 
