@@ -667,6 +667,24 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   2026-10-28: the double is made because bidding is too dangerous); it had
   still bid when partner bid on, reading a cuebid or raise as support. Its
   penalty double is kept, as for the pre-emptor.
+  - **More artificial bids** (`gib.LEAD_DOUBLE_MORE`, the user's call,
+    2026-11-17, training board 414: P P 1♥ P 2♣ was Drury, and South's
+    double was explained as takeout, 13+). `shown_suit` reads some of their
+    artificial suit bids as natural, because it sees neither passes nor a
+    convention's preconditions. A scan of 3,000 robot auctions for suit bids
+    alerted "Artificial" that `_their_artificial` missed found five, now read
+    by `_their_convention`: Drury (18) and opener's 2♦ over it (5), new minor
+    forcing (23), checkback 3♣ (8), the short-suit game try 1♥ 2♥ 2♠ (9).
+    The rescan finds none missed. A takeout hand now passes over them, as
+    over Stayman. In 6,000 fresh robot deals 13 such doubles were made;
+    each time the doubler's partner was on lead (6) it led the suit.
+  - **Systems on over the double** (`gib.LEAD_DOUBLE_SYSTEMS_ON`): when
+    every call of theirs is a lead-directing double of our artificial bid,
+    we bid on as if they had passed (as over 1NT (X)). Without it the same
+    deals had 1♥ P 1♠ P 1NT P 2♣ X passed out in 2♣ doubled, checkback 3♣
+    doubled passed out, and opener bidding 2♠ as a new suit over Drury doubled.
+  - The bidding box titles the alert "Lead-directing double" (it fell back
+    to the natural-bid text before).
 - **Penalty doubles** (`ai.PENALTY_DOUBLE`, `PENALTY_JUDGE`; the user's rule,
   2026-10-24). Against **two-sided par** (both sides bid perfectly, a failing
   contract is doubled, either side may sacrifice) the robots are 233 points a
