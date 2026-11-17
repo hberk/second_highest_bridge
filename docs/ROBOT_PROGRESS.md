@@ -407,6 +407,7 @@ from the variant's side; t as above.
 | 11-13 | ...and opener answers the Stayman double over their bid, as Stayman contested (`STAYMAN_X_CONTESTED`) | -0.59, -1.28, -0.56 | -3.57, -4.39, -3.07 | 45 (2 better, 22 worse), 53 (0, 27), 37 (1, 14) | off: competing to 3♥/4♥ loses to defending their 3♣ |
 | 11-13 | Systems on over their 2♣ keeps the minor transfers: 2NT clubs, 3♣ diamonds (`NT_2C_MINOR_TRANSFERS`, the user's system); seeds 7M, 8M, 9M, 3,000 relevant deals each | -0.07, +0.14, +0.11 | -1.63, +0.99, +1.68 | 32 (6 better, 7 worse), 52 (17, 15), 46 (18, 12) | on (your call 11-13: it is your system) |
 | 11-13 | **v0.1.6-alpha combined**: all eight switches on against all off, on the combined branch; seeds 7M, 8M, 9M, 1,000 fresh deals each (`/mnt/project-files/nov13-combined/all_score*.txt`) | **+1.43, +0.79, +0.88** | +3.82, +3.45, +3.18 | 66 (39 better, 21 worse), 48 (31, 16), 52 (29, 15) | on |
+| 11-17 | Responder's 2♣/2♦ preference after 1m-1y-1z needs four cards, or three with a side singleton or void; a flatter minimum bids 1NT (`MINOR_PREF_FOUR`; the user's board, 1♦ 1♥ 1♠ 2♦ on ♠T4 ♥AQJT5 ♦543 ♣K75); seeds 7M, 8M, 9M, 3,000 fresh deals each (`/mnt/project-files/minor-pref-four/`) | +0.11, +0.13, +0.05 | +1.68, +2.45, +1.38 | 97, 80, 75 | on (pending your review) |
 
 ### The previous system (`ai_bid`)
 

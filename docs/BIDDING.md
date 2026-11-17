@@ -1158,6 +1158,10 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     diamonds or five clubs (2♣ is often three cards). Before, 3♦ had no
     meaning and 10-11 balanced bid 2NT; opener answers it like any
     three-level invitation (3NT on 13+).
+  - `MINOR_PREF_FOUR`: after 1m 1y 1z, responder's minimum 2m preference needs
+    four cards, or three with a side singleton or void; a flatter hand bids 1NT
+    (the user's board, 1♦ 1♥ 1♠ 2♦ on ♠T4 ♥AQJT5 ♦543 ♣K75). 3,000 fresh deals
+    on each of seeds 7M, 8M, 9M: +0.11, +0.13, +0.05 a board, t 1.4-2.5.
   - `THEIR_NT_OVERCALL`: when they overcall our one-level opening with 1NT and
     we pass, they play systems on, so their 2♣ is Stayman and their 2♦/2♥
     transfers are artificial (`_their_artificial`). Opener's double of one
