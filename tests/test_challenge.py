@@ -267,6 +267,26 @@ def test_par_takes_a_sacrifice_that_costs_less():
         (300, 5, 'S', 'E/W', 'X'), p
 
 
+def test_par_partscore_is_bid_to_its_trick_level():
+    """Training deal 19, as the user saw it: E/W take nine tricks in hearts
+    and N/S can only compete in clubs. Par was 1♥ E/W -140, the lowest contract
+    that scores it, but N/S could bid over 1♥; E/W bid until they can't make it,
+    so par is 3♥, still -140. A game is never raised past game."""
+    import json
+    deals = json.loads((Path(__file__).resolve().parents[1] / 'data' / 'training_deals.json')
+                       .read_text(encoding='utf-8'))['deals']
+    t = next(d for d in deals if d['id'] == 19)['tricks']
+    seats = {'N/S': ('North', 'South'), 'E/W': ('East', 'West')}
+    tricks = lambda strain, side: max(t[f'{strain}:{s}'] for s in seats[side])
+    for vul in ('None', 'N/S', 'E/W', 'Both'):
+        p = challenge.par_from_tricks(tricks, 'N/S', vul)
+        assert (p['score'], p['level'], p['strain'], p['side'], p['doubled']) == \
+            (-140, 3, 'H', 'E/W', 'None'), (vul, p)
+    # Eleven tricks in spades is 4♠+1, never 5♠.
+    p = challenge.par(169, 'N/S', 'N/S')
+    assert (p['level'], p['tricks']) == (4, 11), p
+
+
 def test_par_lies_between_what_each_side_makes_alone():
     """Par is zero sum, and neither side can be held below what the other side
     would let it have by passing throughout: no more for N/S than their best
