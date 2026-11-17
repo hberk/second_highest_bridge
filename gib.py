@@ -106,6 +106,11 @@ CUE_LIMIT_AT_3 = True
 #: the length, responder bids as if there were no fit, and with nothing else
 #: to bid raises.
 CUE_MINOR_SUPPORT = True
+#: Responder's pre-emptive jump raise over an overcall or a double (1m (1H) 3m)
+#: needs 5+ trumps in a minor, where four do in a major: a 1♣ opener may hold
+#: three (the user's rule, 2026-11-17: P 1♣ (1♥) 3♣ on ♣A642). With four,
+#: responder makes the simple raise or passes.
+PREEMPT_MINOR_FIVE = True
 #: Advancer's cuebid raise can pass three of partner's suit (1♦ (2♣) 2♦ 3♦),
 #: forcing 3NT or four. So when their suit ranks above ours, 2NT is the
 #: limit raise or better (artificial), leaving three as partner's sign-off,
@@ -3812,8 +3817,8 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
             return '2NT', f"Jordan: 4+ {SYM[x]}, 10+ HCP."
         if hcp >= 10 and ctx.ok('XX'):
             return 'XX', "10+ HCP."
-        if sup >= 4 and hcp <= 9 and ctx.ok(f"3{x}"):
-            return f"3{x}", f"4+ {SYM[x]}, under 10 HCP. Pre-emptive."
+        if sup >= _preempt_support(x) and hcp <= 9 and ctx.ok(f"3{x}"):
+            return f"3{x}", f"{_preempt_support(x)}+ {SYM[x]}, under 10 HCP. Pre-emptive."
         if sup >= 3 and hcp >= 6:
             call = ctx.cheapest(x, 2)
             if call and level_of(call) == 2:
@@ -3869,10 +3874,10 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
                         and sup < 4 and h.judge < 12)
         if call and level_of(call) <= 3 and not cue_too_high:
             return call, f"Cuebid: {need}+ {SYM[x]}, 10+ HCP. Artificial."
-    if sup >= 4 and hcp <= 9 and ctx.ok(f"3{x}") and lvl <= 2 and \
+    if sup >= _preempt_support(x) and hcp <= 9 and ctx.ok(f"3{x}") and lvl <= 2 and \
             rank_of(f"3{x}") > rank_of(ctx.cheapest(x, 1) or '1C'):
         if ctx.cheapest(x, 2) != f"3{x}":
-            return f"3{x}", f"4+ {SYM[x]}, under 10 HCP. Pre-emptive."
+            return f"3{x}", f"{_preempt_support(x)}+ {SYM[x]}, under 10 HCP. Pre-emptive."
     if sup >= 3 and hcp >= 6:
         call = ctx.cheapest(x, 2)
         if call and level_of(call) <= 3 and (hcp <= 9 or cue_too_high):
@@ -3905,6 +3910,11 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
         if call and level_of(call) <= 3:
             return call, _raise_alert(x, f"3+ {SYM[x]}, 6+ HCP.")
     return 'Pass', "Nothing to show."
+
+
+def _preempt_support(x: str) -> int:
+    """Trumps responder's pre-emptive jump raise over interference needs."""
+    return 5 if PREEMPT_MINOR_FIVE and x in MINORS else 4
 
 
 def _cue_support(x: str) -> int:

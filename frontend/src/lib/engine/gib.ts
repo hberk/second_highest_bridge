@@ -56,6 +56,8 @@ const NT_GAME = 28;
 export const settingsGib = { judgeByVariant: true, cueLimitAt3: true };
 /** Responder's cuebid raise of a minor opening needs 4+ diamonds or 5+ clubs (gib.py). */
 export const CUE_MINOR_SUPPORT = true;
+/** Responder's pre-emptive jump raise over interference needs 5+ trumps in a minor (gib.py). */
+export const PREEMPT_MINOR_FIVE = true;
 /** Advancer's cuebid raise past three of partner's suit: 2NT is the limit
  *  raise or better and the cuebid asks for a stopper for 3NT. See gib.py. */
 export const CUE_2NT = true;
@@ -3435,7 +3437,7 @@ function respondOverInterference(ctx: Ctx, x: Suit): Decision {
   if (!lb) {
     if (isMajor(x) && sup >= 4 && hcp >= 10 && ctx.ok('2NT')) return ['2NT', `Jordan: 4+ ${SYM[x]}, 10+ HCP.`];
     if (hcp >= 10 && ctx.ok('XX')) return ['XX', '10+ HCP.'];
-    if (sup >= 4 && hcp <= 9 && ctx.ok(`3${x}`)) return [`3${x}`, `4+ ${SYM[x]}, under 10 HCP. Pre-emptive.`];
+    if (sup >= preemptSupport(x) && hcp <= 9 && ctx.ok(`3${x}`)) return [`3${x}`, `${preemptSupport(x)}+ ${SYM[x]}, under 10 HCP. Pre-emptive.`];
     if (sup >= 3 && hcp >= 6) {
       const call = ctx.cheapest(x, 2);
       if (call && levelOf(call) === 2) return [call, `3+ ${SYM[x]}, 6-9 HCP.`];
@@ -3490,9 +3492,9 @@ function respondOverInterference(ctx: Ctx, x: Suit): Decision {
       && sup < 4 && h.judge < 12;
     if (call && levelOf(call) <= 3 && !cueTooHigh) return [call, `Cuebid: ${need}+ ${SYM[x]}, 10+ HCP. Artificial.`];
   }
-  if (sup >= 4 && hcp <= 9 && ctx.ok(`3${x}`) && lvl <= 2
+  if (sup >= preemptSupport(x) && hcp <= 9 && ctx.ok(`3${x}`) && lvl <= 2
     && rankOf(`3${x}`) > rankOf(ctx.cheapest(x, 1) ?? '1C')) {
-    if (ctx.cheapest(x, 2) !== `3${x}`) return [`3${x}`, `4+ ${SYM[x]}, under 10 HCP. Pre-emptive.`];
+    if (ctx.cheapest(x, 2) !== `3${x}`) return [`3${x}`, `${preemptSupport(x)}+ ${SYM[x]}, under 10 HCP. Pre-emptive.`];
   }
   if (sup >= 3 && hcp >= 6) {
     const call = ctx.cheapest(x, 2);
@@ -3524,6 +3526,10 @@ function respondOverInterference(ctx: Ctx, x: Suit): Decision {
 }
 
 /** Cards responder's cuebid raise of partner's 1x opening needs (gib.py). */
+function preemptSupport(x: Suit): number {
+  return PREEMPT_MINOR_FIVE && isMinor(x) ? 5 : 4;
+}
+
 function cueSupport(x: Suit): number {
   if (CUE_MINOR_SUPPORT && isMinor(x)) return x === 'D' ? 4 : 5;
   return 3;
