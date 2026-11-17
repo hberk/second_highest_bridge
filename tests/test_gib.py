@@ -36,6 +36,16 @@ def bid(cards: str, *calls: str, dealer: str = 'North') -> tuple:
     return ai.ai_bid_explained(auction.current_player(), hand(cards), auction)
 
 
+def test_minor_preference_needs_four():
+    # The user's board (2026-11-17): 1♦ 1♥ 1♠, three small diamonds and a flat
+    # hand bid 1NT, not a 2♦ preference.
+    calls = ('Pass', 'Pass', '1D', 'Pass', '1H', 'Pass', '1S', 'Pass')
+    assert bid('10S 4S AH QH JH 10H 5H 5D 4D 3D KC 7C 5C', *calls, dealer='South') == ('1NT', 'Minimum.')
+    # Four diamonds, or three with a side singleton, still prefer 2♦.
+    assert bid('4S AH QH JH 10H 5H 6D 5D 4D 3D KC 7C 5C', *calls, dealer='South')[0] == '2D'
+    assert bid('4S AH QH JH 10H 5H 5D 4D 3D KC 7C 5C 2C', *calls, dealer='South')[0] == '2D'
+
+
 # ── Openings ──────────────────────────────────────────────────────────────────
 
 def test_openings():
