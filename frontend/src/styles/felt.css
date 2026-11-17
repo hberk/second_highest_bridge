@@ -1063,6 +1063,11 @@ button { touch-action: manipulation; }
 .marks-wide .dd-mark { padding: 1px 2px; min-width: 0; font-size: 9px; border-radius: 3px; }
 .marks-wide .seat-box-head { flex-wrap: wrap; }
 .hv-summary { text-align: left; }
+.hv-tricks { display: grid; gap: 10px; }
+.hv-tricks .bt-dd { width: 100%; row-gap: 6px; font-size: 15px; }
+.hv-tricks .caption { margin: 0; }
+.hv-par { font-size: 15px; }
+.hv-tricks .chip-btn { justify-self: center; }
 
 /* ── Bidding training (2026-10-27) ───────────────────────────────────────── */
 /* The bidding screen is the table's; once the auction ends the recap takes
