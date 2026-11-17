@@ -2131,6 +2131,16 @@ export const LOTT_TOTAL_ALERT = 'Competing: both sides have a fit.';
 export const LOTT_TOTAL_HCP = 6;
 
 /** Have both opponents bid `s` naturally? */
+/** The pass-out seat with an inferred eight-card fit (board 140, 2026-11-17). See gib.py. */
+export const LOTT_BALANCE = true;
+export const LOTT_BALANCE_HCP = 10;
+
+function balanceThree(ctx: Ctx, s: Suit, n: number, mine: boolean): boolean {
+  return LOTT_BALANCE && mine && n === 8 && ctx.h.len[s] >= 5
+    && ctx.h.hcp >= LOTT_BALANCE_HCP && ctx.calls.length >= 2
+    && ctx.calls.slice(-2).every(([, c]) => c === 'Pass');
+}
+
 function theyRaised(ctx: Ctx, s: Suit): boolean {
   return new Set(ctx.theirs.filter(([, c]) => strainOf(c) === s).map(([w]) => w)).size === 2;
 }
@@ -2297,9 +2307,10 @@ function totalTricks(ctx: Ctx, decision: Decision | null): Decision | null {
       && ctx.h.short(s).length > 0;
     if (!mine && !weak && !(LOTT_RAISE[0] <= ctx.h.hcp && ctx.h.hcp <= LOTT_RAISE[1])) continue;
     const call = ctx.cheapest(s, 1);
-    if (call === null || levelOf(call) > Math.min(n - 6 + totalBonus(ctx, n), LOTT_MAX)) continue;
+    if (call === null || levelOf(call) > Math.min(n - 6 + totalBonus(ctx, n) + (balanceThree(ctx, s, n, mine) ? 1 : 0), LOTT_MAX)) continue;
+    const extra = balanceThree(ctx, s, n, mine) ? 1 : 0;
     const key = [n, isMajor(s) ? 1 : 0, idx(s)];
-    if (best === null || cmpTuple(key, best[0]) > 0) best = [key, call, levelOf(call) > n - 6];
+    if (best === null || cmpTuple(key, best[0]) > 0) best = [key, call, levelOf(call) > n - 6 + extra];
   }
   if (best === null) return null;
   const s = strainOf(best[1]) as Suit;

@@ -525,6 +525,19 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     raises to 3♠ on 3 HCP, and partner competes to 4♠ over 4♣. Head to head
     against LoTT without it: **+0.27 per board, t = +1.89, 7 auctions changed**.
     LoTT with it, against neither: +3.82 (t = +4.76, 78 changed).
+  - **Three-level competition from the pass-out seat** (`LOTT_BALANCE`,
+    `_balance_three`; the user's board 140, 2026-11-17). 1♦ P 2♦ (inverted)
+    2♠ P P: East's ♦QT764 and partner's 3+ make eight trumps, which the LoTT
+    allows only the two level, so East passed 2♠ out and 2♠ went down one
+    (making 3♦ was the better contract). When both other players have passed,
+    a hand that bid the suit, has five or more of it, makes eight with
+    partner's shown length and holds `LOTT_BALANCE_HCP` (10, the strength an
+    inverted raise already showed) bids one level higher. Alert: the plain
+    "Competing to the level of our fit." Fresh deals, head to head, 3,000 x 4
+    dealers: 10 HCP **-0.02 (t -0.31), +0.17 (t +2.29), +0.19 (t +2.44)**,
+    42-69 auctions changed, 6-21 worse; 8 HCP +0.01 / +0.26 / +0.12 (t +0.18,
+    +3.14, +1.13) but more auctions changed and more worse, so 10 stays.
+    (`/mnt/project-files/balance-three/`.)
 - **Count the fit** (`FIT_COUNT`, `_fit_bonus`; the user's call, 2026-10-22).
   Where GIB judges game once a fit is known -- opener after 1M-2M and 1M-3M,
   responder after a game try and after opener's raise, and `continuation`'s

@@ -61,3 +61,11 @@ test('no pass of a game force: 5C with a void', () => {
   const south = 'QS 9S 8S 7S JH 9H 6H 5H 4H 10C 6C 4C 2C';
   expect(bid(south, 'North', ['2C', 'Pass', '2D', 'Pass', '3C', 'Pass']).call).toBe('5C');
 });
+// tests/test_gib.py: board 140 (2026-11-17), 3D from the pass-out seat.
+test('an inverted raiser competes to 3D in the pass-out seat', () => {
+  const east = 'KS JS AH 9H 3H QD 10D 7D 6D 4D 9C 8C 2C';
+  const r = bid(east, 'West', ['1D', 'Pass', '2D', '2S', 'Pass', 'Pass']);
+  expect(r.call).toBe('3D');
+  expect(r.why).toContain('fit');
+  expect(bid('KS JS 4H 3H 2H QD 10D 7D 6D 4D 9C 8C 2C', 'West', ['1D', 'Pass', '2D', '2S', 'Pass', 'Pass']).call).toBe('Pass');
+});
