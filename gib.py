@@ -1581,6 +1581,13 @@ def _nt_opener_answer(ctx: Ctx, base: int, r: str, lo: int, hi: int) -> tuple:
     return 'Pass', "Partner placed the contract."
 
 
+#: 1NT-2♣-2♥-3NT (2NT-3♣-3♥-3NT too): responder's Stayman was for the other
+#: major, so 3NT shows four spades, and the opener with four of them corrects
+#: to 4♠ (the user, 2026-11-17). Over 2♠ it shows four hearts, which the
+#: opener has denied. False: 3NT says "To play" and the opener passes.
+STAYMAN_3NT_OTHER_MAJOR = True
+
+
 #: After a Jacoby transfer a responder with six or more of the major bids it
 #: (4M with game values, 3M invitational); it never says "5" or offers 3NT.
 SIX_CARD_TRANSFER_REBID = True
@@ -1607,6 +1614,11 @@ def _nt_responder_second(ctx: Ctx, base: int, seq: list[str], lo: int, hi: int) 
             m5 = [m for m in MAJORS if h.len[m] >= 5]
             if m5 and strain_of(o) in MAJORS and o != '2S' and ctx.ok(f"3{m5[0]}"):
                 return f"3{m5[0]}", f"5+ {SYM[m5[0]]}, game forcing."
+            if STAYMAN_3NT_OTHER_MAJOR and s in MAJORS:
+                # Stayman then 3NT over a major: the other major is the
+                # reason for Stayman (the user, 2026-11-17).
+                other = 'S' if s == 'H' else 'H'
+                return placed(ctx, ('3NT', f"4 {SYM[other]}, fewer than 4 {SYM[s]}. To play."))
             return placed(ctx, ('3NT', TO_PLAY))
         if ctx.ok('2NT'):
             return '2NT', "Invitational."
@@ -1675,6 +1687,12 @@ def _nt_opener_third(ctx: Ctx, base: int, seq: list[str], lo: int, hi: int) -> t
         if h.len[target] >= 3:
             return f"4{target}", TO_PLAY
         return 'Pass', "Partner placed the contract."
+    if (STAYMAN_3NT_OTHER_MAJOR and last == '3NT' and r == code['stayman']
+            and strain_of(seq[2]) in MAJORS):
+        other = 'S' if strain_of(seq[2]) == 'H' else 'H'
+        if h.len[other] >= 4 and ctx.ok(f"4{other}"):
+            return f"4{other}", f"4+ {SYM[other]}, to play."
+        return 'Pass', f"Fewer than 4 {SYM[other]}, to play."
     if last == '4NT':
         return ('6NT', TO_PLAY) if h.judge >= hi else ('Pass', "Minimum, declining.")
     if r == code['stayman'] and level_of(last) == 3 and strain_of(last) in MAJORS:

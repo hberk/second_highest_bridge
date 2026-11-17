@@ -2234,3 +2234,23 @@ def test_responder_bids_game_over_a_single_raise():
     east = 'QS 3S AH 10H 9H 5H KD QD 9D 7D 5D KC 10C'
     call, why = bid(east, '1D', 'Pass', '1H', 'Pass', '2H', 'Pass', dealer='West')
     assert call == '4H' and 'To play' in why, (call, why)
+
+
+def test_stayman_3nt_shows_the_other_major():
+    # The user's deal (2026-11-17): 1NT-2♣-2♥-3NT. Stayman then 3NT over
+    # hearts shows four spades, so the opener with four corrects to 4♠.
+    south = 'QS JS 7S 6S AH KH JH 5H 7D 5D AC 10C 9C'
+    north = 'AS 5S 4S 3S QH QD JD 6D 4D KC QC 3C 2C'
+    call, why = bid(north, '1NT', 'Pass', '2C', 'Pass', '2H', 'Pass', dealer='West')
+    assert call == '3NT' and why == '4 ♠, fewer than 4 ♥. To play.'
+    call, why = bid(south, '1NT', 'Pass', '2C', 'Pass', '2H', 'Pass', '3NT', 'Pass')
+    assert call == '4S' and '4+ ♠' in why
+    # Three spades: the opener passes.
+    three = 'QS JS 7S AH KH JH 5H 7D 5D AC 10C 9C 2C'
+    assert bid(three, '1NT', 'Pass', '2C', 'Pass', '2H', 'Pass', '3NT', 'Pass')[0] == 'Pass'
+    # Over 2♠ it shows hearts, which the 2♠ bidder denied: pass.
+    spades = 'AS KS JS 5S QH JH 5H 7D 5D AC 10C 9C 2C'
+    assert bid(spades, '1NT', 'Pass', '2C', 'Pass', '2S', 'Pass', '3NT', 'Pass')[0] == 'Pass'
+    # 2NT-3♣-3♥-3NT too.
+    big = 'AS KS 7S 6S AH KH JH 5H KD 5D AC 10C 9C'
+    assert bid(big, '2NT', 'Pass', '3C', 'Pass', '3H', 'Pass', '3NT', 'Pass')[0] == '4S'

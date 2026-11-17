@@ -1448,6 +1448,10 @@ function ntOpenerAnswer(ctx: Ctx, base: number, r: string, lo: number, hi: numbe
   return ['Pass', 'Partner placed the contract.'];
 }
 
+/** 1NT-2♣-2♥-3NT (2NT-3♣-3♥-3NT too): 3NT shows the other major, and the
+ *  opener with four of them corrects to 4♠ (the user, 2026-11-17). */
+export const STAYMAN_3NT_OTHER_MAJOR = true;
+
 // After a Jacoby transfer a responder with six or more of the major bids it
 // (4M with game values, 3M invitational); it never says "5" or offers 3NT.
 export const SIX_CARD_TRANSFER_REBID = true;
@@ -1473,6 +1477,12 @@ function ntResponderSecond(ctx: Ctx, base: number, seq: string[], lo: number, hi
       }
       const m5 = MAJORS.filter((m) => h.len[m] >= 5);
       if (m5.length && isMajor(strainOf(o)) && o !== '2S' && ctx.ok(`3${m5[0]}`)) return [`3${m5[0]}`, `5+ ${SYM[m5[0]]}, game forcing.`];
+      if (STAYMAN_3NT_OTHER_MAJOR && isMajor(s)) {
+        // Stayman then 3NT over a major: the other major is the
+        // reason for Stayman (the user, 2026-11-17).
+        const other: Suit = s === 'H' ? 'S' : 'H';
+        return placed(ctx, ['3NT', `4 ${SYM[other]}, fewer than 4 ${SYM[s as Suit]}. To play.`]);
+      }
       return placed(ctx, ['3NT', TO_PLAY]);
     }
     if (ctx.ok('2NT')) return ['2NT', 'Invitational.'];
@@ -1539,6 +1549,11 @@ function ntOpenerThird(ctx: Ctx, base: number, seq: string[], lo: number, hi: nu
     const target = strainOf(seq[2]) as Suit;
     if (h.len[target] >= 3) return [`4${target}`, TO_PLAY];
     return ['Pass', 'Partner placed the contract.'];
+  }
+  if (STAYMAN_3NT_OTHER_MAJOR && last === '3NT' && r === code.stayman && isMajor(strainOf(seq[2]))) {
+    const other: Suit = strainOf(seq[2]) === 'H' ? 'S' : 'H';
+    if (h.len[other] >= 4 && ctx.ok(`4${other}`)) return [`4${other}`, `4+ ${SYM[other]}, to play.`];
+    return ['Pass', `Fewer than 4 ${SYM[other]}, to play.`];
   }
   if (last === '4NT') return h.judge >= hi ? ['6NT', TO_PLAY] : ['Pass', 'Minimum, declining.'];
   if (r === code.stayman && levelOf(last) === 3 && isMajor(strainOf(last))) {
