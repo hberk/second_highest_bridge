@@ -55,6 +55,7 @@ the change in these, before and after, on the same deals
 
 | measured | robots | deals | declaring side | opening lead | defence after the lead | boards with a costly card | net (cancels) |
 |---|---|---|---|---|---|---|---|
+| 2026-11-17 | main plus `AUCTION_REPLAY` (hand 145: the endgame keeps only the layouts whose hidden hands the robots' bidder would bid the same; `/mnt/project-files/auction-replay/gross.txt`, against main measured the same day: 2.15 / 0.39 / 1.86) | 199 | **2.07** (14.9%, 83%) | **0.39** (36.0%, 34%) | **1.78** (16.5%, 79%) | 93% | -0.09 |
 | 2026-11-13 | **v0.1.6-alpha**: v0.1.5-alpha plus the eight Nov 12-13 changes (`RAISE_TRY_GAME`, `MINOR_NO_3NT`, `TWO_SUITER_BLAST`, `OPENER_TWO_SUITS`, `OVERCALL_3_AFTER_1NT`, `NT_X_SHAPE = 'two'`, `LEBENSOHL_RELAYER_FIX`, `NT_2C_MINOR_TRANSFERS`; bidding only, one of 350 lines changes; `/mnt/project-files/nov13-combined/report_vs_main.txt`, against main measured the same day: 2.15 / 0.39 / 1.86) | 199 | **2.15** (15.4%, 84%) | **0.39** (36.0%, 34%) | **1.86** (17.5%, 79%) | 93% | -0.10 |
 | 2026-11-12 | **v0.1.5-alpha**: v0.1.4-alpha plus `FIT_OVER_3NT`, `EXTRAS_DOUBLE = False`, the five GIB logic-bug fixes and `RUFF_RETURN_COUNTS_TRUMPS` (`/mnt/project-files/nov12-combined/report_vs_main.txt`, against main measured the same day: 2.15 / 0.40 / 1.87) | 199 | **2.15** (15.5%, 84%) | **0.39** (36.0%, 34%) | **1.86** (17.4%, 78%) | 93% | -0.10 |
 | 2026-11-10 | **v0.1.4-alpha final**: v0.1.3-alpha plus `COUNT_LEAD`, `COUNT_DISCARD`, `FOURTH_HAND_PLAN`, `DECLARER_THIRD_PLAN`, `DISCARD_SUIT_PLAN`, `NO_FUTILE_DRAW`, `RUFF_NOT_DRAW` (asking `_lead` under the count) and the Nov 10 bidding fixes (`/mnt/project-files/nov10-combined/report_vs_main.txt`, against main measured the same day: 2.58 / 0.39 / 2.12) | 199 | **2.15** (15.5%, 84%) | **0.40** (35.5%, 34%) | **1.87** (17.5%, 79%) | 93% | -0.12 |
@@ -108,6 +109,7 @@ or more is a real effect); **points** a board.
 
 | date | change | for | tricks | t | points | status |
 |---|---|---|---|---|---|---|
+| 2026-11-17 | `AUCTION_REPLAY`: the endgame search (5 cards or fewer) keeps only the layouts in which each hidden hand, rebuilt card for card, makes its calls by the robots' bidder (hand 145), seated, 200 deals | the side using it | **+0.050** | +4.2 | +7.1 | on, awaiting review |
 | by 10-12 | Fourth hand plays for the partnership, not just itself | declarer | **+0.43** | +7.2 | | on |
 | | | defence | **+0.21** | +5.2 | | |
 | 10-17 | Declarer draws trumps (unless dummy must ruff first) | declarer | **+0.171** | +3.19 | +17.1 | on |
