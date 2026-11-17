@@ -244,7 +244,7 @@ def robot_table(deal_id: int, dealer: str, vulnerability: str = 'None') -> dict:
                 'result': None}
 
     remaining = {seat: list(cards) for seat, cards in hands.items()}
-    shown = shown_lengths(calls, alerts)
+    shown = shown_lengths(calls, alerts, vulnerability)
     trump = contract['trump']
     leader = contract['leader']
     played: list[Card] = []

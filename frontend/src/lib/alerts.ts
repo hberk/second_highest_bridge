@@ -67,5 +67,5 @@ export function robotReadings(dealer: Seat, vulnerability: Vulnerability, calls:
 export function robotShown(dealer: Seat, vulnerability: Vulnerability, calls: CallRecord[],
   alerts: Record<number, string>, isHuman: IsHuman, readings: Readings): Shown {
   const read = robotReadings(dealer, vulnerability, calls, alerts, isHuman, readings);
-  return shownLengths(calls.map(([p, c]) => [p, c] as [Seat, string]), read);
+  return shownLengths(calls.map(([p, c]) => [p, c] as [Seat, string]), read, vulnerability);
 }
