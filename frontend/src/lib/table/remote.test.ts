@@ -13,7 +13,7 @@ import type { Readings } from '../alerts';
 import {
   addPlayer, applyIntent, applyRobot, newTable, robotAction, viewFor, type Context, type TableState,
 } from './core';
-import { RESTING_CLOSE, parseClientMessage, restingAt, restingUntil, type ClientMessage, type ServerMessage } from './protocol';
+import { IDLE_CLOSE, RESTING_CLOSE, parseClientMessage, restingAt, restingUntil, type ClientMessage, type ServerMessage } from './protocol';
 import { RemoteTable, type SocketLike } from './remote.svelte';
 import TableView from '../views/TableView.svelte';
 import DesktopTableView from '../views/DesktopTableView.svelte';
@@ -273,6 +273,23 @@ describe('RemoteTable', () => {
     expect(render(RemoteView, { props: { table: t, onhome: () => {} } }).body).toContain('The table server is resting');
     // It looks again after five minutes, and the seat comes back.
     clock.advance(4 * 60_000);
+    await tick();
+    expect(t.status).toBe('open');
+    expect(t.view?.you.seat).toBe('South');
+  });
+
+  it('pauses when the server closes an idle table, and carries on when asked', async () => {
+    const server = new FakeServer();
+    const clock = new Clock();
+    const { t, sockets } = await seated(server, 'South', clock);
+    sockets.at(-1)!.close(IDLE_CLOSE);
+    expect(t.status).toBe('idle');
+    const n = sockets.length;
+    clock.advance(60 * 60_000);
+    t.wake();
+    expect(sockets.length, 'an idle table stays closed until asked').toBe(n);
+    expect(render(RemoteView, { props: { table: t, onhome: () => {} } }).body).toContain('Carry on');
+    t.tryAgain();
     await tick();
     expect(t.status).toBe('open');
     expect(t.view?.you.seat).toBe('South');

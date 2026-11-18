@@ -10,6 +10,12 @@ const HOUR_MS = 3600_000;
 export class Limiter extends DurableObject {
   private creates = new Map<string, number[]>();
 
+  /** For /healthz: a call into a Durable Object fails once the day's
+   *  Durable Object allowance is spent, which the Worker alone never sees. */
+  ping(): boolean {
+    return true;
+  }
+
   /** May `key` create a table now? Counts it if so. */
   allow(key: string, perHour = CREATES_PER_HOUR): boolean {
     const now = Date.now();

@@ -64,6 +64,11 @@ export type ErrorCode =
  *  its daily allowance (Cloudflare's Free plan) until restingUntil(). */
 export const RESTING_CLOSE = 4003;
 
+/** The socket close code for "nobody here has done anything for a while": a
+ *  host that bills by the hour an open socket keeps a table awake (Cloudflare)
+ *  closes idle sockets, and the app offers "Carry on". */
+export const IDLE_CLOSE = 4005;
+
 /** When a host's daily allowance comes back: Cloudflare resets the Free
  *  plan's daily limits at 00:00 UTC. */
 export function restingUntil(now: number): number {

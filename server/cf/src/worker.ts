@@ -9,14 +9,14 @@ import { TABLE_ID_RE } from '../../../frontend/src/lib/table/protocol';
 import { limitKey } from '../../src/limits';
 import { newTableId } from '../../src/tables';
 import type { Env } from './env';
-import { isResting } from './resting';
+import { isResting, logUnrecognised } from './resting';
 import { restingSocket } from './table-object';
 
 export { TableObject } from './table-object';
 export { Limiter } from './limiter';
 
 const WS_PATH = /^\/tables\/([A-Za-z0-9_-]+)\/ws$/;
-const DEV_PATH = /^\/dev\/tables\/([A-Za-z0-9_-]+)\/(stats|rest)$/;
+const DEV_PATH = /^\/dev\/tables\/([A-Za-z0-9_-]+)\/(stats|rest|expire)$/;
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), {
   status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
@@ -33,7 +33,7 @@ export default {
         if (WS_PATH.test(path) && req.headers.get('upgrade')?.toLowerCase() === 'websocket') return restingSocket();
         return json(503, { error: 'resting' });
       }
-      console.error(`${new Date().toISOString()} ${req.method} ${path}:`, e);
+      logUnrecognised(`${req.method} ${path}`, e);
       return json(500, { error: 'server' });
     }
   },
@@ -46,7 +46,19 @@ async function route(req: Request, env: Env): Promise<Response> {
     const ip = limitKey(req.headers.get('cf-connecting-ip') ?? '');
     const table = (id: string) => env.TABLES.get(env.TABLES.idFromName(id));
 
-    if (path === '/healthz' && req.method === 'GET') return json(200, { ok: true });
+    if (path === '/healthz' && req.method === 'GET') {
+      // One call into a Durable Object: past the day's allowance it fails,
+      // and the app, asking here after failed connects, shows "resting".
+      // Any failure counts, so an error whose wording isResting doesn't know
+      // still reads as resting here; it is logged for resting.ts.
+      try {
+        await env.LIMITER.get(env.LIMITER.idFromName('limiter')).ping();
+      } catch (e) {
+        if (!isResting(e)) logUnrecognised('healthz', e);
+        return json(503, { error: 'resting' });
+      }
+      return json(200, { ok: true });
+    }
 
     if (path === '/tables' && req.method === 'POST') {
       if (!originOk) return json(403, { error: 'origin' });
@@ -73,7 +85,8 @@ async function route(req: Request, env: Env): Promise<Response> {
     const dev = DEV_PATH.exec(path);
     if (dev && env.BRIDGE_DEV === '1') {
       if (dev[2] === 'stats') return json(200, await table(dev[1]).stats());
-      await table(dev[1]).simulateLimit();
+      if (dev[2] === 'expire') await table(dev[1]).expireNow();
+      else await table(dev[1]).simulateLimit();
       return json(200, { ok: true });
     }
 

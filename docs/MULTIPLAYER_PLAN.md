@@ -793,7 +793,17 @@ GitHub environment `cloudflare` that only main may use.
 - **Where it differs from the plan above.** Sockets use the ordinary accept,
   not the Hibernation API: `Tables` keeps each socket's state in memory, so a
   table with someone connected stays awake (billed duration, ~28 table-hours
-  a day on Free); a table with nobody connected sleeps. Robots do run on the
+  a day on Free); a table with nobody connected sleeps. So one forgotten tab
+  can't spend the day's duration (the Opus review of PR #74), a table where
+  nobody has done anything but ping for 25 minutes closes its sockets with
+  4005 (`IDLE_CLOSE`), and the app shows "Still there?" with **Carry on**; the
+  seat and board are kept. Idle close was chosen over the Hibernation API
+  because hibernation means rebuilding each socket's state on every wake,
+  which `Tables` keeps in memory.
+- A socket to a well-formed id that was never created answers 404 without
+  creating a database (the Store is built only once a table's schema exists),
+  and a week after a table was last played its object's storage is deleted,
+  boards and log included (players keep finished boards in their History). Robots do run on the
   alarm, as planned: every timer of a table goes through `AlarmClock`, which
   sets the object's one alarm for the earliest, so each robot move is its own
   invocation with its own CPU allowance. With no timer pending, the alarm is
@@ -814,7 +824,11 @@ GitHub environment `cloudflare` that only main may use.
   table then closes its sockets with 4003 (`RESTING_CLOSE`). Past the Worker's
   own request limit Cloudflare answers with its 1027 page before this code
   runs, so the app asks `/healthz` after three failed connects and reads a
-  429 that isn't this server's JSON as resting.
+  429 that isn't this server's JSON as resting. `/healthz` calls the `Limiter`
+  object, so a spent Durable Object allowance answers 503 `resting` there
+  even when its wording isn't recognised (the first unrecognised error is
+  marked in the log). A proxy's 503 page in front of the homelab doesn't read
+  as resting.
 - **Not done yet:** reading the
   game log out (each table's log stays in its own object, so
   `fetch-logs.sh` doesn't reach it; Workers Logs has the console output);

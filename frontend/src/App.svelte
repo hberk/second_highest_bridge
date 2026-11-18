@@ -80,7 +80,7 @@
       const res = await fetch('tables', { method: 'POST' });
       // Cloudflare answers a spent Worker allowance with its own page, not JSON.
       const body = await res.json().catch(() => ({})) as { id?: string; error?: string };
-      const resting = body.error === 'resting' || (!body.error && (res.status === 429 || res.status === 503));
+      const resting = body.error === 'resting' || (!body.error && res.status === 429);
       if (resting) throw new Error(`The table server is resting until ${restingAt(Date.now())}. Solo play still works.`);
       if (!res.ok || !body.id) throw new Error(body.error ?? 'The table server said no.');
       location.hash = `/t/${body.id}`;

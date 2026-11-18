@@ -15,7 +15,7 @@ import type { ChallengeLogEntry, ChallengeResult, Phase } from '../game.svelte';
 import type { HistoryRecord } from '../saves';
 import type { TableSource } from '../tableModel.svelte';
 import {
-  PROTOCOL_VERSION, RESTING_CLOSE, cleanNote, type BoardView, type ClientInfo, type ClientMessage, type ServerMessage, type TableView,
+  IDLE_CLOSE, PROTOCOL_VERSION, RESTING_CLOSE, cleanNote, type BoardView, type ClientInfo, type ClientMessage, type ServerMessage, type TableView,
 } from './protocol';
 
 /** What the browser needs of a WebSocket; the tests pass a fake. */
@@ -29,7 +29,7 @@ export interface SocketLike {
   onerror: ((e: unknown) => void) | null;
 }
 
-export type Status = 'connecting' | 'open' | 'reconnecting' | 'gone' | 'outdated' | 'removed' | 'resting';
+export type Status = 'connecting' | 'open' | 'reconnecting' | 'gone' | 'outdated' | 'removed' | 'resting' | 'idle';
 
 /** Where a person's seat tokens are kept, by table id. */
 export const TOKENS_KEY = 'shb-tables-v1';
@@ -46,10 +46,12 @@ const PROBE_AFTER = 3;
 export async function hostResting(): Promise<boolean> {
   try {
     const res = await fetch('healthz', { cache: 'no-store' });
-    if (res.status === 503) return true;
-    if (res.status !== 429) return false;
-    // This server's own 429s are JSON with an error in words.
-    return !(res.headers.get('content-type') ?? '').includes('application/json');
+    const json = (res.headers.get('content-type') ?? '').includes('application/json');
+    // The Worker's own answer when a Durable Object call fails.
+    if (res.status === 503) return json && (await res.json().catch(() => ({})) as { error?: string }).error === 'resting';
+    // Cloudflare's 1027 page, not JSON. A proxy's 503 page in front of the
+    // homelab is neither, so it reads as down, not resting.
+    return res.status === 429 && !json;
   } catch {
     return false;
   }
@@ -178,6 +180,7 @@ export class RemoteTable implements TableSource {
       else if (e.code === 4001) this.status = 'removed';
       else if (e.code === 4004) this.status = 'gone';
       else if (e.code === RESTING_CLOSE) this.rest();
+      else if (e.code === IDLE_CLOSE) this.status = 'idle';
       else this.retry();
     };
     ws.onerror = () => { /* onclose follows */ };
@@ -207,7 +210,7 @@ export class RemoteTable implements TableSource {
     this.retryTimer = this.timers.setTimeout(() => this.connect(), RESTING_RETRY_MS);
   }
 
-  /** "Try again" on the resting screen. */
+  /** "Try again" on the resting screen, "Carry on" on the idle one. */
   tryAgain(): void {
     if (this.closed || this.socket) return;
     this.timers.clearTimeout(this.retryTimer);

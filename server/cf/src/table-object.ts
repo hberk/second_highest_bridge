@@ -16,43 +16,65 @@ import { EXPIRE_MS, Tables } from '../../src/tables';
 import { AlarmClock } from './alarm-clock';
 import { DoSql } from './do-sql';
 import type { Env } from './env';
-import { SIMULATED_LIMIT, isResting } from './resting';
+import { SIMULATED_LIMIT, isResting, logUnrecognised } from './resting';
 
 /** Sockets one address may hold open at this table. */
 export const SOCKETS_PER_ADDRESS = 8;
+/** A table nobody has done anything at for this long closes its sockets
+ *  (IDLE_CLOSE): an open socket keeps the object awake, and on the Free plan
+ *  every awake second is billed, so one forgotten tab would spend most of a
+ *  day's duration allowance. */
+export const IDLE_CLOSE_MS = 25 * 60_000;
 
 export class TableObject extends DurableObject<Env> {
   private sql: DoSql;
-  private store: Store;
   private clock: AlarmClock;
-  private tables: Tables;
+  /** Built on first use, and only for an object that holds a table: a
+   *  socket to a made-up id must not create a database (live()). */
+  private held: { store: Store; tables: Tables } | null = null;
   private socketsByIp = new Map<string, number>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.sql = new DoSql(ctx.storage);
-    this.store = new Store(this.sql, { indexes: false });
     this.clock = new AlarmClock(ctx.storage, () => this.expiresAt());
-    const delay = Number(env.ROBOT_DELAY_MS ?? ROBOT_DELAY_MS);
-    this.tables = new Tables(this.store, this.clock, undefined, delay, isResting);
+  }
+
+  /** Whether this object has ever held a table: its schema exists. */
+  private hasSchema(): boolean {
+    return this.ctx.storage.sql.exec("select 1 from sqlite_master where type = 'table' and name = 'tables'").toArray().length > 0;
+  }
+
+  /** The store and tables, created when `create` is true (a new table) or
+   *  when this object already has a table's schema; null otherwise. */
+  private live(create = false): { store: Store; tables: Tables } | null {
+    if (this.held) return this.held;
+    if (!create && !this.hasSchema()) return null;
+    const store = new Store(this.sql, { indexes: false });
+    const delay = Number(this.env.ROBOT_DELAY_MS ?? ROBOT_DELAY_MS);
+    const idleCloseMs = Number(this.env.IDLE_CLOSE_MS ?? IDLE_CLOSE_MS);
+    this.held = { store, tables: new Tables(store, this.clock, undefined, delay, { isResting, idleCloseMs }) };
+    return this.held;
   }
 
   /** This table's id, from its own row; null before it is created and once it has closed. */
   private tableId(): string | null {
+    if (!this.hasSchema()) return null;
     const row = this.ctx.storage.sql.exec('select id from tables limit 1').toArray()[0];
     return row ? String(row.id) : null;
   }
 
   private expiresAt(): number | null {
     const id = this.tableId();
-    const last = id ? this.store.lastActive(id) : null;
+    const last = id ? this.live()!.store.lastActive(id) : null;
     return last === null ? null : last + EXPIRE_MS;
   }
 
   /** Called by the Worker for POST /tables. False if the id is taken. */
   create(id: string): boolean {
-    if (this.tables.exists(id)) return false;
-    this.tables.create(id);
+    const { tables } = this.live(true)!;
+    if (tables.exists(id)) return false;
+    tables.create(id);
     this.clock.arm();
     return true;
   }
@@ -67,19 +89,27 @@ export class TableObject extends DurableObject<Env> {
     this.sql.failWrites = SIMULATED_LIMIT;
   }
 
+  /** Development only: the table expires now (as a week without play would). */
+  async expireNow(): Promise<void> {
+    if (!this.hasSchema()) return;
+    this.ctx.storage.sql.exec('update tables set last_active = 0');
+    await this.alarm();
+  }
+
   /** A table socket, forwarded by the Worker once it has checked the path and Origin. */
   async fetch(req: Request): Promise<Response> {
     const id = req.headers.get('x-table-id') ?? '';
     const ip = req.headers.get('x-ip') ?? '';
     if (req.headers.get('upgrade')?.toLowerCase() !== 'websocket') return new Response(null, { status: 426 });
-    if (!id || !this.tables.exists(id)) return new Response(null, { status: 404 });
+    const live = this.live();
+    if (!id || !live || !live.tables.exists(id)) return new Response(null, { status: 404 });
     if (this.sql.failWrites) return restingSocket();
     if ((this.socketsByIp.get(ip) ?? 0) >= SOCKETS_PER_ADDRESS) return new Response(null, { status: 429 });
 
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
     server.accept();
-    const handlers = this.tables.open(id, {
+    const handlers = live.tables.open(id, {
       send: (text) => { if (server.readyState === WebSocket.OPEN) server.send(text); },
       close: (code, reason) => { try { server.close(code, reason); } catch { /* already closing */ } },
     });
@@ -103,12 +133,15 @@ export class TableObject extends DurableObject<Env> {
     };
     server.addEventListener('message', (ev) => {
       if (typeof ev.data !== 'string') return server.close(1003, 'Text only');
-      if (ev.data.length > MAX_MESSAGE_BYTES) return server.close(1009, 'Too big');
+      // Bytes, as the Node server's maxPayload counts: a character can be 3.
+      if (ev.data.length * 3 > MAX_MESSAGE_BYTES && new TextEncoder().encode(ev.data).length > MAX_MESSAGE_BYTES) {
+        return server.close(1009, 'Too big');
+      }
       try {
         handlers.message(ev.data);
       } catch (e) {
-        if (isResting(e)) return this.tables.restAll();
-        console.error(`${new Date().toISOString()} table ${id}:`, e);
+        if (isResting(e)) return live.tables.restAll();
+        logUnrecognised(`table ${id}`, e);
         server.close(1011, 'Server error');
       }
     });
@@ -121,13 +154,23 @@ export class TableObject extends DurableObject<Env> {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  /** The robots' moves and the other timers, and a week-old table's close. */
+  /** The robots' moves and the other timers, and a week-old table's close:
+   *  once nobody has played at a table for a week, its object's storage is
+   *  deleted, boards and log with it. Nothing can read them out (the
+   *  homelab's fetch-logs.sh reads the homelab), and players keep their
+   *  finished boards in their own History. */
   async alarm(): Promise<void> {
     this.clock.ring();
     const expires = this.expiresAt();
     if (expires !== null && expires <= Date.now()) {
       try {
-        this.tables.sweep();
+        const gone = this.live()!.tables.sweep();
+        if (gone.length) {
+          this.held = null;
+          await this.ctx.storage.deleteAlarm();
+          await this.ctx.storage.deleteAll();
+          return;
+        }
       } catch (e) {
         console.error(`${new Date().toISOString()} sweep:`, e);
       }

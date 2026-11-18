@@ -252,6 +252,42 @@ describe('the Cloudflare table server', () => {
     expect(d.lastError()?.code).toBe('resting');
   });
 
+  it('closes the sockets of a table nobody has touched, and the seat comes back', async () => {
+    const s = await serve({ IDLE_CLOSE_MS: '1500' });
+    const { body } = await createTable(s.url);
+    const a = await Client.open(s.port, body.id!);
+    await a.join('Alex', 'South');
+    // Pings don't count as doing something.
+    const pinger = setInterval(() => a.send({ type: 'ping' }), 300);
+    await a.until(() => !!a.closed, 'the idle close', 10000);
+    clearInterval(pinger);
+    expect(a.closed!.code).toBe(4005);
+    const b = await Client.open(s.port, body.id!);
+    b.send({ type: 'hello', v: 1, token: a.token });
+    await b.until(() => b.view?.you.seat === 'South', 'my seat back');
+  });
+
+  it('creates nothing for a made-up table id, and deletes a table once it expires', async () => {
+    const s = await serve();
+    const made = 'C'.repeat(22);
+    await expect(Client.open(s.port, made)).rejects.toThrow('HTTP 404');
+    expect((await stats(s.url, made)).databaseBytes, 'no schema written for a made-up id')
+      .toBe((await stats(s.url, 'D'.repeat(22))).databaseBytes);
+    const { body } = await createTable(s.url);
+    const empty = (await stats(s.url, made)).databaseBytes;
+    expect((await stats(s.url, body.id!)).databaseBytes).toBeGreaterThan(empty);
+    expect((await fetch(`${s.url}/dev/tables/${body.id}/expire`)).status).toBe(200);
+    await expect(Client.open(s.port, body.id!)).rejects.toThrow('HTTP 404');
+    expect((await stats(s.url, body.id!)).databaseBytes).toBeLessThanOrEqual(empty);
+  });
+
+  it('answers /healthz through a Durable Object', async () => {
+    const s = await serve();
+    const res = await fetch(`${s.url}/healthz`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
+
   it('refuses another Origin, an unknown table, and a malformed id', async () => {
     const s = await serve();
     expect((await createTable(s.url, { origin: 'https://evil.example' })).status).toBe(403);

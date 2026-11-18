@@ -24,3 +24,13 @@ export function isResting(e: unknown): boolean {
 /** What a write throws in development when the measurements endpoint has
  *  told a table to act as if its allowance were spent. */
 export const SIMULATED_LIMIT = 'Exceeded allowed rows written in Durable Objects free tier (simulated).';
+
+let unrecognisedLogged = false;
+
+/** Log an error that wasn't recognised as resting, marking the first one so a
+ *  changed wording of Cloudflare's limit errors stands out in Workers Logs. */
+export function logUnrecognised(where: string, e: unknown): void {
+  const first = !unrecognisedLogged;
+  unrecognisedLogged = true;
+  console.error(`${new Date().toISOString()} ${where}${first ? ' (first unrecognised error: is it a spent limit? see resting.ts)' : ''}:`, e);
+}

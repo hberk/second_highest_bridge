@@ -137,7 +137,7 @@
   {/if}
 {/snippet}
 
-{#if table.status === 'gone' || table.status === 'outdated' || table.status === 'removed' || table.status === 'resting'}
+{#if table.status === 'gone' || table.status === 'outdated' || table.status === 'removed' || table.status === 'resting' || table.status === 'idle'}
   <div class="screen">
     <TopBar title="Table" onback={onhome} />
     <main class="page rt-page">
@@ -149,6 +149,10 @@
           <div class="res-verdict">The table server is resting</div>
           <p class="res-detail">It has used today's free allowance and is back at {restingAt(Date.now())}. This board is saved, and solo play still works.</p>
           <button class="btn primary full big" onclick={() => table.tryAgain()}>Try again</button>
+        {:else if table.status === 'idle'}
+          <div class="res-verdict">Still there?</div>
+          <p class="res-detail">Nobody had played for a while, so the table paused. Your seat and the board are kept.</p>
+          <button class="btn primary full big" onclick={() => table.tryAgain()}>Carry on</button>
         {:else if table.status === 'outdated'}
           <div class="res-verdict">This page is out of date</div>
           <p class="res-detail">The table server has been updated. Reload the page to carry on.</p>
