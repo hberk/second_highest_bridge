@@ -1122,12 +1122,27 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
             return f"2{y}", f"6+ {SYM[y]}, to play."
         if h.len[z] >= 4 and ol == 2:
             return 'Pass', "Happy in opener's second suit."
-        if h.len[x] >= 2 and ctx.ok(f"2{x}") and h.len[x] >= h.len[z]:
+        if (h.len[x] >= 2 and ctx.ok(f"2{x}") and h.len[x] >= h.len[z]
+                and not _thin_minor_preference(ctx, x, ol)):
             return f"2{x}", f"Preference to {SYM[x]}."
         if ol == 1 and ctx.ok('1NT'):
             return '1NT', "Minimum."
         return 'Pass', "No game."
     return None
+
+
+#: 1m-1y-1z: responder's 2m preference needs four cards, or three with a side
+#: singleton or void; a flatter minimum bids 1NT (the user's call, 2026-11-17:
+#: 1♦ 1♥ 1♠ 2♦ on ♠T4 ♥AQJT5 ♦543 ♣K75, "2♦ needs four diamonds, bid 1NT").
+MINOR_PREF_FOUR = True
+
+
+def _thin_minor_preference(ctx: Ctx, x: str, ol: int) -> bool:
+    """Opener's minor, a one-level rebid, 1NT open, and too few of x to prefer it."""
+    h = ctx.h
+    if not MINOR_PREF_FOUR or x not in ('C', 'D') or ol != 1 or not ctx.ok('1NT'):
+        return False
+    return h.len[x] < 3 or (h.len[x] == 3 and not h.short(x))
 
 
 #: 1M-1NT-2m-3m: responder raises opener's minor, natural and invitational,

@@ -1003,7 +1003,7 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
     if (isMajor(z) && h.len[z] >= 4 && ctx.ok(`2${z}`)) return [`2${z}`, `4+ ${SYM[z]}, minimum.`];
     if (isSuit(y) && h.len[y] >= 6 && ctx.ok(`2${y}`)) return [`2${y}`, `6+ ${SYM[y]}, to play.`];
     if (h.len[z] >= 4 && ol === 2) return ['Pass', "Happy in opener's second suit."];
-    if (h.len[x] >= 2 && ctx.ok(`2${x}`) && h.len[x] >= h.len[z]) {
+    if (h.len[x] >= 2 && ctx.ok(`2${x}`) && h.len[x] >= h.len[z] && !thinMinorPreference(ctx, x, ol)) {
       return [`2${x}`, `Preference to ${SYM[x]}.`];
     }
     if (ol === 1 && ctx.ok('1NT')) return ['1NT', 'Minimum.'];
@@ -1016,6 +1016,16 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
  *  10-11 HCP (the user's call, 2026-11-01). Opener's 2♦ shows 3+ and is
  *  usually four, so four diamonds raise; a 2♣ rebid is often three, so clubs
  *  need five. */
+/** 1m-1y-1z: responder's 2m preference needs four cards, or three with a side
+ *  singleton or void; a flatter minimum bids 1NT (the user's call, 2026-11-17). */
+export const MINOR_PREF_FOUR = true;
+
+function thinMinorPreference(ctx: Ctx, x: Suit, ol: number): boolean {
+  const h = ctx.h;
+  if (!MINOR_PREF_FOUR || (x !== 'C' && x !== 'D') || ol !== 1 || !ctx.ok('1NT')) return false;
+  return h.len[x] < 3 || (h.len[x] === 3 && h.short(x).length === 0);
+}
+
 export const MINOR_RAISE = true;
 export const MINOR_RAISE_LEN: Partial<Record<Suit, number>> = { D: 4, C: 5 };
 
