@@ -805,7 +805,17 @@ GitHub environment `cloudflare` that only main may use.
   set counts as a row written and each alarm run as a request, so a board is
   ~190 rows written: **~500 boards a day** on Free, rows still the binding
   limit; requests allow ~1,500.
-- **Not done yet:** the `resting` screen for a spent daily limit; reading the
+- **Resting** (`server/cf/src/resting.ts`): a spent daily limit shows "The
+  table server is resting" and the time it comes back (00:00 UTC, in the
+  reader's time), on the home screen and at the table, and the table looks
+  again every five minutes. A write or a call into an object past a limit
+  throws, and `isResting` recognises the error by its wording (a guess at
+  Cloudflare's exact words: an unrecognised one is logged as an error); the
+  table then closes its sockets with 4003 (`RESTING_CLOSE`). Past the Worker's
+  own request limit Cloudflare answers with its 1027 page before this code
+  runs, so the app asks `/healthz` after three failed connects and reads a
+  429 that isn't this server's JSON as resting.
+- **Not done yet:** reading the
   game log out (each table's log stays in its own object, so
   `fetch-logs.sh` doesn't reach it; Workers Logs has the console output);
   CPU time per robot move on Cloudflare itself (workerd doesn't enforce the

@@ -58,7 +58,23 @@ export const NOTE_MAX = 500;
 
 export type ErrorCode =
   | 'bad_message' | 'version' | 'no_table' | 'bad_token' | 'not_joined' | 'locked' | 'full'
-  | 'seat_taken' | 'not_your_turn' | 'illegal' | 'stale' | 'not_host' | 'not_now' | 'rate';
+  | 'seat_taken' | 'not_your_turn' | 'illegal' | 'stale' | 'not_host' | 'not_now' | 'rate' | 'resting';
+
+/** The socket close code for "the table server is resting": the host has used
+ *  its daily allowance (Cloudflare's Free plan) until restingUntil(). */
+export const RESTING_CLOSE = 4003;
+
+/** When a host's daily allowance comes back: Cloudflare resets the Free
+ *  plan's daily limits at 00:00 UTC. */
+export function restingUntil(now: number): number {
+  const d = new Date(now);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
+}
+
+/** restingUntil in the reader's own time, for the app: "5:00 PM". */
+export function restingAt(now: number, locale?: string, timeZone?: string): string {
+  return new Date(restingUntil(now)).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit', timeZone });
+}
 
 export type ServerMessage =
   | { type: 'welcome'; playerId: string | null; token?: string }

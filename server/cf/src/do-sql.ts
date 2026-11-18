@@ -6,24 +6,25 @@
 // (100,000 a day, MULTIPLAYER_PLAN.md "The Free plan's budget").
 import type { Row, Sql, SqlValue } from '../../src/sql';
 
-export interface CountingSql extends Sql {
-  readonly rowsWritten: number;
-}
+export class DoSql implements Sql {
+  rowsWritten = 0;
+  /** Development only: every write from now on throws this, as a spent
+   *  daily allowance does (resting.ts). */
+  failWrites: string | null = null;
 
-export function doSql(storage: DurableObjectStorage): CountingSql {
-  let written = 0;
-  const exec = (q: string, args: SqlValue[]) => {
-    const cursor = storage.sql.exec(q, ...args);
+  constructor(private storage: DurableObjectStorage) {}
+
+  private go(q: string, args: SqlValue[]): Row[] {
+    if (this.failWrites && !/^\s*(select|pragma)/i.test(q)) throw new Error(this.failWrites);
+    const cursor = this.storage.sql.exec(q, ...args);
     const rows = cursor.toArray() as Row[];
-    written += cursor.rowsWritten;
+    this.rowsWritten += cursor.rowsWritten;
     return rows;
-  };
-  return {
-    get rowsWritten() { return written; },
-    run: (q, ...a) => { exec(q, a); },
-    all: (q, ...a) => exec(q, a),
-    exec: (script) => { exec(script, []); },
-    transaction: (fn) => storage.transactionSync(fn),
-    close: () => {},
-  };
+  }
+
+  run(q: string, ...a: SqlValue[]): void { this.go(q, a); }
+  all(q: string, ...a: SqlValue[]): Row[] { return this.go(q, a); }
+  exec(script: string): void { this.go(script, []); }
+  transaction<T>(fn: () => T): T { return this.storage.transactionSync(fn); }
+  close(): void {}
 }

@@ -13,7 +13,7 @@ import type { Readings } from '../alerts';
 import {
   addPlayer, applyIntent, applyRobot, newTable, robotAction, viewFor, type Context, type TableState,
 } from './core';
-import { parseClientMessage, type ClientMessage, type ServerMessage } from './protocol';
+import { RESTING_CLOSE, parseClientMessage, restingAt, restingUntil, type ClientMessage, type ServerMessage } from './protocol';
 import { RemoteTable, type SocketLike } from './remote.svelte';
 import TableView from '../views/TableView.svelte';
 import DesktopTableView from '../views/DesktopTableView.svelte';
@@ -258,6 +258,53 @@ describe('RemoteTable', () => {
     clock.advance(1000);
     await tick();
     expect(server.applied).toBe(before + 1);
+  });
+
+  it('rests when the host has used its daily allowance, and comes back', async () => {
+    const server = new FakeServer();
+    const clock = new Clock();
+    const { t, sockets } = await seated(server, 'South', clock);
+    // The server closes with RESTING_CLOSE: no fast reconnects, the resting screen.
+    sockets.at(-1)!.close(RESTING_CLOSE);
+    expect(t.status).toBe('resting');
+    const n = sockets.length;
+    clock.advance(60_000);
+    expect(sockets.length, 'no reconnect within a minute').toBe(n);
+    expect(render(RemoteView, { props: { table: t, onhome: () => {} } }).body).toContain('The table server is resting');
+    // It looks again after five minutes, and the seat comes back.
+    clock.advance(4 * 60_000);
+    await tick();
+    expect(t.status).toBe('open');
+    expect(t.view?.you.seat).toBe('South');
+  });
+
+  it("asks whether the host is resting when it can't connect, as Cloudflare's own refusal looks", async () => {
+    const clock = new Clock();
+    let asked = 0;
+    const t = new RemoteTable('R'.repeat(22), {
+      storage: memoryStorage(), timers: clock, url: 'ws://test',
+      // Every handshake fails, as one does past the Worker's daily requests.
+      socket: () => {
+        const s = new FakeSocket(new FakeServer());
+        setTimeout(() => s.cut(), 0);
+        return s;
+      },
+      resting: async () => { asked++; return true; },
+    });
+    for (let i = 0; i < 4 && t.status !== 'resting'; i++) {
+      await tick();
+      clock.advance(15_000);
+      await tick();
+    }
+    expect(asked).toBe(1);
+    expect(t.status).toBe('resting');
+    t.dispose();
+  });
+
+  it('says the server is back at the next 00:00 UTC, in the reader\'s time', () => {
+    expect(new Date(restingUntil(Date.UTC(2026, 10, 18, 2, 49))).toISOString()).toBe('2026-11-19T00:00:00.000Z');
+    expect(new Date(restingUntil(Date.UTC(2026, 11, 31, 23, 59))).toISOString()).toBe('2027-01-01T00:00:00.000Z');
+    expect(restingAt(Date.UTC(2026, 10, 18, 2, 49), 'en-US', 'America/Los_Angeles')).toBe('4:00 PM');
   });
 
   it('only acts on the latest view: nothing is sent while a moment is held', async () => {

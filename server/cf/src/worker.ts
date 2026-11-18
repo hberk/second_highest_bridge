@@ -9,12 +9,14 @@ import { TABLE_ID_RE } from '../../../frontend/src/lib/table/protocol';
 import { limitKey } from '../../src/limits';
 import { newTableId } from '../../src/tables';
 import type { Env } from './env';
+import { isResting } from './resting';
+import { restingSocket } from './table-object';
 
 export { TableObject } from './table-object';
 export { Limiter } from './limiter';
 
 const WS_PATH = /^\/tables\/([A-Za-z0-9_-]+)\/ws$/;
-const STATS_PATH = /^\/dev\/tables\/([A-Za-z0-9_-]+)\/stats$/;
+const DEV_PATH = /^\/dev\/tables\/([A-Za-z0-9_-]+)\/(stats|rest)$/;
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), {
   status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
@@ -22,6 +24,22 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
+    try {
+      return await route(req, env);
+    } catch (e) {
+      // A call into a Durable Object past the day's allowance throws.
+      const path = new URL(req.url).pathname;
+      if (isResting(e)) {
+        if (WS_PATH.test(path) && req.headers.get('upgrade')?.toLowerCase() === 'websocket') return restingSocket();
+        return json(503, { error: 'resting' });
+      }
+      console.error(`${new Date().toISOString()} ${req.method} ${path}:`, e);
+      return json(500, { error: 'server' });
+    }
+  },
+} satisfies ExportedHandler<Env>;
+
+async function route(req: Request, env: Env): Promise<Response> {
     const path = new URL(req.url).pathname;
     const origins = env.ALLOWED_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean);
     const originOk = origins.includes(req.headers.get('origin') ?? '');
@@ -52,10 +70,13 @@ export default {
       return table(ws[1]).fetch('https://table/ws', { headers });
     }
 
-    const stats = STATS_PATH.exec(path);
-    if (stats && env.BRIDGE_DEV === '1') return json(200, await table(stats[1]).stats());
+    const dev = DEV_PATH.exec(path);
+    if (dev && env.BRIDGE_DEV === '1') {
+      if (dev[2] === 'stats') return json(200, await table(dev[1]).stats());
+      await table(dev[1]).simulateLimit();
+      return json(200, { ok: true });
+    }
 
     if (path.startsWith('/tables') || path === '/healthz') return json(404, { error: 'not found' });
     return env.ASSETS.fetch(req);
-  },
-} satisfies ExportedHandler<Env>;
+}

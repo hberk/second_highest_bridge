@@ -18,7 +18,7 @@
   import SettingsPanel from './lib/components/SettingsPanel.svelte';
   import RemoteView from './lib/views/RemoteView.svelte';
   import { RemoteTable } from './lib/table/remote.svelte';
-  import { TABLE_ID_RE } from './lib/table/protocol';
+  import { TABLE_ID_RE, restingAt } from './lib/table/protocol';
 
   type Screen = 'home' | 'table' | 'training' | 'challenge' | 'history' | 'howto' | 'remote';
   const SCREENS: Screen[] = ['home', 'table', 'training', 'challenge', 'history', 'howto'];
@@ -78,7 +78,10 @@
     createError = null;
     try {
       const res = await fetch('tables', { method: 'POST' });
-      const body = await res.json() as { id?: string; error?: string };
+      // Cloudflare answers a spent Worker allowance with its own page, not JSON.
+      const body = await res.json().catch(() => ({})) as { id?: string; error?: string };
+      const resting = body.error === 'resting' || (!body.error && (res.status === 429 || res.status === 503));
+      if (resting) throw new Error(`The table server is resting until ${restingAt(Date.now())}. Solo play still works.`);
       if (!res.ok || !body.id) throw new Error(body.error ?? 'The table server said no.');
       location.hash = `/t/${body.id}`;
     } catch (e) {

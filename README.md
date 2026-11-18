@@ -9,6 +9,12 @@ Nothing to install, no account. It runs entirely in the page, and your
 finished boards are saved in your browser. Visits are counted with Cloudflare
 Web Analytics, which uses no cookies and doesn't track you between sites.
 
+**Play with friends (beta): https://bridge.second-highest.workers.dev/**
+
+Two to four people at one table, robots in the empty seats, by invite link.
+It's the same game with a table server behind it, on Cloudflare's free plan,
+so on a very busy day it can rest until midnight UTC.
+
 ## The rules
 
 Everything is ordinary contract bridge (auction, contracts, duplicate scoring)

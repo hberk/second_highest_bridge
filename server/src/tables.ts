@@ -11,7 +11,7 @@ import {
   playerById, robotAction, robotTurn, viewFor, type Context, type Outcome, type TableState,
 } from '../../frontend/src/lib/table/core';
 import {
-  PROTOCOL_VERSION, cleanNote, parseClientMessage, type ClientMessage, type ErrorCode, type ServerMessage,
+  PROTOCOL_VERSION, RESTING_CLOSE, cleanNote, parseClientMessage, type ClientMessage, type ErrorCode, type ServerMessage,
 } from '../../frontend/src/lib/table/protocol';
 import { clearPositionMemo } from '../../frontend/src/lib/engine/ai';
 import type { Readings } from '../../frontend/src/lib/alerts';
@@ -84,10 +84,13 @@ export class Tables {
   /** Shut down: sockets still closing log nothing (the store is closed). */
   private stopped = false;
 
-  /** `robotDelayMs`: the robots' pace; the tests shorten it. */
+  /** `robotDelayMs`: the robots' pace; the tests shorten it. `isResting`:
+   *  whether an error is the host's daily allowance running out (Cloudflare's
+   *  Free plan, cf/); the homelab has none. */
   constructor(private store: Store, private clock: Clock = realClock,
               private random: () => number = () => randomBytes(4).readUInt32BE() / 2 ** 32,
-              private robotDelayMs = ROBOT_DELAY_MS) {}
+              private robotDelayMs = ROBOT_DELAY_MS,
+              private isResting: (e: unknown) => boolean = () => false) {}
 
   get openTables(): number { return this.live.size; }
   get sockets(): number {
@@ -452,6 +455,11 @@ export class Tables {
           this.changed(t, true, ms);
         }
       } catch (e) {
+        // The day's allowance ran out: the table is fine, the host isn't.
+        if (this.isResting(e)) {
+          this.restAll();
+          return;
+        }
         // A state the robots can't handle: stop this table, keep the rest.
         console.error(`${new Date().toISOString()} table ${t.state.id} robot:`, e);
         this.noteAt(t, 'robot_error', { error: cleanNote(String((e as Error)?.stack ?? e), 1000) });
@@ -488,6 +496,18 @@ export class Tables {
       if (t) this.unload(t);
     }
     return gone;
+  }
+
+  /** The host has used its daily allowance (RESTING_CLOSE): tell everyone
+   *  and close their sockets. Nothing is lost: what was saved resumes when
+   *  they come back, and the robots wait until then. */
+  restAll(): void {
+    for (const t of this.live.values()) {
+      for (const c of t.clients) {
+        this.error(c, 'resting', 'The table server is resting until its daily allowance resets.');
+        c.conn.close(RESTING_CLOSE, 'Resting');
+      }
+    }
   }
 
   /** Close every socket, saying the server is restarting: clients reconnect. */

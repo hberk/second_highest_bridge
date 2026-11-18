@@ -7,7 +7,7 @@
   import type { Seat } from '../engine/card';
   import { viewport } from '../viewport.svelte';
   import { NAME_KEY, type RemoteTable } from '../table/remote.svelte';
-  import { NAME_MAX, NOTE_MAX } from '../table/protocol';
+  import { NAME_MAX, NOTE_MAX, restingAt } from '../table/protocol';
   import { partnerOf, seatAt } from '../seats';
   import TopBar from '../components/TopBar.svelte';
   import Sheet from '../components/Sheet.svelte';
@@ -137,7 +137,7 @@
   {/if}
 {/snippet}
 
-{#if table.status === 'gone' || table.status === 'outdated' || table.status === 'removed'}
+{#if table.status === 'gone' || table.status === 'outdated' || table.status === 'removed' || table.status === 'resting'}
   <div class="screen">
     <TopBar title="Table" onback={onhome} />
     <main class="page rt-page">
@@ -145,6 +145,10 @@
         {#if table.status === 'gone'}
           <div class="res-verdict">This table no longer exists</div>
           <p class="res-detail">Tables close a week after anyone last played at them. Your finished boards are in Hand history.</p>
+        {:else if table.status === 'resting'}
+          <div class="res-verdict">The table server is resting</div>
+          <p class="res-detail">It has used today's free allowance and is back at {restingAt(Date.now())}. This board is saved, and solo play still works.</p>
+          <button class="btn primary full big" onclick={() => table.tryAgain()}>Try again</button>
         {:else if table.status === 'outdated'}
           <div class="res-verdict">This page is out of date</div>
           <p class="res-detail">The table server has been updated. Reload the page to carry on.</p>

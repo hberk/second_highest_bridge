@@ -10,18 +10,19 @@
 // 128 MB. A table with nobody connected sleeps and costs nothing.
 import { DurableObject } from 'cloudflare:workers';
 import { ROBOT_DELAY_MS } from '../../../frontend/src/lib/table/core';
-import { MAX_MESSAGE_BYTES } from '../../../frontend/src/lib/table/protocol';
+import { MAX_MESSAGE_BYTES, RESTING_CLOSE } from '../../../frontend/src/lib/table/protocol';
 import { Store } from '../../src/store';
 import { EXPIRE_MS, Tables } from '../../src/tables';
 import { AlarmClock } from './alarm-clock';
-import { doSql, type CountingSql } from './do-sql';
+import { DoSql } from './do-sql';
 import type { Env } from './env';
+import { SIMULATED_LIMIT, isResting } from './resting';
 
 /** Sockets one address may hold open at this table. */
 export const SOCKETS_PER_ADDRESS = 8;
 
 export class TableObject extends DurableObject<Env> {
-  private sql: CountingSql;
+  private sql: DoSql;
   private store: Store;
   private clock: AlarmClock;
   private tables: Tables;
@@ -29,11 +30,11 @@ export class TableObject extends DurableObject<Env> {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    this.sql = doSql(ctx.storage);
+    this.sql = new DoSql(ctx.storage);
     this.store = new Store(this.sql, { indexes: false });
     this.clock = new AlarmClock(ctx.storage, () => this.expiresAt());
     const delay = Number(env.ROBOT_DELAY_MS ?? ROBOT_DELAY_MS);
-    this.tables = new Tables(this.store, this.clock, undefined, delay);
+    this.tables = new Tables(this.store, this.clock, undefined, delay, isResting);
   }
 
   /** This table's id, from its own row; null before it is created and once it has closed. */
@@ -61,12 +62,18 @@ export class TableObject extends DurableObject<Env> {
     return { rowsWritten: this.sql.rowsWritten, alarmsSet: this.clock.alarmsSet, databaseBytes: this.ctx.storage.sql.databaseSize };
   }
 
+  /** Development only: act as if the day's rows written were spent. */
+  simulateLimit(): void {
+    this.sql.failWrites = SIMULATED_LIMIT;
+  }
+
   /** A table socket, forwarded by the Worker once it has checked the path and Origin. */
   async fetch(req: Request): Promise<Response> {
     const id = req.headers.get('x-table-id') ?? '';
     const ip = req.headers.get('x-ip') ?? '';
     if (req.headers.get('upgrade')?.toLowerCase() !== 'websocket') return new Response(null, { status: 426 });
     if (!id || !this.tables.exists(id)) return new Response(null, { status: 404 });
+    if (this.sql.failWrites) return restingSocket();
     if ((this.socketsByIp.get(ip) ?? 0) >= SOCKETS_PER_ADDRESS) return new Response(null, { status: 429 });
 
     const pair = new WebSocketPair();
@@ -100,6 +107,7 @@ export class TableObject extends DurableObject<Env> {
       try {
         handlers.message(ev.data);
       } catch (e) {
+        if (isResting(e)) return this.tables.restAll();
         console.error(`${new Date().toISOString()} table ${id}:`, e);
         server.close(1011, 'Server error');
       }
@@ -126,4 +134,14 @@ export class TableObject extends DurableObject<Env> {
       this.clock.arm();
     }
   }
+}
+
+/** A socket opened only to say the server is resting: the app can't read a
+ *  refused upgrade's status, but it reads this close code. */
+export function restingSocket(): Response {
+  const pair = new WebSocketPair();
+  pair[1].accept();
+  pair[1].send(JSON.stringify({ type: 'error', code: 'resting', message: 'The table server is resting until its daily allowance resets.' }));
+  pair[1].close(RESTING_CLOSE, 'Resting');
+  return new Response(null, { status: 101, webSocket: pair[0] });
 }

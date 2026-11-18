@@ -231,6 +231,27 @@ describe('the Cloudflare table server', () => {
     expect(board.phase).toBe('done');
   });
 
+  it('rests when the day\'s allowance runs out mid-board, and says so to a new socket', async () => {
+    const s = await serve({ ROBOT_DELAY_MS: '300' });
+    const { body } = await createTable(s.url);
+    const c = await Client.open(s.port, body.id!);
+    await c.join('Alex', 'South');
+    c.send({ type: 'deal' });
+    await c.until(() => !!c.view?.board, 'a board');
+    // From now on every write throws as a spent allowance does: the next
+    // robot move (or our next action) can't be saved.
+    expect((await fetch(`${s.url}/dev/tables/${body.id}/rest`)).status).toBe(200);
+    c.send({ type: 'ping' });
+    await c.until(() => !!c.closed, 'the socket to close', 10000);
+    expect(c.closed!.code).toBe(4003);
+    expect(c.lastError()?.code).toBe('resting');
+    // A socket opened while resting is told so, then closed.
+    const d = await Client.open(s.port, body.id!);
+    await d.until(() => !!d.closed, 'the socket to close');
+    expect(d.closed!.code).toBe(4003);
+    expect(d.lastError()?.code).toBe('resting');
+  });
+
   it('refuses another Origin, an unknown table, and a malformed id', async () => {
     const s = await serve();
     expect((await createTable(s.url, { origin: 'https://evil.example' })).status).toBe(403);
