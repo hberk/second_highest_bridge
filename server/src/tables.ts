@@ -11,7 +11,7 @@ import {
   playerById, robotAction, robotTurn, viewFor, type Context, type Outcome, type TableState,
 } from '../../frontend/src/lib/table/core';
 import {
-  PROTOCOL_VERSION, cleanNote, parseClientMessage, type ClientMessage, type ErrorCode, type ServerMessage,
+  IDLE_CLOSE, PROTOCOL_VERSION, RESTING_CLOSE, cleanNote, parseClientMessage, type ClientMessage, type ErrorCode, type ServerMessage,
 } from '../../frontend/src/lib/table/protocol';
 import { clearPositionMemo } from '../../frontend/src/lib/engine/ai';
 import type { Readings } from '../../frontend/src/lib/alerts';
@@ -71,6 +71,10 @@ interface Live {
   /** One away check per disconnect, so a later one doesn't delay an earlier. */
   checkTimers: Set<unknown>;
   idleTimer: unknown;
+  /** When anyone here last did something other than ping (idleCloseMs). */
+  lastActionAt: number;
+  /** The next idle-close check, while sockets are open. */
+  idleCheck: unknown;
   /** A robot threw on this table: it stops, rather than taking the server down. */
   broken: boolean;
   /** Persisted so far: board number and how many of its actions. */
@@ -84,10 +88,22 @@ export class Tables {
   /** Shut down: sockets still closing log nothing (the store is closed). */
   private stopped = false;
 
-  /** `robotDelayMs`: the robots' pace; the tests shorten it. */
+  private isResting: (e: unknown) => boolean;
+  private idleCloseMs: number;
+
+  /** `robotDelayMs`: the robots' pace; the tests shorten it. The options are
+   *  for a host that bills by the day (Cloudflare's Free plan, cf/); the
+   *  homelab uses neither. `isResting`: whether an error is that day's
+   *  allowance running out. `idleCloseMs`: close a table's sockets once nobody
+   *  there has done anything for this long (IDLE_CLOSE), since an open socket
+   *  keeps the table awake and billed; 0 never. */
   constructor(private store: Store, private clock: Clock = realClock,
               private random: () => number = () => randomBytes(4).readUInt32BE() / 2 ** 32,
-              private robotDelayMs = ROBOT_DELAY_MS) {}
+              private robotDelayMs = ROBOT_DELAY_MS,
+              o: { isResting?: (e: unknown) => boolean; idleCloseMs?: number } = {}) {
+    this.isResting = o.isResting ?? (() => false);
+    this.idleCloseMs = o.idleCloseMs ?? 0;
+  }
 
   get openTables(): number { return this.live.size; }
   get sockets(): number {
@@ -96,9 +112,10 @@ export class Tables {
     return n;
   }
 
-  /** A new, empty table. The first person to join it becomes the host. */
-  create(): string {
-    const id = newTableId();
+  /** A new, empty table. The first person to join it becomes the host.
+   *  `id`: chosen by the caller (on Cloudflare, the Worker that routes to
+   *  this table's Durable Object). */
+  create(id = newTableId()): string {
     const s = newTable(id, this.clock.now());
     this.store.save(s, this.clock.now(), false, 0, null);
     this.note(id, 'created');
@@ -118,6 +135,9 @@ export class Tables {
     if (!t) return null;
     const client: Client = { conn, playerId: null, greeted: false, recent: [], notes: 0 };
     t.clients.add(client);
+    // Opening the table counts as doing something.
+    t.lastActionAt = this.clock.now();
+    this.scheduleIdleCheck(t);
     if (t.idleTimer !== undefined) {
       this.clock.clearTimeout(t.idleTimer);
       t.idleTimer = undefined;
@@ -149,6 +169,7 @@ export class Tables {
       // from now, so a robot can take a seat whose player never comes back.
       awaySince: new Map(state.players.map((p) => [p.id, now])),
       intents: new Map(), robotTimer: undefined, checkTimers: new Set(), idleTimer: undefined, broken: false,
+      lastActionAt: now, idleCheck: undefined,
       savedBoard: state.board?.num ?? 0, savedActions: state.board?.actions.length ?? 0,
     };
     this.live.set(id, t);
@@ -211,6 +232,7 @@ export class Tables {
       this.send(client, { type: 'pong' });
       return;
     }
+    t.lastActionAt = now;
     if (!client.greeted) {
       if (m.type !== 'hello') {
         this.error(client, 'bad_message', 'Say hello first.');
@@ -354,6 +376,26 @@ export class Tables {
     t.checkTimers.clear();
     if (t.idleTimer !== undefined) this.clock.clearTimeout(t.idleTimer);
     t.idleTimer = undefined;
+    if (t.idleCheck !== undefined) this.clock.clearTimeout(t.idleCheck);
+    t.idleCheck = undefined;
+  }
+
+  /** While sockets are open, look every fifth of idleCloseMs (one timer, not
+   *  one per action: on Cloudflare each alarm set is a row written) for a
+   *  table nobody has touched in idleCloseMs, and close its sockets with
+   *  IDLE_CLOSE. The app shows "Carry on"; the board is saved. */
+  private scheduleIdleCheck(t: Live): void {
+    if (!this.idleCloseMs || t.idleCheck !== undefined) return;
+    t.idleCheck = this.clock.setTimeout(() => {
+      t.idleCheck = undefined;
+      if (!t.clients.size) return;
+      if (this.clock.now() - t.lastActionAt >= this.idleCloseMs) {
+        this.noteAt(t, 'idle_closed', { sockets: t.clients.size });
+        for (const c of [...t.clients]) c.conn.close(IDLE_CLOSE, 'Idle');
+        return;
+      }
+      this.scheduleIdleCheck(t);
+    }, Math.max(1, Math.round(this.idleCloseMs / 5)));
   }
 
   private unload(t: Live): void {
@@ -368,7 +410,8 @@ export class Tables {
       try {
         this.changed(t);
       } catch (e) {
-        console.error(`${new Date().toISOString()} table ${t.state.id} check:`, e);
+        if (this.isResting(e)) this.restAll();
+        else console.error(`${new Date().toISOString()} table ${t.state.id} check:`, e);
       }
     }, ms);
     t.checkTimers.add(h);
@@ -451,6 +494,11 @@ export class Tables {
           this.changed(t, true, ms);
         }
       } catch (e) {
+        // The day's allowance ran out: the table is fine, the host isn't.
+        if (this.isResting(e)) {
+          this.restAll();
+          return;
+        }
         // A state the robots can't handle: stop this table, keep the rest.
         console.error(`${new Date().toISOString()} table ${t.state.id} robot:`, e);
         this.noteAt(t, 'robot_error', { error: cleanNote(String((e as Error)?.stack ?? e), 1000) });
@@ -487,6 +535,18 @@ export class Tables {
       if (t) this.unload(t);
     }
     return gone;
+  }
+
+  /** The host has used its daily allowance (RESTING_CLOSE): tell everyone
+   *  and close their sockets. Nothing is lost: what was saved resumes when
+   *  they come back, and the robots wait until then. */
+  restAll(): void {
+    for (const t of this.live.values()) {
+      for (const c of t.clients) {
+        this.error(c, 'resting', 'The table server is resting until its daily allowance resets.');
+        c.conn.close(RESTING_CLOSE, 'Resting');
+      }
+    }
   }
 
   /** Close every socket, saying the server is restarting: clients reconnect. */

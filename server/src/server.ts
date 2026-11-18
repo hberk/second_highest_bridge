@@ -12,8 +12,12 @@ import { extname, join, relative, resolve, sep } from 'node:path';
 import type { Duplex } from 'node:stream';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { MAX_MESSAGE_BYTES, TABLE_ID_RE } from '../../frontend/src/lib/table/protocol';
+import { nodeSql } from './sql';
 import { Store } from './store';
 import { Tables, realClock, type Clock } from './tables';
+import { limitKey } from './limits';
+
+export { limitKey };
 
 export interface Options {
   port: number;
@@ -48,17 +52,6 @@ const WS_PATH = /^\/tables\/([A-Za-z0-9_-]+)\/ws$/;
 /** `::ffff:192.168.1.2` and `192.168.1.2` are the same peer. */
 const bare = (ip: string | undefined) => (ip ?? '').replace(/^::ffff:/, '');
 
-/** What the per-address limits count: an IPv4 address, or an IPv6 /64
- *  (one home or phone holds a whole /64 and can rotate within it). */
-export function limitKey(ip: string): string {
-  if (!ip.includes(':')) return ip;
-  const [head, tail = ''] = ip.toLowerCase().split('::');
-  const left = head ? head.split(':') : [];
-  const right = tail ? tail.split(':') : [];
-  const groups = [...left, ...Array<string>(Math.max(0, 8 - left.length - right.length)).fill('0'), ...right];
-  return `${groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, '')).join(':')}::/64`;
-}
-
 /** The request's path, or null for a target that isn't one (`//x`,
  *  `http://...`, `*`): never a throw. */
 export function pathOf(target: string | undefined): string | null {
@@ -90,7 +83,7 @@ export const log = (what: string, e: unknown) => console.error(`${new Date().toI
 
 export async function startServer(o: Options): Promise<{ port: number; close(): Promise<void>; tables: Tables }> {
   const clock = o.clock ?? realClock;
-  const store = new Store(o.dbPath);
+  const store = new Store(nodeSql(o.dbPath));
   const tables = new Tables(store, clock, undefined, o.robotDelayMs);
   const createsPerHour = o.createsPerHour ?? 10;
   const socketsPerAddress = o.socketsPerAddress ?? 8;

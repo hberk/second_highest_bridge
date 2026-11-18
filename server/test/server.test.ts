@@ -14,6 +14,7 @@ import { limitKey, startServer, type Options } from '../src/server';
 import { EXPIRE_MS, NOTES_PER_SOCKET, realClock } from '../src/tables';
 import { exportLogs } from '../src/export';
 import { Store } from '../src/store';
+import { nodeSql } from '../src/sql';
 import { fromLinFile } from '../../frontend/src/lib/lin';
 import { DatabaseSync } from 'node:sqlite';
 
@@ -498,7 +499,7 @@ describe('the game log', () => {
       primary key (table_id, board_num, seq)) without rowid;
       insert into events values ('t', 1, 0, '{}');`);
     old.close();
-    new Store(path).close();
+    new Store(nodeSql(path)).close();
     const db = new DatabaseSync(path);
     const cols = (db.prepare('pragma table_info(events)').all() as { name: string }[]).map((x) => x.name);
     expect(cols).toEqual(expect.arrayContaining(['ts', 'ms']));

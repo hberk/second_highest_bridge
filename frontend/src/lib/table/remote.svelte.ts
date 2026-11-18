@@ -15,7 +15,7 @@ import type { ChallengeLogEntry, ChallengeResult, Phase } from '../game.svelte';
 import type { HistoryRecord } from '../saves';
 import type { TableSource } from '../tableModel.svelte';
 import {
-  PROTOCOL_VERSION, cleanNote, type BoardView, type ClientInfo, type ClientMessage, type ServerMessage, type TableView,
+  IDLE_CLOSE, PROTOCOL_VERSION, RESTING_CLOSE, cleanNote, type BoardView, type ClientInfo, type ClientMessage, type ServerMessage, type TableView,
 } from './protocol';
 
 /** What the browser needs of a WebSocket; the tests pass a fake. */
@@ -29,12 +29,33 @@ export interface SocketLike {
   onerror: ((e: unknown) => void) | null;
 }
 
-export type Status = 'connecting' | 'open' | 'reconnecting' | 'gone' | 'outdated' | 'removed';
+export type Status = 'connecting' | 'open' | 'reconnecting' | 'gone' | 'outdated' | 'removed' | 'resting' | 'idle';
 
 /** Where a person's seat tokens are kept, by table id. */
 export const TOKENS_KEY = 'shb-tables-v1';
 export const NAME_KEY = 'shb-name';
 const BACKOFF_MS = [1000, 2000, 4000, 8000, 15000];
+/** Resting (the host's daily allowance is spent): try again this often. */
+const RESTING_RETRY_MS = 5 * 60_000;
+/** Failed connects before asking whether the host is resting. */
+const PROBE_AFTER = 3;
+
+/** Is the host resting? Cloudflare answers a spent Worker allowance itself,
+ *  with HTTP 429 and its own page, so the socket only sees a failed
+ *  handshake; /healthz shows the 429. The homelab never rests. */
+export async function hostResting(): Promise<boolean> {
+  try {
+    const res = await fetch('healthz', { cache: 'no-store' });
+    const json = (res.headers.get('content-type') ?? '').includes('application/json');
+    // The Worker's own answer when a Durable Object call fails.
+    if (res.status === 503) return json && (await res.json().catch(() => ({})) as { error?: string }).error === 'resting';
+    // Cloudflare's 1027 page, not JSON. A proxy's 503 page in front of the
+    // homelab is neither, so it reads as down, not resting.
+    return res.status === 429 && !json;
+  } catch {
+    return false;
+  }
+}
 const PING_MS = 25_000;
 /** No message at all for this long: the socket is dead, whatever it says. */
 const SILENT_MS = 60_000;
@@ -70,6 +91,8 @@ export interface RemoteOptions {
   /** Called once for each finished board, to keep it in History. */
   onfinished?: (record: HistoryRecord) => void;
   timers?: { setTimeout(fn: () => void, ms: number): unknown; clearTimeout(h: unknown): void; now(): number };
+  /** Whether the host is resting, asked after a few failed connects. */
+  resting?: () => Promise<boolean>;
 }
 
 const EMPTY_HANDS = (): Record<Seat, Card[]> => ({ North: [], East: [], South: [], West: [] });
@@ -102,6 +125,7 @@ export class RemoteTable implements TableSource {
   private url: string;
   private timers: NonNullable<RemoteOptions['timers']>;
   private onfinished: (record: HistoryRecord) => void;
+  private isResting: () => Promise<boolean>;
   private oopsSent = new Set<string>();
 
   constructor(tableId: string, o: RemoteOptions = {}) {
@@ -114,6 +138,7 @@ export class RemoteTable implements TableSource {
       setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (h) => clearTimeout(h as number), now: () => Date.now(),
     };
     this.onfinished = o.onfinished ?? (() => {});
+    this.isResting = o.resting ?? hostResting;
     this.connect();
   }
 
@@ -154,6 +179,8 @@ export class RemoteTable implements TableSource {
       if (e.code === 4000) this.status = 'outdated';
       else if (e.code === 4001) this.status = 'removed';
       else if (e.code === 4004) this.status = 'gone';
+      else if (e.code === RESTING_CLOSE) this.rest();
+      else if (e.code === IDLE_CLOSE) this.status = 'idle';
       else this.retry();
     };
     ws.onerror = () => { /* onclose follows */ };
@@ -166,6 +193,28 @@ export class RemoteTable implements TableSource {
     this.attempts++;
     this.timers.clearTimeout(this.retryTimer);
     this.retryTimer = this.timers.setTimeout(() => this.connect(), wait);
+    if (this.attempts === PROBE_AFTER) {
+      void this.isResting().then((yes) => {
+        if (yes && !this.socket && !this.closed && this.status !== 'open') this.rest();
+      });
+    }
+  }
+
+  /** The host has used its daily allowance: say so, and look again now and
+   *  then (the board is saved; it resumes when the allowance resets). */
+  private rest(): void {
+    if (this.closed) return;
+    this.status = 'resting';
+    this.attempts = 0;
+    this.timers.clearTimeout(this.retryTimer);
+    this.retryTimer = this.timers.setTimeout(() => this.connect(), RESTING_RETRY_MS);
+  }
+
+  /** "Try again" on the resting screen, "Carry on" on the idle one. */
+  tryAgain(): void {
+    if (this.closed || this.socket) return;
+    this.timers.clearTimeout(this.retryTimer);
+    this.connect();
   }
 
   /** Both sides ping, so a dead phone socket is noticed and a quiet table
@@ -189,7 +238,7 @@ export class RemoteTable implements TableSource {
   /** The page came back (a phone unlocked): reconnect now, not on backoff. */
   wake(): void {
     if (this.closed) return;
-    if (!this.socket && (this.status === 'reconnecting' || this.status === 'connecting')) {
+    if (!this.socket && (this.status === 'reconnecting' || this.status === 'connecting' || this.status === 'resting')) {
       this.attempts = 0;
       this.timers.clearTimeout(this.retryTimer);
       this.connect();

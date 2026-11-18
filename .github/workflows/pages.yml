@@ -79,6 +79,17 @@ jobs:
       - name: Bundle (fails if the challenge deal library rides along)
         working-directory: server
         run: npm run build
+      # The same tables on Cloudflare (server/cf): a Worker and a Durable
+      # Object per table, run in workerd, wrangler's local runtime.
+      - name: Install (Cloudflare)
+        working-directory: server/cf
+        run: npm ci
+      - name: Type-check (Cloudflare)
+        working-directory: server/cf
+        run: npm run check
+      - name: Test (Cloudflare, in workerd)
+        working-directory: server/cf
+        run: npm test
 
   build:
     if: github.event.repository.visibility == 'public' || github.event_name == 'workflow_dispatch'
@@ -196,3 +207,37 @@ jobs:
           gh release list --limit 100 --json tagName,createdAt \
             --jq '[.[] | select(.tagName | startswith("bridge-"))] | sort_by(.createdAt) | reverse | .[5:] | .[].tagName' |
             while read -r old; do gh release delete "$old" --yes --cleanup-tag; done
+
+  # The multiplayer beta on Cloudflare (server/cf, MULTIPLAYER_PLAN.md M7):
+  # the Worker, its Durable Objects and the beta site, deployed with wrangler
+  # once everything above passes on main. Served at
+  # https://bridge.second-highest.workers.dev. The token is an environment
+  # secret of `cloudflare`, which only main may use (Settings, Environments).
+  cloudflare:
+    needs: [build, python-tests, server]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.visibility == 'public'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: cloudflare
+      url: https://bridge.second-highest.workers.dev
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Rust for WebAssembly
+        run: rustup target add wasm32-unknown-unknown
+      - name: Install
+        run: (cd frontend && npm ci) && (cd server/cf && npm ci)
+      - name: Build the beta site (socket address and headers for Cloudflare)
+        working-directory: server/cf
+        env:
+          VITE_BUILD: ${{ github.sha }}
+        run: npm run site
+      - name: Deploy
+        working-directory: server/cf
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy

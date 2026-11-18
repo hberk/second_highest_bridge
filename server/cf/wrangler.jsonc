@@ -1,0 +1,33 @@
+// The multiplayer table server on Cloudflare's Workers Free plan, at
+// https://bridge.second-highest.workers.dev (MULTIPLAYER_PLAN.md, M7).
+// Deployed from main by the `cloudflare` job in .github/workflows/pages.yml.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bridge",
+  "main": "src/worker.ts",
+  // This tsconfig for every file, frontend/ included (as ../build.mjs does):
+  // frontend/tsconfig.json extends a package only frontend/node_modules has.
+  "tsconfig": "tsconfig.json",
+  "compatibility_date": "2026-11-01",
+  // node:crypto for the table ids and token hashes (../src/tables.ts).
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    // The beta build: `npm run site` builds it, with the socket address in
+    // its Content-Security-Policy, and copies _headers in.
+    "directory": "../../frontend/dist-beta",
+    "binding": "ASSETS",
+    "run_worker_first": ["/tables", "/tables/*", "/healthz", "/dev/*"],
+    "not_found_handling": "none"
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "TABLES", "class_name": "TableObject" },
+      { "name": "LIMITER", "class_name": "Limiter" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TableObject", "Limiter"] }],
+  "vars": { "ALLOWED_ORIGINS": "https://bridge.second-highest.workers.dev" },
+  "observability": { "enabled": true }
+}

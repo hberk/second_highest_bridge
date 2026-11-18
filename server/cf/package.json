@@ -1,0 +1,23 @@
+{
+  "name": "second-highest-bridge-cf",
+  "private": true,
+  "version": "0.1.7-alpha",
+  "type": "module",
+  "description": "The multiplayer table server on Cloudflare: a Worker and one Durable Object per table, around the same Tables and Store as server/.",
+  "scripts": {
+    "check": "tsc --noEmit -p .",
+    "test": "vitest run",
+    "site": "cd ../../frontend && VITE_TABLE_SOCKET_ORIGIN=wss://bridge.second-highest.workers.dev npm run build:beta && cp ../server/cf/_headers dist-beta/_headers",
+    "dev": "wrangler dev --var BRIDGE_DEV:1 --var ALLOWED_ORIGINS:http://localhost:8787",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261118.1",
+    "@types/node": "^24.19.2",
+    "@types/ws": "^8.18.2",
+    "typescript": "^6.0.3",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.164.0",
+    "ws": "^8.23.0"
+  }
+}

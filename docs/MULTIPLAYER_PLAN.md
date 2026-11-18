@@ -1,5 +1,10 @@
 # Multiplayer: the build plan
 
+Status, 2026-11-18: **M7 built** (`server/cf/`, [below](#m7-built-2026-11-18)):
+the same tables on Cloudflare at `https://bridge.second-highest.workers.dev`,
+deployed from main by the `cloudflare` job. The homelab keeps serving
+`bridge.ettamei.com` until the user switches over.
+
 Status, 2026-10-27: **M1-M4 built and tested on the `multiplayer` branch**
 (the my-seat views, the table core, the Node server, the client). A board
 has been played in a browser by two people and two robots against a local
@@ -771,6 +776,65 @@ calls, 2026-10-26).
   between boards, and finished boards are in players' browsers.
 - **Done when:** the M3 and M5 suites pass against `wrangler dev`, and the
   beta's address points at the Worker.
+
+#### M7, built 2026-11-18
+
+The user asked to move off the homelab (2026-11-18) and set up Cloudflare:
+the workers.dev subdomain `second-highest`, an API token (Workers Scripts
+Edit, Account Settings Read, no zones) and the Account ID as secrets of a
+GitHub environment `cloudflare` that only main may use.
+
+- `server/cf/`: its own package (wrangler, workers-types). `worker.ts` routes
+  `POST /tables` and `/tables/<id>/ws` with the Node server's checks (Origin,
+  id, 10 creates an hour per address through a `Limiter` object);
+  `table-object.ts` is one Durable Object per table running the **same**
+  `Tables` and `Store` (`server/src`), with `Store` on the object's SQLite
+  through `Sql` (`server/src/sql.ts`; node:sqlite is the other adapter).
+- **Where it differs from the plan above.** Sockets use the ordinary accept,
+  not the Hibernation API: `Tables` keeps each socket's state in memory, so a
+  table with someone connected stays awake (billed duration, ~28 table-hours
+  a day on Free); a table with nobody connected sleeps. So one forgotten tab
+  can't spend the day's duration (the Opus review of PR #74), a table where
+  nobody has done anything but ping for 25 minutes closes its sockets with
+  4005 (`IDLE_CLOSE`), and the app shows "Still there?" with **Carry on**; the
+  seat and board are kept. Idle close was chosen over the Hibernation API
+  because hibernation means rebuilding each socket's state on every wake,
+  which `Tables` keeps in memory.
+- A socket to a well-formed id that was never created answers 404 without
+  creating a database (the Store is built only once a table's schema exists),
+  and a week after a table was last played its object's storage is deleted,
+  boards and log included (players keep finished boards in their History). Robots do run on the
+  alarm, as planned: every timer of a table goes through `AlarmClock`, which
+  sets the object's one alarm for the earliest, so each robot move is its own
+  invocation with its own CPU allowance. With no timer pending, the alarm is
+  the table's expiry (7 days after it was last active).
+- The beta site is the Worker's static assets (`npm run site` builds it with
+  `wss://bridge.second-highest.workers.dev` in its CSP and copies `_headers`).
+- **Measured** in workerd (`npm test` in `server/cf`, 3 boards, one person and
+  three robots): **124-140 rows written and 57-68 alarms a board**. Each alarm
+  set counts as a row written and each alarm run as a request, so a board is
+  ~190 rows written: **~500 boards a day** on Free, rows still the binding
+  limit; requests allow ~1,500.
+- **Resting** (`server/cf/src/resting.ts`): a spent daily limit shows "The
+  table server is resting" and the time it comes back (00:00 UTC, in the
+  reader's time), on the home screen and at the table, and the table looks
+  again every five minutes. A write or a call into an object past a limit
+  throws, and `isResting` recognises the error by its wording (a guess at
+  Cloudflare's exact words: an unrecognised one is logged as an error); the
+  table then closes its sockets with 4003 (`RESTING_CLOSE`). Past the Worker's
+  own request limit Cloudflare answers with its 1027 page before this code
+  runs, so the app asks `/healthz` after three failed connects and reads a
+  429 that isn't this server's JSON as resting. `/healthz` calls the `Limiter`
+  object, so a spent Durable Object allowance answers 503 `resting` there
+  even when its wording isn't recognised (the first unrecognised error is
+  marked in the log). A proxy's 503 page in front of the homelab doesn't read
+  as resting.
+- **Not done yet:** reading the
+  game log out (each table's log stays in its own object, so
+  `fetch-logs.sh` doesn't reach it; Workers Logs has the console output);
+  CPU time per robot move on Cloudflare itself (workerd doesn't enforce the
+  limits, and timers there don't advance during a move, so the log's robot
+  `ms` reads 0). The per-address socket limit is per table, not site-wide.
 
 ## Requirements to add (REQUIREMENTS.md)
 
