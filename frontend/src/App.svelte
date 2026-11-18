@@ -28,6 +28,12 @@
   /** Multiplayer tables: only the beta build (`vite --mode beta`) has a
    *  table server behind it. The Pages build never opens a socket. */
   const TABLES = import.meta.env.VITE_TABLES === '1';
+  /** The Cloudflare beta's visitor count (server/cf/src/visits.ts): one
+   *  beacon per page load, with where the visitor came from. No cookies, and
+   *  the Pages build and the homelab build never send it. */
+  if (import.meta.env.VITE_VISITS === '1') {
+    try { navigator.sendBeacon('/visit', document.referrer); } catch { /* never in the way */ }
+  }
 
   const game = new Game();
   const trainer = new Trainer();

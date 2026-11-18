@@ -18,7 +18,7 @@
     // its Content-Security-Policy, and copies _headers in.
     "directory": "../../frontend/dist-beta",
     "binding": "ASSETS",
-    "run_worker_first": ["/tables", "/tables/*", "/healthz", "/dev/*"],
+    "run_worker_first": ["/tables", "/tables/*", "/healthz", "/visit", "/dev/*"],
     "not_found_handling": "none"
   },
   "durable_objects": {
@@ -28,6 +28,9 @@
     ]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TableObject", "Limiter"] }],
+  // Visitor counts (src/visits.ts, visitors.mjs). Free on Workers Free; the
+  // dataset is created by the first write.
+  "analytics_engine_datasets": [{ "binding": "VISITS", "dataset": "bridge_visits" }],
   "vars": { "ALLOWED_ORIGINS": "https://bridge.second-highest.workers.dev" },
   "observability": { "enabled": true }
 }

@@ -1,0 +1,35 @@
+# The Cloudflare site's visitor counts (server/cf/src/visits.ts), on demand:
+# Actions > Visitor counts > Run workflow. The tables appear on the run's page.
+# Needs CLOUDFLARE_ANALYTICS_TOKEN (Account Analytics: Read) beside the
+# deploy secrets in the `cloudflare` environment.
+name: Visitor counts
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Days to show (at most 90)
+        default: '30'
+
+permissions:
+  contents: read
+
+jobs:
+  visitors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: cloudflare
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: server/cf/visitors.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Counts
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ANALYTICS_TOKEN: ${{ secrets.CLOUDFLARE_ANALYTICS_TOKEN }}
+          DAYS: ${{ inputs.days }}
+        run: node server/cf/visitors.mjs "$DAYS" | tee -a "$GITHUB_STEP_SUMMARY"

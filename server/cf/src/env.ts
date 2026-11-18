@@ -5,6 +5,8 @@ export interface Env {
   TABLES: DurableObjectNamespace<TableObject>;
   LIMITER: DurableObjectNamespace<Limiter>;
   ASSETS: Fetcher;
+  /** Visitor counts (visits.ts); absent in the tests and `wrangler dev`. */
+  VISITS?: AnalyticsEngineDataset;
   /** Origins allowed to open a table, comma-separated. */
   ALLOWED_ORIGINS: string;
   /** The robots' pace in ms (600 by default); the tests shorten it. */
