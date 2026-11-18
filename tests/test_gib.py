@@ -2331,3 +2331,23 @@ def test_new_minor_forcing_doubled_is_still_answered():
     north = 'QS 9S 4S AH QH 9H 6H 3H KD 7D 5D 9C 4C'
     call, _ = bid(north, '1H', 'Pass', '1S', 'Pass', '1NT', 'Pass', '2C', 'X')
     assert call != 'Pass', call
+
+
+# ── Competing to the three level from the pass-out seat (LOTT_BALANCE) ────────
+
+def test_inverted_raiser_competes_to_3d_in_the_pass_out_seat():
+    """1♦ P 2♦ 2♠ P P: East's inverted raise showed 10+ and partner's 1♦ 3+
+    diamonds, so with five East has eight trumps and bids 3♦ rather than
+    passing (the user's board 140, 2026-11-17)."""
+    east = 'KS JS AH 9H 3H QD 10D 7D 6D 4D 9C 8C 2C'
+    call, why = bid(east, '1D', 'Pass', '2D', '2S', 'Pass', 'Pass', dealer='West')
+    assert call == '3D' and 'fit' in why, (call, why)
+
+
+def test_pass_out_seat_competes_only_with_five_trumps_and_values():
+    weak = 'KS JS 4H 3H 2H QD 10D 7D 6D 4D 9C 8C 2C'    # 3 HCP: no
+    call, _ = bid(weak, '1D', 'Pass', '2D', '2S', 'Pass', 'Pass', dealer='West')
+    assert call == 'Pass', call
+    four = 'KS JS AH 9H 3H 10D 7D 6D 4D 9C 8C 2C 5S'    # four diamonds: no
+    call, _ = bid(four, '1D', 'Pass', '2D', '2S', 'Pass', 'Pass', dealer='West')
+    assert call != '3D', call

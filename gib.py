@@ -2367,6 +2367,22 @@ LOTT_TOTAL_ALERT = "Competing: both sides have a fit."
 LOTT_TOTAL_HCP = 6
 
 
+#: The pass-out seat with an inferred eight-card fit (the user's board 140,
+#: 2026-11-17: 1♦ P 2♦ 2♠ P P, East ♦QT764 competes to 3♦). The LoTT lets
+#: eight trumps bid only the two level; here, when the auction ends if I
+#: pass (both others have passed) and my own bid suit is five long, with
+#: partner's shown length making eight, it goes one level further.
+#: LOTT_BALANCE_HCP is the fewest HCP that bid needs.
+LOTT_BALANCE = True
+LOTT_BALANCE_HCP = 10
+
+
+def _balance_three(ctx: Ctx, s: str, n: int, mine: bool) -> bool:
+    return (LOTT_BALANCE and mine and n == 8 and ctx.h.len[s] >= 5
+            and ctx.h.hcp >= LOTT_BALANCE_HCP and len(ctx.calls) >= 2
+            and all(c == 'Pass' for _, c in ctx.calls[-2:]))
+
+
 def _they_raised(ctx: Ctx, s: str) -> bool:
     """Have both opponents bid `s` naturally?"""
     return len({w for w, c in ctx.theirs if strain_of(c) == s}) == 2
@@ -2510,11 +2526,12 @@ def _total_tricks(ctx: Ctx, decision: tuple | None) -> tuple | None:
         if not mine and not weak and not LOTT_RAISE[0] <= ctx.h.hcp <= LOTT_RAISE[1]:
             continue
         call = ctx.cheapest(s, 1)
-        if call is None or level_of(call) > min(n - 6 + _total_bonus(ctx, n), LOTT_MAX):
+        extra = 1 if _balance_three(ctx, s, n, mine) else 0
+        if call is None or level_of(call) > min(n - 6 + _total_bonus(ctx, n) + extra, LOTT_MAX):
             continue
         key = (n, s in MAJORS, SUITS.index(s))
         if best is None or key > best[0]:
-            best = (key, call, level_of(call) > n - 6)
+            best = (key, call, level_of(call) > n - 6 + extra)
     if best is None:
         return None
     s = strain_of(best[1])
