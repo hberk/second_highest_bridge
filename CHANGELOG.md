@@ -30,7 +30,7 @@ card-play change and History's tricks and par.
   (challenge deals at once, other deals solved on a tap and kept on the
   device). Par names the contract a competitive auction ends in.
 
-The five bidding switches together, against all off on 1,000 fresh deals:
+The bidding changes together (six switches), against all off on 1,000 fresh deals:
 +0.59, +1.34, +0.90 points a board (three seeds, t 1.2, 2.8, 2.2).
 
 ## v0.1.6-alpha (unreleased)
