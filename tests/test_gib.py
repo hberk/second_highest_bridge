@@ -2269,3 +2269,55 @@ def test_stayman_3nt_shows_the_other_major():
     # 2NT-3♣-3♥-3NT too.
     big = 'AS KS 7S 6S AH KH JH 5H KD 5D AC 10C 9C'
     assert bid(big, '2NT', 'Pass', '3C', 'Pass', '3H', 'Pass', '3NT', 'Pass')[0] == '4S'
+
+
+# ── More lead-directing doubles (LEAD_DOUBLE_MORE, LEAD_DOUBLE_SYSTEMS_ON) ────
+
+def test_a_double_of_drury_directs_the_lead():
+    """The user's call, 2026-11-17 (Bidding training board 414): East deals,
+    P P 1♥ P 2♣ is Drury, so South's double asks for a club lead; it was
+    explained as a takeout double, 13+. A takeout hand now passes."""
+    calls = ('Pass', 'Pass', '1H', 'Pass', '2C')
+    south = 'KS 7S 2S 8H 3H QD 6D 5D AC QC JC 10C 9C'
+    call, why = bid(south, *calls, dealer='East')
+    assert call == 'X' and why.startswith('Lead-directing') and '5+ ♣' in why, (call, why)
+    call, _ = bid('AS QS 7S 2S 4H KD JD 6D 5D AC KC 3C 2C', *calls, dealer='East')
+    assert call == 'Pass', call
+    # Opener answers Drury as if South had passed: 2♦, full values (it bid
+    # 2♠, a natural new suit, over the double).
+    west = 'QS 9S 4S AH QH 9H 6H 3H KD 7D 5D 9C 4C'
+    call, why = bid(west, *calls, 'X', dealer='East')
+    assert call == '2D' and 'Full opening' in why, (call, why)
+    # North passes, then leads a club against 2♥.
+    north = 'JS 8S 6S 5S 7H 5H 2H AD 10D 9D 8D 6C 5C'
+    call, _ = bid(north, *calls, 'X', '2H', dealer='East')
+    assert call == 'Pass', call
+    auction = after(*calls, 'X', '2H', 'Pass', 'Pass', 'Pass', dealer='East')
+    alerts = {5: ai.ai_bid_explained('South', hand(south), _replay(auction, 5))[1]}
+    shown = ai.shown_lengths(list(auction.calls), alerts)
+    lead = ai.ai_play('North', hand(north), [], 'H', [], visible={}, history=[], shown=shown)
+    assert lead.suit == 'C', lead
+
+
+def test_doubles_of_other_artificial_suit_bids_direct_the_lead():
+    """New minor forcing, checkback and the short-suit game try are as
+    artificial as Drury: a double of each asks for that suit's lead."""
+    clubs = 'KS 7S 2S 8H 3H QD 6D 5D AC QC JC 10C 9C'
+    for calls in (('1H', 'Pass', '1S', 'Pass', '1NT', 'Pass', '2C'),      # new minor forcing
+                  ('1D', 'Pass', '1S', 'Pass', '2NT', 'Pass', '3C')):     # checkback
+        call, why = bid(clubs, *calls)
+        assert call == 'X' and why.startswith('Lead-directing'), (calls, call, why)
+    spades = 'AS QS JS 10S 4S 8H 3H QD 6D 5D 4D 7C 2C'
+    call, why = bid(spades, '1H', 'Pass', '2H', 'Pass', '2S')              # short-suit try
+    assert call == 'X' and '5+ ♠' in why, (call, why)
+    # Natural bids stay natural: 1♥ 2♣ by an unpassed hand shows clubs.
+    call, _ = bid(clubs, '1H', 'Pass', '2C')
+    assert call == 'Pass', call
+
+
+def test_new_minor_forcing_doubled_is_still_answered():
+    """1♥ P 1♠ P 1NT P 2♣ X: opener answers new minor forcing as if West had
+    passed; it used to pass, leaving 2♣ doubled (seed 1,120 of the scan)."""
+    north = 'QS 9S 4S AH QH 9H 6H 3H KD 7D 5D 9C 4C'
+    call, _ = bid(north, '1H', 'Pass', '1S', 'Pass', '1NT', 'Pass', '2C', 'X')
+    assert call != 'Pass', call

@@ -2719,6 +2719,8 @@ function contested(ctx: Ctx): Decision | null {
     }
     return uncontested(ctx);
   }
+  // They only doubled our artificial bids for the lead: systems on.
+  if (LEAD_DOUBLE_SYSTEMS_ON && ctx.weOpened && onlyLeadDoubles(ctx)) return uncontested(ctx);
   // (1x)-1NT and they pass: systems on, as over our 1NT opening.
   if (ctx.ntOvercall) return notrump(ctx, 0);
   if (ctx.weOpened) return weOpenedContested(ctx);
@@ -4440,7 +4442,31 @@ function theirArtificial(ctx: Ctx, at: number): Suit | null {
   ctx.calls.slice(0, at).forEach(([w, c], k) => { if (us(w) && c !== 'Pass') ours.push(k); });
   if (ours.length && !theirNtOvercall(ctx, ours, at)) return null;
   const seq = ctx.calls.slice(0, at + 1).filter(([w, c]) => !us(w) && c !== 'Pass').map(([, c]) => c);
+  if (LEAD_DOUBLE_MORE && theirConvention(ctx, at, seq)) return s;
   return shownSuit(seq, seq.length - 1) !== s ? s : null;
+}
+
+/** More of their artificial suit bids read as artificial (2026-11-17, board
+ *  414): Drury and opener's 2♦ over it, new minor forcing, checkback 3♣ and
+ *  the short-suit game try 1♥ 2♥ 2♠. See gib.py. */
+export const LEAD_DOUBLE_MORE = true;
+
+function theirConvention(ctx: Ctx, at: number, seq: string[]): boolean {
+  const i = seq.length - 1;
+  const call = seq[i];
+  const first = seq[0];
+  const x = strainOf(first), y = i >= 1 ? strainOf(seq[1]) : null;
+  if (levelOf(first) !== 1 || !isSuit(x)) return false;
+  if (isMajor(x) && (i === 1 || i === 2) && seq[1] === '2C') {   // Drury, and 2♦ over it
+    let k = at;
+    while (!(ctx.calls[k][1] === '2C' && ctx.calls[k][0] !== ctx.me && ctx.calls[k][0] !== ctx.pd)) k--;
+    if (ctx.passedHand(ctx.calls[k][0])) return i === 1 || call === '2D';
+  }
+  if (i === 3 && levelOf(seq[1]) === 1 && isMajor(y)) {
+    if (seq[2] === '1NT') return call === (x === 'C' ? '2D' : '2C');   // new minor forcing
+    if (seq[2] === '2NT') return call === '3C';                        // checkback
+  }
+  return i === 2 && first === '1H' && seq[1] === '2H' && seq[2] === '2S';   // short-suit game try
 }
 
 /** ...and the same once they overcall our one-level opening with 1NT and we
@@ -4455,6 +4481,21 @@ function theirNtOvercall(ctx: Ctx, ours: number[], at: number): boolean {
   const opening = ctx.calls[k][1];
   return levelOf(opening) === 1 && isSuit(strainOf(opening)) && k + 1 < at
     && ctx.calls[k + 1][1] === '1NT';
+}
+
+/** Their lead-directing double of our artificial bid takes no room: we bid
+ *  on as if they had passed (2026-11-17). See gib.py. */
+export const LEAD_DOUBLE_SYSTEMS_ON = true;
+
+function onlyLeadDoubles(ctx: Ctx): boolean {
+  const us = (w: Seat) => w === ctx.me || w === ctx.pd;
+  const theirs: number[] = [];
+  ctx.calls.forEach(([w, c], k) => { if (!us(w) && c !== 'Pass') theirs.push(k); });
+  if (!theirs.length) return false;
+  return theirs.every((k) => {
+    const [who, call] = ctx.calls[k];
+    return call === 'X' && theirArtificial(new Ctx(who, [], ctx.auction), k - 1) !== null;
+  });
 }
 
 function leadDouble(ctx: Ctx): Decision | null {

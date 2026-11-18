@@ -2966,6 +2966,9 @@ def contested(ctx: Ctx) -> tuple | None:
             # as responder's, and the opener bid Stayman (training board 25).
             return 'Pass', "Partner left it in."
         return uncontested(ctx)
+    # They only doubled our artificial bids for the lead: systems on.
+    if LEAD_DOUBLE_SYSTEMS_ON and ctx.we_opened and _only_lead_doubles(ctx):
+        return uncontested(ctx)
     # (1x)-1NT and they pass: systems on, as over our 1NT opening.
     if ctx.nt_overcall:
         return notrump(ctx, 0)
@@ -4912,10 +4915,41 @@ def _their_artificial(ctx: Ctx, at: int) -> str | None:
     if ours and not _their_nt_overcall(ctx, ours, at):
         return None
     seq = [c for w, c in ctx.calls[:at + 1] if w not in (ctx.me, ctx.pd) and c != 'Pass']
+    if LEAD_DOUBLE_MORE and _their_convention(ctx, at, seq):
+        return s
     return s if shown_suit(seq, len(seq) - 1) != s else None
 
 
-#: ...and the same once they overcall our one-level opening with 1NT and we
+#: More of their artificial suit bids read as artificial (the user's call,
+#: 2026-11-17, board 414: P P 1♥ P 2♣ Drury, and South's double read as
+#: takeout, 13+). `shown_suit` reads these naturally because it doesn't see
+#: passes or the conventions' preconditions; these are the system's own
+#: artificial suit bids that a scan of 3,000 robot auctions found missed:
+#: Drury and opener's 2♦ over it, new minor forcing, checkback 3♣, and the
+#: short-suit game try 1♥ 2♥ 2♠.
+LEAD_DOUBLE_MORE = True
+
+
+def _their_convention(ctx: Ctx, at: int, seq: list[str]) -> bool:
+    """Is their last call in `seq` (made at `ctx.calls[at]`) one of the
+    conventions above, as the robots bid them uncontested?"""
+    i = len(seq) - 1
+    call = seq[i]
+    first = seq[0]
+    x, y = strain_of(first), (strain_of(seq[1]) if i >= 1 else None)
+    if level_of(first) != 1 or x not in SUITS:
+        return False
+    if x in MAJORS and i in (1, 2) and seq[1] == '2C':      # Drury, and 2♦ over it
+        k = next(j for j in range(at, -1, -1)
+                 if ctx.calls[j][1] == '2C' and ctx.calls[j][0] not in (ctx.me, ctx.pd))
+        if ctx.passed_hand(ctx.calls[k][0]):
+            return i == 1 or call == '2D'
+    if i == 3 and level_of(seq[1]) == 1 and y in MAJORS:
+        if seq[2] == '1NT':                                  # new minor forcing
+            return call == ('2D' if x == 'C' else '2C')
+        if seq[2] == '2NT':                                  # checkback
+            return call == '3C'
+    return i == 2 and first == '1H' and seq[1:] == ['2H', '2S']   # short-suit game try they overcall our one-level opening with 1NT and we
 #: only pass after it: they play systems on (as `Ctx.nt_overcall` does for
 #: us), so 1♠ (1NT) P (2♣) is Stayman, and a double of it asks for a club
 #: lead; it no longer shows 18+ (the user's call, 2026-11-01: North doubled
@@ -4933,6 +4967,26 @@ def _their_nt_overcall(ctx: Ctx, ours: list[int], at: int) -> bool:
     opening = ctx.calls[k][1]
     return (level_of(opening) == 1 and strain_of(opening) in SUITS and k + 1 < at
             and ctx.calls[k + 1][1] == '1NT')
+
+
+#: Their lead-directing double of our artificial bid takes no room, so we
+#: bid on as if they had passed (the user's call, 2026-11-17). Without it,
+#: 1♥ P 1♠ P 1NT P 2♣(new minor forcing) X was passed out in 2♣ doubled,
+#: and 1♥ P 2♣(Drury) X had opener bidding 2♠ as a natural new suit.
+LEAD_DOUBLE_SYSTEMS_ON = True
+
+
+def _only_lead_doubles(ctx: Ctx) -> bool:
+    """Is every call of theirs other than a pass a lead-directing double of
+    our artificial bid just before it?"""
+    theirs = [k for k, (w, c) in enumerate(ctx.calls) if w not in (ctx.me, ctx.pd) and c != 'Pass']
+    if not theirs:
+        return False
+    for k in theirs:
+        who, call = ctx.calls[k]
+        if call != 'X' or _their_artificial(Ctx(who, [], ctx.auction), k - 1) is None:
+            return False
+    return True
 
 
 def _lead_double(ctx: Ctx) -> tuple | None:

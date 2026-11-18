@@ -24,6 +24,14 @@ describe('callMeanings', () => {
     });
   });
 
+  it('reads a double of Drury as lead-directing (training board 414)', () => {
+    const m = callMeanings(auctionOf('East', ['Pass', 'Pass', '1H', 'Pass', '2C']));
+    expect(m.get('X')).toMatch(/^Lead-directing: 5\+ ♣/);
+    const d = describeCall('X', m.get('X'));
+    expect(d.title).toBe('Lead-directing double');
+    expect(d.plain).toMatch(/asks partner to lead it/);
+  });
+
   it('finds the openings, rare ones included', () => {
     const m = callMeanings(auctionOf('South', []));
     expect(m.get('1NT')).toBe('15-17 HCP, balanced.');
