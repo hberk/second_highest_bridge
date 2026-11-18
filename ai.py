@@ -2634,7 +2634,8 @@ _EXACT_RE = re.compile(r'exactly (\d+) ([\u2660\u2665\u2666\u2663])')
 _JUDGE_RE = re.compile(r'([\u2660\u2665\u2666\u2663]), (\d+)\+ judgement points')
 
 
-def shown_lengths(calls: list, alerts: dict) -> dict[str, dict[str, int]]:
+def shown_lengths(calls: list, alerts: dict,
+                  vulnerability: str | None = None) -> dict[str, dict[str, int]]:
     """The fewest cards each seat's alerts promise in each suit.
 
     `calls` is the auction as (seat, call); `alerts` maps a call's index to
@@ -2661,6 +2662,12 @@ def shown_lengths(calls: list, alerts: dict) -> dict[str, dict[str, int]]:
             s = _SUIT_OF_SYM[sym]
             judge[seat][s] = max(judge[seat].get(s, 0), int(j))
     shown['judge'] = judge
+    if vulnerability is not None:
+        # The auction itself, for the endgame search to ask which hands would
+        # have bid it (`_calls_alike`).
+        shown['auction'] = {'vulnerability': vulnerability,
+                            'calls': [(seat, call) for seat, call in calls],
+                            'alerts': dict(alerts)}
     return shown
 
 
@@ -2917,8 +2924,10 @@ def clear_position_memo() -> None:
     """Forget every searched position. A position's value doesn't depend on
     who looks or which layout led there, so this changes no card, only the
     time the next searches take. The web app's table server calls its twin
-    (`clearPositionMemo`) as each board ends, to keep its memory flat."""
+    (`clearPositionMemo`) as each board ends, to keep its memory flat. The
+    endgame's replayed calls (`_calls_alike`) go too: they are the board's."""
     _POSITION_MEMO.clear()
+    _REPLAY_MEMO.clear()
 
 
 _NS_SEATS = (0, 2)                         # North, South in PLAYERS order
@@ -3127,6 +3136,69 @@ def _fast_search(hands: dict[str, list[Card]], trick: list[tuple[str, Card]],
     return best
 
 
+# ── The endgame asks the bidding ─────────────────────────────────────────────
+#
+# The search above counted every layout that fit the auction's floors as just
+# as likely. On a user's board (hand 145, 3D by South, trick 10) South led the
+# 8D, West held 9-5-3 of diamonds, and the unseen cards were QJT of diamonds
+# and East's clubs. South's "5+ diamonds" floor left ten layouts: one with
+# South holding all three (six diamonds, East void) and nine with East holding
+# one. The 9D is right when East has a diamond (it must be second-highest over
+# East's card) and wrong when East is void (low lets the 8 be highest, so
+# West's low diamond wins). Nine layouts outvoted one, and West played the 9D.
+# But South holding five diamonds and a third club (2-3-5-3, 12-14 HCP) rebids
+# 1NT over 1H, never 2D: a player rules those layouts out from the bidding.
+# So each hidden hand is rebuilt for every layout (the cards it holds and the
+# cards it has played: all thirteen), the robots' bidder is asked for every
+# call that seat made, and only the layouts where it makes them all are
+# searched. A person's calls are read as the robots' (the robots read them by
+# the robots' meanings). Calls are taken in order, and the first call no
+# layout makes (a person who bid otherwise) ends what that seat's bidding
+# tells: the layouts kept are those that make the most of its calls from the
+# first, and with none at all the seat is back to its floors.
+
+#: The endgame search keeps only the layouts in which each hidden hand makes
+#: the most of its calls, from the first (measurement switch).
+AUCTION_REPLAY = True
+#: auction -> (seat, hand) -> calls alike; one table per auction, a few kept.
+_REPLAY_MEMO: dict = {}
+_REPLAY_MEMO_MAX = 200_000
+_REPLAY_AUCTIONS = 8
+
+
+def _calls_alike(seat: str, cards: list[Card], auction: dict) -> int:
+    """How many of `seat`'s calls in `auction` (`shown['auction']`), from the
+    first, the robots' bidder makes holding these thirteen `cards`."""
+    calls = auction['calls']
+    key = auction.get('_key')
+    if key is None:
+        key = auction['_key'] = (auction['vulnerability'], tuple(calls),
+                                 tuple(sorted(auction['alerts'].items())))
+    hand = sorted(cards, key=lambda c: (SUITS.index(c.suit), c.value()), reverse=True)
+    memo = _REPLAY_MEMO.get(key)
+    if memo is None:
+        if len(_REPLAY_MEMO) >= _REPLAY_AUCTIONS:
+            _REPLAY_MEMO.clear()
+        memo = _REPLAY_MEMO[key] = {}
+    memo_key = (seat, tuple(hand))
+    if memo_key in memo:
+        return memo[memo_key]
+    alerts = auction['alerts']
+    state = AuctionState(dealer=calls[0][0], vulnerability=auction['vulnerability'])
+    alike = 0
+    for i, (who, call) in enumerate(calls):
+        if who == seat:
+            said = {j: a for j, a in alerts.items() if j < i}
+            if ai_bid_explained(seat, hand, state, said)[0] != call:
+                break
+            alike += 1
+        state.apply_call(who, call)
+    if len(memo) > _REPLAY_MEMO_MAX:
+        memo.clear()
+    memo[memo_key] = alike
+    return alike
+
+
 def _endgame_totals(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                     trump: str | None, played: list[Card],
                     visible: dict[str, list[Card]], history: list,
@@ -3151,6 +3223,7 @@ def _endgame_totals(player: str, hand: list[Card], trick: list[tuple[str, Card]]
     side = PARTNERSHIP[player]
     totals = {c: 0 for c in legal}
     layouts = 0
+    fitting = []
     for picked in combinations(range(len(unseen)), size[first]):
         chosen = set(picked)
         a = [unseen[i] for i in range(len(unseen)) if i in chosen]
@@ -3159,6 +3232,16 @@ def _endgame_totals(player: str, hand: list[Card], trick: list[tuple[str, Card]]
             continue
         if shown and not (count.fits_auction(first, a) and count.fits_auction(second, b)):
             continue
+        fitting.append((a, b))
+    auction = shown.get('auction') if AUCTION_REPLAY and shown else None
+    if auction and auction['calls'] and len(fitting) > 1:
+        for k, seat in enumerate((first, second)):
+            gone = [c for plays in history + [trick] for p, c in plays if p == seat]
+            alike = [_calls_alike(seat, lay[k] + gone, auction) for lay in fitting]
+            best = max(alike)
+            if best:
+                fitting = [lay for lay, n in zip(fitting, alike) if n == best]
+    for a, b in fitting:
         layouts += 1
         held = {seat: list(cards) for seat, cards in known.items()}
         held[first], held[second] = a, b

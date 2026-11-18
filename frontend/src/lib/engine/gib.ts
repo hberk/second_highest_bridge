@@ -56,6 +56,8 @@ const NT_GAME = 28;
 export const settingsGib = { judgeByVariant: true, cueLimitAt3: true };
 /** Responder's cuebid raise of a minor opening needs 4+ diamonds or 5+ clubs (gib.py). */
 export const CUE_MINOR_SUPPORT = true;
+/** Responder's pre-emptive jump raise over interference needs 5+ trumps in a minor (gib.py). */
+export const PREEMPT_MINOR_FIVE = true;
 /** Advancer's cuebid raise past three of partner's suit: 2NT is the limit
  *  raise or better and the cuebid asks for a stopper for 3NT. See gib.py. */
 export const CUE_2NT = true;
@@ -1001,7 +1003,7 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
     if (isMajor(z) && h.len[z] >= 4 && ctx.ok(`2${z}`)) return [`2${z}`, `4+ ${SYM[z]}, minimum.`];
     if (isSuit(y) && h.len[y] >= 6 && ctx.ok(`2${y}`)) return [`2${y}`, `6+ ${SYM[y]}, to play.`];
     if (h.len[z] >= 4 && ol === 2) return ['Pass', "Happy in opener's second suit."];
-    if (h.len[x] >= 2 && ctx.ok(`2${x}`) && h.len[x] >= h.len[z]) {
+    if (h.len[x] >= 2 && ctx.ok(`2${x}`) && h.len[x] >= h.len[z] && !thinMinorPreference(ctx, x, ol)) {
       return [`2${x}`, `Preference to ${SYM[x]}.`];
     }
     if (ol === 1 && ctx.ok('1NT')) return ['1NT', 'Minimum.'];
@@ -1014,6 +1016,16 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
  *  10-11 HCP (the user's call, 2026-11-01). Opener's 2♦ shows 3+ and is
  *  usually four, so four diamonds raise; a 2♣ rebid is often three, so clubs
  *  need five. */
+/** 1m-1y-1z: responder's 2m preference needs four cards, or three with a side
+ *  singleton or void; a flatter minimum bids 1NT (the user's call, 2026-11-17). */
+export const MINOR_PREF_FOUR = true;
+
+function thinMinorPreference(ctx: Ctx, x: Suit, ol: number): boolean {
+  const h = ctx.h;
+  if (!MINOR_PREF_FOUR || (x !== 'C' && x !== 'D') || ol !== 1 || !ctx.ok('1NT')) return false;
+  return h.len[x] < 3 || (h.len[x] === 3 && h.short(x).length === 0);
+}
+
 export const MINOR_RAISE = true;
 export const MINOR_RAISE_LEN: Partial<Record<Suit, number>> = { D: 4, C: 5 };
 
@@ -1448,6 +1460,10 @@ function ntOpenerAnswer(ctx: Ctx, base: number, r: string, lo: number, hi: numbe
   return ['Pass', 'Partner placed the contract.'];
 }
 
+/** 1NT-2♣-2♥-3NT (2NT-3♣-3♥-3NT too): 3NT shows the other major, and the
+ *  opener with four of them corrects to 4♠ (the user, 2026-11-17). */
+export const STAYMAN_3NT_OTHER_MAJOR = true;
+
 // After a Jacoby transfer a responder with six or more of the major bids it
 // (4M with game values, 3M invitational); it never says "5" or offers 3NT.
 export const SIX_CARD_TRANSFER_REBID = true;
@@ -1473,6 +1489,12 @@ function ntResponderSecond(ctx: Ctx, base: number, seq: string[], lo: number, hi
       }
       const m5 = MAJORS.filter((m) => h.len[m] >= 5);
       if (m5.length && isMajor(strainOf(o)) && o !== '2S' && ctx.ok(`3${m5[0]}`)) return [`3${m5[0]}`, `5+ ${SYM[m5[0]]}, game forcing.`];
+      if (STAYMAN_3NT_OTHER_MAJOR && isMajor(s)) {
+        // Stayman then 3NT over a major: the other major is the
+        // reason for Stayman (the user, 2026-11-17).
+        const other: Suit = s === 'H' ? 'S' : 'H';
+        return placed(ctx, ['3NT', `4 ${SYM[other]}, fewer than 4 ${SYM[s as Suit]}. To play.`]);
+      }
       return placed(ctx, ['3NT', TO_PLAY]);
     }
     if (ctx.ok('2NT')) return ['2NT', 'Invitational.'];
@@ -1539,6 +1561,11 @@ function ntOpenerThird(ctx: Ctx, base: number, seq: string[], lo: number, hi: nu
     const target = strainOf(seq[2]) as Suit;
     if (h.len[target] >= 3) return [`4${target}`, TO_PLAY];
     return ['Pass', 'Partner placed the contract.'];
+  }
+  if (STAYMAN_3NT_OTHER_MAJOR && last === '3NT' && r === code.stayman && isMajor(strainOf(seq[2]))) {
+    const other: Suit = strainOf(seq[2]) === 'H' ? 'S' : 'H';
+    if (h.len[other] >= 4 && ctx.ok(`4${other}`)) return [`4${other}`, `4+ ${SYM[other]}, to play.`];
+    return ['Pass', `Fewer than 4 ${SYM[other]}, to play.`];
   }
   if (last === '4NT') return h.judge >= hi ? ['6NT', TO_PLAY] : ['Pass', 'Minimum, declining.'];
   if (r === code.stayman && levelOf(last) === 3 && isMajor(strainOf(last))) {
@@ -2131,6 +2158,16 @@ export const LOTT_TOTAL_ALERT = 'Competing: both sides have a fit.';
 export const LOTT_TOTAL_HCP = 6;
 
 /** Have both opponents bid `s` naturally? */
+/** The pass-out seat with an inferred eight-card fit (board 140, 2026-11-17). See gib.py. */
+export const LOTT_BALANCE = true;
+export const LOTT_BALANCE_HCP = 10;
+
+function balanceThree(ctx: Ctx, s: Suit, n: number, mine: boolean): boolean {
+  return LOTT_BALANCE && mine && n === 8 && ctx.h.len[s] >= 5
+    && ctx.h.hcp >= LOTT_BALANCE_HCP && ctx.calls.length >= 2
+    && ctx.calls.slice(-2).every(([, c]) => c === 'Pass');
+}
+
 function theyRaised(ctx: Ctx, s: Suit): boolean {
   return new Set(ctx.theirs.filter(([, c]) => strainOf(c) === s).map(([w]) => w)).size === 2;
 }
@@ -2297,9 +2334,10 @@ function totalTricks(ctx: Ctx, decision: Decision | null): Decision | null {
       && ctx.h.short(s).length > 0;
     if (!mine && !weak && !(LOTT_RAISE[0] <= ctx.h.hcp && ctx.h.hcp <= LOTT_RAISE[1])) continue;
     const call = ctx.cheapest(s, 1);
-    if (call === null || levelOf(call) > Math.min(n - 6 + totalBonus(ctx, n), LOTT_MAX)) continue;
+    if (call === null || levelOf(call) > Math.min(n - 6 + totalBonus(ctx, n) + (balanceThree(ctx, s, n, mine) ? 1 : 0), LOTT_MAX)) continue;
+    const extra = balanceThree(ctx, s, n, mine) ? 1 : 0;
     const key = [n, isMajor(s) ? 1 : 0, idx(s)];
-    if (best === null || cmpTuple(key, best[0]) > 0) best = [key, call, levelOf(call) > n - 6];
+    if (best === null || cmpTuple(key, best[0]) > 0) best = [key, call, levelOf(call) > n - 6 + extra];
   }
   if (best === null) return null;
   const s = strainOf(best[1]) as Suit;
@@ -2702,6 +2740,8 @@ function contested(ctx: Ctx): Decision | null {
     }
     return uncontested(ctx);
   }
+  // They only doubled our artificial bids for the lead: systems on.
+  if (LEAD_DOUBLE_SYSTEMS_ON && ctx.weOpened && onlyLeadDoubles(ctx)) return uncontested(ctx);
   // (1x)-1NT and they pass: systems on, as over our 1NT opening.
   if (ctx.ntOvercall) return notrump(ctx, 0);
   if (ctx.weOpened) return weOpenedContested(ctx);
@@ -3435,7 +3475,7 @@ function respondOverInterference(ctx: Ctx, x: Suit): Decision {
   if (!lb) {
     if (isMajor(x) && sup >= 4 && hcp >= 10 && ctx.ok('2NT')) return ['2NT', `Jordan: 4+ ${SYM[x]}, 10+ HCP.`];
     if (hcp >= 10 && ctx.ok('XX')) return ['XX', '10+ HCP.'];
-    if (sup >= 4 && hcp <= 9 && ctx.ok(`3${x}`)) return [`3${x}`, `4+ ${SYM[x]}, under 10 HCP. Pre-emptive.`];
+    if (sup >= preemptSupport(x) && hcp <= 9 && ctx.ok(`3${x}`)) return [`3${x}`, `${preemptSupport(x)}+ ${SYM[x]}, under 10 HCP. Pre-emptive.`];
     if (sup >= 3 && hcp >= 6) {
       const call = ctx.cheapest(x, 2);
       if (call && levelOf(call) === 2) return [call, `3+ ${SYM[x]}, 6-9 HCP.`];
@@ -3490,9 +3530,9 @@ function respondOverInterference(ctx: Ctx, x: Suit): Decision {
       && sup < 4 && h.judge < 12;
     if (call && levelOf(call) <= 3 && !cueTooHigh) return [call, `Cuebid: ${need}+ ${SYM[x]}, 10+ HCP. Artificial.`];
   }
-  if (sup >= 4 && hcp <= 9 && ctx.ok(`3${x}`) && lvl <= 2
+  if (sup >= preemptSupport(x) && hcp <= 9 && ctx.ok(`3${x}`) && lvl <= 2
     && rankOf(`3${x}`) > rankOf(ctx.cheapest(x, 1) ?? '1C')) {
-    if (ctx.cheapest(x, 2) !== `3${x}`) return [`3${x}`, `4+ ${SYM[x]}, under 10 HCP. Pre-emptive.`];
+    if (ctx.cheapest(x, 2) !== `3${x}`) return [`3${x}`, `${preemptSupport(x)}+ ${SYM[x]}, under 10 HCP. Pre-emptive.`];
   }
   if (sup >= 3 && hcp >= 6) {
     const call = ctx.cheapest(x, 2);
@@ -3524,6 +3564,10 @@ function respondOverInterference(ctx: Ctx, x: Suit): Decision {
 }
 
 /** Cards responder's cuebid raise of partner's 1x opening needs (gib.py). */
+function preemptSupport(x: Suit): number {
+  return PREEMPT_MINOR_FIVE && isMinor(x) ? 5 : 4;
+}
+
 function cueSupport(x: Suit): number {
   if (CUE_MINOR_SUPPORT && isMinor(x)) return x === 'D' ? 4 : 5;
   return 3;
@@ -4419,7 +4463,31 @@ function theirArtificial(ctx: Ctx, at: number): Suit | null {
   ctx.calls.slice(0, at).forEach(([w, c], k) => { if (us(w) && c !== 'Pass') ours.push(k); });
   if (ours.length && !theirNtOvercall(ctx, ours, at)) return null;
   const seq = ctx.calls.slice(0, at + 1).filter(([w, c]) => !us(w) && c !== 'Pass').map(([, c]) => c);
+  if (LEAD_DOUBLE_MORE && theirConvention(ctx, at, seq)) return s;
   return shownSuit(seq, seq.length - 1) !== s ? s : null;
+}
+
+/** More of their artificial suit bids read as artificial (2026-11-17, board
+ *  414): Drury and opener's 2♦ over it, new minor forcing, checkback 3♣ and
+ *  the short-suit game try 1♥ 2♥ 2♠. See gib.py. */
+export const LEAD_DOUBLE_MORE = true;
+
+function theirConvention(ctx: Ctx, at: number, seq: string[]): boolean {
+  const i = seq.length - 1;
+  const call = seq[i];
+  const first = seq[0];
+  const x = strainOf(first), y = i >= 1 ? strainOf(seq[1]) : null;
+  if (levelOf(first) !== 1 || !isSuit(x)) return false;
+  if (isMajor(x) && (i === 1 || i === 2) && seq[1] === '2C') {   // Drury, and 2♦ over it
+    let k = at;
+    while (!(ctx.calls[k][1] === '2C' && ctx.calls[k][0] !== ctx.me && ctx.calls[k][0] !== ctx.pd)) k--;
+    if (ctx.passedHand(ctx.calls[k][0])) return i === 1 || call === '2D';
+  }
+  if (i === 3 && levelOf(seq[1]) === 1 && isMajor(y)) {
+    if (seq[2] === '1NT') return call === (x === 'C' ? '2D' : '2C');   // new minor forcing
+    if (seq[2] === '2NT') return call === '3C';                        // checkback
+  }
+  return i === 2 && first === '1H' && seq[1] === '2H' && seq[2] === '2S';   // short-suit game try
 }
 
 /** ...and the same once they overcall our one-level opening with 1NT and we
@@ -4434,6 +4502,21 @@ function theirNtOvercall(ctx: Ctx, ours: number[], at: number): boolean {
   const opening = ctx.calls[k][1];
   return levelOf(opening) === 1 && isSuit(strainOf(opening)) && k + 1 < at
     && ctx.calls[k + 1][1] === '1NT';
+}
+
+/** Their lead-directing double of our artificial bid takes no room: we bid
+ *  on as if they had passed (2026-11-17). See gib.py. */
+export const LEAD_DOUBLE_SYSTEMS_ON = true;
+
+function onlyLeadDoubles(ctx: Ctx): boolean {
+  const us = (w: Seat) => w === ctx.me || w === ctx.pd;
+  const theirs: number[] = [];
+  ctx.calls.forEach(([w, c], k) => { if (!us(w) && c !== 'Pass') theirs.push(k); });
+  if (!theirs.length) return false;
+  return theirs.every((k) => {
+    const [who, call] = ctx.calls[k];
+    return call === 'X' && theirArtificial(new Ctx(who, [], ctx.auction), k - 1) !== null;
+  });
 }
 
 function leadDouble(ctx: Ctx): Decision | null {

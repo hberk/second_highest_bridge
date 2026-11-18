@@ -525,6 +525,19 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     raises to 3♠ on 3 HCP, and partner competes to 4♠ over 4♣. Head to head
     against LoTT without it: **+0.27 per board, t = +1.89, 7 auctions changed**.
     LoTT with it, against neither: +3.82 (t = +4.76, 78 changed).
+  - **Three-level competition from the pass-out seat** (`LOTT_BALANCE`,
+    `_balance_three`; the user's board 140, 2026-11-17). 1♦ P 2♦ (inverted)
+    2♠ P P: East's ♦QT764 and partner's 3+ make eight trumps, which the LoTT
+    allows only the two level, so East passed 2♠ out and 2♠ went down one
+    (making 3♦ was the better contract). When both other players have passed,
+    a hand that bid the suit, has five or more of it, makes eight with
+    partner's shown length and holds `LOTT_BALANCE_HCP` (10, the strength an
+    inverted raise already showed) bids one level higher. Alert: the plain
+    "Competing to the level of our fit." Fresh deals, head to head, 3,000 x 4
+    dealers: 10 HCP **-0.02 (t -0.31), +0.17 (t +2.29), +0.19 (t +2.44)**,
+    42-69 auctions changed, 6-21 worse; 8 HCP +0.01 / +0.26 / +0.12 (t +0.18,
+    +3.14, +1.13) but more auctions changed and more worse, so 10 stays.
+    (`/mnt/project-files/balance-three/`.)
 - **Count the fit** (`FIT_COUNT`, `_fit_bonus`; the user's call, 2026-10-22).
   Where GIB judges game once a fit is known -- opener after 1M-2M and 1M-3M,
   responder after a game try and after opener's raise, and `continuation`'s
@@ -667,6 +680,24 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   2026-10-28: the double is made because bidding is too dangerous); it had
   still bid when partner bid on, reading a cuebid or raise as support. Its
   penalty double is kept, as for the pre-emptor.
+  - **More artificial bids** (`gib.LEAD_DOUBLE_MORE`, the user's call,
+    2026-11-17, training board 414: P P 1♥ P 2♣ was Drury, and South's
+    double was explained as takeout, 13+). `shown_suit` reads some of their
+    artificial suit bids as natural, because it sees neither passes nor a
+    convention's preconditions. A scan of 3,000 robot auctions for suit bids
+    alerted "Artificial" that `_their_artificial` missed found five, now read
+    by `_their_convention`: Drury (18) and opener's 2♦ over it (5), new minor
+    forcing (23), checkback 3♣ (8), the short-suit game try 1♥ 2♥ 2♠ (9).
+    The rescan finds none missed. A takeout hand now passes over them, as
+    over Stayman. In 6,000 fresh robot deals 13 such doubles were made;
+    each time the doubler's partner was on lead (6) it led the suit.
+  - **Systems on over the double** (`gib.LEAD_DOUBLE_SYSTEMS_ON`): when
+    every call of theirs is a lead-directing double of our artificial bid,
+    we bid on as if they had passed (as over 1NT (X)). Without it the same
+    deals had 1♥ P 1♠ P 1NT P 2♣ X passed out in 2♣ doubled, checkback 3♣
+    doubled passed out, and opener bidding 2♠ as a new suit over Drury doubled.
+  - The bidding box titles the alert "Lead-directing double" (it fell back
+    to the natural-bid text before).
 - **Penalty doubles** (`ai.PENALTY_DOUBLE`, `PENALTY_JUDGE`; the user's rule,
   2026-10-24). Against **two-sided par** (both sides bid perfectly, a failing
   contract is doubled, either side may sacrifice) the robots are 233 points a
@@ -785,6 +816,13 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   175 worse). The same length for the pre-emptive jump raise over their
   bid (5+ ♦ / 6+ ♣, not 4+) measured -0.02, t = -0.1, and with 1♣-3♣ on 6+
   -0.03; left off (the user's call: weak raises stay where they were).
+- **Pre-emptive jump raise of a minor needs five trumps** (`PREEMPT_MINOR_FIVE`,
+  `_preempt_support`; the user's rule, 2026-11-17: P 1♣ (1♥) 3♣ on ♠A5 ♥94 ♦JT942
+  ♣A642, where a 1♣ opener may hold three). Responder's jump raise over an overcall
+  or a double needs 5+ in a minor, 4+ in a major; with four clubs it bids 2♣ or
+  passes. Measured on fresh deals, 10,000 deals per seed: seed 7 -0.01 a board
+  (t = -0.06), seed 8 -0.06 (t = -0.66). Not significant; kept because it is the
+  user's rule.
 - **Answers to responder's cuebids over their Unusual 2NT**
   (`UNUSUAL_CUE_REPLY`, `_unusual_cue_reply`; the user's board, 2026-11-04:
   Pass 1♠ (2NT) 3♣ P, North passed the artificial limit raise on ♠AJ543
@@ -1158,6 +1196,10 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     diamonds or five clubs (2♣ is often three cards). Before, 3♦ had no
     meaning and 10-11 balanced bid 2NT; opener answers it like any
     three-level invitation (3NT on 13+).
+  - `MINOR_PREF_FOUR`: after 1m 1y 1z, responder's minimum 2m preference needs
+    four cards, or three with a side singleton or void; a flatter hand bids 1NT
+    (the user's board, 1♦ 1♥ 1♠ 2♦ on ♠T4 ♥AQJT5 ♦543 ♣K75). 3,000 fresh deals
+    on each of seeds 7M, 8M, 9M: +0.11, +0.13, +0.05 a board, t 1.4-2.5.
   - `THEIR_NT_OVERCALL`: when they overcall our one-level opening with 1NT and
     we pass, they play systems on, so their 2♣ is Stayman and their 2♦/2♥
     transfers are artificial (`_their_artificial`). Opener's double of one

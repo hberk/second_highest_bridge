@@ -15,6 +15,11 @@
 //! N/S tricks for the REST of the hand after it, both sides perfect, the
 //! same number `bridge/solver/api.card_values` gives. JS adds the tricks
 //! already won.
+//!
+//! `value(leader, guess)` solves the loaded deal from its first trick with
+//! `leader` on lead instead: N/S's tricks for the whole hand. One load per
+//! strain serves all four declarers, sharing the table (the deal's tricks
+//! and par in History). `guess` (0-13) only orders the probes.
 
 use solver_rs::bitstate::{Position, SecondHighest};
 use solver_rs::search::Search;
@@ -24,6 +29,9 @@ struct Board {
     engine: Search<'static>,
     /// The position before each play.
     positions: Vec<Position>,
+    /// The deal before any play, for `value`.
+    hands: [u64; 4],
+    trump: Option<u32>,
 }
 
 thread_local! {
@@ -92,6 +100,8 @@ pub extern "C" fn load() -> i32 {
         *b.borrow_mut() = Some(Board {
             engine: Search::preallocated(trump, sh, limit.max(1) as usize),
             positions,
+            hands,
+            trump,
         })
     });
     0
@@ -115,6 +125,22 @@ pub extern "C" fn analyse(i: usize) -> i32 {
             }
         });
         values.len() as i32
+    })
+}
+
+/// N/S's tricks for the whole loaded deal with `leader` (0-3) on lead to
+/// the first trick, both sides perfect; -1 when no board is loaded or the
+/// leader isn't a seat.
+#[unsafe(no_mangle)]
+pub extern "C" fn value(leader: u32, guess: i32) -> i32 {
+    BOARD.with(|b| {
+        let mut b = b.borrow_mut();
+        let Some(board) = b.as_mut() else { return -1 };
+        if leader > 3 {
+            return -1;
+        }
+        let position = Position::new(board.hands, leader, board.trump);
+        board.engine.value_from(&position, guess)
     })
 }
 

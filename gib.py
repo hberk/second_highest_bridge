@@ -106,6 +106,11 @@ CUE_LIMIT_AT_3 = True
 #: the length, responder bids as if there were no fit, and with nothing else
 #: to bid raises.
 CUE_MINOR_SUPPORT = True
+#: Responder's pre-emptive jump raise over an overcall or a double (1m (1H) 3m)
+#: needs 5+ trumps in a minor, where four do in a major: a 1♣ opener may hold
+#: three (the user's rule, 2026-11-17: P 1♣ (1♥) 3♣ on ♣A642). With four,
+#: responder makes the simple raise or passes.
+PREEMPT_MINOR_FIVE = True
 #: Advancer's cuebid raise can pass three of partner's suit (1♦ (2♣) 2♦ 3♦),
 #: forcing 3NT or four. So when their suit ranks above ours, 2NT is the
 #: limit raise or better (artificial), leaving three as partner's sign-off,
@@ -1117,12 +1122,27 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
             return f"2{y}", f"6+ {SYM[y]}, to play."
         if h.len[z] >= 4 and ol == 2:
             return 'Pass', "Happy in opener's second suit."
-        if h.len[x] >= 2 and ctx.ok(f"2{x}") and h.len[x] >= h.len[z]:
+        if (h.len[x] >= 2 and ctx.ok(f"2{x}") and h.len[x] >= h.len[z]
+                and not _thin_minor_preference(ctx, x, ol)):
             return f"2{x}", f"Preference to {SYM[x]}."
         if ol == 1 and ctx.ok('1NT'):
             return '1NT', "Minimum."
         return 'Pass', "No game."
     return None
+
+
+#: 1m-1y-1z: responder's 2m preference needs four cards, or three with a side
+#: singleton or void; a flatter minimum bids 1NT (the user's call, 2026-11-17:
+#: 1♦ 1♥ 1♠ 2♦ on ♠T4 ♥AQJT5 ♦543 ♣K75, "2♦ needs four diamonds, bid 1NT").
+MINOR_PREF_FOUR = True
+
+
+def _thin_minor_preference(ctx: Ctx, x: str, ol: int) -> bool:
+    """Opener's minor, a one-level rebid, 1NT open, and too few of x to prefer it."""
+    h = ctx.h
+    if not MINOR_PREF_FOUR or x not in ('C', 'D') or ol != 1 or not ctx.ok('1NT'):
+        return False
+    return h.len[x] < 3 or (h.len[x] == 3 and not h.short(x))
 
 
 #: 1M-1NT-2m-3m: responder raises opener's minor, natural and invitational,
@@ -1581,6 +1601,13 @@ def _nt_opener_answer(ctx: Ctx, base: int, r: str, lo: int, hi: int) -> tuple:
     return 'Pass', "Partner placed the contract."
 
 
+#: 1NT-2♣-2♥-3NT (2NT-3♣-3♥-3NT too): responder's Stayman was for the other
+#: major, so 3NT shows four spades, and the opener with four of them corrects
+#: to 4♠ (the user, 2026-11-17). Over 2♠ it shows four hearts, which the
+#: opener has denied. False: 3NT says "To play" and the opener passes.
+STAYMAN_3NT_OTHER_MAJOR = True
+
+
 #: After a Jacoby transfer a responder with six or more of the major bids it
 #: (4M with game values, 3M invitational); it never says "5" or offers 3NT.
 SIX_CARD_TRANSFER_REBID = True
@@ -1607,6 +1634,11 @@ def _nt_responder_second(ctx: Ctx, base: int, seq: list[str], lo: int, hi: int) 
             m5 = [m for m in MAJORS if h.len[m] >= 5]
             if m5 and strain_of(o) in MAJORS and o != '2S' and ctx.ok(f"3{m5[0]}"):
                 return f"3{m5[0]}", f"5+ {SYM[m5[0]]}, game forcing."
+            if STAYMAN_3NT_OTHER_MAJOR and s in MAJORS:
+                # Stayman then 3NT over a major: the other major is the
+                # reason for Stayman (the user, 2026-11-17).
+                other = 'S' if s == 'H' else 'H'
+                return placed(ctx, ('3NT', f"4 {SYM[other]}, fewer than 4 {SYM[s]}. To play."))
             return placed(ctx, ('3NT', TO_PLAY))
         if ctx.ok('2NT'):
             return '2NT', "Invitational."
@@ -1675,6 +1707,12 @@ def _nt_opener_third(ctx: Ctx, base: int, seq: list[str], lo: int, hi: int) -> t
         if h.len[target] >= 3:
             return f"4{target}", TO_PLAY
         return 'Pass', "Partner placed the contract."
+    if (STAYMAN_3NT_OTHER_MAJOR and last == '3NT' and r == code['stayman']
+            and strain_of(seq[2]) in MAJORS):
+        other = 'S' if strain_of(seq[2]) == 'H' else 'H'
+        if h.len[other] >= 4 and ctx.ok(f"4{other}"):
+            return f"4{other}", f"4+ {SYM[other]}, to play."
+        return 'Pass', f"Fewer than 4 {SYM[other]}, to play."
     if last == '4NT':
         return ('6NT', TO_PLAY) if h.judge >= hi else ('Pass', "Minimum, declining.")
     if r == code['stayman'] and level_of(last) == 3 and strain_of(last) in MAJORS:
@@ -2329,6 +2367,22 @@ LOTT_TOTAL_ALERT = "Competing: both sides have a fit."
 LOTT_TOTAL_HCP = 6
 
 
+#: The pass-out seat with an inferred eight-card fit (the user's board 140,
+#: 2026-11-17: 1♦ P 2♦ 2♠ P P, East ♦QT764 competes to 3♦). The LoTT lets
+#: eight trumps bid only the two level; here, when the auction ends if I
+#: pass (both others have passed) and my own bid suit is five long, with
+#: partner's shown length making eight, it goes one level further.
+#: LOTT_BALANCE_HCP is the fewest HCP that bid needs.
+LOTT_BALANCE = True
+LOTT_BALANCE_HCP = 10
+
+
+def _balance_three(ctx: Ctx, s: str, n: int, mine: bool) -> bool:
+    return (LOTT_BALANCE and mine and n == 8 and ctx.h.len[s] >= 5
+            and ctx.h.hcp >= LOTT_BALANCE_HCP and len(ctx.calls) >= 2
+            and all(c == 'Pass' for _, c in ctx.calls[-2:]))
+
+
 def _they_raised(ctx: Ctx, s: str) -> bool:
     """Have both opponents bid `s` naturally?"""
     return len({w for w, c in ctx.theirs if strain_of(c) == s}) == 2
@@ -2472,11 +2526,12 @@ def _total_tricks(ctx: Ctx, decision: tuple | None) -> tuple | None:
         if not mine and not weak and not LOTT_RAISE[0] <= ctx.h.hcp <= LOTT_RAISE[1]:
             continue
         call = ctx.cheapest(s, 1)
-        if call is None or level_of(call) > min(n - 6 + _total_bonus(ctx, n), LOTT_MAX):
+        extra = 1 if _balance_three(ctx, s, n, mine) else 0
+        if call is None or level_of(call) > min(n - 6 + _total_bonus(ctx, n) + extra, LOTT_MAX):
             continue
         key = (n, s in MAJORS, SUITS.index(s))
         if best is None or key > best[0]:
-            best = (key, call, level_of(call) > n - 6)
+            best = (key, call, level_of(call) > n - 6 + extra)
     if best is None:
         return None
     s = strain_of(best[1])
@@ -2942,6 +2997,9 @@ def contested(ctx: Ctx) -> tuple | None:
             # 1NT-(X)-Pass-(Pass): partner left it in. Systems on were read
             # as responder's, and the opener bid Stayman (training board 25).
             return 'Pass', "Partner left it in."
+        return uncontested(ctx)
+    # They only doubled our artificial bids for the lead: systems on.
+    if LEAD_DOUBLE_SYSTEMS_ON and ctx.we_opened and _only_lead_doubles(ctx):
         return uncontested(ctx)
     # (1x)-1NT and they pass: systems on, as over our 1NT opening.
     if ctx.nt_overcall:
@@ -3812,8 +3870,8 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
             return '2NT', f"Jordan: 4+ {SYM[x]}, 10+ HCP."
         if hcp >= 10 and ctx.ok('XX'):
             return 'XX', "10+ HCP."
-        if sup >= 4 and hcp <= 9 and ctx.ok(f"3{x}"):
-            return f"3{x}", f"4+ {SYM[x]}, under 10 HCP. Pre-emptive."
+        if sup >= _preempt_support(x) and hcp <= 9 and ctx.ok(f"3{x}"):
+            return f"3{x}", f"{_preempt_support(x)}+ {SYM[x]}, under 10 HCP. Pre-emptive."
         if sup >= 3 and hcp >= 6:
             call = ctx.cheapest(x, 2)
             if call and level_of(call) == 2:
@@ -3869,10 +3927,10 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
                         and sup < 4 and h.judge < 12)
         if call and level_of(call) <= 3 and not cue_too_high:
             return call, f"Cuebid: {need}+ {SYM[x]}, 10+ HCP. Artificial."
-    if sup >= 4 and hcp <= 9 and ctx.ok(f"3{x}") and lvl <= 2 and \
+    if sup >= _preempt_support(x) and hcp <= 9 and ctx.ok(f"3{x}") and lvl <= 2 and \
             rank_of(f"3{x}") > rank_of(ctx.cheapest(x, 1) or '1C'):
         if ctx.cheapest(x, 2) != f"3{x}":
-            return f"3{x}", f"4+ {SYM[x]}, under 10 HCP. Pre-emptive."
+            return f"3{x}", f"{_preempt_support(x)}+ {SYM[x]}, under 10 HCP. Pre-emptive."
     if sup >= 3 and hcp >= 6:
         call = ctx.cheapest(x, 2)
         if call and level_of(call) <= 3 and (hcp <= 9 or cue_too_high):
@@ -3905,6 +3963,11 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
         if call and level_of(call) <= 3:
             return call, _raise_alert(x, f"3+ {SYM[x]}, 6+ HCP.")
     return 'Pass', "Nothing to show."
+
+
+def _preempt_support(x: str) -> int:
+    """Trumps responder's pre-emptive jump raise over interference needs."""
+    return 5 if PREEMPT_MINOR_FIVE and x in MINORS else 4
 
 
 def _cue_support(x: str) -> int:
@@ -4884,7 +4947,41 @@ def _their_artificial(ctx: Ctx, at: int) -> str | None:
     if ours and not _their_nt_overcall(ctx, ours, at):
         return None
     seq = [c for w, c in ctx.calls[:at + 1] if w not in (ctx.me, ctx.pd) and c != 'Pass']
+    if LEAD_DOUBLE_MORE and _their_convention(ctx, at, seq):
+        return s
     return s if shown_suit(seq, len(seq) - 1) != s else None
+
+
+#: More of their artificial suit bids read as artificial (the user's call,
+#: 2026-11-17, board 414: P P 1♥ P 2♣ Drury, and South's double read as
+#: takeout, 13+). `shown_suit` reads these naturally because it doesn't see
+#: passes or the conventions' preconditions; these are the system's own
+#: artificial suit bids that a scan of 3,000 robot auctions found missed:
+#: Drury and opener's 2♦ over it, new minor forcing, checkback 3♣, and the
+#: short-suit game try 1♥ 2♥ 2♠.
+LEAD_DOUBLE_MORE = True
+
+
+def _their_convention(ctx: Ctx, at: int, seq: list[str]) -> bool:
+    """Is their last call in `seq` (made at `ctx.calls[at]`) one of the
+    conventions above, as the robots bid them uncontested?"""
+    i = len(seq) - 1
+    call = seq[i]
+    first = seq[0]
+    x, y = strain_of(first), (strain_of(seq[1]) if i >= 1 else None)
+    if level_of(first) != 1 or x not in SUITS:
+        return False
+    if x in MAJORS and i in (1, 2) and seq[1] == '2C':      # Drury, and 2♦ over it
+        k = next(j for j in range(at, -1, -1)
+                 if ctx.calls[j][1] == '2C' and ctx.calls[j][0] not in (ctx.me, ctx.pd))
+        if ctx.passed_hand(ctx.calls[k][0]):
+            return i == 1 or call == '2D'
+    if i == 3 and level_of(seq[1]) == 1 and y in MAJORS:
+        if seq[2] == '1NT':                                  # new minor forcing
+            return call == ('2D' if x == 'C' else '2C')
+        if seq[2] == '2NT':                                  # checkback
+            return call == '3C'
+    return i == 2 and first == '1H' and seq[1:] == ['2H', '2S']   # short-suit game try
 
 
 #: ...and the same once they overcall our one-level opening with 1NT and we
@@ -4905,6 +5002,26 @@ def _their_nt_overcall(ctx: Ctx, ours: list[int], at: int) -> bool:
     opening = ctx.calls[k][1]
     return (level_of(opening) == 1 and strain_of(opening) in SUITS and k + 1 < at
             and ctx.calls[k + 1][1] == '1NT')
+
+
+#: Their lead-directing double of our artificial bid takes no room, so we
+#: bid on as if they had passed (the user's call, 2026-11-17). Without it,
+#: 1♥ P 1♠ P 1NT P 2♣(new minor forcing) X was passed out in 2♣ doubled,
+#: and 1♥ P 2♣(Drury) X had opener bidding 2♠ as a natural new suit.
+LEAD_DOUBLE_SYSTEMS_ON = True
+
+
+def _only_lead_doubles(ctx: Ctx) -> bool:
+    """Is every call of theirs other than a pass a lead-directing double of
+    our artificial bid just before it?"""
+    theirs = [k for k, (w, c) in enumerate(ctx.calls) if w not in (ctx.me, ctx.pd) and c != 'Pass']
+    if not theirs:
+        return False
+    for k in theirs:
+        who, call = ctx.calls[k]
+        if call != 'X' or _their_artificial(Ctx(who, [], ctx.auction), k - 1) is None:
+            return False
+    return True
 
 
 def _lead_double(ctx: Ctx) -> tuple | None:

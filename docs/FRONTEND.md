@@ -1,3 +1,11 @@
+  - **Tricks per strain and par (2026-11-17).** Under each History board's
+    result, the trainer's table (N/S and E/W rows, the better declarer) and
+    par from `parFromTricks` (`dd/table.svelte.ts`). Challenge deals use the
+    stored table at once; any other deal is solved on a tap in
+    `dd/tableWorker.ts` (the wasm `value` export: one load per strain, its
+    four declarers sharing the table), 12 s to 2.7 min a deal in Node here,
+    then kept in `shb-dd-tables-v1` (20 numbers a deal, newest 500) so it's
+    never solved twice. Checked against a stored training table (`table.test.ts`).
 # Svelte front end (`frontend/`)
 
 The game: a static Svelte 5 + Vite app, how it is held to the Python engine, and its features.

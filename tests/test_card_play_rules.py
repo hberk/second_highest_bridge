@@ -903,6 +903,63 @@ def test_deal_102_ruff_not_draw_leads_the_king_for_dummy_to_ruff():
 
 
 
+# ── Hand 145: the endgame asks the bidding (AUCTION_REPLAY) ─────────────────
+# 2D by South after 1D P 1H P 2D (alerted "5+ ♦"). Trick 10: South leads the
+# 8D, West holds 9D 5D 3D 8C. The floor left ten layouts, nine with East
+# holding a diamond, and the 9D won the count; but each of those South hands
+# (2-3-5-3) rebids 1NT, not 2D. Only six diamonds bid it: East is void, so
+# West ducks and its low diamond wins under the 8.
+
+def _hand(text):
+    out = []
+    for part, suit in zip(text.split(), 'SHDC'):
+        out += [Card(suit, '10' if r == 'T' else r) for r in part if r != '-']
+    return out
+
+
+def _west_145(vulnerability='None'):
+    dealt = {'West': _hand('AQ2 J94 K953 K84'), 'North': _hand('KJ97 T8532 4 A95'),
+             'East': _hand('6543 A7 62 QJT63'), 'South': _hand('T8 KQ6 AQJT87 72')}
+    hands = {p: list(h) for p, h in dealt.items()}
+    plays = ['W QS N JS E 3S S 10S', 'N 9S E 4S S 8S W AS', 'N 4D E 2D S AD W KD',
+             'W 9H N 10H E 7H S QH', 'N 7S E 5S S 7D W 2S', 'S KH W JH N 8H E AH',
+             'S 6H W 4H N 5H E 6D', 'E JC S 2C W KC N AC', 'W 4C N 9C E 3C S 7C']
+    seat = {'W': 'West', 'N': 'North', 'E': 'East', 'S': 'South'}
+    history = []
+    for line in plays:
+        t = line.split()
+        history.append([(seat[t[i]], C(t[i + 1])) for i in range(0, 8, 2)])
+    played = []
+    for trick in history:
+        for p, c in trick:
+            hands[p].remove(c)
+            played.append(c)
+    trick = [('South', C('8D'))]
+    hands['South'].remove(C('8D'))
+    auction = ai.AuctionState('South', vulnerability)
+    alerts = {}
+    for call in ['1D', 'Pass', '1H', 'Pass', '2D', 'Pass', 'Pass', 'Pass']:
+        who = auction.current_player()
+        alerts[len(auction.calls)] = ai.ai_bid_explained(who, dealt[who], auction,
+                                                         dict(alerts))[1]
+        auction.apply_call(who, call)
+    shown = ai.shown_lengths(auction.calls, alerts, vulnerability)
+    assert shown['South']['D'] == 5
+    return ai.ai_play('West', hands['West'], trick, 'D', played,
+                      {'North': hands['North']}, history, shown)
+
+
+def test_hand_145_auction_replay_ducks_the_diamond():
+    saved = ai.AUCTION_REPLAY
+    try:
+        ai.AUCTION_REPLAY = False
+        assert _west_145() == C('9D')       # the floor alone: nine layouts to one
+        ai.AUCTION_REPLAY = True
+        assert _west_145() == C('3D')       # only six diamonds rebid 2D
+    finally:
+        ai.AUCTION_REPLAY = saved
+
+
 def test_shipped_rules_together_on_the_users_deals():
     # The rules as shipped, all at once (the Nov 10 combined branch): COUNT_LEAD
     # and COUNT_DISCARD sit in front of DISCARD_SUIT_PLAN, NO_FUTILE_DRAW and

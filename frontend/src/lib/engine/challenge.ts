@@ -71,6 +71,9 @@ export interface Par {
 const CONTRACT_LADDER: readonly [number, Strain][] =
   [1, 2, 3, 4, 5, 6, 7].flatMap((level) => STRAINS.map((strain) => [level, strain] as [number, Strain]));
 
+/** The lowest game in each strain: a par partscore is raised no higher than this. */
+const GAME_LEVEL: Record<Strain, number> = { C: 5, D: 5, H: 4, S: 4, NT: 3 };
+
 /** Duplicate par from a double dummy table: challenge.py's `par_from_tricks`,
  *  line for line. A side passes the contract standing or bids a higher one of
  *  its own; a failing contract is doubled, a making one isn't. N/S speak first. */
@@ -119,7 +122,13 @@ export function parFromTricks(tricks: (strain: Strain, side: Side) => number, si
     return outcome;
   };
 
+  // The contract a competitive auction ends in: an undoubled partscore is bid
+  // up to the level its tricks make (the score is the same at every level up
+  // to there); games, slams and doubled sacrifices stay. See challenge.py.
   const result = { ...opening('N/S', false) };
+  if (result.strain !== null && result.doubled === 'None' && result.level < GAME_LEVEL[result.strain]) {
+    result.level = Math.min(result.tricks - 6, GAME_LEVEL[result.strain] - 1);
+  }
   if (side === 'E/W') result.score = -result.score;
   return result;
 }
@@ -173,7 +182,7 @@ export function robotTable(dealId: number, dealer: Seat, vulnerability: Vulnerab
 
   const trump = contract.trump;
   let leader = contract.leader;
-  const shown = shownLengths(auction.calls as [Seat, string][], alerts);
+  const shown = shownLengths(auction.calls as [Seat, string][], alerts, vulnerability);
   const played: Card[] = [];
   const taken: Record<Side, number> = { 'N/S': 0, 'E/W': 0 };
   const log: TrickLog[] = [];

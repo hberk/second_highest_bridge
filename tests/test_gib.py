@@ -36,6 +36,16 @@ def bid(cards: str, *calls: str, dealer: str = 'North') -> tuple:
     return ai.ai_bid_explained(auction.current_player(), hand(cards), auction)
 
 
+def test_minor_preference_needs_four():
+    # The user's board (2026-11-17): 1♦ 1♥ 1♠, three small diamonds and a flat
+    # hand bid 1NT, not a 2♦ preference.
+    calls = ('Pass', 'Pass', '1D', 'Pass', '1H', 'Pass', '1S', 'Pass')
+    assert bid('10S 4S AH QH JH 10H 5H 5D 4D 3D KC 7C 5C', *calls, dealer='South') == ('1NT', 'Minimum.')
+    # Four diamonds, or three with a side singleton, still prefer 2♦.
+    assert bid('4S AH QH JH 10H 5H 6D 5D 4D 3D KC 7C 5C', *calls, dealer='South')[0] == '2D'
+    assert bid('4S AH QH JH 10H 5H 5D 4D 3D KC 7C 5C 2C', *calls, dealer='South')[0] == '2D'
+
+
 # ── Openings ──────────────────────────────────────────────────────────────────
 
 def test_openings():
@@ -1409,6 +1419,21 @@ def test_cuebid_raise_of_a_minor_needs_length():
     assert call == '2H' and why.startswith('Cuebid: 5+'), (call, why)
 
 
+def test_preemptive_jump_raise_of_a_minor_needs_five():
+    """The user's rule, 2026-11-17 (P 1♣ (1♥) 3♣ on ♠A5 ♥94 ♦JT942 ♣A642):
+    a 1♣ opener may hold three, so the pre-emptive jump raise of a minor over
+    an overcall or a double needs 5+ trumps. Four still do in a major."""
+    hand = 'AS 5S 9H 4H JD 10D 9D 4D 2D AC 6C 4C 2C'
+    call, why = bid(hand, 'Pass', '1C', '1H', dealer='South')
+    assert call == '2C', (call, why)
+    call, why = bid('AS 5S 9H 4H JD 10D 9D 4D AC 6C 4C 3C 2C', 'Pass', '1C', '1H', dealer='South')
+    assert call == '3C' and why.startswith('5+'), (call, why)
+    call, why = bid(hand, 'Pass', '1C', 'X', dealer='South')
+    assert call != '3C', (call, why)
+    call, why = bid('AS 5S 9S 4S JH 10H 4H 2H 9D 2D 6C 4C 2C', 'Pass', '1H', '1S', dealer='South')
+    assert call == '3H' and why.startswith('4+'), (call, why)
+
+
 def test_light_response_with_a_singleton_in_openers_minor():
     """The user's call, 2026-10-28: 5 HCP and a singleton diamond respond
     rather than leave partner in 1♦; with three diamonds it still passes."""
@@ -2234,3 +2259,95 @@ def test_responder_bids_game_over_a_single_raise():
     east = 'QS 3S AH 10H 9H 5H KD QD 9D 7D 5D KC 10C'
     call, why = bid(east, '1D', 'Pass', '1H', 'Pass', '2H', 'Pass', dealer='West')
     assert call == '4H' and 'To play' in why, (call, why)
+
+
+def test_stayman_3nt_shows_the_other_major():
+    # The user's deal (2026-11-17): 1NT-2♣-2♥-3NT. Stayman then 3NT over
+    # hearts shows four spades, so the opener with four corrects to 4♠.
+    south = 'QS JS 7S 6S AH KH JH 5H 7D 5D AC 10C 9C'
+    north = 'AS 5S 4S 3S QH QD JD 6D 4D KC QC 3C 2C'
+    call, why = bid(north, '1NT', 'Pass', '2C', 'Pass', '2H', 'Pass', dealer='West')
+    assert call == '3NT' and why == '4 ♠, fewer than 4 ♥. To play.'
+    call, why = bid(south, '1NT', 'Pass', '2C', 'Pass', '2H', 'Pass', '3NT', 'Pass')
+    assert call == '4S' and '4+ ♠' in why
+    # Three spades: the opener passes.
+    three = 'QS JS 7S AH KH JH 5H 7D 5D AC 10C 9C 2C'
+    assert bid(three, '1NT', 'Pass', '2C', 'Pass', '2H', 'Pass', '3NT', 'Pass')[0] == 'Pass'
+    # Over 2♠ it shows hearts, which the 2♠ bidder denied: pass.
+    spades = 'AS KS JS 5S QH JH 5H 7D 5D AC 10C 9C 2C'
+    assert bid(spades, '1NT', 'Pass', '2C', 'Pass', '2S', 'Pass', '3NT', 'Pass')[0] == 'Pass'
+    # 2NT-3♣-3♥-3NT too.
+    big = 'AS KS 7S 6S AH KH JH 5H KD 5D AC 10C 9C'
+    assert bid(big, '2NT', 'Pass', '3C', 'Pass', '3H', 'Pass', '3NT', 'Pass')[0] == '4S'
+
+
+# ── More lead-directing doubles (LEAD_DOUBLE_MORE, LEAD_DOUBLE_SYSTEMS_ON) ────
+
+def test_a_double_of_drury_directs_the_lead():
+    """The user's call, 2026-11-17 (Bidding training board 414): East deals,
+    P P 1♥ P 2♣ is Drury, so South's double asks for a club lead; it was
+    explained as a takeout double, 13+. A takeout hand now passes."""
+    calls = ('Pass', 'Pass', '1H', 'Pass', '2C')
+    south = 'KS 7S 2S 8H 3H QD 6D 5D AC QC JC 10C 9C'
+    call, why = bid(south, *calls, dealer='East')
+    assert call == 'X' and why.startswith('Lead-directing') and '5+ ♣' in why, (call, why)
+    call, _ = bid('AS QS 7S 2S 4H KD JD 6D 5D AC KC 3C 2C', *calls, dealer='East')
+    assert call == 'Pass', call
+    # Opener answers Drury as if South had passed: 2♦, full values (it bid
+    # 2♠, a natural new suit, over the double).
+    west = 'QS 9S 4S AH QH 9H 6H 3H KD 7D 5D 9C 4C'
+    call, why = bid(west, *calls, 'X', dealer='East')
+    assert call == '2D' and 'Full opening' in why, (call, why)
+    # North passes, then leads a club against 2♥.
+    north = 'JS 8S 6S 5S 7H 5H 2H AD 10D 9D 8D 6C 5C'
+    call, _ = bid(north, *calls, 'X', '2H', dealer='East')
+    assert call == 'Pass', call
+    auction = after(*calls, 'X', '2H', 'Pass', 'Pass', 'Pass', dealer='East')
+    alerts = {5: ai.ai_bid_explained('South', hand(south), _replay(auction, 5))[1]}
+    shown = ai.shown_lengths(list(auction.calls), alerts)
+    lead = ai.ai_play('North', hand(north), [], 'H', [], visible={}, history=[], shown=shown)
+    assert lead.suit == 'C', lead
+
+
+def test_doubles_of_other_artificial_suit_bids_direct_the_lead():
+    """New minor forcing, checkback and the short-suit game try are as
+    artificial as Drury: a double of each asks for that suit's lead."""
+    clubs = 'KS 7S 2S 8H 3H QD 6D 5D AC QC JC 10C 9C'
+    for calls in (('1H', 'Pass', '1S', 'Pass', '1NT', 'Pass', '2C'),      # new minor forcing
+                  ('1D', 'Pass', '1S', 'Pass', '2NT', 'Pass', '3C')):     # checkback
+        call, why = bid(clubs, *calls)
+        assert call == 'X' and why.startswith('Lead-directing'), (calls, call, why)
+    spades = 'AS QS JS 10S 4S 8H 3H QD 6D 5D 4D 7C 2C'
+    call, why = bid(spades, '1H', 'Pass', '2H', 'Pass', '2S')              # short-suit try
+    assert call == 'X' and '5+ ♠' in why, (call, why)
+    # Natural bids stay natural: 1♥ 2♣ by an unpassed hand shows clubs.
+    call, _ = bid(clubs, '1H', 'Pass', '2C')
+    assert call == 'Pass', call
+
+
+def test_new_minor_forcing_doubled_is_still_answered():
+    """1♥ P 1♠ P 1NT P 2♣ X: opener answers new minor forcing as if West had
+    passed; it used to pass, leaving 2♣ doubled (seed 1,120 of the scan)."""
+    north = 'QS 9S 4S AH QH 9H 6H 3H KD 7D 5D 9C 4C'
+    call, _ = bid(north, '1H', 'Pass', '1S', 'Pass', '1NT', 'Pass', '2C', 'X')
+    assert call != 'Pass', call
+
+
+# ── Competing to the three level from the pass-out seat (LOTT_BALANCE) ────────
+
+def test_inverted_raiser_competes_to_3d_in_the_pass_out_seat():
+    """1♦ P 2♦ 2♠ P P: East's inverted raise showed 10+ and partner's 1♦ 3+
+    diamonds, so with five East has eight trumps and bids 3♦ rather than
+    passing (the user's board 140, 2026-11-17)."""
+    east = 'KS JS AH 9H 3H QD 10D 7D 6D 4D 9C 8C 2C'
+    call, why = bid(east, '1D', 'Pass', '2D', '2S', 'Pass', 'Pass', dealer='West')
+    assert call == '3D' and 'fit' in why, (call, why)
+
+
+def test_pass_out_seat_competes_only_with_five_trumps_and_values():
+    weak = 'KS JS 4H 3H 2H QD 10D 7D 6D 4D 9C 8C 2C'    # 3 HCP: no
+    call, _ = bid(weak, '1D', 'Pass', '2D', '2S', 'Pass', 'Pass', dealer='West')
+    assert call == 'Pass', call
+    four = 'KS JS AH 9H 3H 10D 7D 6D 4D 9C 8C 2C 5S'    # four diamonds: no
+    call, _ = bid(four, '1D', 'Pass', '2D', '2S', 'Pass', 'Pass', dealer='West')
+    assert call != '3D', call
