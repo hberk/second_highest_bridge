@@ -6,6 +6,33 @@ Releases are tagged on main, and the tag matches the version in
 what it was measured to be worth is in
 [docs/ROBOT_PROGRESS.md](docs/ROBOT_PROGRESS.md).
 
+## v0.1.7-alpha (unreleased)
+
+Seven approved changes from the Nov 17 boards: five bidding fixes, one
+card-play change and History's tricks and par.
+
+- Defenders' endgame (five cards or fewer) keeps only the layouts in which
+  each hidden hand would have bid what it bid (hand 145). Card play, tricks
+  given away a board on the same 199 deals: declaring side 2.15 to 2.11,
+  opening lead 0.39 to 0.40, defence 1.86 to 1.80 (+0.05 tricks a board
+  head to head, t 4.2).
+- 1NT 2♣ 2♥ 3NT shows four spades: opener with four corrects to 4♠
+  (2NT 3♣ 3♥ 3NT too).
+- Responder's pre-emptive jump raise of a minor over an overcall or a double
+  needs five trumps.
+- Doubles of Drury, new minor forcing, checkback and the short-suit game try
+  are lead-directing, and the doubled side bids on as if they had passed.
+- Responder's 2♣/2♦ preference after 1m 1y 1z needs four cards, or three
+  with a singleton; otherwise 1NT.
+- In the pass-out seat, a hand that bid its suit with five, an inferred
+  eight-card fit and 10+ HCP competes to the three level (1♦ P 2♦ 2♠ P P 3♦).
+- History shows each board's double dummy tricks per strain and par
+  (challenge deals at once, other deals solved on a tap and kept on the
+  device). Par names the contract a competitive auction ends in.
+
+The five bidding switches together, against all off on 1,000 fresh deals:
++0.59, +1.34, +0.90 points a board (three seeds, t 1.2, 2.8, 2.2).
+
 ## v0.1.6-alpha (unreleased)
 
 Eight approved changes from the Nov 12-13 boards: seven bidding fixes and
