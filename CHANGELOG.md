@@ -32,6 +32,9 @@ card-play change and History's tricks and par.
 
 The bidding changes together (six switches), against all off on 1,000 fresh deals:
 +0.59, +1.34, +0.90 points a board (three seeds, t 1.2, 2.8, 2.2).
+About half of that is 10 auctions in which the switched-off robots passed out
+a doubled new minor forcing, checkback or Drury bid, which the new rule itself
+stops; without them: -0.04, +0.70, +0.44 (t -0.1, 2.0, 1.7).
 
 ## v0.1.6-alpha (unreleased)
 

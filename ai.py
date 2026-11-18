@@ -2924,8 +2924,10 @@ def clear_position_memo() -> None:
     """Forget every searched position. A position's value doesn't depend on
     who looks or which layout led there, so this changes no card, only the
     time the next searches take. The web app's table server calls its twin
-    (`clearPositionMemo`) as each board ends, to keep its memory flat."""
+    (`clearPositionMemo`) as each board ends, to keep its memory flat. The
+    endgame's replayed calls (`_calls_alike`) go too: they are the board's."""
     _POSITION_MEMO.clear()
+    _REPLAY_MEMO.clear()
 
 
 _NS_SEATS = (0, 2)                         # North, South in PLAYERS order
@@ -3158,8 +3160,10 @@ def _fast_search(hands: dict[str, list[Card]], trick: list[tuple[str, Card]],
 #: The endgame search keeps only the layouts in which each hidden hand makes
 #: the most of its calls, from the first (measurement switch).
 AUCTION_REPLAY = True
+#: auction -> (seat, hand) -> calls alike; one table per auction, a few kept.
 _REPLAY_MEMO: dict = {}
 _REPLAY_MEMO_MAX = 200_000
+_REPLAY_AUCTIONS = 8
 
 
 def _calls_alike(seat: str, cards: list[Card], auction: dict) -> int:
@@ -3171,9 +3175,14 @@ def _calls_alike(seat: str, cards: list[Card], auction: dict) -> int:
         key = auction['_key'] = (auction['vulnerability'], tuple(calls),
                                  tuple(sorted(auction['alerts'].items())))
     hand = sorted(cards, key=lambda c: (SUITS.index(c.suit), c.value()), reverse=True)
-    memo_key = (key, seat, tuple(hand))
-    if memo_key in _REPLAY_MEMO:
-        return _REPLAY_MEMO[memo_key]
+    memo = _REPLAY_MEMO.get(key)
+    if memo is None:
+        if len(_REPLAY_MEMO) >= _REPLAY_AUCTIONS:
+            _REPLAY_MEMO.clear()
+        memo = _REPLAY_MEMO[key] = {}
+    memo_key = (seat, tuple(hand))
+    if memo_key in memo:
+        return memo[memo_key]
     alerts = auction['alerts']
     state = AuctionState(dealer=calls[0][0], vulnerability=auction['vulnerability'])
     alike = 0
@@ -3184,9 +3193,9 @@ def _calls_alike(seat: str, cards: list[Card], auction: dict) -> int:
                 break
             alike += 1
         state.apply_call(who, call)
-    if len(_REPLAY_MEMO) > _REPLAY_MEMO_MAX:
-        _REPLAY_MEMO.clear()
-    _REPLAY_MEMO[memo_key] = alike
+    if len(memo) > _REPLAY_MEMO_MAX:
+        memo.clear()
+    memo[memo_key] = alike
     return alike
 
 

@@ -1901,9 +1901,11 @@ function positionMemo(trump: number): Map<string, number> {
 /** Forget every searched position. A position's value doesn't depend on who
  *  looks or which layout led there, so this changes no card, only the time
  *  the next searches take. The table server calls it as each board ends, to
- *  keep its memory flat (see ai.py). */
+ *  keep its memory flat (see ai.py). The endgame's replayed calls
+ *  (`callsAlike`) go too: they are the board's. */
 export function clearPositionMemo(): void {
   POSITION_MEMO.clear();
+  REPLAY_MEMO.clear();
 }
 
 const cardOrder = (c: Card): number[] => [suitIndex(c.suit), value(c)];
@@ -2285,8 +2287,11 @@ function* combinations(n: number, k: number): Generator<number[]> {
 /** The endgame search keeps only the layouts in which each hidden hand makes
  *  the most of its calls, from the first (measurement switch). */
 export const AUCTION_REPLAY = true;
-const REPLAY_MEMO = new Map<string, number>();
+/** auction -> seat|hand -> calls alike: one table per auction, a few kept, so
+ *  the long auction key is held once, not in every entry. */
+const REPLAY_MEMO = new Map<string, Map<string, number>>();
 const REPLAY_MEMO_MAX = 200_000;
+const REPLAY_AUCTIONS = 8;
 
 /** How many of `seat`'s calls in `auction`, from the first, the robots' bidder
  *  makes holding these thirteen `cards`. */
@@ -2297,8 +2302,14 @@ function callsAlike(seat: Seat, cards: Card[], auction: ShownAuction): number {
       Object.entries(auction.alerts).sort((x, y) => Number(x[0]) - Number(y[0]))]);
   }
   const hand = sortHand(cards);
-  const memoKey = `${auction.key}|${seat}|${hand.map(cardKey).join(',')}`;
-  const hit = REPLAY_MEMO.get(memoKey);
+  let memo = REPLAY_MEMO.get(auction.key);
+  if (memo === undefined) {
+    if (REPLAY_MEMO.size >= REPLAY_AUCTIONS) REPLAY_MEMO.clear();
+    memo = new Map();
+    REPLAY_MEMO.set(auction.key, memo);
+  }
+  const memoKey = `${seat}|${hand.map(cardKey).join(',')}`;
+  const hit = memo.get(memoKey);
   if (hit !== undefined) return hit;
   const state = new AuctionState(calls[0][0], auction.vulnerability);
   let alike = 0;
@@ -2312,8 +2323,8 @@ function callsAlike(seat: Seat, cards: Card[], auction: ShownAuction): number {
     }
     state.applyCall(who, call);
   }
-  if (REPLAY_MEMO.size > REPLAY_MEMO_MAX) REPLAY_MEMO.clear();
-  REPLAY_MEMO.set(memoKey, alike);
+  if (memo.size > REPLAY_MEMO_MAX) memo.clear();
+  memo.set(memoKey, alike);
   return alike;
 }
 

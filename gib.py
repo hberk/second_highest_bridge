@@ -4981,7 +4981,10 @@ def _their_convention(ctx: Ctx, at: int, seq: list[str]) -> bool:
             return call == ('2D' if x == 'C' else '2C')
         if seq[2] == '2NT':                                  # checkback
             return call == '3C'
-    return i == 2 and first == '1H' and seq[1:] == ['2H', '2S']   # short-suit game try they overcall our one-level opening with 1NT and we
+    return i == 2 and first == '1H' and seq[1:] == ['2H', '2S']   # short-suit game try
+
+
+#: ...and the same once they overcall our one-level opening with 1NT and we
 #: only pass after it: they play systems on (as `Ctx.nt_overcall` does for
 #: us), so 1♠ (1NT) P (2♣) is Stayman, and a double of it asks for a club
 #: lead; it no longer shows 18+ (the user's call, 2026-11-01: North doubled
