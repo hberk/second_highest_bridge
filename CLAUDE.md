@@ -64,6 +64,18 @@ BRIDGE_HOST=<ct ip> ./deploy.sh   # a manual deploy to the homelab (main deploys
 BRIDGE_HOST=<ct ip> ./fetch-logs.sh --since 7d   # the game log, into logs/ (gitignored)
 ```
 
+```bash
+cd server/cf       # the same tables on Cloudflare (Worker + Durable Objects): MULTIPLAYER_PLAN M7
+npm install
+npm test           # the Worker in workerd on a random port: a whole board, restart, limits, rows a board
+npm run check      # tsc
+npm run site       # the beta site for Cloudflare, into frontend/dist-beta
+npm run dev        # wrangler dev on :8787 (needs `npm run site` first)
+```
+
+main deploys it to https://bridge.second-highest.workers.dev (the `cloudflare` job in
+`pages.yml`, with the `cloudflare` environment's secrets).
+
 ## Environment
 
 Python 3.9 or newer, standard library only. Developed on 3.9.13, and the full suite
@@ -99,6 +111,7 @@ Full Bridge Bidding (Auction) from 1♣ to 7NT with Pass, Double (X), and Redoub
 | `challenge.py`, `data/solved_deals.json` | head-to-head mode on 400 solved deals | [CHALLENGE](docs/CHALLENGE.md) |
 | `frontend/src/lib/table/` | multiplayer: the table core, the protocol, the browser's `RemoteTable` | [MULTIPLAYER_PLAN](docs/MULTIPLAYER_PLAN.md) |
 | `server/` | the multiplayer table server (Node, SQLite, WebSockets), deployed to the homelab | [MULTIPLAYER_PLAN](docs/MULTIPLAYER_PLAN.md) |
+| `server/cf/` | the same tables on Cloudflare: a Worker, a Durable Object per table | [MULTIPLAYER_PLAN](docs/MULTIPLAYER_PLAN.md#m7-built-2026-11-18) |
 | `data/training_deals.json` | Bidding training's own solved deals, never the challenge's | [FRONTEND](docs/FRONTEND.md) |
 | `frontend/` | the game: the phone-first web app (Svelte), a static site | [FRONTEND](docs/FRONTEND.md) |
 | `research/` | dataset, fitting, the Rust solver; never imported by the Python app. The web app's History replayer runs `research/solver-rs/wasm` as WebAssembly | [SOLVER](docs/SOLVER.md), [BIDDING](docs/BIDDING.md), [FRONTEND](docs/FRONTEND.md) |

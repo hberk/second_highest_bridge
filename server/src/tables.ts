@@ -96,9 +96,10 @@ export class Tables {
     return n;
   }
 
-  /** A new, empty table. The first person to join it becomes the host. */
-  create(): string {
-    const id = newTableId();
+  /** A new, empty table. The first person to join it becomes the host.
+   *  `id`: chosen by the caller (on Cloudflare, the Worker that routes to
+   *  this table's Durable Object). */
+  create(id = newTableId()): string {
     const s = newTable(id, this.clock.now());
     this.store.save(s, this.clock.now(), false, 0, null);
     this.note(id, 'created');
