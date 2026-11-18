@@ -116,6 +116,9 @@ def _contract(level: int, strain: str, side: str, vulnerability: str) -> dict:
 #: Every contract in bidding order, 1♣ to 7NT: an auction can only climb this list.
 CONTRACT_LADDER = tuple((level, strain) for level in range(1, 8) for strain in STRAINS)
 
+#: The lowest game in each strain: a par partscore is raised no higher than this.
+GAME_LEVEL = {'C': 5, 'D': 5, 'H': 4, 'S': 4, 'NT': 3}
+
 
 def par_from_tricks(tricks, side: str, vulnerability: str = 'None') -> dict:
     """Duplicate par from a double dummy table: the score both sides reach when
@@ -135,6 +138,14 @@ def par_from_tricks(tricks, side: str, vulnerability: str = 'None') -> dict:
     N/S speak first. Who speaks first can only matter when both sides can make
     the same top contract, and on none of the 400 challenge deals, at any
     vulnerability, does it change the score.
+
+    The contract is the one a competitive auction ends in, not the lowest that
+    scores par: an undoubled partscore is bid up to the level its tricks make
+    (E/W's 1♥ with nine tricks is 3♥), since every level up to there scores the
+    same and the opponents could have bid over anything lower. A game or slam
+    stays where it is (bidding past it scores no more), and a doubled sacrifice
+    stays at the lowest level that outbids the opponents. Only the contract
+    moves, never the score.
     """
     other = {'N/S': 'E/W', 'E/W': 'N/S'}
     table = {(strain, s): tricks(strain, s) for strain in STRAINS for s in other}
@@ -176,6 +187,9 @@ def par_from_tricks(tricks, side: str, vulnerability: str = 'None') -> dict:
         return outcome
 
     result = dict(opening('N/S', False))
+    if result['strain'] is not None and result['doubled'] == 'None' \
+            and result['level'] < GAME_LEVEL[result['strain']]:
+        result['level'] = min(result['tricks'] - 6, GAME_LEVEL[result['strain']] - 1)
     if side == 'E/W':
         result['score'] = -result['score']
     return result

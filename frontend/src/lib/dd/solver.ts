@@ -16,6 +16,7 @@ interface Exports {
   output(): number;
   load(): number;
   analyse(i: number): number;
+  value(leader: number, guess: number): number;
   table_entries(): number;
   unload(): void;
 }
@@ -73,6 +74,15 @@ export class DdSolver {
     const values = new Map<string, number>();
     for (let k = 0; k < n; k++) values.set(fromIndex(out[2 * k]), out[2 * k + 1]);
     return values;
+  }
+
+  /** N/S's tricks for the whole loaded deal, `leader` on lead to the first
+   *  trick (the loaded leader and plays don't matter). `guess` only orders
+   *  the search; the previous declarer's answer makes a good one. */
+  value(leader: Seat, guess = 7): number {
+    const v = this.x.value(SEATS.indexOf(leader), guess);
+    if (v < 0) throw new Error('double dummy: no board loaded');
+    return v;
   }
 
   tableEntries(): number {

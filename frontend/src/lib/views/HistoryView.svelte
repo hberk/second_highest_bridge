@@ -3,7 +3,7 @@
      (`analysis`). Renders any record of the history shape, which is how
      challenge mode shows your board and the robots' side by side. -->
 <script lang="ts">
-  import { STRAIN_SYMBOLS, SUIT_NAMES, SUIT_SYMBOLS, cardKey as key, parseCard, sameCard, type Card, type Seat } from '../engine/card';
+  import { STRAINS, STRAIN_SYMBOLS, SUIT_NAMES, SUIT_SYMBOLS, cardKey as key, parseCard, sameCard, type Card, type Seat } from '../engine/card';
   import { PARTNERSHIP, PLAYERS, type Contract, type Play } from '../engine/auction';
   import type { HistoryRecord } from '../game.svelte';
   import AuctionGrid from '../components/AuctionGrid.svelte';
@@ -13,6 +13,7 @@
   import { MAX_LIN_BYTES, fromLinFile, toLin, toLinFile } from '../lin';
   import { MAX_SAVED_BOARDS } from '../saves';
   import { AUTO_CARDS, DdAnalysis } from '../dd/analysis.svelte';
+  import { DdTable, dealKey, parOf, sideTricks } from '../dd/table.svelte';
   import { trickTaken, winningSoFar } from '../trickText';
   import { signed, rankText } from '../components/format';
 
@@ -154,6 +155,23 @@
     a.start();
     return () => a.stop();
   });
+  // The deal's tricks in each strain and its par: stored for challenge deals,
+  // otherwise solved on a tap (one deal at a time) and kept on the device.
+  const tables = new Map<string, DdTable>();
+  const table = $derived.by(() => {
+    if (!hb) return null;
+    const k = dealKey(hb.initial_hands);
+    let t = tables.get(k);
+    if (!t) tables.set(k, (t = new DdTable(hb.initial_hands)));
+    return t;
+  });
+  const par = $derived(table?.done ? parOf(table.tricks, hb.vulnerability) : null);
+  function solveTable(): void {
+    for (const t of tables.values()) if (t !== table) t.stop();
+    table?.start();
+  }
+  $effect(() => () => { for (const t of tables.values()) t.stop(); });
+
   /** The seat to play next at this step, with its marks (null while pending). */
   const toPlay = $derived(dd && step < total ? { seat: flat[step].p, marks: dd.marks(step), played: dd.played(step) } : null);
   const firstTrick = $derived(Math.ceil(total / 4));
@@ -190,6 +208,37 @@
 
 {#snippet card(x: Card)}<span style:color="var(--suit-{x.suit.toLowerCase()}-lt)">{rankText(x.rank)}<span aria-hidden="true">{SUIT_SYMBOLS[x.suit]}</span><span class="sr-only"> of {SUIT_NAMES[x.suit]}</span></span>{/snippet}
 
+{#snippet ddTable()}
+  {#if table}
+    <section class="res-card hv-tricks" aria-live="polite">
+      {#if par}
+        <div class="hv-par">Par {#if par.strain}<Strain level={par.level} strain={par.strain} />{par.doubled === 'X' ? 'X' : ''} {par.side}{:else}pass{/if} <b>{signed(par.score)}</b></div>
+      {/if}
+      {#if Object.keys(table.tricks).length}
+        <div class="bt-dd">
+          <span></span>
+          {#each STRAINS as s (s)}<span><Strain level="" strain={s} /></span>{/each}
+          {#each ['N/S', 'E/W'] as const as side (side)}
+            <span class="bt-dd-l">{side}</span>
+            {#each STRAINS as s (s)}
+              <span class:best={par?.side === side && par.strain === s}>{sideTricks(table.tricks, s, side) ?? '…'}</span>
+            {/each}
+          {/each}
+        </div>
+      {/if}
+      {#if table.error}
+        <p class="caption"><span class="dd-error">Double dummy: {table.error}</span> <button class="chip-btn" onclick={solveTable}>Try again</button></p>
+      {:else if table.running}
+        <p class="caption">Working out tricks… {Object.keys(table.tricks).length} of 5 strains</p>
+      {:else if !table.done}
+        <button class="chip-btn" onclick={solveTable}>Show tricks and par · 1–3 min</button>
+      {:else}
+        <p class="caption">Tricks double dummy, the better declarer.</p>
+      {/if}
+    </section>
+  {/if}
+{/snippet}
+
 <div class="hv">
 {#if !records.length}
   <section class="res-card">
@@ -222,6 +271,7 @@
       <div class="res-verdict">Passed out</div>
       <p class="res-detail">All four players passed: no contract, and no score on this board.</p>
     </section>
+    {@render ddTable()}
     <div class="eyebrow hv-h">Auction</div>
     <AuctionGrid dealer={hb.dealer} calls={hb.auction_calls} alerts={hb.bid_alerts} />
   {:else}
@@ -242,6 +292,7 @@
       </div>
       <p class="res-detail">{r.detail}. Tricks: N/S {hb.tricks_taken['N/S']}, E/W {hb.tricks_taken['E/W']}; {c.declarer} needed {c.tricks_needed}.</p>
     </section>
+    {@render ddTable()}
 
     <div class="eyebrow hv-h">Auction</div>
     <AuctionGrid dealer={hb.dealer} calls={hb.auction_calls} alerts={hb.bid_alerts} />
