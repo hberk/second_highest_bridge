@@ -785,6 +785,13 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   175 worse). The same length for the pre-emptive jump raise over their
   bid (5+ ♦ / 6+ ♣, not 4+) measured -0.02, t = -0.1, and with 1♣-3♣ on 6+
   -0.03; left off (the user's call: weak raises stay where they were).
+- **Pre-emptive jump raise of a minor needs five trumps** (`PREEMPT_MINOR_FIVE`,
+  `_preempt_support`; the user's rule, 2026-11-17: P 1♣ (1♥) 3♣ on ♠A5 ♥94 ♦JT942
+  ♣A642, where a 1♣ opener may hold three). Responder's jump raise over an overcall
+  or a double needs 5+ in a minor, 4+ in a major; with four clubs it bids 2♣ or
+  passes. Measured on fresh deals, 10,000 deals per seed: seed 7 -0.01 a board
+  (t = -0.06), seed 8 -0.06 (t = -0.66). Not significant; kept because it is the
+  user's rule.
 - **Answers to responder's cuebids over their Unusual 2NT**
   (`UNUSUAL_CUE_REPLY`, `_unusual_cue_reply`; the user's board, 2026-11-04:
   Pass 1♠ (2NT) 3♣ P, North passed the artificial limit raise on ♠AJ543

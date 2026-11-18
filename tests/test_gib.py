@@ -1409,6 +1409,21 @@ def test_cuebid_raise_of_a_minor_needs_length():
     assert call == '2H' and why.startswith('Cuebid: 5+'), (call, why)
 
 
+def test_preemptive_jump_raise_of_a_minor_needs_five():
+    """The user's rule, 2026-11-17 (P 1♣ (1♥) 3♣ on ♠A5 ♥94 ♦JT942 ♣A642):
+    a 1♣ opener may hold three, so the pre-emptive jump raise of a minor over
+    an overcall or a double needs 5+ trumps. Four still do in a major."""
+    hand = 'AS 5S 9H 4H JD 10D 9D 4D 2D AC 6C 4C 2C'
+    call, why = bid(hand, 'Pass', '1C', '1H', dealer='South')
+    assert call == '2C', (call, why)
+    call, why = bid('AS 5S 9H 4H JD 10D 9D 4D AC 6C 4C 3C 2C', 'Pass', '1C', '1H', dealer='South')
+    assert call == '3C' and why.startswith('5+'), (call, why)
+    call, why = bid(hand, 'Pass', '1C', 'X', dealer='South')
+    assert call != '3C', (call, why)
+    call, why = bid('AS 5S 9S 4S JH 10H 4H 2H 9D 2D 6C 4C 2C', 'Pass', '1H', '1S', dealer='South')
+    assert call == '3H' and why.startswith('4+'), (call, why)
+
+
 def test_light_response_with_a_singleton_in_openers_minor():
     """The user's call, 2026-10-28: 5 HCP and a singleton diamond respond
     rather than leave partner in 1♦; with three diamonds it still passes."""
