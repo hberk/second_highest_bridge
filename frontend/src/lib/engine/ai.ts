@@ -3,8 +3,8 @@
 // ai.py and docs/BIDDING.md -- read those before changing anything. engine.test.ts
 // holds this file to the Python engine's exact calls, alerts and cards.
 import {
-  RANKS, RANK_VALUE, SUITS, maxBy, minBy, parseBid, value, cardKey, card,
-  type Card, type Seat, type Suit,
+  RANKS, RANK_VALUE, SUITS, maxBy, minBy, parseBid, value, cardKey, card, sortHand,
+  type Card, type Seat, type Suit, type Vulnerability,
 } from './card';
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
@@ -1927,7 +1927,14 @@ export const SHORT_LEAD_HONOUR = 9;
 /** The fewest cards each seat's bidding showed in each suit. */
 type SuitFloors = Partial<Record<Seat, Partial<Record<Suit, number>>>>;
 /** Lengths by seat, and the judgement points alerts promise under `judge` (see ai.py). */
-export type Shown = SuitFloors & { judge?: SuitFloors };
+export type Shown = SuitFloors & { judge?: SuitFloors; auction?: ShownAuction };
+/** The auction itself, for the endgame search to ask which hands would have bid it. */
+export interface ShownAuction {
+  vulnerability: Vulnerability;
+  calls: [Seat, string][];
+  alerts: Record<number, string>;
+  key?: string;
+}
 
 const SUIT_OF_SYM: Record<string, Suit> = { '\u2660': 'S', '\u2665': 'H', '\u2666': 'D', '\u2663': 'C' };
 const SHOWN_RE = /(\d+)\+ ([\u2660\u2665\u2666\u2663](?: [\u2660\u2665\u2666\u2663])*)/g;
@@ -1935,7 +1942,8 @@ const EXACT_RE = /exactly (\d+) ([\u2660\u2665\u2666\u2663])/g;
 const JUDGE_RE = /([\u2660\u2665\u2666\u2663]), (\d+)\+ judgement points/g;
 
 /** The fewest cards each seat's alerts promise in each suit (see ai.py). */
-export function shownLengths(calls: [Seat, string][], alerts: Record<number, string>): Shown {
+export function shownLengths(calls: [Seat, string][], alerts: Record<number, string>,
+  vulnerability: Vulnerability | null = null): Shown {
   const shown: Shown = { North: {}, East: {}, South: {}, West: {} };
   const judge: SuitFloors = { North: {}, East: {}, South: {}, West: {} };
   calls.forEach(([seat, call], i) => {
@@ -1960,6 +1968,10 @@ export function shownLengths(calls: [Seat, string][], alerts: Record<number, str
     }
   });
   shown.judge = judge;
+  if (vulnerability !== null) {
+    shown.auction = { vulnerability, calls: calls.map(([p, c]) => [p, c] as [Seat, string]),
+      alerts: { ...alerts } };
+  }
   return shown;
 }
 
@@ -2268,6 +2280,43 @@ function* combinations(n: number, k: number): Generator<number[]> {
   }
 }
 
+// ── The endgame asks the bidding (see ai.py) ─────────────────────────────────
+
+/** The endgame search keeps only the layouts in which each hidden hand makes
+ *  the most of its calls, from the first (measurement switch). */
+export const AUCTION_REPLAY = true;
+const REPLAY_MEMO = new Map<string, number>();
+const REPLAY_MEMO_MAX = 200_000;
+
+/** How many of `seat`'s calls in `auction`, from the first, the robots' bidder
+ *  makes holding these thirteen `cards`. */
+function callsAlike(seat: Seat, cards: Card[], auction: ShownAuction): number {
+  const calls = auction.calls;
+  if (auction.key === undefined) {
+    auction.key = JSON.stringify([auction.vulnerability, calls,
+      Object.entries(auction.alerts).sort((x, y) => Number(x[0]) - Number(y[0]))]);
+  }
+  const hand = sortHand(cards);
+  const memoKey = `${auction.key}|${seat}|${hand.map(cardKey).join(',')}`;
+  const hit = REPLAY_MEMO.get(memoKey);
+  if (hit !== undefined) return hit;
+  const state = new AuctionState(calls[0][0], auction.vulnerability);
+  let alike = 0;
+  for (let i = 0; i < calls.length; i++) {
+    const [who, call] = calls[i];
+    if (who === seat) {
+      const said: Record<number, string> = {};
+      for (const [j, a] of Object.entries(auction.alerts)) if (Number(j) < i) said[Number(j)] = a;
+      if (aiBidExplained(seat, hand, state, said)[0] !== call) break;
+      alike++;
+    }
+    state.applyCall(who, call);
+  }
+  if (REPLAY_MEMO.size > REPLAY_MEMO_MAX) REPLAY_MEMO.clear();
+  REPLAY_MEMO.set(memoKey, alike);
+  return alike;
+}
+
 function endgameTotals(player: Seat, hand: Card[], trick: AnyPlay[], trump: string | null,
   played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][],
   legal: Card[], shown: Shown | null = null, count: TableCount | null = null): Map<string, number> | null {
@@ -2289,6 +2338,7 @@ function endgameTotals(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
   const side = PARTNERSHIP[player];
   const totals = new Map<string, number>(legal.map((c) => [cardKey(c), 0]));
   let layouts = 0;
+  let fitting: [Card[], Card[]][] = [];
   for (const picked of combinations(unseen.length, size[first])) {
     const chosen = new Set(picked);
     const a = unseen.filter((_, i) => chosen.has(i));
@@ -2296,6 +2346,18 @@ function endgameTotals(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     if (a.some((c) => out[first].has(c.suit)) || b.some((c) => out[second].has(c.suit))) continue;
     if (shown && !(tc.fitsAuction(first, a)
       && tc.fitsAuction(second, b))) continue;
+    fitting.push([a, b]);
+  }
+  const auction = AUCTION_REPLAY && shown ? shown.auction : undefined;
+  if (auction && auction.calls.length && fitting.length > 1) {
+    [first, second].forEach((seat, k) => {
+      const gone = [...history, trick].flatMap((plays) => plays.filter(([p]) => p === seat).map(([, c]) => c));
+      const alike = fitting.map((lay) => callsAlike(seat, [...lay[k], ...gone], auction));
+      const best = Math.max(...alike);
+      if (best) fitting = fitting.filter((_, i) => alike[i] === best);
+    });
+  }
+  for (const [a, b] of fitting) {
     layouts++;
     const hands: Record<string, Card[]> = {};
     for (const [seat, cards] of Object.entries(known)) hands[seat] = [...cards];

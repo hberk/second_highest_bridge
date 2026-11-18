@@ -182,7 +182,7 @@ export function robotTable(dealId: number, dealer: Seat, vulnerability: Vulnerab
 
   const trump = contract.trump;
   let leader = contract.leader;
-  const shown = shownLengths(auction.calls as [Seat, string][], alerts);
+  const shown = shownLengths(auction.calls as [Seat, string][], alerts, vulnerability);
   const played: Card[] = [];
   const taken: Record<Side, number> = { 'N/S': 0, 'E/W': 0 };
   const log: TrickLog[] = [];

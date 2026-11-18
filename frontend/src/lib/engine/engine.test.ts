@@ -80,7 +80,7 @@ describe('games', () => {
       // What the robots' bidding showed (a random South's calls have no alert).
       const alerts: Record<number, string> = {};
       g.calls.forEach((call: unknown[], i: number) => { if (call[2]) alerts[i] = call[2] as string; });
-      const shown = shownLengths(g.calls.map((call: unknown[]) => [call[0], call[1]] as [Seat, string]), alerts);
+      const shown = shownLengths(g.calls.map((call: unknown[]) => [call[0], call[1]] as [Seat, string]), alerts, g.vul);
       const played: Card[] = [];
       const history: Play[][] = [];
       const taken = { 'N/S': 0, 'E/W': 0 };

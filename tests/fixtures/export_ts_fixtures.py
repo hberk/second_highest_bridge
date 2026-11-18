@@ -103,7 +103,7 @@ def play_game(hands, dealer, vul, rng: random.Random | None):
     leader = contract['leader']
     # What the robots' bidding showed (a random South's calls have no alert).
     shown = shown_lengths([(w, c) for w, c, _, _ in calls],
-                          {i: why for i, (_, _, why, _) in enumerate(calls) if why})
+                          {i: why for i, (_, _, why, _) in enumerate(calls) if why}, vul)
     played: list[Card] = []
     history: list = []
     taken = {'N/S': 0, 'E/W': 0}
