@@ -5,7 +5,8 @@ DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT, DEFENDER_SUIT_PLAN, DEAD_WINNER_FIRST
 PARTNER_HONOUR_LEAD, COVER_SUIT_PLAN, COVER_PLAN_LOW, LAST_SUIT_PLAN, SECOND_HAND_COVER,
 SECOND_HAND_COVER_DUMMY_LED, PARTNER_WINS_NO_RUFF, LOCATED_SUIT_PLAN, THIRD_SEES_LAST,
 THIRD_HAND_PLAN, SURE_LEAD_UNRUFFED, ENTRY_TO_DRAW, RUFF_KEEPS_DRAW, DECLARER_THIRD_PLAN,
-DISCARD_SUIT_PLAN, COUNT_LEAD, COUNT_DISCARD, FOURTH_HAND_PLAN, NO_FUTILE_DRAW, RUFF_NOT_DRAW).
+DISCARD_SUIT_PLAN, COUNT_LEAD, COUNT_DISCARD, FOURTH_HAND_PLAN, NO_FUTILE_DRAW, RUFF_NOT_DRAW,
+SAFE_EXIT, the last from a user's board of Nov 18).
 Every test sets the switches it needs and puts them back, so
 the result doesn't depend on which rules are adopted.
 """
@@ -30,7 +31,7 @@ RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'LOCATED_SUIT_PLAN', 'THIRD_SEES_LAST', 'THIRD_HAND_PLAN', 'SURE_LEAD_UNRUFFED',
          'ENTRY_TO_DRAW', 'RUFF_KEEPS_DRAW', 'DECLARER_THIRD_PLAN',
          'DISCARD_SUIT_PLAN', 'COUNT_LEAD', 'COUNT_DISCARD', 'FOURTH_HAND_PLAN',
-         'NO_FUTILE_DRAW', 'RUFF_NOT_DRAW')
+         'NO_FUTILE_DRAW', 'RUFF_NOT_DRAW', 'SAFE_EXIT')
 
 
 @contextmanager
@@ -968,6 +969,65 @@ def test_shipped_rules_together_on_the_users_deals():
     assert _east_215().suit != 'H'            # no futile trump draw
     assert _east_102() == C('KS')             # dummy ruffs with its lone trump
     assert _south_13() == C('8S')             # keeps the 6S
+
+
+
+# ── A safe exit (SAFE_EXIT): the user's board of Nov 18, 4S by South ─────────
+
+_EXIT_HANDS = {
+    'West': "AS 7S 5S 7H 5H 3H 2H KD 8D 7D 3D KC 2C",
+    'North': "KS JS 10H AD QD JD 10D 9D AC QC JC 9C 6C",
+    'East': "QS 9S AH KH 8H 6H 5D 4D 10C 8C 7C 5C 3C",
+    'South': "10S 8S 6S 4S 3S 2S QH JH 9H 4H 6D 2D 4C",
+}
+_EXIT_TRICKS = [  # leader first
+    "W:5H N:10H E:8H S:QH", "N:JS E:9S S:10S W:AS", "N:9D E:4D S:2D W:3D",
+    "E:QS S:2S W:5S N:KS", "E:KH S:9H W:2H N:JC", "S:3S W:7S N:QC E:3C",
+    "S:6D W:7D N:10D E:5D",
+]
+
+
+def _west_exit() -> Card:
+    seat = {'W': 'West', 'N': 'North', 'E': 'East', 'S': 'South'}
+    hands = {p: [C(t) for t in h.split()] for p, h in _EXIT_HANDS.items()}
+    played, history = [], []
+    for line in _EXIT_TRICKS:
+        trick = [(seat[t[0]], C(t[2:])) for t in line.split()]
+        for p, c in trick:
+            hands[p].remove(c)
+            played.append(c)
+        history.append(trick)
+    visible = ai.visible_hands('West', {'declarer': 'South', 'dummy': 'North'}, hands)
+    return ai.ai_play('West', hands['West'], [], 'S', played, visible, history)
+
+
+def test_users_board_led_a_frozen_heart():
+    with rules(DEFENDER_SUIT_PLAN=True):
+        assert _west_exit() == C('7H')
+
+
+def test_safe_exit_leads_the_eight_of_diamonds_under_dummys_jack():
+    # Every other diamond is gone: dummy must follow higher, and of two cards
+    # of a suit the lower wins, so the 8D takes the trick or costs a trump.
+    with rules(DEFENDER_SUIT_PLAN=True, SAFE_EXIT=True):
+        assert _west_exit() == C('8D')
+
+
+def test_safe_exit_needs_a_card_below_all_of_dummys():
+    hand = [C('QD'), C('7H'), C('3H')]
+    dummy = [C('JD'), C('AD')]
+    played = [Card('D', r) for r in ('2', '3', '4', '5', '6', '7', '8', '9', '10', 'K')]
+    count = ai.TableCount('West', hand, [], 'S', played, {'North': dummy}, [])
+    assert ai._safe_exit('West', hand, 'S', {'North': dummy}, C('7H'), count) is None
+
+def test_safe_exit_waits_while_the_defence_holds_a_trump():
+    # Deal 138 of the first 200 (2D by East): North's 9H under dummy's lone
+    # 10H looked safe, but partner held diamonds and East ruffed the exit.
+    hand = [C('JS'), C('10S'), C('4S'), C('KH'), C('9H'), C('KC'), C('6C')]
+    dummy = [C('8S'), C('7S'), C('6S'), C('5S'), C('10H'), C('10C'), C('2C')]
+    # partner (South) still has diamonds: no exit
+    count = ai.TableCount('North', hand, [], 'D', [], {'West': dummy}, [])
+    assert ai._safe_exit('North', hand, 'D', {'West': dummy}, C('10S'), count) is None
 
 
 if __name__ == '__main__':

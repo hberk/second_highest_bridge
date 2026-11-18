@@ -1379,6 +1379,7 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
       if (DEFENDER_SUIT_PLAN) {
         choice = defenderSuitPlan(player, hand, trump, played, visible, history, shown, choice, count) ?? choice;
       }
+      if (SAFE_EXIT) choice = safeExit(player, hand, trump, visible, choice, count) ?? choice;
       if (SURE_LEAD_DECLARER) {
         choice = sureLeadDeclarer(player, hand, trump, played, visible, history, choice.suit, count) ?? choice;
       }
@@ -3361,6 +3362,31 @@ function fallbackLead(player: Seat, hand: Card[], trump: string | null, played: 
   let choice = lead(hand, trump, played);
   if (COUNT_LEAD) choice = countLead(player, hand, trump, visible, choice, tc) ?? choice;
   return choice;
+}
+
+// ── A safe exit for the defence (see ai.py: SAFE_EXIT) ──
+
+/** A defender in a suit contract, falling back to `lead`, exits in a side suit
+ *  whose other cards are all in dummy, with a card below dummy's (measurement switch). */
+export const SAFE_EXIT = true;
+
+/** Port of ai._safe_exit: the defence's safe exit card, or null (also when `choice` is one). */
+function safeExit(player: Seat, hand: Card[], trump: string | null,
+  visible: Partial<Record<Seat, Card[]>>, choice: Card, tc: TableCount): Card | null {
+  if (!isSuit(trump) || !Object.keys(visible).length || PARTNERS[player] in visible) return null;
+  if (hand.some((c) => c.suit === trump) || !tc.out[PARTNERS[player]].has(trump)) return null;
+  const dummy = Object.values(visible)[0] as Card[];
+  const exits: Card[] = [];
+  for (const suit of SUITS) {
+    if (suit === trump || tc.unseenIn(suit).length) continue;
+    const mine = hand.filter((c) => c.suit === suit);
+    const theirs = dummy.filter((c) => c.suit === suit);
+    if (!mine.length || !theirs.length) continue;
+    const low = minBy(mine, (c) => [value(c)]);
+    if (value(low) < Math.min(...theirs.map(value))) exits.push(low);
+  }
+  if (!exits.length || exits.some((c) => c.suit === choice.suit)) return null;
+  return minBy(exits, (c) => [value(c), suitIndex(c.suit)]);
 }
 
 // ── Giving up a trick ── (ai.py: a void robot keeps its trumps, roadmap 3.11)

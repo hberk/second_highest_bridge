@@ -1963,6 +1963,8 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
             if DEFENDER_SUIT_PLAN:
                 choice = _defender_suit_plan(player, hand, trump, played, visible, history,
                                              shown, choice, count=count) or choice
+            if SAFE_EXIT:
+                choice = _safe_exit(player, hand, trump, visible, choice, count) or choice
             if SURE_LEAD_DECLARER:
                 choice = _sure_lead_declarer(player, hand, trump, played, visible, history,
                                              choice.suit, count=count) or choice
@@ -4651,6 +4653,62 @@ def _fallback_lead(player: str, hand: list[Card], trump: str | None, played: lis
     if COUNT_LEAD:
         choice = _count_lead(player, hand, trump, visible, choice, count) or choice
     return choice
+
+
+# ── A safe exit for the defence ─────────────────────────────────────────────
+#
+# A user's board (4S by South, Nov 18), trick 8: West held 7-3 of hearts, K-8
+# of diamonds and K-2 of clubs; dummy held A-Q-J of diamonds and A-9-6 of
+# clubs, and every other diamond had been played. No lead rule fired, and the
+# fallback `_lead` scored hearts and diamonds alike by `_gap` (it counted
+# dummy's face-up Q and J of diamonds as cards that could fall between the K
+# and 8) and broke the tie by suit rank: the 7H. Hearts were frozen -- the side
+# that opens them loses a trick in them -- and the lead cost a trick double
+# dummy. The 8D was the exit the user named: dummy must follow with a higher
+# diamond, and of two cards of a suit the lower wins, so the 8D takes the
+# trick unless declarer spends a trump on it; either way nothing is opened.
+#
+# So a defender in a suit contract, with no lead rule firing and no trump left
+# in the defence (its own hand has none and partner has shown out), exits in a
+# side suit whose only cards left outside its own hand are dummy's, leading a
+# card below all of them. Whoever is void can only ruff or discard; dummy can't win
+# the trick with a card of the suit. The count lead (`_count_lead`) can't see
+# this: it scores the suit as lost to declarer's ruff, as if that ruff gained
+# declarer a trick, and it is off for the defence in suit contracts.
+
+#: A defender in a suit contract, falling back to `_lead`, exits in a side suit
+#: whose other cards are all in dummy, with a card below dummy's (measurement
+#: switch).
+SAFE_EXIT = True
+
+
+def _safe_exit(player: str, hand: list[Card], trump: str | None,
+               visible: dict[str, list[Card]] | None, choice: Card,
+               count: TableCount) -> Card | None:
+    """The defence's safe exit card, or None (also when `choice` is one)."""
+    if trump not in SUITS or not visible or PARTNERS[player] in visible:
+        return None
+    # Declarer, out of the suit, may ruff the exit. That only costs nothing when
+    # the defence has no trump to be ruffed over or kept for: any trump still in
+    # the defence (mine, or partner's unless it has shown out) makes the ruff a
+    # trick declarer gains (deals 109 and 138 of the first 200).
+    if any(c.suit == trump for c in hand) or trump not in count.out[PARTNERS[player]]:
+        return None
+    dummy = next(iter(visible.values()))
+    exits = []
+    for suit in SUITS:
+        if suit == trump or count.unseen_in(suit):
+            continue
+        mine = [c for c in hand if c.suit == suit]
+        theirs = [c for c in dummy if c.suit == suit]
+        if not mine or not theirs:
+            continue
+        low = min(mine, key=lambda c: c.value())
+        if low.value() < min(c.value() for c in theirs):
+            exits.append(low)
+    if not exits or any(c.suit == choice.suit for c in exits):
+        return None
+    return min(exits, key=lambda c: (c.value(), SUITS.index(c.suit)))
 
 
 # ── Giving up a trick ────────────────────────────────────────────────────────

@@ -893,6 +893,36 @@ little differently.
   suit lost 0.215 → 0.122 tricks a board; whole games, defence 2.01 → 1.97,
   declaring side 2.24 → 2.23; seated +0.026, +0.026, +0.027 tricks a board on
   fresh deals (t 3.46, 3.86, 3.69). Fourth-hand discards keep `_shed`.
+## A safe exit for the defence (the user's board of Nov 18)
+
+4♠ by South, trick 8: West held ♥7 3, ♦K 8, ♣K 2; dummy ♦A Q J, ♣A 9 6; every other
+diamond was gone. West led the 7♥ and N/S took 4 of the last 6 double dummy; the 8♦ holds
+them to 3. Hearts were frozen (whoever opens them loses a trick); the 8♦ is under all of
+dummy's diamonds, so it takes the trick or costs declarer a trump.
+
+- **Why the 7♥.** No lead rule fired, so `_lead` chose by `_gap`: hearts 2 and diamonds 2
+  (it counted dummy's face-up Q and J as cards that could fall between the K and 8),
+  clubs 7. The tie goes to the higher suit. `_defender_suit_plan` then picked 7♥ over 3♥ (equal).
+- **`SAFE_EXIT` (`_safe_exit`).** A defender in a suit contract, falling back to `_lead`,
+  with no trump in its hand and partner shown out of trumps, leads its lowest card of a
+  side suit whose only cards outside its own hand are dummy's, when that card is below all
+  of dummy's. Without the trump condition the rule lost a trick on 3 of 13 lines (deals 109,
+  138: partner held trumps and declarer's ruff of the exit gained a trick).
+- **Measured.** 199 solved deals, gross: declaring side 2.11, opening lead 0.40, defence 1.80
+  (all +0.00 against main, `/mnt/project-files/safe-exit/gross.txt`). Seated, 1,000 fresh
+  deals (seed 1104): -0.000 tricks a board (t -0.32); it changed 48 of 15,816 boards
+  (0.3%), fired 69 times in 34,000 asks. A rule this rare is correct on the user's board
+  and invisible in the totals.
+- **The count lead for the defence in suit contracts, rerun properly** (all 3.13 defence
+  fallback leads a board on the 199 deals, scored against the solver; script and tables in
+  `/mnt/project-files/safe-exit/`): tricks lost a board `_lead` 0.687; count lead 0.816;
+  with a margin of 0.25 / 0.5 / 1 trick 0.822 / 0.814 / 0.826; U alone 0.884; U - V alone
+  0.851; count plus safe exit 0.818. Every version is worse, by 0.13 or more. The count's
+  `ruffs()` treats a void hand with a trump as winning the trick, so it prices a suit that
+  declarer can only ruff as a lost trick even when the ruff gains nothing.
+  `_defender_suit_plan` also raises KeyError on a card from another suit than `_lead`'s, so the
+  count lead for the defence would need that step to follow the count's suit.
+
 ## Playing for ruffs when drawing trumps gains nothing (deals 215, 102)
 
 Two user boards where declarer led trumps that did no good.
