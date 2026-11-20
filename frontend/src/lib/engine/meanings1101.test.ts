@@ -18,5 +18,5 @@ test('bidding meanings match the Python engine', () => {
   expect(bid('KS QS JS 9S 6S 4H AD 7D KC QC JC 10C 9C', ['Pass', '1S', '1NT', 'Pass', '2C'], 'West')[0]).toBe('X');
   expect(bid('6S 2S 9H 8H 5H AD 2D AC QC JC 7C 6C 3C', ['1C', 'Pass', '1D', 'Pass', '1H'], 'East')).toEqual(['2C', '6+ ♣, 10-17 HCP. Natural.']);
   expect(bid('QS JS 10S 9S 4H 3H 2H QD 10D 8D 5D 3D 4C', ['1C', 'Pass', '1D', 'Pass', '1H', '2C', '2H'], 'East')[0]).toBe('Pass');
-  expect(bid('QS JS 10S 9S 4H 3H 2H QD 10D 8D 5D 3D 4C', ['1C', '2C', 'Pass'], 'East')[0]).toBe('2S');
+  expect(bid('QS JS 10S 9S 4H 3H 2H QD 10D 8D 5D 3D 4C', ['1C', '2C', 'Pass'], 'East')[0]).toBe('4S');
 });

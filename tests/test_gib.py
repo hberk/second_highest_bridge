@@ -993,6 +993,25 @@ def test_advancer_bids_game_over_a_two_suited_overcall():
                dealer='West')[0] == '3C'
 
 
+def test_advancer_bids_game_on_fit_and_shortness():
+    """The user's board 12 (2026-11-19): (1♦) 2NT (P) with ♠Q2 ♥2 ♦QT974
+    ♣KQJ96 bid 3♣; partner held ♠KJ9 ♥AQ973 ♦- ♣A8754 and clubs make 13.
+    16 judgement points + 6 for the 4th and 5th trump + 3 for the singleton
+    = 25, past TWO_SUITER_FIT_GAME."""
+    south = 'QS 2S 2H QD 10D 9D 7D 4D KC QC JC 9C 6C'
+    call, why = bid(south, '1D', '2NT', 'Pass', dealer='West')
+    assert call == '5C' and 'game values' in why, (call, why)
+    saved = gib.TWO_SUITER_FIT_GAME
+    gib.TWO_SUITER_FIT_GAME = None
+    try:
+        assert bid(south, '1D', '2NT', 'Pass', dealer='West')[0] == '3C'
+    finally:
+        gib.TWO_SUITER_FIT_GAME = saved
+    # Three trumps never count, whatever the points.
+    assert bid('QS 2S 2H QD 10D 9D 7D 4D 3D 2D KC QC JC', '1D', '2NT', 'Pass',
+               dealer='West')[0] == '3C'
+
+
 def test_advancer_blasts_game_with_six_of_partners_major():
     """The user's deal (2026-11-12): (1♣) 2♣ (2♠) with ♠- ♥KQJ963 ♦AJT73
     ♣65 bid 3♥, not game values; 4♥ made. Six of partner's major is game."""
@@ -1000,15 +1019,18 @@ def test_advancer_blasts_game_with_six_of_partners_major():
     call, why = bid(north, '1C', '2C', '2S', dealer='East')
     assert call == '4H' and 'long fit' in why, (call, why)
     assert bid(north, '1C', '2C', 'Pass', dealer='East')[0] == '4H'
-    # Five of them, without game values, still takes the cheapest bid.
-    five = 'KH QH JH 9H 6H AD JD 10D 7D 3D 6C 5C 2C'
+    # Five of them and a weak hand still takes the cheapest bid (with KQJ9 of
+    # them it is game on TWO_SUITER_FIT_GAME_MAJOR, 11 + 6 = 17 points).
+    five = '2S 9H 8H 6H 5H 4H AD JD 10D 7D 3D 6C 5C'
     assert bid(five, '1C', '2C', '2S', dealer='East')[0] == '3H'
-    blast = gib.TWO_SUITER_BLAST
-    gib.TWO_SUITER_BLAST = 0
+    assert bid('KH QH JH 9H 6H AD JD 10D 7D 3D 6C 5C 2C', '1C', '2C', '2S',
+               dealer='East')[0] == '4H'
+    blast, fit = gib.TWO_SUITER_BLAST, gib.TWO_SUITER_FIT_GAME_MAJOR
+    gib.TWO_SUITER_BLAST, gib.TWO_SUITER_FIT_GAME_MAJOR = 0, None
     try:
         assert bid(north, '1C', '2C', '2S', dealer='East')[0] == '3H'
     finally:
-        gib.TWO_SUITER_BLAST = blast
+        gib.TWO_SUITER_BLAST, gib.TWO_SUITER_FIT_GAME_MAJOR = blast, fit
 
 
 def test_later_rounds_read_our_two_suiter_as_two_suits():
@@ -1634,9 +1656,10 @@ def test_delayed_two_of_their_minor_is_natural():
     call, why = bid('QS JS 10S 9S 4H 3H 2H QD 10D 8D 5D 3D 4C',
                     '1C', 'Pass', '1D', 'Pass', '1H', '2C', '2H', dealer='East')
     assert call == 'Pass' and 'two suits' not in why
-    # The immediate cue bid is still Michaels.
+    # The immediate cue bid is still Michaels: four spades and a singleton
+    # are game on TWO_SUITER_FIT_GAME_MAJOR (10 + 3 + 3 = 16).
     assert bid('QS JS 10S 9S 4H 3H 2H QD 10D 8D 5D 3D 4C',
-               '1C', '2C', 'Pass', dealer='East')[0] == '2S'
+               '1C', '2C', 'Pass', dealer='East')[0] == '4S'
 
 
 def _vul_bid(cards: str, vul: str, *calls: str, dealer: str = 'North') -> tuple:

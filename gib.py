@@ -2119,9 +2119,12 @@ TWO_SUITER_BLAST = 6
 #: 32 a minor game needs. Here each trump past three adds
 #: TWO_SUITER_FIT_CARD and a void or singleton outside trumps SHORT_POINTS;
 #: game when that reaches TWO_SUITER_FIT_GAME (TWO_SUITER_FIT_GAME_MAJOR in a
-#: major), with 4+ trumps. None is off.
-TWO_SUITER_FIT_GAME = None
-TWO_SUITER_FIT_GAME_MAJOR = None
+#: major), with 4+ trumps. None is off. Board 12 scores 25. Fresh deals with
+#: a 5-5 hand and partner's fit, head to head (the user's pick, 2026-11-20):
+#: 21/15 +3.57/+2.58/+1.66 a board (3 x 2,000), minors alone +0.40/+0.48/
+#: +0.42 (3 x 3,000); 23/19 gained less, 19/13 more with many more losses.
+TWO_SUITER_FIT_GAME = 21
+TWO_SUITER_FIT_GAME_MAJOR = 15
 TWO_SUITER_FIT_CARD = 3
 
 
@@ -5885,7 +5888,8 @@ def _advance(ctx: Ctx) -> tuple | None:
                 and h.judge + TWO_SUITED_MIN >= (GAME_MAJOR if choice in MAJORS else GAME)
                 and ctx.ok(game)):
             return game, _two_suiter_game_alert(choice)
-        if _two_suiter_fit_game(h, choice, (a, b)) and ctx.ok(game):
+        if (_two_suiter_fit_game(h, choice, (a, b)) and ctx.ok(game)
+                and ctx.cheapest(choice, 2) != game):
             return game, _two_suiter_game_alert(choice)
         call = ctx.cheapest(choice, 2)
         if (TWO_SUITER_FREE and call and level_of(ctx.calls[-1][1])
