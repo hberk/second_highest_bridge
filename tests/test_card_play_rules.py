@@ -5,7 +5,8 @@ DEAD_CARD_LAST, LIVE_LEAD, NT_SET_UP_SUIT, DEFENDER_SUIT_PLAN, DEAD_WINNER_FIRST
 PARTNER_HONOUR_LEAD, COVER_SUIT_PLAN, COVER_PLAN_LOW, LAST_SUIT_PLAN, SECOND_HAND_COVER,
 SECOND_HAND_COVER_DUMMY_LED, PARTNER_WINS_NO_RUFF, LOCATED_SUIT_PLAN, THIRD_SEES_LAST,
 THIRD_HAND_PLAN, SURE_LEAD_UNRUFFED, ENTRY_TO_DRAW, RUFF_KEEPS_DRAW, DECLARER_THIRD_PLAN,
-DISCARD_SUIT_PLAN, COUNT_LEAD, COUNT_DISCARD, FOURTH_HAND_PLAN, NO_FUTILE_DRAW, RUFF_NOT_DRAW).
+DISCARD_SUIT_PLAN, COUNT_LEAD, COUNT_DISCARD, FOURTH_HAND_PLAN, NO_FUTILE_DRAW, RUFF_NOT_DRAW,
+RUFF_IN_SHORT_HAND, DEFENCE_SPARE_DISCARD, DENY_DUMMY_ENTRY).
 Every test sets the switches it needs and puts them back, so
 the result doesn't depend on which rules are adopted.
 """
@@ -30,7 +31,8 @@ RULES = ('SURE_LEAD_DECLARER', 'RUFF_LEAD', 'FORCE_DUMMY', 'DEAD_CARD_LAST',
          'LOCATED_SUIT_PLAN', 'THIRD_SEES_LAST', 'THIRD_HAND_PLAN', 'SURE_LEAD_UNRUFFED',
          'ENTRY_TO_DRAW', 'RUFF_KEEPS_DRAW', 'DECLARER_THIRD_PLAN',
          'DISCARD_SUIT_PLAN', 'COUNT_LEAD', 'COUNT_DISCARD', 'FOURTH_HAND_PLAN',
-         'NO_FUTILE_DRAW', 'RUFF_NOT_DRAW')
+         'NO_FUTILE_DRAW', 'RUFF_NOT_DRAW', 'RUFF_IN_SHORT_HAND',
+         'DEFENCE_SPARE_DISCARD', 'DENY_DUMMY_ENTRY')
 
 
 @contextmanager
@@ -958,6 +960,74 @@ def test_hand_145_auction_replay_ducks_the_diamond():
         assert _west_145() == C('3D')       # only six diamonds rebid 2D
     finally:
         ai.AUCTION_REPLAY = saved
+
+
+# ── The Nov 20 board: 4S by East after 1S 3D 3S P 4S ────────────────────────
+# Dummy threw a heart instead of ruffing (trick 3), South threw the 5H from J5
+# beside partner's AK3 holding two diamonds nobody else had (trick 6), and
+# North's AH made dummy's 6H the winner, an entry to run its hearts (trick 8).
+
+_NOV20 = {'North': '974 AK3 K75 KQ42', 'West': 'KQ6 98762 32 J63',
+          'East': 'AJT852 QT4 AQ 97', 'South': '3 J5 JT9864 AT85'}
+_NOV20_PLAYS = ['S 10D W 2D N 7D E AD', 'S 9D W 3D N 5D E QD', 'S 8D W 2H N KD E AS',
+                'E 10S S 3S W QS N 4S', 'E JS S 4D W KS N 9S', 'E 2S S 5H W 6S N 7S',
+                'W 8H N KH E QH S JH', 'E 4H S 5C W 6H N AH']
+
+
+def _nov20(seat, tricks, played_now):
+    """`seat`'s card after `tricks` whole tricks and `played_now` cards of the next."""
+    dealt = {p: _hand(h) for p, h in _NOV20.items()}
+    hands = {p: list(h) for p, h in dealt.items()}
+    names = {'W': 'West', 'N': 'North', 'E': 'East', 'S': 'South'}
+    lines = [[(names[t[i]], C(t[i + 1])) for i in range(0, 8, 2)]
+             for t in (line.split() for line in _NOV20_PLAYS)]
+    history, played = lines[:tricks], []
+    for trick in history:
+        for p, c in trick:
+            hands[p].remove(c)
+            played.append(c)
+    trick = lines[tricks][:played_now]
+    for p, c in trick:
+        hands[p].remove(c)
+    assert lines[tricks][played_now][0] == seat
+    auction = ai.AuctionState('East', 'None')
+    alerts = {}
+    for call in ['1S', '3D', '3S', 'Pass', '4S', 'Pass', 'Pass', 'Pass']:
+        who = auction.current_player()
+        alerts[len(auction.calls)] = ai.ai_bid_explained(who, dealt[who], auction,
+                                                         dict(alerts))[1]
+        auction.apply_call(who, call)
+    shown = ai.shown_lengths(auction.calls, alerts, 'None')
+    contract = auction.get_contract()
+    return ai.ai_play(seat, hands[seat], trick, 'S', played,
+                      ai.visible_hands(seat, contract, hands), history, shown)
+
+
+def _switch(name, value, fn):
+    saved = getattr(ai, name)
+    try:
+        setattr(ai, name, value)
+        return fn()
+    finally:
+        setattr(ai, name, saved)
+
+
+def test_nov20_dummy_ruffs_in_the_short_hand():
+    west = lambda: _nov20('West', 2, 1)
+    assert _switch('RUFF_IN_SHORT_HAND', False, west) == C('2H')
+    assert _switch('RUFF_IN_SHORT_HAND', True, west) == C('6S')
+
+
+def test_nov20_south_throws_a_spare_diamond():
+    south = lambda: _nov20('South', 5, 1)
+    assert _switch('DEFENCE_SPARE_DISCARD', False, south) == C('5H')
+    assert _switch('DEFENCE_SPARE_DISCARD', True, south).suit == 'D'
+
+
+def test_nov20_north_keeps_dummy_off_lead():
+    north = lambda: _nov20('North', 7, 3)
+    assert _switch('DENY_DUMMY_ENTRY', False, north) == C('AH')
+    assert _switch('DENY_DUMMY_ENTRY', True, north) == C('3H')
 
 
 def test_shipped_rules_together_on_the_users_deals():

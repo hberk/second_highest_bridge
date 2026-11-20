@@ -1391,6 +1391,9 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
       choice = lastSuitPlan(player, hand, legal, trick, trump, played, visible, history, shown, choice, count);
     } else if (FOURTH_HAND_PLAN && Object.keys(visible).length) {
       choice = thirdHandPlan(player, hand, legal, trick, trump, played, visible, history, shown, choice, count);
+      if (DENY_DUMMY_ENTRY) {
+        choice = denyDummyEntry(player, hand, legal, trick, trump, played, visible, history, shown, choice, count);
+      }
     }
   }
   else {
@@ -1434,6 +1437,10 @@ export function aiPlay(player: Seat, hand: Card[], trick: AnyPlay[], trump: stri
     && hand.length <= (DEEP_ENDGAME ? DEEP_ENDGAME_CARDS : ENDGAME_CARDS);
   if (COUNT_DISCARD && trick.length && history !== null && !searched) {
     choice = countDiscard(player, hand, trick, trump, visible, choice, count) ?? choice;
+  }
+
+  if (DEFENCE_SPARE_DISCARD && trick.length) {
+    choice = spareDiscard(player, hand, trick, trump, visible, choice, count);
   }
 
   if (DISCARD_SUIT_PLAN && trick.length) {
@@ -1491,6 +1498,13 @@ function coverForPartner(player: Seat, hand: Card[], legal: Card[], trick: AnyPl
   const scores = new Map(legal.map((c) => [cardKey(c), score(c)]));
   const best = Math.max(...scores.values());
   let tied = legal.filter((c) => scores.get(cardKey(c)) === best);
+  if (RUFF_IN_SHORT_HAND && isSuit(trump) && ledSuit !== trump && !legal.some((c) => c.suit === ledSuit)) {
+    // A ruff in the hand with fewer trumps is a trick extra (see ai.py).
+    const ruffs = tied.filter((c) => c.suit === trump);
+    const mine = hand.filter((c) => c.suit === trump).length;
+    const longHand = visible[partner]!.filter((c) => c.suit === trump).length;
+    if (ruffs.length && ruffs.length < tied.length && mine < longHand) return minBy(ruffs, (c) => [value(c)]);
+  }
   if (COVER_SUIT_PLAN && COVER_KEEP_MASTER && tied.length > 1 && tied.every((c) => c.suit === ledSuit)) {
     // The suit's top unplayed card isn't spent on a tie (see ai.py).
     const top = count.master(ledSuit)!;
@@ -3353,6 +3367,59 @@ function countDiscard(player: Seat, hand: Card[], trick: AnyPlay[], trump: strin
   const cheapest = Math.min(...costs.values());
   if (costs.get(cardKey(choice))! <= cheapest + COUNT_DISCARD_MARGIN) return null;
   return minBy(cards.filter((c) => costs.get(cardKey(c)) === cheapest), (c) => [value(c), suitIndex(c.suit)]);
+}
+
+// ── A spare card to throw, and dummy's entry (see ai.py) ─────────────────────
+
+/** A defender with nothing to win throws a spare card first (measurement switch). */
+export const DEFENCE_SPARE_DISCARD = true;
+/** Fourth hand on defence, losing the trick, lets declarer win it rather than dummy (measurement switch). */
+export const DENY_DUMMY_ENTRY = true;
+/** Second hand on the declaring side, void, ruffs in the hand with fewer trumps (measurement switch). */
+export const RUFF_IN_SHORT_HAND = true;
+
+/** Port of ai._spare_discard. */
+function spareDiscard(player: Seat, hand: Card[], trick: AnyPlay[], trump: string | null,
+  visible: Partial<Record<Seat, Card[]>>, choice: Card, tc: TableCount): Card {
+  const led = trick[0][1].suit;
+  if (!Object.keys(visible).length || PARTNERS[player] in visible || !isSuit(trump)
+    || choice.suit === led || choice.suit === trump) return choice;
+  const seen = Object.values(visible).flatMap((cards) => cards ?? []);
+  if (!seen.some((c) => c.suit === trump) && !tc.unseenIn(trump).length) return choice;
+  const spare = (suit: string): boolean => suit !== led && suit !== trump
+    && hand.filter((c) => c.suit === suit).length >= 2
+    && !tc.unseenIn(suit).length && !seen.some((c) => c.suit === suit);
+  if (spare(choice.suit)) return choice;
+  const spares = hand.filter((c) => spare(c.suit));
+  if (!spares.length) return choice;
+  return minBy(spares, (c) => [value(c), suitIndex(c.suit)]);
+}
+
+/** Port of ai._deny_dummy_entry: keep the lead away from the placed suit's length. */
+function denyDummyEntry(player: Seat, hand: Card[], legal: Card[], trick: AnyPlay[], trump: string | null,
+  played: Card[], visible: Partial<Record<Seat, Card[]>>, history: AnyPlay[][] | null,
+  shown: Shown | null, choice: Card, count: TableCount): Card {
+  const led = trick[0][1].suit;
+  const dummy = (Object.keys(visible) as Seat[]).find((p) => p !== player);
+  const partner = PARTNERS[player];
+  if (dummy === undefined || partner in visible || legal.some((c) => c.suit !== led)
+    || (isSuit(trump) && led !== trump && trick.some(([, c]) => c.suit === trump))) return choice;
+  const unseen = count.unseenIn(led);
+  if (unseen.length && !count.out[partner].has(led)) return choice;
+  const declarer = PARTNERS[dummy];
+  const left = new Map<string, number>([
+    [dummy, visible[dummy]!.filter((c) => c.suit === led).length], [declarer, unseen.length]]);
+  const winner = resolveTrick([...trick, [player, choice]], trump) as Seat;
+  if (!left.has(winner)) return choice;
+  const other = PARTNERS[winner];
+  if (left.get(winner)! <= left.get(other)!) return choice;
+  const alts = legal.filter((c) => resolveTrick([...trick, [player, c]], trump) === other)
+    .sort((a, b) => value(a) - value(b));
+  for (const c of alts) {
+    const planned = thirdHandPlan(player, hand, legal, trick, trump, played, visible, history, shown, c, count);
+    if (cardKey(planned) === cardKey(c)) return c;
+  }
+  return choice;
 }
 
 /** Port of ai._fallback_lead: `lead`, its suit chosen from the count where it can be. */

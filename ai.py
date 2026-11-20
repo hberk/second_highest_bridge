@@ -1976,6 +1976,9 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         elif FOURTH_HAND_PLAN and visible:
             choice = _third_hand_plan(player, hand, legal, trick, trump, played, visible,
                                       history, shown, choice, count=count)
+            if DENY_DUMMY_ENTRY:
+                choice = _deny_dummy_entry(player, hand, legal, trick, trump, played,
+                                           visible, history, shown, choice, count=count)
     else:
         out = count.out if SHOWOUT_MIDDLE and history is not None else None
         later = _later_holdings(player, hand, trick, played, visible or {}, out, count=count)
@@ -2017,6 +2020,9 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                 and len(hand) <= (DEEP_ENDGAME_CARDS if DEEP_ENDGAME else ENDGAME_CARDS))
     if COUNT_DISCARD and trick and history is not None and not searched:
         choice = _count_discard(player, hand, trick, trump, visible, choice, count) or choice
+
+    if DEFENCE_SPARE_DISCARD and trick:
+        choice = _spare_discard(player, hand, trick, trump, visible, choice, count)
 
     if DISCARD_SUIT_PLAN and trick:
         choice = _discard_suit_plan(player, hand, trick, trump, played, visible,
@@ -2087,6 +2093,18 @@ def _cover_for_partner(player: str, hand: list[Card], legal: list[Card],
     scores = {c: score(c) for c in legal}
     best = max(scores.values())
     tied = [c for c in legal if scores[c] == best]
+    if (RUFF_IN_SHORT_HAND and trump in SUITS and led != trump
+            and not any(c.suit == led for c in legal)):
+        # Void, and both a ruff here and a discard (partner taking the trick
+        # after) do as well on the trick: a ruff in the hand with fewer trumps
+        # is a trick the long hand's trumps don't make on their own; a
+        # discard here leaves the long hand to ruff with a trump that would
+        # have won a trick anyway.
+        ruffs = [c for c in tied if c.suit == trump]
+        mine = sum(1 for c in hand if c.suit == trump)
+        long_hand = sum(1 for c in visible[partner] if c.suit == trump)
+        if ruffs and len(ruffs) < len(tied) and mine < long_hand:
+            return min(ruffs, key=lambda c: c.value())
     if (COVER_SUIT_PLAN and COVER_KEEP_MASTER and len(tied) > 1
             and all(c.suit == led for c in tied)):
         # The suit's top unplayed card isn't spent on a tie: of 26 second-hand
@@ -4642,6 +4660,104 @@ def _count_discard(player: str, hand: list[Card], trick: list[tuple[str, Card]],
         return None
     return min((c for c in costs if costs[c] == cheapest),
                key=lambda c: (c.value(), SUITS.index(c.suit)))
+
+
+# ── A spare card to throw, and dummy's entry ────────────────────────────────
+#
+# Both from one user's board (4S by East, Nov 20). Trick 3: South led the
+# third diamond, dummy (K Q 6 of spades, void) threw the 2H, and declarer ruffed
+# with the A♠ in the long hand; a ruff in dummy would have been a trick extra
+# (`RUFF_IN_SHORT_HAND`, in `_cover_for_partner`). Trick 6: declarer drew trumps
+# and South, void, threw the 5♥ from J5 beside partner's AK3 (`_shed`: the lowest
+# card, the 5♥ before the 5♣ by suit order) while holding J6 of diamonds, a suit
+# nobody else had any of: with declarer still holding trumps those cards can only
+# be led into a ruff, and either one does what both do. Trick 8: declarer led
+# the 4♥, South showed out, dummy played the 6♥, and North with A3 could win
+# nothing; the A (a dead card) made dummy's 6 the winner and gave dummy the lead
+# to run its 9 7 of hearts and throw declarer's club losers. South's show-out
+# had placed the hearts (declarer's last one the T): dummy held the length, the
+# source of tricks, so the 3 lets declarer's 4 win and dummy has no entry. With
+# the length in declarer's hand it's the other way round (`DENY_DUMMY_ENTRY`).
+
+#: A defender with nothing to win throws a spare card -- one of two or more in a
+#: side suit no other hand still holds -- before a card of a live suit, while
+#: the declaring side has trumps (measurement switch).
+DEFENCE_SPARE_DISCARD = True
+#: Fourth hand on defence, unable to win the trick, keeps the lead away from the
+#: hand that holds the placed suit's length, dummy or declarer, when the suit's
+#: play-out ties (measurement switch).
+DENY_DUMMY_ENTRY = True
+#: Second hand on the declaring side, void, ruffs rather than discards when it
+#: holds fewer trumps than partner and both win the trick (measurement switch).
+RUFF_IN_SHORT_HAND = True
+
+
+def _spare_discard(player: str, hand: list[Card], trick: list[tuple[str, Card]],
+                   trump: str | None, visible: dict[str, list[Card]] | None,
+                   choice: Card, count: TableCount) -> Card:
+    """A defender's discard from a suit only it still holds, when it has two or
+    more there and the declaring side still has trumps; else `choice`."""
+    led = trick[0][1].suit
+    if (not visible or PARTNERS[player] in visible or trump not in SUITS
+            or choice.suit in (led, trump)):
+        return choice
+    theirs = any(c.suit == trump for cards in visible.values() for c in cards)
+    if not theirs and not count.unseen_in(trump):
+        return choice
+
+    def spare(suit: str) -> bool:
+        return (suit not in (led, trump)
+                and sum(1 for c in hand if c.suit == suit) >= 2
+                and not count.unseen_in(suit)
+                and not any(c.suit == suit for cards in visible.values() for c in cards))
+    if spare(choice.suit):
+        return choice
+    spares = [c for c in hand if spare(c.suit)]
+    if not spares:
+        return choice
+    return min(spares, key=lambda c: (c.value(), SUITS.index(c.suit)))
+
+
+def _deny_dummy_entry(player: str, hand: list[Card], legal: list[Card],
+                      trick: list[tuple[str, Card]], trump: str | None, played: list[Card],
+                      visible: dict[str, list[Card]], history: list | None,
+                      shown: dict | None, choice: Card,
+                      count: TableCount | None = None) -> Card:
+    """Fourth hand on defence, losing the trick whatever it plays: keep the lead
+    away from the declaring side's source of tricks in the led suit.
+
+    Once the suit is placed (every unseen card of it is declarer's: partner has
+    shown out, or none is left), the hand left with more cards of it than its
+    partner is where the suit's tricks come from: on lead it runs them and the
+    other hand discards its losers. If `choice` gives that hand the trick and
+    another card gives it to the short hand, rated as well by the suit's
+    play-out (`_third_hand_plan`), that card is played. Dummy or declarer
+    alike: the source can be either."""
+    led = trick[0][1].suit
+    dummy = next((p for p in visible if p != player), None)
+    partner = PARTNERS[player]
+    if (dummy is None or partner in visible or any(c.suit != led for c in legal)
+            or (trump in SUITS and any(c.suit == trump for _, c in trick) and led != trump)):
+        return choice
+    count = count or TableCount(player, hand, trick, trump, played, visible, history, shown)
+    unseen = count.unseen_in(led)
+    if unseen and led not in count.out[partner]:
+        return choice                       # the suit isn't placed yet
+    declarer = PARTNERS[dummy]
+    left = {dummy: sum(1 for c in visible[dummy] if c.suit == led), declarer: len(unseen)}
+    winner = resolve_trick(trick + [(player, choice)], trump)
+    if winner not in left:
+        return choice
+    other = PARTNERS[winner]
+    if left[winner] <= left[other]:
+        return choice                       # the trick goes to the short hand already
+    alts = [c for c in legal
+            if resolve_trick(trick + [(player, c)], trump) == other]
+    for c in sorted(alts, key=lambda c: c.value()):
+        if _third_hand_plan(player, hand, legal, trick, trump, played, visible,
+                            history, shown, c, count=count) == c:
+            return c
+    return choice
 
 
 def _fallback_lead(player: str, hand: list[Card], trump: str | None, played: list[Card],
