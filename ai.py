@@ -1937,6 +1937,7 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
             # suit in notrump) still has its card planned.
             choice = _defender_suit_plan(player, hand, trump, played, visible, history,
                                          shown, choice, count=count) or choice
+        fallback = choice is None
         if choice is None:
             choice = _fallback_lead(player, hand, trump, played, visible, count)
             if IDLE_TRUMP_FOR_RUFF and choice.suit == trump:
@@ -1968,6 +1969,10 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
                                              choice.suit, count=count) or choice
             if FORCE_DUMMY and choice.suit == trump:
                 choice = _force_dummy(player, hand, trump, visible, played, count=count) or choice
+        if (SIGNAL_ATTITUDE and SIGNAL_PARTS != 2 and choice != sure
+                and (fallback or not SIGNAL_FALLBACK_ONLY)):
+            choice = _read_attitude(player, hand, trump, played, visible, history, shown,
+                                    choice, count) or choice
     elif len(trick) == 3:
         choice = _play_last(legal, trick, trump, hand, played, count=count)
         if LAST_SUIT_PLAN and visible and PARTNERS[player] in visible:
@@ -2027,6 +2032,10 @@ def ai_play(player: str, hand: list[Card], trick: list[tuple[str, Card]],
     if DISCARD_SUIT_PLAN and trick:
         choice = _discard_suit_plan(player, hand, trick, trump, played, visible,
                                     history, choice, count=count)
+
+    if SIGNAL_ATTITUDE and SIGNAL_PARTS != 3 and trick:
+        choice = _attitude_discard(player, hand, trick, trump, visible, history, choice,
+                                   count) or choice
 
     if searched:
         totals = _endgame_totals(player, hand, trick, trump, played, visible,
@@ -4718,46 +4727,277 @@ def _spare_discard(player: str, hand: list[Card], trick: list[tuple[str, Card]],
     return min(spares, key=lambda c: (c.value(), SUITS.index(c.suit)))
 
 
+def _stranded(player: str, source: str, trump: str | None, visible: dict[str, list[Card]],
+              hand: list[Card], gone: list[Card], count: TableCount) -> float:
+    """Tricks the declaring side makes in its side suits only when `source`
+    (dummy or declarer) is on lead: per suit, its tricks with `source` leading
+    the suit less with its partner leading it (never below 0), averaged over
+    the layouts of the suit's unseen cards between the two hidden hands.
+
+    `gone` are the cards on the trick under way, as if it were over."""
+    i = PLAYERS.index(source)
+    seats = [PLAYERS[(i + k) % 4] for k in range(4)]   # source, left, its partner, right
+    hidden = [p for p in PLAYERS if p != player and p not in visible]
+    out = count.out
+    known = {player: [c for c in hand if c not in gone]}
+    for p, cards in visible.items():
+        known[p] = [c for c in cards if c not in gone]
+    ruffs = tuple(trump in SUITS and (any(c.suit == trump for c in known[p]) if p in known
+                                      else trump not in out[p] and bool(count.unseen_in(trump)))
+                  for p in seats)
+    memo = _SUIT_PLAN_MEMO
+    if len(memo) > _TRUMP_MEMO_MAX:
+        memo.clear()
+    total = 0.0
+    for suit in SUITS:
+        if suit == trump:
+            continue
+        unseen = [c.value() for c in count.unseen_cards(suit) if c not in gone]
+        if len(unseen) > SUIT_PLAN_MAX_UNSEEN:
+            continue
+        held = {p: tuple(sorted(c.value() for c in cards if c.suit == suit))
+                for p, cards in known.items()}
+        if len(hidden) != 2:
+            continue
+        first, second = hidden
+        acc = weights = 0.0
+        for n in range(len(unseen) + 1):
+            for picked in combinations(unseen, n):
+                to_second = tuple(v for v in unseen if v not in picked)
+                if (picked and suit in out[first]) or (to_second and suit in out[second]):
+                    continue
+                if (len(picked) < count.floor(first, suit)
+                        or len(to_second) < count.floor(second, suit)):
+                    continue
+                layout = {**held, first: tuple(picked), second: to_second}
+                hands = tuple(layout[p] for p in seats)
+                if not hands[0]:
+                    weights += 1
+                    continue
+                mine = _plan_suit(hands, ruffs, 0, memo)
+                theirs = _plan_suit(hands, ruffs, 2, memo) if hands[2] else 0
+                acc += max(0, mine - theirs)
+                weights += 1
+        if weights:
+            total += acc / weights
+    return total
+
+
 def _deny_dummy_entry(player: str, hand: list[Card], legal: list[Card],
                       trick: list[tuple[str, Card]], trump: str | None, played: list[Card],
                       visible: dict[str, list[Card]], history: list | None,
                       shown: dict | None, choice: Card,
                       count: TableCount | None = None) -> Card:
-    """Fourth hand on defence, losing the trick whatever it plays: keep the lead
-    away from the declaring side's source of tricks in the led suit.
+    """Fourth hand on defence, losing the trick whatever it plays (the hold-up):
+    the trick goes to the declaring hand that is NOT the source of tricks.
 
-    Once the suit is placed (every unseen card of it is declarer's: partner has
-    shown out, or none is left), the hand left with more cards of it than its
-    partner is where the suit's tricks come from: on lead it runs them and the
-    other hand discards its losers. If `choice` gives that hand the trick and
-    another card gives it to the short hand, rated as well by the suit's
-    play-out (`_third_hand_plan`), that card is played. Dummy or declarer
-    alike: the source can be either."""
+    Each declaring hand's source is what its side suits make only with it on
+    lead (`_stranded`). When `choice` gives the trick to the hand with the
+    larger source, by `HOLD_UP_MARGIN` or more, a card that gives it to the
+    other hand is played instead: the one the led suit's play-out rates best of
+    those, and (unless `HOLD_UP_ANY_COST`) only when it rates as well as
+    `choice`."""
     led = trick[0][1].suit
     dummy = next((p for p in visible if p != player), None)
     partner = PARTNERS[player]
-    if (dummy is None or partner in visible or any(c.suit != led for c in legal)
-            or (trump in SUITS and any(c.suit == trump for _, c in trick) and led != trump)):
+    if dummy is None or partner in visible or not hand or len(hand) < 2:
         return choice
-    count = count or TableCount(player, hand, trick, trump, played, visible, history, shown)
-    unseen = count.unseen_in(led)
-    if unseen and led not in count.out[partner]:
-        return choice                       # the suit isn't placed yet
     declarer = PARTNERS[dummy]
-    left = {dummy: sum(1 for c in visible[dummy] if c.suit == led), declarer: len(unseen)}
     winner = resolve_trick(trick + [(player, choice)], trump)
-    if winner not in left:
+    if winner not in (dummy, declarer):
         return choice
     other = PARTNERS[winner]
-    if left[winner] <= left[other]:
-        return choice                       # the trick goes to the short hand already
-    alts = [c for c in legal
-            if resolve_trick(trick + [(player, c)], trump) == other]
-    for c in sorted(alts, key=lambda c: c.value()):
+    alts = [c for c in legal if resolve_trick(trick + [(player, c)], trump) == other]
+    if not alts:
+        return choice
+    count = count or TableCount(player, hand, trick, trump, played, visible, history, shown)
+    gone = [c for _, c in trick]
+    here = _stranded(player, winner, trump, visible, hand, gone, count)
+    there = _stranded(player, other, trump, visible, hand, gone, count)
+    if here < there + HOLD_UP_MARGIN:
+        return choice
+    if all(c.suit == led for c in legal):
+        best = _third_hand_plan(player, hand, alts, trick, trump, played, visible,
+                                history, shown, min(alts, key=lambda c: c.value()), count=count)
+        if HOLD_UP_ANY_COST:
+            return best
         if _third_hand_plan(player, hand, legal, trick, trump, played, visible,
-                            history, shown, c, count=count) == c:
-            return c
-    return choice
+                            history, shown, best, count=count) == best:
+            return best
+        return choice
+    return min(alts, key=lambda c: (c.suit == trump, c.value()))
+
+
+#: The hold-up moves the trick only when the source hand's stranded tricks
+#: exceed the other hand's by this much.
+HOLD_UP_MARGIN = 0.01
+#: ...even when the card that moves it rates worse in the led suit's play-out.
+HOLD_UP_ANY_COST = False
+
+
+# ── Defensive carding: upside-down attitude on the first discard ─────────────
+#
+# The user's idea (Nov 21): the robots' defence loses most by guessing, and
+# real defenders tell each other. A defender's FIRST discard is a signal about
+# the suit it is thrown from, upside down: a low card (7 or lower) asks partner
+# to lead the suit, a high card (8 or higher) says don't. The discarder
+# encourages the side suit where partner's lead would make it the most tricks
+# (`_plan_suit`, partner leading, averaged over the unseen layouts) when that
+# is at least `SIGNAL_WANT`; with nothing to encourage it discourages with a
+# high card. Partner, on lead later, leads an encouraged suit if it holds one,
+# and leads away from a discouraged one. Both robots on a side play it, and
+# the reading needs nothing hidden: the card is on the table.
+
+#: Defenders signal attitude with their first discard and read partner's
+#: (measurement switch).
+SIGNAL_ATTITUDE = False
+#: The tricks partner's lead of a suit must be worth before it's encouraged.
+SIGNAL_WANT = 1.0
+#: The highest rank that reads as "low": encouraging, upside down.
+SIGNAL_LOW_MAX = 7
+#: 0: upside-down attitude by the card's rank. 1: the suit of the
+#: first discard is the one not wanted, whatever the card (it costs no card).
+SIGNAL_MODE = 0
+#: Diagnosis switches: 1 send and read, 2 send only, 3 read only.
+SIGNAL_PARTS = 1
+#: Partner reads the signal only for a lead the fallback would choose, never
+#: over a planned lead (a sure trick, partner's suit, a notrump suit).
+SIGNAL_FALLBACK_ONLY = True
+#: Standard carding: a HIGH card (above SIGNAL_LOW_MAX) encourages.
+SIGNAL_STANDARD = False
+
+
+def _encourages(card: Card) -> bool:
+    return (card.value() > SIGNAL_LOW_MAX) == bool(SIGNAL_STANDARD)
+
+
+def _first_discard(seat: str, trump: str | None, history: list | None,
+                   trick: list | None = None) -> Card | None:
+    """`seat`'s first card thrown on a trick it couldn't follow, not a ruff."""
+    for plays in list(history or []) + ([trick] if trick else []):
+        led = plays[0][1].suit
+        for who, c in plays[1:]:
+            if who == seat and c.suit != led and c.suit != trump:
+                return c
+    return None
+
+
+def _lead_worth(player: str, hand: list[Card], trump: str | None,
+                visible: dict[str, list[Card]], suit: str, count: TableCount) -> float | None:
+    """Defence tricks in `suit` with partner leading it, averaged over the
+    unseen cards' layouts between partner and declarer; None if too open."""
+    i = PLAYERS.index(player)
+    seats = [PLAYERS[(i + k) % 4] for k in range(4)]
+    hidden = [p for p in seats[1:] if p not in visible]
+    unseen = count.unseen_in(suit)
+    if len(hidden) != 2 or len(unseen) > SUIT_PLAN_MAX_UNSEEN:
+        return None
+    out = count.out
+    known = {player: hand, **visible}
+    held = {p: tuple(sorted(c.value() for c in cards if c.suit == suit))
+            for p, cards in known.items()}
+    side = trump in SUITS and suit != trump
+
+    def ruffs(seat: str) -> bool:
+        if not side:
+            return False
+        if seat in known:
+            return any(c.suit == trump for c in known[seat])
+        return trump not in out[seat] and bool(count.unseen_in(trump))
+    can_ruff = tuple(ruffs(p) for p in seats)
+    memo = _SUIT_PLAN_MEMO
+    if len(memo) > _TRUMP_MEMO_MAX:
+        memo.clear()
+    first, second = hidden
+    others = len(count.unseen) - len(unseen)
+    room = {p: count.size(p) for p in hidden}
+    total = weights = 0
+    for n in range(len(unseen) + 1):
+        for picked in combinations(unseen, n):
+            to_second = tuple(v for v in unseen if v not in picked)
+            if (picked and suit in out[first]) or (to_second and suit in out[second]):
+                continue
+            if len(picked) > room[first] or len(to_second) > room[second]:
+                continue
+            if (len(picked) < count.floor(first, suit)
+                    or len(to_second) < count.floor(second, suit)):
+                continue
+            weight = _choose(others, room[first] - len(picked))
+            if not weight:
+                continue
+            layout = {**held, first: tuple(picked), second: to_second}
+            hands = tuple(layout[p] for p in seats)
+            total += weight * _plan_suit(hands, can_ruff, 2 if hands[2] else 0, memo)
+            weights += weight
+    return total / weights if weights else None
+
+
+def _attitude_discard(player: str, hand: list[Card], trick: list[tuple[str, Card]],
+                      trump: str | None, visible: dict[str, list[Card]] | None,
+                      history: list | None, choice: Card, count: TableCount) -> Card | None:
+    """A defender's first discard, as an attitude signal, or None to keep `choice`."""
+    led = trick[0][1].suit
+    if (not visible or PARTNERS[player] in visible or choice.suit in (led, trump)
+            or _first_discard(player, trump, history) is not None):
+        return None
+    worth = {}
+    for suit in SUITS:
+        if suit in (led, trump) or not any(c.suit == suit for c in hand):
+            continue
+        value = _lead_worth(player, hand, trump, visible, suit, count)
+        if value is not None:
+            worth[suit] = value
+    want = max(worth, key=lambda s: worth[s]) if worth else None
+    if SIGNAL_MODE == 1:
+        unwanted = [s for s in worth if s != want and sum(1 for c in hand if c.suit == s) >= 1]
+        if not unwanted or want is None or worth[want] < SIGNAL_WANT:
+            return None
+        if choice.suit in unwanted and worth[choice.suit] == min(worth[s] for s in unwanted):
+            return None
+        least = min(unwanted, key=lambda s: (worth[s], s != choice.suit))
+        return min((c for c in hand if c.suit == least), key=lambda c: c.value())
+    if want is not None and worth[want] >= SIGNAL_WANT:
+        low = [c for c in hand if c.suit == want and _encourages(c)]
+        if low and sum(1 for c in hand if c.suit == want) >= 2:
+            return min(low, key=lambda c: c.value())
+    # Nothing to ask for: a high card from a suit not wanted, the discard's own
+    # suit first.
+    for suit in [choice.suit] + [s for s in SUITS if s != choice.suit]:
+        if suit in (led, trump) or suit == want:
+            continue
+        high = [c for c in hand if c.suit == suit and not _encourages(c)]
+        if high:
+            return min(high, key=lambda c: c.value())
+    return None
+
+
+def _read_attitude(player: str, hand: list[Card], trump: str | None, played: list[Card],
+                   visible: dict[str, list[Card]] | None, history: list | None,
+                   shown: dict | None, choice: Card, count: TableCount) -> Card | None:
+    """A defender's lead after partner's first discard: the encouraged suit, or
+    away from the discouraged one; None to keep `choice`."""
+    partner = PARTNERS[player]
+    if not visible or partner in visible or player in visible or not history:
+        return None
+    signal = _first_discard(partner, trump, history)
+    if signal is None:
+        return None
+    suit = signal.suit
+    mine = [c for c in hand if c.suit == suit]
+    if SIGNAL_MODE != 1 and _encourages(signal):
+        if not mine or choice.suit == suit or suit in count.out[partner]:
+            return None
+        lead = min(mine, key=lambda c: c.value())
+        return (_defender_suit_plan(player, hand, trump, played, visible, history, shown,
+                                    lead, count=count) if DEFENDER_SUIT_PLAN else None) or lead
+    if choice.suit != suit:
+        return None
+    rest = [c for c in hand if c.suit != suit]
+    if not rest:
+        return None
+    lead = _fallback_lead(player, rest, trump, played, visible, count)
+    return (_defender_suit_plan(player, hand, trump, played, visible, history, shown,
+                                lead, count=count) if DEFENDER_SUIT_PLAN else None) or lead
 
 
 def _fallback_lead(player: str, hand: list[Card], trump: str | None, played: list[Card],
