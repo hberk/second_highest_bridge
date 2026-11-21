@@ -18,6 +18,7 @@
   import Strain from '../components/Strain.svelte';
   import AuctionGrid from '../components/AuctionGrid.svelte';
   import Sheet from '../components/Sheet.svelte';
+  import DdTricks from '../components/DdTricks.svelte';
 
   let { trainer }: { trainer: Trainer } = $props();
 
@@ -254,17 +255,8 @@
       </section>
 
       <section class="bt-card">
-        <div class="bt-dd">
-          <span></span>
-          {#each ['C', 'D', 'H', 'S', 'NT'] as s (s)}
-            <span><Strain level="" strain={s as StrainT} /></span>
-          {/each}
-          <span class="bt-dd-l">tricks</span>
-          {#each ['C', 'D', 'H', 'S', 'NT'] as s (s)}
-            <span class:best={recap.par.side === 'N/S' && recap.par.strain === s}>{recap.dd[s as StrainT]}</span>
-          {/each}
-        </div>
-        <p class="bt-note">N/S tricks double dummy, the better declarer.</p>
+        <DdTricks tricks={recap.dd} seats={['North', 'South']} par={recap.par} contract={recap.contract} />
+        <p class="bt-note">N/S tricks double dummy by declarer{#if recap.contract && ['North', 'South'].includes(recap.contract.declarer)}; your contract is boxed{/if}.</p>
       </section>
 
       <button class="btn primary full big bt-next" onclick={() => { showEW = false; resetAsk = false; trainer.newBoard(); }}>Next board</button>

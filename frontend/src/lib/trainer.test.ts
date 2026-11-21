@@ -56,7 +56,11 @@ describe('Bidding training', () => {
       // Par is duplicate par: a par contract that fails is a sacrifice, doubled.
       if (r.par.side) expect(r.par.doubled === 'X').toBe(r.par.tricks < r.par.level + 6);
       expect(r.par.score).toBe(trainingPar(r.dealId, t.vulnerability).score);
-      for (const s of ['C', 'D', 'H', 'S', 'NT'] as const) expect(r.dd[s]).toBe(nsTricks(r.dealId, s));
+      for (const s of ['C', 'D', 'H', 'S', 'NT'] as const) {
+        expect(Math.max(r.dd[s].North, r.dd[s].South)).toBe(nsTricks(r.dealId, s));
+      }
+      // The score counts the real declarer's tricks, which the table shows.
+      if (r.contract && (r.contract.declarer === 'North' || r.contract.declarer === 'South')) expect(r.tricks).toBe(r.dd[r.contract.strain][r.contract.declarer as 'North' | 'South']);
       // Every call South made is looked at.
       expect(r.checks.length).toBe(t.calls.filter(([p]) => p === 'South').length);
       // The robots' auction on the same board, and where the two part.
@@ -187,6 +191,24 @@ describe('Bidding training', () => {
     for (let guard = 0; guard < 40 && !t.recap; guard++) t.humanBids('Pass');
     expect(t.calls.length).toBeGreaterThanOrEqual(60);
     expect(t.recap).not.toBeNull();
+  });
+
+  it("shows the tricks of the declarer the score uses (deal 294, 5♣ by South)", () => {
+    // Reported 2026-11-21: 5♣ by South scored -50 while the table said 11
+    // club tricks. Both were true: South takes 10, North 11 (East on lead).
+    // The table showed only the better declarer; it now shows both.
+    const t = new Trainer(null, prng(1));
+    t.newBoard(294);
+    while (t.dealer !== 'North' || t.vulnerability !== 'None') t.newBoard(294);
+    for (const c of ['1H', '5C']) t.humanBids(c);
+    for (let guard = 0; guard < 10 && !t.recap; guard++) t.humanBids('Pass');
+    const r = t.recap!;
+    expect(r.contract).toMatchObject({ level: 5, strain: 'C', declarer: 'South' });
+    expect([r.tricks, r.score]).toEqual([10, -50]);
+    expect([r.dd.C.North, r.dd.C.South]).toEqual([11, 10]);
+    const html = render(TrainerView, { props: { trainer: t } }).body;
+    expect(html).toMatch(/class="[^"]*bt-dd-mine[^"]*">10</);
+    expect(html).toContain('your contract is boxed');
   });
 
   it('says where a hand falls outside what a call showed', () => {

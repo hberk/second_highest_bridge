@@ -948,7 +948,7 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
         return call, why
 
     if best_len >= OPEN_SUIT_LENGTH + 1:
-        combined = ev['suit_pts'][best_suit] + PROMISE_RESPONDED_1
+        combined = ev['suit_pts'][best_suit] + _rebid_promise(partner, auction)
         call, why = _place(best_suit, combined, legal, best_len)
         if call != 'Pass':
             why = f"6+ {SUIT_SYM[best_suit]}, rebidding the suit."
@@ -977,6 +977,26 @@ def _opened_one_of(seat: str, auction: AuctionState) -> str | None:
     return parsed[1] if parsed and parsed[0] == 1 and parsed[1] in SUITS else None
 
 
+#: What partner's PRE-EMPT promises when this hand rebids its own long suit
+#: (the user's board, 2026-11-21: P 2♦ (2♥) 2♠ (3♦) P (3♥) 4♠ on ♠KQJT743
+#: ♥Q ♦2 ♣8652 opposite ♠8 ♥J643 ♦KQT643 ♣JT, -400). The free bid already
+#: reads a weak two as PROMISE_PREEMPT, but the rebid read it as a one-level
+#: response (PROMISE_RESPONDED_1), 0.83 more, and that pushed 9.68 to 10.51,
+#: game. A weak two is 5-10 points, most of them in its own suit, and partner
+#: has not raised. Fresh deals, 3 x 10,000 (~35 auctions each): 1.0 gave
+#: -0.03/+0.04/+0.00 a board, 2.06 -0.01/+0.01/+0.01, 0.0 as 1.0: neutral,
+#: kept as the more conservative call (Pass on the board). None keeps
+#: PROMISE_RESPONDED_1.
+REBID_PROMISE_PREEMPT: float | None = 1.0
+
+
+def _rebid_promise(partner: str, auction: AuctionState) -> float:
+    """What partner promises towards this hand's own long suit, rebid."""
+    if REBID_PROMISE_PREEMPT is not None and _preempt_index(partner, auction) is not None:
+        return REBID_PROMISE_PREEMPT
+    return PROMISE_RESPONDED_1
+
+
 def _own_long_suit_bids(mine: list, ev: dict, best_suit: str, best_len: int,
                         legal: list[str]) -> bool:
     """Would this hand rebid its own six-card suit instead (the last branch of
@@ -1002,7 +1022,7 @@ def _back_to_opening_suit(partner: str, auction: AuctionState, groups: dict,
                           p_strain: str, legal: list[str]) -> tuple | None:
     """Partner opened one of a suit and has now bid a new suit, the last bid
     at the table: with as many cards in the opened suit, prefer it at the same
-    level. Not once they double it: on fresh deals (3 x 10,000) the
+    level (a doubleton one short of it opposite a major opening: gib.FIVE_TWO_PREFERENCE). Not once they double it: on fresh deals (3 x 10,000) the
     preference over 1H P 1S P 2D (X) cost 0.07 a board, the robots' takeout
     doubles running into penalty doubles and opener raising the preference to
     a doubled game; undoubled it was flat."""
@@ -1011,13 +1031,22 @@ def _back_to_opening_suit(partner: str, auction: AuctionState, groups: dict,
     if (not opened or p_strain == opened or p_strain not in SUITS
             or hb is None or hb[2] != partner or hb[1] != p_strain or auction.doubled != 'None'
             or _first_namer(auction, p_strain) != partner
-            or len(groups[opened]) < len(groups[p_strain])):
+            or not _prefers_opened(groups, opened, p_strain)):
         return None
     call = f"{hb[0]}{opened}"
     if call not in legal:
         return None
-    return call, (f"Preference: as many {SUIT_SYM[opened]} as "
-                  f"{SUIT_SYM[p_strain]}.")
+    return call, f"Preference to {SUIT_SYM[opened]}."
+
+
+def _prefers_opened(groups: dict, opened: str, new: str) -> bool:
+    """As many cards in the opened suit as in the new one, or (a doubleton or
+    more) one card short when a major opening promised five
+    (gib.FIVE_TWO_PREFERENCE)."""
+    a, b = len(groups[opened]), len(groups[new])
+    if a >= b:
+        return True
+    return gib.FIVE_TWO_PREFERENCE and opened in ('H', 'S') and a >= 2 and a + 1 >= b
 
 
 #: Partner opened one of a minor and has not bid it again: that promises
@@ -1212,6 +1241,12 @@ PENALTY_ALERT = "Penalty: {n}+ {sym}."
 #: 169 Stayman answers with 4+ trumps behind them (BIDDING.md).
 PENALTY_STRONG_STOP = True
 PENALTY_STRONG = 20
+#: Trump length counts toward PENALTY_JUDGE (the user's training deal 30,
+#: 2026-11-21: P P 1S 2H 2S 4H 4S, West AJ752 JT632 J4 J passed 4S on 6 JP
+#: plus 13.5 for partner's 10-17 overcall, half a point short; 4S went three
+#: down). Each trump past the length the double needs (5 at the two level,
+#: 4 higher) adds this many judgement points. None leaves the count alone.
+PENALTY_TRUMP_JP: float | None = 4
 
 
 def _partner_middle(partner: str, auction: AuctionState, alerts: dict, mine: int) -> float:
@@ -1267,7 +1302,8 @@ def _penalty_double(player: str, hand: list[Card], auction: AuctionState,
             and _opp_shown_strong(player, auction, alerts)):
         return None
     mine = gib.Hand(hand).judge
-    if mine + _partner_middle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE:
+    extra = PENALTY_TRUMP_JP * (n - need) if PENALTY_TRUMP_JP else 0
+    if mine + extra + _partner_middle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE:
         return None
     if not _double_is_free(auction):
         return None
@@ -1523,7 +1559,8 @@ def _doubled_or_base(player: str, hand: list[Card], auction: AuctionState,
 def _ai_bid_explained(player: str, hand: list[Card], auction: AuctionState) -> tuple:
     if USE_GIB:
         decision = gib.jam_alert(player, hand, auction, _base_bid_explained(player, hand, auction))
-        return gib.doubler_guard(player, hand, auction, decision)
+        decision = gib.doubler_guard(player, hand, auction, decision)
+        return gib.advance_raise_guard(player, hand, auction, decision)
     return _base_bid_explained(player, hand, auction)
 
 

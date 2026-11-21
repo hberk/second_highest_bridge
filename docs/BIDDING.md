@@ -160,6 +160,20 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   10,000 each: see ROBOT_PROGRESS. Over their double it cost 0.07 a board
   (the robots' takeout double runs into a penalty double; opener raised one
   preference to a doubled 4♥), so a doubled new suit is left alone.
+- **Back to partner's first suit** (`gib.BACK_TO_FIRST`, `_back_to_first_suit`;
+  the user's board, 2026-11-21: (2♠) 3♥ (4♠) P (P) 5♦ (X) passed out at -500
+  on ♠9 ♥9873 ♦A ♣KQ98743). `_advance` read only partner's first call, so
+  a second suit was never seen. Partner opened one of a suit or overcalled
+  (3 level or lower), then bid a new suit, and I have not bid: the first
+  suit at the same level when it is the bigger fit (`_prefers_first`), also
+  over their double. Never a level higher. Robots never bid a second suit
+  there, so it plays only opposite a human (0 changes in 40,000 boards).
+- **5-2 over 4-3** (`gib.FIVE_TWO_PREFERENCE`, `_prefers_first`,
+  `ai._prefers_opened`; the user's board, 2026-11-21: P 1♥ P 1♠ P 2♦ passed
+  out on ♠QJ976 ♥K8 ♦AJT ♣542, 2♦ three tricks, 2♥ five). A first suit
+  that promised five (a major opening, any overcall) against a second that
+  promised four: a doubleton or more one short of the second goes back to
+  the first. Seeds 7M-9M, 3,000 each: +0.08, +0.14, +0.10 (ROBOT_PROGRESS).
 - **Preference after a negative double** (`NEG_PREFERENCE`,
   `_negative_doubler_preference`, `_preference_stands`; the user's board,
   2026-11-09: P 1♦ (1♠) X (P) 2♣ passed out on ♠AQ875 ♥9432 ♦AK4 ♣J).
@@ -205,6 +219,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   promise was. 10,000 fresh deals (`research/gib_fresh_h2h.py`, seed 7M):
   **+0.26 a board, t = +3.46, 247 auctions changed** (115 better, 84 worse);
   1.0 measured +0.26 (t = +3.12), 0.0 +0.23 (t = +2.61).
+- **Rebidding my own suit opposite partner's pre-empt** (`REBID_PROMISE_PREEMPT
+  = 1.0`; the user's board, 2026-11-21: P 2♦ (2♥) 2♠ (3♦) P (3♥) 4♠ on ♠KQJT743
+  ♥Q ♦2 ♣8652, -400; double dummy spades take 6, their hearts 10). The free bid
+  already valued the weak two at `PROMISE_PREEMPT`, but the rebid read it as a
+  one-level response (2.89), lifting 7.62 to 10.51, game. Now 1.0: Pass here.
+  Fresh deals, 3 x 10,000 (~35 auctions each): 1.0 -0.03/+0.04/+0.00 a board,
+  2.06 -0.01/+0.01/+0.01, 0.0 as 1.0. Neutral, kept as the more conservative
+  call (the user's pick); `/mnt/project-files/weak-two-rebid/`.
 - **A 2♣ rebid shows six clubs** (2026-11-04, the user's board 53: 1♣ P 1NT
   P 2♣ alerted "4+ ♣"; "a rebid of 2♣ should show 6, only 5 in very unusual
   circumstances"). After 1♣-1y or 1♣-1NT, 2♣ was the fallback on four or five
@@ -294,6 +316,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     in it. Before, advancer always took the cheapest preference: deal 163,
     (1♦) 2NT (P) with five clubs and a 10-card fit bid 3♣, and N/S defended
     4♦ where 7♣ makes; now 5♣, 13 tricks.
+  - `TWO_SUITER_FIT_GAME` / `_MAJOR` (`_advance`, the user's call,
+    2026-11-20): `TWO_SUITER_GAME` counts partner as a flat 8 and this hand
+    by its high cards, so a 10-card fit and shortness counted for nothing:
+    board 12, (1♦) 2NT (P) on ♠Q2 ♥2 ♦QT974 ♣KQJ96 (16 + 8 = 24) bid 3♣
+    where 7♣ makes. With 4+ trumps advancer now counts judgement points + 3
+    for each trump past three + 3 for a side singleton (5 for a void), and
+    bids game at 21 in a minor, 15 in a major. Board 12 is 25. Filtered fresh
+    deals, head to head: +1.7 to +3.6 a filtered board (`ROBOT_PROGRESS.md`).
   - `TWO_SUITER_BLAST` (`_advance`, the user's call, 2026-11-13): with six
     or more of a major partner showed, advancer bids 4M at once, whatever
     the strength: (1♣) 2♣ (2♠) on ♠- ♥KQJ963 ♦AJT73 ♣65 bid 3♥ (no game
@@ -370,6 +400,25 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     minor, or 18+). Experts in the championship archive act here with
     natural bids and doubles (over 1♠-1NT: X 51, 2♣ 48, 2♥ 43, 2♦ 35 of
     1,293) and almost never with 2NT or the cuebid (1 and 3).
+    And **with a stopper and no suit, the answer is 1NT**
+    (`gib.TAKEOUT_1NT_ADVANCE`, the user's board 2026-11-21): 1♥ P P X P
+    on ♠964 ♥J632 ♦K98 ♣A76 named the cheapest three-card suit, 1♠, and
+    played 2♠ doubled for -300. Now (1x) X (P) 1NT is 6-10 HCP, a stopper
+    and no four-card unbid suit (`TAKEOUT_1NT_ONLY_THREE`). The doubler
+    counts judgement points against `NT_GAME`, as opposite our 1NT
+    (`TAKEOUT_1NT_BY_JUDGE`): 3NT on 22+, 2NT on 18-21, and advancer
+    accepts on 10+; by HCP (3NT 19+ or 20+) scored a hair lower. It is
+    rare (90 auctions in 116,000 boards) and +0.01 a board overall; letting
+    a four-card minor bid 1NT too measured -0.05 (ROBOT_PROGRESS, 11-21).
+    **The jumps to 2NT and 3NT** (`gib.TAKEOUT_NT_ADVANCE`, 2026-11-21)
+    had no meaning before. Over a direct double, a balanced hand with a
+    stopper and no four-card unbid major bids 2NT on 11-15 HCP (invites)
+    and 3NT on 16+, not the textbook 13+, because notrump games need
+    `NT_GAME` between the hands here; the doubler raises 2NT on 15+ HCP
+    and passes 3NT. It hardly ever comes up (about 1 board in 3,000) and
+    is neutral: 6 seeds, 192,000 boards, -0.00 a board. Textbook ranges
+    (2NT 11-12, 3NT 13+) scored the same; allowing it after a balancing
+    double (`TAKEOUT_NT_BALANCING`) ten times as often and -0.01.
     And **the answer to a takeout double never names a suit they bid**
     (`ai.ADVANCE_NOT_THEIRS`, the user's rule): `_advance_double` left out
     only their last strain, so 1♠ P 1NT X P was answered 2♠ and doubled.
@@ -436,6 +485,12 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     four trumps double only if they haven't both named the suit. Seeds 7M-9M
     (10,000 deals): -0.10, +0.17, -0.22, a tie, more auctions worse than
     better on every seed. Branch `claude/project-thread-e0klhw`.
+  - **Long trumps count toward the double** (`PENALTY_TRUMP_JP = 4`; the
+    user's training deal 30, 2026-11-21): each trump past the length the
+    double needs adds 4 judgement points. West ♠AJ752 passed P P 1♠ (2♥) 2♠
+    (4♥) 4♠ on 6 JP + 13.5 for the 10-17 overcall, half a point short; 4♠
+    took seven tricks. Seeds 7M-9M (5,000 deals): +0.83, +0.63, +1.09 a
+    board (t 5.2-7.8). +2 measured +0.56, +6 +0.97; the user picked +4.
   - **The penalty double of 1NT is for balanced hands** (`NT_X_SHAPE = 'two'`;
     the user's deal, 2026-11-13): 1NT P P X with ♠AT865 ♥J ♦AK5 ♣QJT4, partner
     transferred to hearts on 0-5-4-4 (systems on) and 2♥ played on a 5-1 fit.
@@ -538,6 +593,20 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     42-69 auctions changed, 6-21 worse; 8 HCP +0.01 / +0.26 / +0.12 (t +0.18,
     +3.14, +1.13) but more auctions changed and more worse, so 10 stays.
     (`/mnt/project-files/balance-three/`.)
+  - **A strong raise of partner's pre-empt** (`RAISE_PREEMPT_STRONG`; the
+    user's board, 2026-11-21). 2♥ (2♠) P on ♠93 ♥AKJ ♦KJT98 ♣K73, 15 HCP;
+    East/West make 12 tricks in hearts. Uncontested, `preempt` raises to 3♥,
+    but over their overcall `we_opened_contested` has no responder branch for
+    a two-level opening and the LoTT raise stopped at `LOTT_RAISE`'s 9 HCP,
+    so the hand fell to `ai_bid`, which read the weak two as an opening and
+    passed (the three level sat above `_place`'s ceiling). Now the LoTT raises
+    partner's pre-empt (my first call, their suit bid over it, 3+ trumps) on
+    any strength above `LOTT_RAISE`; the alert stays "3+ ♥, competitive.".
+    Fresh deals, head to head, 20,000 x 4 dealers: **+0.08 (t +2.97), +0.15
+    (t +5.12), +0.11 (t +4.18)**, about 355 auctions changed a seed, 74-92
+    worse. Game in the major at 16+ judgement points (`WEAK_TWO_GAME_JUDGE`,
+    as uncontested) added +0.01 to +0.03 on 9-20 boards; off (the user's
+    call: no extra games). (`/mnt/project-files/weak-two-raise/`.)
 - **Count the fit** (`FIT_COUNT`, `_fit_bonus`; the user's call, 2026-10-22).
   Where GIB judges game once a fit is known -- opener after 1M-2M and 1M-3M,
   responder after a game try and after opener's raise, and `continuation`'s
@@ -566,6 +635,17 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     **+0.24, +0.27, +0.29 a board (t = +6.8 to +8.3, ~500 auctions changed
     a seed)**, games made 55%. Adding invitations lost: opener declines most
     of them, and 3M fails where 2M made (`/mnt/project-files/raise-try/`).
+  - **...and when they have come in** (`CONTESTED_RAISE_GAME`, on with six trumps; the
+    user's board, 2026-11-21: 1♣ (1♥) 1♠ (P) 2♠ (3♥) 3♠ on ♠KJ8762 ♥K94
+    ♦A63 ♣3, E/W take 12 tricks in spades). No contested branch judged
+    game: the LoTT bid 3♠ on nine trumps, and with them passing the
+    fallback's count (9.24) passed. The same test now runs with partner's
+    raise read as `CONTESTED_RAISE_GAME_PARTNER` trumps (4; contested, a
+    raise shows 3+). 3 seeds × 10,000 fresh deals: +0.20, +0.03, +0.09 a
+    board (t +4.1, +0.6, +2.0, ~130 auctions a seed), +1.15 IMPs a changed
+    auction; read as three, +0.06, +0.02, +0.01. The user's pick (11-21):
+    responder needs six trumps (`CONTESTED_RAISE_GAME_LEN = 6`), +0.09,
+    +0.02, +0.05 a board (t +3.1, +0.9, +1.9, ~40 auctions a seed).
 - **Slam bidding doesn't pay here** (2026-10-23, the 101 slam deals of
   `research/data/dd_slam.jsonl`; [SOLVER.md](SOLVER.md) for how they were
   found). The robots bid slam on 0 of their 404 auctions: the opponents buy
@@ -619,6 +699,19 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     (t = +5.05); singleton values 0.5-1.5 all
     positive on the library, 1.0 best; a singleton in GIB's own `_fit_bonus`
     changed 7-12 auctions and lost 0.2 (t = -2).
+- **A game force is never passed below game** (`GF_NO_PASS`, `GF_2NT`,
+  `GF_MINOR_STOP`; the user's board, 2026-11-21: P 1♥ P 2♣ P 2♥ P 2NT and
+  North passed 2NT). `_forced_to_game` says when: our uncontested auction
+  is game forcing by `_game_forced`, the first response was not a raise
+  (1♥ 2♥ 3♣ is a game try), and our undoubled contract is below 3NT.
+  Opener's third call then answers 2NT with 3M on six of the major, else
+  `continuation`, and no longer reads a three-level new suit as an invitation
+  (robots alone passed 1♠ 2♥ 2♠ 3♦). Any pass left there becomes
+  `continuation`'s game-forced call. A minor both partners bid stays a stop:
+  forcing 1♦ 2♣ 2♦ 3♦ on lost about 0.06 a board. Responder with no fit and
+  nothing to show bids 2NT ("No fit yet. Game forcing.") instead of 3NT,
+  unless `MAJOR_OVER_3NT` knows a major fit (1♥ 2♣ 2♥ on a doubleton is 4♥).
+  Measured in ROBOT_PROGRESS.md, 11-21: neutral to slightly positive.
 - **Game by points** (`GAME`, `GAME_MAJOR`, `NT_GAME`, `MAJOR_OVER_3NT`,
   `RESPONSE_MIN`, `LOTT_MAX`; the user's calls, 2026-10-23). Measured with
   `research/gib_fresh_h2h.py` on 3,000 fresh random deals (12,000 boards),
@@ -823,6 +916,16 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   passes. Measured on fresh deals, 10,000 deals per seed: seed 7 -0.01 a board
   (t = -0.06), seed 8 -0.06 (t = -0.66). Not significant; kept because it is the
   user's rule.
+- **A passed responder raises to the two level over a balancing action**
+  (`PASSED_RESPONDER_RAISE`, `_passed_responder_raise`; the user's board,
+  2026-11-21: P P 1♠ P P X P 2♥ 3♠ on ♠T964 ♥97 ♦7642 ♣AJ8). "Responder's first
+  call over interference" counts only our side's bids, so it missed that
+  responder had already passed and fired the pre-emptive jump raise. Now a
+  responder who passed partner's 1x bids the cheapest two-level raise on 4+
+  trumps (5+ in a minor), or 3+ with 6+ HCP; after a direct overcall nothing
+  changes. Measured on fresh deals, 20,000 per seed: +0.01 (t = +0.96), 0.00
+  (t = +0.19), -0.01 (t = -0.86), about 90 auctions a seed. Neutral; kept as the
+  user's rule (/mnt/project-files/passed-raise/REPORT.md).
 - **Answers to responder's cuebids over their Unusual 2NT**
   (`UNUSUAL_CUE_REPLY`, `_unusual_cue_reply`; the user's board, 2026-11-04:
   Pass 1♠ (2NT) 3♣ P, North passed the artificial limit raise on ♠AJ543
@@ -857,6 +960,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   3+, and a weak transferer passes (`NT_X_INTERFERED`). Once the doubler has
   bid again, advancer stops passing automatically (`NT_X_ADVANCE_FIX`).
   0.00 a board on 60,000 fresh boards.
+  Stayman stays available (`NT_X_STAYMAN = 'weak'`; the user, 2026-11-21:
+  "that's what a user would expect"): the doubler answers anyone's 2♣ as
+  over 1NT, and the robots bid it as garbage Stayman only, 7 or fewer HCP
+  with 4+ in both majors (2♥ over 2♦ is pass or correct). Good hands still
+  pass the double. It costs -0.03 a board on 60,000 fresh boards (17
+  auctions changed, 5 better, 12 worse: pulling 1NT doubled that was going
+  down 3 or 4); kept as the user's system. Invitational Stayman (`'all'`)
+  measured -0.003 (2 auctions, both worse).
 - **Systems on over their 2♣ overcall of our 1NT** (`NT_2C_SYSTEMS`,
   `_nt_2c_systems`; the user's system, 2026-11-04): X is Stayman, 2♦/2♥
   transfer, and the uncontested continuations run while they pass. +0.00 a board on 60,000 fresh boards.
@@ -1020,6 +1131,20 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   doublers who used to jump to 4♥ and now stop in 3♥. On the user's own
   deal the pass was double dummy best: ♥AKJT742 opposite a singleton takes
   7 tricks under the second-highest rule.
+- **The doubler raises the advance only with extras** (`ADVANCE_RAISE_HCP`,
+  `advance_raise_guard`; the user's Bidding training deal 136, 2026-11-21:
+  P P P 1♦ P P X P 1♠ P 2♠ on ♠Q32 ♥AQ63 ♦82 ♣J874, alerted "3+ ♠ support, 6+
+  points. Limited."). No GIB branch answers (1x) X (P) 1y (P), so the old
+  system's `_response` read the advance as an opening and raised on three
+  trumps. The double already promised the support: uncontested, the raise
+  needs 4+ trumps and 16+ HCP, or three with 19+, and says "Extras after the
+  double."; a minimum passes. 3 x 10,000 fresh deals: +0.02/+0.02/+0.08 (t
+  +2.45/+1.20/+2.50, 147 auctions, 69 better, 6 worse); 18 HCP measured about
+  the same. In competition (a redouble, or they bid after the double) the
+  same rule lost (-0.09/-0.04/+0.01), so there the raise stays and its alert
+  reads "Competing after the double." The doubler's cuebid of their suit
+  after the advance (1♣ X P 1♠ P 2♣) was alerted as a free bid, "5+ ♣, 8+
+  points"; it now reads "Cuebid: 18+ HCP, a strong hand." and needs 18+.
 - **A five-card major is bid, not doubled** (`NEG_BIDS_FIVE`, the user's
   Bidding training deal, 2026-10-28: 1♦ (1♥) X on ♠AKJT53 ♥8 ♦J83 ♣T62,
   and the spade fit was lost). Over a minor opening the negative double was
@@ -1109,6 +1234,15 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     takeout double is unchanged. Experts acted on 7 of 13 hands with a six-card
     suit and 7-10 HCP there, never with 6 or fewer. +0.04, +0.08, +0.07 a
     board on three sets of 3,000 fresh deals, within noise.
+  - **The balancing takeout double over a weak two** (`BALANCE_WEAK_TWO_X = 8`,
+    `WEAK_TWO_X_PENALTY = 5`, 2026-11-21; the user's deal: West A976 - Q9842
+    QJ87 passed 2♥ P P, East's KJ632 trap-passed, 2♥ made). After 2♦/2♥/2♠
+    P P, a singleton or void in their suit with 3+ in each other suit doubles
+    on 8+ HCP (7 with a void), "Balancing takeout: 7+ HCP. Partner may pass for
+    penalty."; partner, who passed the weak two directly, leaves it in with
+    five of their suit and two of AKQJT. Six sets of 6,000 fresh deals: -0.05,
+    +0.13, +0.07, +0.13, +0.14, +0.16 a board. The double alone was flat; the
+    pass on four trumps lost (-0.19 on seed 7). Bids more: the user's call.
   - **A three-level overcall after their 1NT needs six cards**
     (`OVERCALL_3_AFTER_1NT = 6`, 2026-11-13). Once they have bid more than
     the 1NT opening (1NT P 2NT P 3♣ P P), the Cappelletti branch no longer

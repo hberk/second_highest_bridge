@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { Ctx, doublerGuard, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
+import { advanceRaiseGuard, Ctx, doublerGuard, FIVE_TWO_PREFERENCE, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -703,7 +703,7 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
   }
 
   if (bestLen >= OPEN_SUIT_LENGTH + 1) {
-    const [call, why] = place(bestSuit, ev.suit_pts[bestSuit] + PROMISE_RESPONDED_1, legal);
+    const [call, why] = place(bestSuit, ev.suit_pts[bestSuit] + rebidPromise(partner, auction), legal);
     if (call === 'Pass') return [call, why];
     if (OPENER_TWO_SUITS && mine.every(([, strain]) => strain !== bestSuit)) {
       return [call, newSuitAlert(player, auction, bestSuit)];
@@ -724,6 +724,18 @@ function openedOneOf(seat: Seat, auction: AuctionState): Suit | null {
   if (!first || first[0] !== seat) return null;
   const parsed = parseBid(first[1]);
   return parsed && parsed[0] === 1 && isSuit(parsed[1]) ? parsed[1] as Suit : null;
+}
+
+/** What partner's pre-empt promises when this hand rebids its own long suit
+ *  (the user's board, 2026-11-21: P 2♦ (2♥) 2♠ (3♦) P (3♥) 4♠, -400): a weak
+ *  two read as a one-level response pushed it to game. See ai.py. */
+export const REBID_PROMISE_PREEMPT: number | null = 1.0;
+
+function rebidPromise(partner: Seat, auction: AuctionState): number {
+  if (REBID_PROMISE_PREEMPT !== null && preemptIndex(partner, auction) !== null) {
+    return REBID_PROMISE_PREEMPT;
+  }
+  return PROMISE_RESPONDED_1;
 }
 
 /** Would this hand rebid its own six-card suit instead? Then that comes
@@ -749,10 +761,18 @@ function backToOpeningSuit(partner: Seat, auction: AuctionState, groups: Groups,
   if (!opened || pStrain === opened || !isSuit(pStrain)
     || !hb || hb[2] !== partner || hb[1] !== pStrain || auction.doubled !== 'None'
     || firstNamer(auction, pStrain) !== partner
-    || groups[opened].length < groups[pStrain as Suit].length) return null;
+    || !prefersOpened(groups, opened, pStrain as Suit)) return null;
   const call = `${hb[0]}${opened}`;
   if (!legal.includes(call)) return null;
-  return [call, `Preference: as many ${SUIT_SYM[opened]} as ${SUIT_SYM[pStrain]}.`];
+  return [call, `Preference to ${SUIT_SYM[opened]}.`];
+}
+
+/** As many cards in the opened suit as in the new one, or a doubleton
+ *  one short when a major opening promised five (gib FIVE_TWO_PREFERENCE). */
+function prefersOpened(groups: Groups, opened: Suit, next: Suit): boolean {
+  const a = groups[opened].length, b = groups[next].length;
+  if (a >= b) return true;
+  return FIVE_TWO_PREFERENCE && (opened === 'H' || opened === 'S') && a >= 2 && a + 1 >= b;
 }
 
 /** The call this hand makes, and an alert saying what it shows. */
@@ -775,6 +795,10 @@ const MAX_RE = /Fewer than (\d+) (?:HCP|points)/g;
  *  PENALTY_STRONG+ (a 2NT opening, a strong 2C). See ai.py. */
 export const PENALTY_STRONG_STOP = true;
 export const PENALTY_STRONG = 20;
+/** Trump length counts toward PENALTY_JUDGE: each trump past the length the
+ *  double needs adds this many judgement points; null leaves the count
+ *  alone. See ai.py. */
+export const PENALTY_TRUMP_JP: number | null = 4;
 
 /** Has an opponent's alert shown PENALTY_STRONG or more points? */
 function oppShownStrong(player: Seat, auction: AuctionState, alerts: Record<number, string>): boolean {
@@ -826,7 +850,8 @@ function penaltyDouble(player: Seat, hand: Card[], auction: AuctionState,
   if (PENALTY_STRONG_STOP && level < (suit === 'H' || suit === 'S' ? 4 : 5)
     && oppShownStrong(player, auction, alerts)) return null;
   const mine = new Hand(hand).judge;
-  if (mine + partnerMiddle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE) return null;
+  const extra = PENALTY_TRUMP_JP ? PENALTY_TRUMP_JP * (n - need) : 0;
+  if (mine + extra + partnerMiddle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE) return null;
   if (!doubleIsFree(auction)) return null;
   return ['X', `Penalty: ${need}+ ${SUIT_SYM[suit]}.`];
 }
@@ -1053,7 +1078,8 @@ function doubledOrBase(player: Seat, hand: Card[], auction: AuctionState,
 function baseBidExplained(player: Seat, hand: Card[], auction: AuctionState): Decision {
   const decision = systemBidExplained(player, hand, auction);
   return settingsAi.useGib
-    ? doublerGuard(player, hand, auction, jamAlert(player, hand, auction, decision))
+    ? advanceRaiseGuard(player, hand, auction,
+      doublerGuard(player, hand, auction, jamAlert(player, hand, auction, decision)))
     : decision;
 }
 

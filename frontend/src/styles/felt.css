@@ -1160,6 +1160,7 @@ button { touch-action: manipulation; }
 .bt-dd { display: grid; grid-template-columns: auto repeat(5, 1fr); align-items: center; text-align: center; font-size: 13px; }
 .bt-dd-l { text-align: left; font-size: 11px; color: var(--dim); }
 .bt-dd .best { color: var(--accent); font-weight: 800; }
+.bt-dd .bt-dd-mine { justify-self: center; padding: 0 7px; outline: 1px solid var(--accent); border-radius: 4px; }
 .bt-next { position: sticky; bottom: calc(var(--safe-bottom) + 8px); margin-top: 4px; }
 /* Four tabs: each takes what its label needs. If the counts still outgrow a
    narrow phone, the tabs scroll sideways inside the row, so the spade and the

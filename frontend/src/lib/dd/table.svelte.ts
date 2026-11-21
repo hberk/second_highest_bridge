@@ -67,12 +67,6 @@ export function parOf(t: Tricks, vulnerability: Vulnerability): Par {
   return parFromTricks((strain, side) => Math.max(...SIDES[side].map((p) => t[strain]![p])), 'N/S', vulnerability);
 }
 
-/** The better declarer's tricks for `side` in `strain`. */
-export function sideTricks(t: Tricks, strain: Strain, side: Side): number | null {
-  const row = t[strain];
-  return row ? Math.max(...SIDES[side].map((p) => row[p])) : null;
-}
-
 export class DdTable {
   tricks = $state<Tricks>({});
   running = $state(false);
