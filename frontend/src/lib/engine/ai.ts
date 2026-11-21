@@ -775,6 +775,10 @@ const MAX_RE = /Fewer than (\d+) (?:HCP|points)/g;
  *  PENALTY_STRONG+ (a 2NT opening, a strong 2C). See ai.py. */
 export const PENALTY_STRONG_STOP = true;
 export const PENALTY_STRONG = 20;
+/** Trump length counts toward PENALTY_JUDGE: each trump past the length the
+ *  double needs adds this many judgement points; null leaves the count
+ *  alone. See ai.py. */
+export const PENALTY_TRUMP_JP: number | null = null;
 
 /** Has an opponent's alert shown PENALTY_STRONG or more points? */
 function oppShownStrong(player: Seat, auction: AuctionState, alerts: Record<number, string>): boolean {
@@ -826,7 +830,8 @@ function penaltyDouble(player: Seat, hand: Card[], auction: AuctionState,
   if (PENALTY_STRONG_STOP && level < (suit === 'H' || suit === 'S' ? 4 : 5)
     && oppShownStrong(player, auction, alerts)) return null;
   const mine = new Hand(hand).judge;
-  if (mine + partnerMiddle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE) return null;
+  const extra = PENALTY_TRUMP_JP ? PENALTY_TRUMP_JP * (n - need) : 0;
+  if (mine + extra + partnerMiddle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE) return null;
   if (!doubleIsFree(auction)) return null;
   return ['X', `Penalty: ${need}+ ${SUIT_SYM[suit]}.`];
 }

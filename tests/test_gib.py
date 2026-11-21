@@ -1922,6 +1922,27 @@ def test_jam_over_partners_simple_overcall():
         gib.JAM_OVERCALL_VUL = saved
 
 
+def test_long_trumps_count_toward_the_penalty_double():
+    """The user's question, 2026-11-21: P P 1♠ (2♥) 2♠ (4♥) 4♠ (P) P, and
+    West passed with ♠AJ752: 6 JP plus 13.5 for partner's 10-17 overcall,
+    half a point short of PENALTY_JUDGE. 4♠ takes seven tricks. The fifth
+    trump now counts PENALTY_TRUMP_JP."""
+    hands = {s: hand(t) for s, t in _D30.items()}
+    saved = ai.PENALTY_TRUMP_JP
+    try:
+        for jp in (None, 4):
+            ai.PENALTY_TRUMP_JP = jp
+            auction = AuctionState(dealer='South', vulnerability='Both')
+            for call in ('Pass', 'Pass', '1S', '2H', '2S', '4H', '4S', 'Pass', 'Pass'):
+                p = auction.current_player()
+                ai.ai_bid_explained(p, hands[p], auction)
+                auction.apply_call(p, call)
+            call, why = ai.ai_bid_explained('West', hands['West'], auction)
+            assert call == ('X' if jp else 'Pass'), (jp, call, why)
+    finally:
+        ai.PENALTY_TRUMP_JP = saved
+
+
 def test_no_competing_past_the_six_level():
     """Without the jam the deal ran P P 1♠ 2♥ 2♠ 3♥ 3♠ 4♥ 4♠ 5♥ 5♠ 6♥ 6♠ 7♥:
     each side void in the other's suit counted 13 tricks. Over their bid
