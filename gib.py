@@ -5226,6 +5226,10 @@ def they_opened(ctx: Ctx) -> tuple | None:
         nt = _after_takeout_1nt(ctx)
         if nt:
             return nt
+    if TAKEOUT_NT_ADVANCE:
+        nt = _after_takeout_nt(ctx)
+        if nt:
+            return nt
     minor = _answer_minor_ask(ctx)
     if minor:
         return minor
@@ -5888,6 +5892,9 @@ def _advance(ctx: Ctx) -> tuple | None:
         nt = _takeout_1nt_advance(ctx, opening, theirs) if TAKEOUT_1NT_ADVANCE else None
         if nt:
             return nt
+        nt = _takeout_nt_jump(ctx, opening, theirs) if TAKEOUT_NT_ADVANCE else None
+        if nt:
+            return nt
         return None                                           # ai.py answers it
     ps = strain_of(p)
     if ps in SUITS and level_of(p) <= 3:
@@ -5990,14 +5997,15 @@ TAKEOUT_1NT_INVITE = 17
 TAKEOUT_1NT_GAME = 19
 
 
-def _takeout_1nt_spot(ctx: Ctx, doubler: str, extra: int) -> bool:
+def _takeout_1nt_spot(ctx: Ctx, doubler: str, extra: int, nt: str = '1NT') -> bool:
     """1x (P) (P) X (P) 1NT, or 1x X (P) 1NT, then `extra` calls since the
-    1NT, and they have bid nothing but the opening."""
+    1NT, and they have bid nothing but the opening. `nt` names another
+    notrump advance (2NT, 3NT) in its place."""
     if not _takeout_doubler(ctx, doubler):
         return False
     advancer = PARTNERS[doubler]
     k = next((i for i, (w, c) in enumerate(ctx.calls) if w == advancer and c != 'Pass'), None)
-    if k is None or ctx.calls[k][1] != '1NT' or len(ctx.calls) != k + 1 + extra:
+    if k is None or ctx.calls[k][1] != nt or len(ctx.calls) != k + 1 + extra:
         return False
     opening = next((c for _, c in ctx.calls if c != 'Pass'), '')
     their = [c for w, c in ctx.calls if w not in (doubler, advancer) and c != 'Pass']
@@ -6027,6 +6035,60 @@ def _after_takeout_1nt(ctx: Ctx) -> tuple | None:
         if (h.judge if TAKEOUT_1NT_BY_JUDGE else h.hcp) >= accept and ctx.ok('3NT'):
             return '3NT', TO_PLAY
         return 'Pass', "Declining the invitation."
+    return None
+
+
+#: (1x) X (P) 2NT and 3NT: the other notrump answers to a takeout double,
+#: which had no meaning (the trainer showed them undefined; the cheapest
+#: suit, or a jump in it, was the only answer). A balanced hand with a
+#: stopper in their suit and no four-card unbid major: 2NT on
+#: TAKEOUT_2NT_HCP invites, 3NT on TAKEOUT_3NT_HCP+ is to play. Notrump
+#: games here need NT_GAME (28) between the hands and the doubler holds 12
+#: or so, so 3NT starts at 16, not the textbook 13 (the user, 2026-11-21:
+#: "we need more to make NT games in second highest"). The doubler raises
+#: 2NT to 3NT on TAKEOUT_2NT_ACCEPT+ HCP and passes 3NT. Only over a
+#: direct double unless TAKEOUT_NT_BALANCING: a balancing double is light.
+TAKEOUT_NT_ADVANCE = True
+TAKEOUT_2NT_HCP = (11, 15)
+TAKEOUT_3NT_HCP = 16
+TAKEOUT_2NT_ACCEPT = 15
+TAKEOUT_NT_BALANCING = False
+
+
+def _takeout_nt_jump(ctx: Ctx, opening: str | None, theirs: list[str]) -> tuple | None:
+    h = ctx.h
+    if ctx.partners() != ['X'] or not opening or level_of(opening) != 1:
+        return None
+    their = strain_of(opening)
+    if their not in SUITS or theirs != [their]:
+        return None
+    if [c for w, c in ctx.calls if w not in (ctx.me, ctx.pd) and c != 'Pass'] != [opening]:
+        return None
+    k = next(i for i, (_, c) in enumerate(ctx.calls) if c != 'Pass')
+    if any(w == ctx.me for w, _ in ctx.calls[k:]) and not TAKEOUT_NT_BALANCING:
+        return None                      # 1x P P X P: I passed it once
+    if [c for w, c in ctx.calls if w == ctx.me and c != 'Pass']:
+        return None
+    if not (h.balanced and h.stopper(their)):
+        return None
+    if any(h.len[s] >= 4 for s in MAJORS if s != their):
+        return None
+    lo, hi = TAKEOUT_2NT_HCP
+    stop = f"{SYM[their]} stopper, balanced"
+    if h.hcp >= TAKEOUT_3NT_HCP and ctx.ok('3NT'):
+        return '3NT', f"{TAKEOUT_3NT_HCP}+ HCP, {stop}. To play."
+    if lo <= h.hcp <= hi and ctx.ok('2NT'):
+        return '2NT', f"{lo}-{hi} HCP, {stop}. Invites 3NT."
+    return None
+
+
+def _after_takeout_nt(ctx: Ctx) -> tuple | None:
+    if _takeout_1nt_spot(ctx, ctx.me, 1, '2NT'):
+        if ctx.h.hcp >= TAKEOUT_2NT_ACCEPT and ctx.ok('3NT'):
+            return '3NT', TO_PLAY
+        return 'Pass', "Declining the invitation."
+    if _takeout_1nt_spot(ctx, ctx.me, 1, '3NT'):
+        return 'Pass', "Partner chose the game."
     return None
 
 

@@ -380,6 +380,15 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     accepts on 10+; by HCP (3NT 19+ or 20+) scored a hair lower. It is
     rare (90 auctions in 116,000 boards) and +0.01 a board overall; letting
     a four-card minor bid 1NT too measured -0.05 (ROBOT_PROGRESS, 11-21).
+    **The jumps to 2NT and 3NT** (`gib.TAKEOUT_NT_ADVANCE`, 2026-11-21)
+    had no meaning before. Over a direct double, a balanced hand with a
+    stopper and no four-card unbid major bids 2NT on 11-15 HCP (invites)
+    and 3NT on 16+, not the textbook 13+, because notrump games need
+    `NT_GAME` between the hands here; the doubler raises 2NT on 15+ HCP
+    and passes 3NT. It hardly ever comes up (about 1 board in 3,000) and
+    is neutral: 6 seeds, 192,000 boards, -0.00 a board. Textbook ranges
+    (2NT 11-12, 3NT 13+) scored the same; allowing it after a balancing
+    double (`TAKEOUT_NT_BALANCING`) ten times as often and -0.01.
     And **the answer to a takeout double never names a suit they bid**
     (`ai.ADVANCE_NOT_THEIRS`, the user's rule): `_advance_double` left out
     only their last strain, so 1♠ P 1NT X P was answered 2♠ and doubled.

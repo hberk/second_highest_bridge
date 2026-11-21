@@ -78,6 +78,27 @@ def test_takeout_double_1nt_advance():
     assert bid(south, *invited, dealer='North')[0] == 'Pass'
 
 
+def test_takeout_double_2nt_3nt_advance():
+    # (1x) X (P) 2NT invites on 11-15 balanced with a stopper, 3NT is 16+:
+    # notrump games need 28 between the hands here (TAKEOUT_NT_ADVANCE).
+    call, why = bid('KS 6S 4S KH JH 3H AD 9D 8D QC 7C 6C 2C', '1H', 'X', 'Pass', dealer='North')
+    assert (call, why) == ('2NT', '11-15 HCP, ♥ stopper, balanced. Invites 3NT.')
+    call, why = bid('KS 6S 4S KH JH 3H AD QD 8D AC 7C 6C 2C', '1H', 'X', 'Pass', dealer='North')
+    assert (call, why) == ('3NT', '16+ HCP, ♥ stopper, balanced. To play.')
+    # A four-card spade suit, or no heart stopper, is not notrump.
+    assert bid('KS 6S 4S 3S KH JH AD 9D 8D QC 7C 6C 2C', '1H', 'X', 'Pass', dealer='North')[0] != '2NT'
+    assert bid('KS 6S 4S 5H 4H 3H AD KD 8D QC JC 6C 2C', '1H', 'X', 'Pass', dealer='North')[0] != '2NT'
+    # Not after a balancing double: the advancer passed 1♥ once already.
+    assert bid('KS 6S 4S KH JH 3H AD 9D 8D QC 7C 6C 2C', '1H', 'Pass', 'Pass', 'X', 'Pass',
+               dealer='West')[0] not in ('2NT', '3NT')
+    # The doubler raises 2NT on 15+ and passes 3NT.
+    calls = ('1H', 'X', 'Pass', '2NT', 'Pass')
+    assert bid('AS KS 7S 5S 8H AD KD 6D 2D QC 10C 9C 4C', *calls, dealer='North')[0] == '3NT'
+    assert bid('AS QS 7S 5S 8H AD JD 6D 2D KC 10C 9C 4C', *calls, dealer='North') == ('Pass', 'Declining the invitation.')
+    assert bid('AS KS 7S 5S 8H AD KD 6D 2D QC 10C 9C 4C', '1H', 'X', 'Pass', '3NT', 'Pass',
+               dealer='North')[0] == 'Pass'
+
+
 # ── Openings ──────────────────────────────────────────────────────────────────
 
 def test_openings():
