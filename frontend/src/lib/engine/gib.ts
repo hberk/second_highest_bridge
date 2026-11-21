@@ -1643,7 +1643,10 @@ export function shownSuit(seq: string[], i: number, natural = false): string | n
   }
   const first = seq[0];
   const strong = first === '2C' && !natural;
-  if (first === '1NT' || first === '2NT' || (strong && seq.length > 2 && seq[2] === '2NT')) {
+  // Systems on after 2♣ 2♦ 2NT only: after a positive answer (2♣ 2♥ 2NT, the
+  // game-forcing 2NT of GF_2NT) responder's three-level bids are natural.
+  if (first === '1NT' || first === '2NT'
+      || (strong && seq.length > 2 && seq[1] === '2D' && seq[2] === '2NT')) {
     const start = first === '1NT' || first === '2NT' ? 0 : 2;
     const base = levelOf(seq[start]);
     const code = ntCodes(base);

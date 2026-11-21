@@ -8,8 +8,8 @@ what it was measured to be worth is in
 
 ## v0.1.8-alpha (unreleased)
 
-Fifteen approved bidding changes from the Nov 19-21 boards, and the tricks
-table split by declarer.
+Thirteen approved bidding changes from the Nov 19-21 boards, one bidding fix,
+and the tricks table split by declarer.
 
 - Bidding training's recap and History show double dummy tricks a row per
   declarer, with your contract's cell boxed, so 5♣ by South reads South's
@@ -30,8 +30,10 @@ table split by declarer.
   above 9 HCP with three trumps.
 - Answering a takeout double: 1NT on 6-10 HCP with a stopper, 2NT on 11-15
   (invites) and 3NT on 16+.
-- The takeout doubler raises partner's advance only with extras (16+ HCP and
-  four trumps).
+- The takeout doubler raises partner's uncontested advance only with extras
+  (16+ HCP and four trumps, or 19+ with three).
+- Fix: after a positive answer to 2♣ and opener's 2NT, responder's
+  three-level bids are natural, not transfers (a 4♠ on a 5-1 fit became 4♥).
 - Garbage Stayman over partner's penalty double of their 1NT; your 2♣ there
   is answered as Stayman.
 - Opposite our Unusual 2NT or Michaels, advancer bids game on trumps and

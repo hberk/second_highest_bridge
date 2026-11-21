@@ -1381,6 +1381,36 @@ def test_a_game_forcing_auction_is_never_passed_below_game():
     assert (call, why) == ('2NT', gib.GF_2NT_ALERT), (call, why)
 
 
+def test_after_a_positive_answer_to_2c_the_2nt_rebid_has_no_transfers():
+    """Fresh deal 269 (seed 7M, the PR #75 review): 2♣ 2♥ 2NT, the game
+    forcing 2NT, then North's 3♥ rebid was read as a transfer to spades (the
+    systems-on reading of 2♣ 2♦ 2NT), and South bid 4♠ on a 5-1 fit. Now
+    North, with six hearts, bids 4♥ over 2NT, and a natural 3♥ is never
+    taken for spades."""
+    assert gib.shown_suit(['2C', '2H', '2NT', '3H'], 3) == 'H'
+    assert gib.shown_suit(['2C', '2D', '2NT', '3H'], 3) == 'S'    # systems on
+    north = '2S AH KH 10H 9H 8H 2H JD 8D 7D JC 10C 2C'
+    calls = ('2C', 'Pass', '2H', 'Pass', '2NT', 'Pass')
+    assert bid(north, *calls, dealer='South')[0] == '4H'
+    south = 'AS KS QS 8S 6S QH JH AD KD 9D 4D KC 8C'
+    assert bid(south, *calls, '3H', 'Pass', dealer='South')[0] != '4S'
+
+
+def test_strong_hand_raises_partners_weak_two_over_their_overcall():
+    """The user's board, 2026-11-21: 2♥ (2♠) P on ♠93 ♥AKJ ♦KJT98 ♣K73,
+    15 HCP; 6♥ makes. RAISE_PREEMPT_STRONG lets the LoTT raise a pre-empt
+    on any strength above LOTT_RAISE; off, the hand passed."""
+    south = '9S 3S AH KH JH KD JD 10D 9D 8D KC 7C 3C'
+    calls = ('2H', '2S')
+    assert bid(south, *calls) == ('3H', '3+ \u2665, competitive.')
+    old = gib.RAISE_PREEMPT_STRONG
+    try:
+        gib.RAISE_PREEMPT_STRONG = False
+        assert bid(south, *calls)[0] == 'Pass'
+    finally:
+        gib.RAISE_PREEMPT_STRONG = old
+
+
 def test_a_double_of_an_artificial_bid_directs_the_lead():
     """The user's call, 2026-10-28 (Bidding training): P P P 2♣ P 2♦ X with
     ♦KJT97 is lead-directing, not takeout -- 5+ cards and 4+ judgement points

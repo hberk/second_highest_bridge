@@ -1806,7 +1806,10 @@ def shown_suit(seq: list[str], i: int, natural: bool = False) -> str | None:
         return None
     first = seq[0]
     strong = first == '2C' and not natural
-    if first in ('1NT', '2NT') or (strong and len(seq) > 2 and seq[2] == '2NT'):
+    # Systems on after 2♣ 2♦ 2NT only: after a positive answer (2♣ 2♥ 2NT, the
+    # game-forcing 2NT of GF_2NT) responder's three-level bids are natural.
+    if first in ('1NT', '2NT') or (strong and len(seq) > 2 and seq[1] == '2D'
+                                   and seq[2] == '2NT'):
         start = 0 if first in ('1NT', '2NT') else 2
         base = level_of(seq[start])
         code = _nt_codes(base)

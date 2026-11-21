@@ -1040,8 +1040,9 @@ def _back_to_opening_suit(partner: str, auction: AuctionState, groups: dict,
 
 
 def _prefers_opened(groups: dict, opened: str, new: str) -> bool:
-    """As many cards in the opened suit as in the new one, or a doubleton
-    one short when a major opening promised five (gib.FIVE_TWO_PREFERENCE)."""
+    """As many cards in the opened suit as in the new one, or (a doubleton or
+    more) one card short when a major opening promised five
+    (gib.FIVE_TWO_PREFERENCE)."""
     a, b = len(groups[opened]), len(groups[new])
     if a >= b:
         return True
