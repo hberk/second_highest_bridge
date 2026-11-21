@@ -2351,3 +2351,28 @@ def test_pass_out_seat_competes_only_with_five_trumps_and_values():
     four = 'KS JS AH 9H 3H 10D 7D 6D 4D 9C 8C 2C 5S'    # four diamonds: no
     call, _ = bid(four, '1D', 'Pass', '2D', '2S', 'Pass', 'Pass', dealer='West')
     assert call != '3D', call
+
+
+# ── The takeout doubler after partner's advance (ADVANCE_RAISE_HCP) ───────────
+
+def test_minimum_doubler_does_not_raise_the_advance():
+    """P P P 1♦ P P X P 1♠ P: the passed hand's balancing double, 9 HCP and
+    three spades, raised to 2♠ with a responder's "6+ points. Limited." alert,
+    as if partner had opened (the user's training deal 136, 2026-11-21)."""
+    north = 'QS 3S 2S AH QH 6H 3H 8D 2D JC 8C 7C 4C'
+    call, why = bid(north, 'Pass', 'Pass', 'Pass', '1D', 'Pass', 'Pass', 'X', 'Pass',
+                    '1S', 'Pass', dealer='South')
+    assert call == 'Pass', (call, why)
+
+
+def test_strong_doubler_raises_the_advance_with_the_doubler_alert():
+    east = 'KS QS 5S 4S AH KH 6H 3H 4D AC 9C 7C 3C'     # 16 HCP, four spades
+    call, why = bid(east, '1D', 'X', 'Pass', '1S', 'Pass')
+    assert call[-1] == 'S' and why == '3+ ♠ support, 16+ HCP. Extras after the double.', (call, why)
+    assert 'Limited' not in why
+
+
+def test_doubler_cuebid_of_their_suit_is_alerted_as_a_cuebid():
+    west = 'KS AH QH 5H KD QD 7D 2D AC QC JC 6C 5C'     # 21 HCP
+    call, why = bid(west, '1C', 'X', 'Pass', '1S', 'Pass', dealer='South')
+    assert call == '2C' and why == 'Cuebid: 18+ HCP, a strong hand.', (call, why)

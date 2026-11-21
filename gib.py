@@ -5519,6 +5519,57 @@ def doubler_guard(player: str, cards: list[Card], auction: AuctionState,
     return 'Pass', "Doubled: a new suit would show 18+."
 
 
+#: The takeout doubler raising partner's advance, (1x) X (P) 1y (P) 2y: the
+#: fallback's responder code read the advance as an opening and raised on
+#: three trumps and 6+ points, alerting a responder's "Limited." raise (the
+#: user's training deal 136, 2026-11-21: a passed hand's balancing double,
+#: 9 HCP, raised 1S to 2S). The double already promised the support; a raise
+#: shows extras: ADVANCE_RAISE_LEN+ trumps and ADVANCE_RAISE_HCP+ HCP, or three
+#: with ADVANCE_RAISE_3_HCP+. Else the doubler passes. None: off.
+ADVANCE_RAISE_HCP: int | None = 16
+ADVANCE_RAISE_LEN = 4
+ADVANCE_RAISE_3_HCP = 19
+
+
+def _advance_raise_alert(call: str) -> str:
+    s = strain_of(call)
+    return f"3+ {SYM[s]} support, {ADVANCE_RAISE_HCP}+ HCP. Extras after the double."
+
+
+def advance_raise_guard(player: str, cards: list[Card], auction: AuctionState,
+                        decision: tuple) -> tuple:
+    """A takeout doubler's raise of partner's advance shows extras, whichever
+    branch chose it, and its alert says so; a hand without them passes."""
+    if ADVANCE_RAISE_HCP is None:
+        return decision
+    ctx = Ctx(player, cards, auction)
+    s = strain_of(decision[0])
+    partners = ctx.partners()
+    if (s not in SUITS or ctx.mine() != ['X'] or not _takeout_doubler(ctx, player)
+            or len(partners) != 1 or strain_of(partners[0]) in _their_suits(ctx)):
+        return decision
+    if s in _their_suits(ctx) and s != strain_of(partners[0]):
+        # Their suit after partner's advance is the doubler's cuebid, not a
+        # suit: the fallback alerted it as a free bid, "5+ ♣, 8+ points".
+        if ctx.h.hcp >= DOUBLER_SUIT_HCP:
+            return decision[0], f"Cuebid: {DOUBLER_SUIT_HCP}+ HCP, a strong hand."
+        return 'Pass', "Doubled: a cuebid would show 18+."
+    if strain_of(partners[0]) != s or s in _their_suits(ctx):
+        return decision
+    # In competition (a redouble, or they bid after the double) the raise is a
+    # competitive one and stays: restricting it there measured -0.09 a board.
+    at = next(i for i, (w, c) in enumerate(ctx.calls) if w == player and c == 'X')
+    if any(w not in (player, ctx.pd) and c != 'Pass' for w, c in ctx.calls[at + 1:]):
+        if decision[1].endswith('points. Limited.'):
+            return decision[0], decision[1].replace('Limited.', 'Competing after the double.')
+        return decision
+    h = ctx.h
+    if ((h.len[s] >= ADVANCE_RAISE_LEN and h.hcp >= ADVANCE_RAISE_HCP)
+            or (h.len[s] >= 3 and h.hcp >= ADVANCE_RAISE_3_HCP)):
+        return decision[0], _advance_raise_alert(decision[0])
+    return 'Pass', "Minimum double: no raise of the advance."
+
+
 def _defend_was_weak(ctx: Ctx, call: str) -> bool:
     """Was my first call a weak jump overcall? It has said everything."""
     first_their = next((c for w, c in ctx.calls if c != 'Pass'), None)

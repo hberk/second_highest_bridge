@@ -1523,7 +1523,8 @@ def _doubled_or_base(player: str, hand: list[Card], auction: AuctionState,
 def _ai_bid_explained(player: str, hand: list[Card], auction: AuctionState) -> tuple:
     if USE_GIB:
         decision = gib.jam_alert(player, hand, auction, _base_bid_explained(player, hand, auction))
-        return gib.doubler_guard(player, hand, auction, decision)
+        decision = gib.doubler_guard(player, hand, auction, decision)
+        return gib.advance_raise_guard(player, hand, auction, decision)
     return _base_bid_explained(player, hand, auction)
 
 

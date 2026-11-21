@@ -4947,6 +4947,47 @@ export function doublerGuard(player: Seat, cards: Card[], auction: AuctionState,
   return ['Pass', 'Doubled: a new suit would show 18+.'];
 }
 
+// The takeout doubler raising partner's advance shows extras (see gib.py,
+// ADVANCE_RAISE_HCP): the user's training deal 136, 2026-11-21.
+const ADVANCE_RAISE_HCP: number | null = 16;
+const ADVANCE_RAISE_LEN = 4;
+const ADVANCE_RAISE_3_HCP = 19;
+
+function advanceRaiseAlert(call: string): string {
+  return `3+ ${SYM[strainOf(call) as Suit]} support, ${ADVANCE_RAISE_HCP}+ HCP. Extras after the double.`;
+}
+
+export function advanceRaiseGuard(player: Seat, cards: Card[], auction: AuctionState,
+  decision: Decision): Decision {
+  if (ADVANCE_RAISE_HCP === null) return decision;
+  const ctx = new Ctx(player, cards, auction);
+  const s = strainOf(decision[0]);
+  const mine = ctx.mine();
+  const partners = ctx.partners();
+  if (!isSuit(s) || mine.length !== 1 || mine[0] !== 'X' || !takeoutDoubler(ctx, player)
+    || partners.length !== 1 || theirSuits(ctx).includes(strainOf(partners[0]) as Suit)) return decision;
+  if (theirSuits(ctx).includes(s) && s !== strainOf(partners[0])) {
+    // The doubler's cuebid of their suit after partner's advance (see gib.py).
+    return ctx.h.hcp >= DOUBLER_SUIT_HCP
+      ? [decision[0], `Cuebid: ${DOUBLER_SUIT_HCP}+ HCP, a strong hand.`]
+      : ['Pass', 'Doubled: a cuebid would show 18+.'];
+  }
+  if (strainOf(partners[0]) !== s || theirSuits(ctx).includes(s)) return decision;
+  // In competition the raise is a competitive one and stays (see gib.py).
+  const at = ctx.calls.findIndex(([w, c]) => w === player && c === 'X');
+  if (ctx.calls.slice(at + 1).some(([w, c]) => w !== player && w !== ctx.pd && c !== 'Pass')) {
+    return decision[1].endsWith('points. Limited.')
+      ? [decision[0], decision[1].replace('Limited.', 'Competing after the double.')]
+      : decision;
+  }
+  const h = ctx.h;
+  if ((h.len[s] >= ADVANCE_RAISE_LEN && h.hcp >= ADVANCE_RAISE_HCP)
+    || (h.len[s] >= 3 && h.hcp >= ADVANCE_RAISE_3_HCP)) {
+    return [decision[0], advanceRaiseAlert(decision[0])];
+  }
+  return ['Pass', 'Minimum double: no raise of the advance.'];
+}
+
 function defendWasWeak(ctx: Ctx, call: string): boolean {
   const firstTheir = ctx.calls.find(([, c]) => c !== 'Pass');
   if (!firstTheir || !isSuit(strainOf(call))) return false;
