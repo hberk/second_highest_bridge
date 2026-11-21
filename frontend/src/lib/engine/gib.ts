@@ -4684,6 +4684,10 @@ function theyOpened(ctx: Ctx): Decision | null {
       if (decision) return decision;
     }
   }
+  if (TAKEOUT_1NT_ADVANCE) {
+    const nt = afterTakeout1nt(ctx);
+    if (nt) return nt;
+  }
   const minor = answerMinorAsk(ctx);
   if (minor) return minor;
   const relay = answerRelay(ctx);
@@ -5274,6 +5278,8 @@ function advance(ctx: Ctx): Decision | null {
       }
       return ['Pass', 'Not forced after their bid.'];
     }
+    const nt = TAKEOUT_1NT_ADVANCE ? takeout1ntAdvance(ctx, opening, theirs) : null;
+    if (nt) return nt;
     return null;
   }
   const ps = strainOf(p);
@@ -5312,6 +5318,75 @@ function advance(ctx: Ctx): Decision | null {
       }
     }
     return ['Pass', 'Nothing to add.'];
+  }
+  return null;
+}
+
+/** (1x) X (P) 1NT: a stopper in their suit and no suit worth naming. The
+ *  cheapest-suit answer named a three-card suit as if it were four. The
+ *  user's board (2026-11-21): 1♥ P P X P 1♠ on ♠964 ♥J632 ♦K98 ♣A76 went
+ *  2♠ doubled -300 on a 4-3 fit; 1NT makes. TAKEOUT_1NT_HCP high-card
+ *  points, a stopper, no four-card unbid major, no five-card unbid suit and
+ *  no four-card suit to name below 1NT. False keeps the suit answer. */
+export const TAKEOUT_1NT_ADVANCE = true;
+export const TAKEOUT_1NT_HCP: [number, number] = [6, 10];
+/** Only when every unbid suit is three cards or fewer: the hand that would
+ *  otherwise name a three-card suit. False allows a four-card minor too. */
+export const TAKEOUT_1NT_ONLY_THREE = false;
+
+function takeout1ntAdvance(ctx: Ctx, opening: string | null | undefined, theirs: string[]): Decision | null {
+  const h = ctx.h;
+  const partners = ctx.partners();
+  if (partners.length !== 1 || partners[0] !== 'X' || !opening || levelOf(opening) !== 1 || !ctx.ok('1NT')) return null;
+  const their = strainOf(opening);
+  if (!isSuit(their) || theirs.length !== 1 || theirs[0] !== their) return null;
+  const bids = ctx.calls.filter(([w, c]) => w !== ctx.me && w !== ctx.pd && c !== 'Pass');
+  if (bids.length !== 1 || bids[0][1] !== opening) return null;
+  if (ctx.calls.some(([w, c]) => w === ctx.me && c !== 'Pass')) return null;
+  const [lo, hi] = TAKEOUT_1NT_HCP;
+  if (!(lo <= h.hcp && h.hcp <= hi && h.stopper(their))) return null;
+  const unbid = SUITS.filter((s) => s !== their);
+  if (unbid.some((s) => isMajor(s) && h.len[s] >= 4)) return null;
+  if (unbid.some((s) => h.len[s] >= 5)) return null;
+  if (unbid.some((s) => h.len[s] >= 4 && idx(s) > idx(their))) return null;   // 1♣ X P 1♦: a real suit, at the one level
+  if (TAKEOUT_1NT_ONLY_THREE && unbid.some((s) => h.len[s] >= 4)) return null;
+  if (isMajor(their)) {
+    const other = their === 'H' ? 'S' : 'H';
+    return ['1NT', `${lo}-${hi} HCP, ${SYM[their]} stopper, at most 3 ${SYM[other]}.`];
+  }
+  return ['1NT', `${lo}-${hi} HCP, ${SYM[their]} stopper, no 4-card major.`];
+}
+
+/** ...and what follows it, while they pass: the doubler raises to 3NT on
+ *  TAKEOUT_1NT_GAME+ HCP, invites with 2NT on TAKEOUT_1NT_INVITE+, else
+ *  passes; the advancer accepts the invitation with 9-10. */
+export const TAKEOUT_1NT_INVITE = 17;
+export const TAKEOUT_1NT_GAME = 19;
+
+/** 1x (P) (P) X (P) 1NT, or 1x X (P) 1NT, then `extra` calls since the
+ *  1NT, and they have bid nothing but the opening. */
+function takeout1ntSpot(ctx: Ctx, doubler: Seat, extra: number): boolean {
+  if (!takeoutDoubler(ctx, doubler)) return false;
+  const advancer = PARTNERS[doubler];
+  const k = ctx.calls.findIndex(([w, c]) => w === advancer && c !== 'Pass');
+  if (k < 0 || ctx.calls[k][1] !== '1NT' || ctx.calls.length !== k + 1 + extra) return false;
+  const opening = ctx.calls.find(([, c]) => c !== 'Pass')?.[1] ?? '';
+  const their = ctx.calls.filter(([w, c]) => w !== doubler && w !== advancer && c !== 'Pass').map(([, c]) => c);
+  const ours = ctx.calls.slice(0, k).filter(([w, c]) => (w === doubler || w === advancer) && c !== 'Pass').map(([, c]) => c);
+  return levelOf(opening) === 1 && their.length === 1 && their[0] === opening && ours.length === 1 && ours[0] === 'X';
+}
+
+function afterTakeout1nt(ctx: Ctx): Decision | null {
+  const h = ctx.h;
+  if (takeout1ntSpot(ctx, ctx.me, 1)) {
+    if (h.hcp >= TAKEOUT_1NT_GAME && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+    if (h.hcp >= TAKEOUT_1NT_INVITE && ctx.ok('2NT')) return ['2NT', `${TAKEOUT_1NT_INVITE}-${TAKEOUT_1NT_GAME - 1} HCP. Invites 3NT.`];
+    return ['Pass', 'No game opposite 6-10.'];
+  }
+  const prev = ctx.calls[ctx.calls.length - 2];
+  if (takeout1ntSpot(ctx, ctx.pd, 3) && prev[1] === '2NT' && prev[0] === ctx.pd) {
+    if (h.hcp >= TAKEOUT_1NT_HCP[1] - 1 && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+    return ['Pass', 'Declining the invitation.'];
   }
   return null;
 }

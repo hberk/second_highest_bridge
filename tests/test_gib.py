@@ -46,6 +46,32 @@ def test_minor_preference_needs_four():
     assert bid('4S AH QH JH 10H 5H 5D 4D 3D KC 7C 5C 2C', *calls, dealer='South')[0] == '2D'
 
 
+def test_takeout_double_1nt_advance():
+    # The user's board (2026-11-21): 1♥ P P X P on ♠964 ♥J632 ♦K98 ♣A76
+    # answers 1NT, not 1♠ on three spades.
+    south = '9S 6S 4S JH 6H 3H 2H KD 9D 8D AC 7C 6C'
+    call, why = bid(south, '1H', 'Pass', 'Pass', 'X', 'Pass', dealer='East')
+    assert (call, why) == ('1NT', '6-10 HCP, ♥ stopper, at most 3 ♠.')
+    assert bid(south, '1H', 'X', 'Pass', dealer='North')[0] == '1NT'
+    # Four spades, five diamonds or no stopper still name a suit.
+    assert bid('9S 6S 4S 3S JH 6H 3H KD 9D 8D AC 7C 6C', '1H', 'X', 'Pass', dealer='North')[0] == '1S'
+    assert bid('9S QH 6H 3H 2H KD 9D 8D 5D 4D AC 7C 6C', '1H', 'X', 'Pass', dealer='North')[0] != '1NT'
+    assert bid('9S 6S 4S 10H 6H 3H 2H KD 9D 8D AC 7C 6C', '1H', 'X', 'Pass', dealer='North')[0] != '1NT'
+    # Over a minor, a four-card suit at the one level is named first.
+    assert bid('9S 6S 4S 6H 3H 2H KD 9D 8D 5D AC QC 6C', '1C', 'X', 'Pass', dealer='North')[0] in ('1D', '2D')
+    call, why = bid('9S 6S 4S 6H 3H 2H KD 9D 8D AC QC 7C 6C', '1C', 'X', 'Pass', dealer='North')
+    assert (call, why) == ('1NT', '6-10 HCP, ♣ stopper, no 4-card major.')
+    # The doubler: game on 19+, an invitation on 17-18, else pass.
+    calls = ('1H', 'X', 'Pass', '1NT', 'Pass')
+    assert bid('AS KS 7S 5S 8H AD KD 6D 2D KC QC 10C 9C', *calls, dealer='North')[0] == '3NT'
+    assert bid('AS KS 7S 5S 8H AD KD 6D 2D KC JC 10C 9C', *calls, dealer='North')[0] == '2NT'
+    assert bid('AS QS 7S 5S 8H AD JD 6D 2D KC JC 10C 9C', *calls, dealer='North')[0] == 'Pass'
+    # The advancer accepts with 9-10.
+    invited = calls + ('2NT', 'Pass')
+    assert bid('9S 6S 4S QH 6H 3H 2H KD 9D 8D AC 7C 6C', *invited, dealer='North')[0] == '3NT'
+    assert bid(south, *invited, dealer='North')[0] == 'Pass'
+
+
 # ── Openings ──────────────────────────────────────────────────────────────────
 
 def test_openings():

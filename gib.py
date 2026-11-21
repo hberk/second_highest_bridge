@@ -5222,6 +5222,10 @@ def they_opened(ctx: Ctx) -> tuple | None:
             decision = _doubler_new_suit(ctx)
             if decision:
                 return decision
+    if TAKEOUT_1NT_ADVANCE:
+        nt = _after_takeout_1nt(ctx)
+        if nt:
+            return nt
     minor = _answer_minor_ask(ctx)
     if minor:
         return minor
@@ -5881,6 +5885,9 @@ def _advance(ctx: Ctx) -> tuple | None:
                     if call and level_of(call) <= 3:
                         return call, f"4+ {SYM[s]}, 6+ HCP. Free advance."
             return 'Pass', "Not forced after their bid."
+        nt = _takeout_1nt_advance(ctx, opening, theirs) if TAKEOUT_1NT_ADVANCE else None
+        if nt:
+            return nt
         return None                                           # ai.py answers it
     ps = strain_of(p)
     if ps in SUITS and level_of(p) <= 3:
@@ -5920,6 +5927,87 @@ def _advance(ctx: Ctx) -> tuple | None:
                 if call and level_of(call) <= 2:
                     return call, f"5+ {SYM[s]}, 8+ HCP."
         return 'Pass', "Nothing to add."
+    return None
+
+
+#: (1x) X (P) 1NT: a stopper in their suit and no suit worth naming. The
+#: cheapest-suit answer named a three-card suit as if it were four. The
+#: user's board (2026-11-21): 1♥ P P X P 1♠ on ♠964 ♥J632 ♦K98 ♣A76 went
+#: 2♠ doubled -300 on a 4-3 fit; 1NT makes. TAKEOUT_1NT_HCP high-card
+#: points, a stopper, no four-card unbid major, no five-card unbid suit and
+#: no four-card suit to name below 1NT. False keeps the suit answer.
+TAKEOUT_1NT_ADVANCE = True
+TAKEOUT_1NT_HCP = (6, 10)
+#: Only when every unbid suit is three cards or fewer: the hand that would
+#: otherwise name a three-card suit. False allows a four-card minor too.
+TAKEOUT_1NT_ONLY_THREE = False
+
+
+def _takeout_1nt_advance(ctx: Ctx, opening: str | None, theirs: list[str]) -> tuple | None:
+    h = ctx.h
+    if (ctx.partners() != ['X'] or not opening or level_of(opening) != 1
+            or not ctx.ok('1NT')):
+        return None
+    their = strain_of(opening)
+    if their not in SUITS or theirs != [their]:
+        return None
+    if [c for w, c in ctx.calls if w not in (ctx.me, ctx.pd) and c != 'Pass'] != [opening]:
+        return None
+    if [c for w, c in ctx.calls if w == ctx.me and c != 'Pass']:
+        return None
+    lo, hi = TAKEOUT_1NT_HCP
+    if not (lo <= h.hcp <= hi and h.stopper(their)):
+        return None
+    unbid = [s for s in SUITS if s != their]
+    if any(h.len[s] >= 4 for s in unbid if s in MAJORS):
+        return None
+    if any(h.len[s] >= 5 for s in unbid):
+        return None
+    if any(h.len[s] >= 4 and SUITS.index(s) > SUITS.index(their) for s in unbid):
+        return None                      # 1♣ X P 1♦: a real suit, at the one level
+    if TAKEOUT_1NT_ONLY_THREE and any(h.len[s] >= 4 for s in unbid):
+        return None
+    if their in MAJORS:
+        other = 'S' if their == 'H' else 'H'
+        return '1NT', f"{lo}-{hi} HCP, {SYM[their]} stopper, at most 3 {SYM[other]}."
+    return '1NT', f"{lo}-{hi} HCP, {SYM[their]} stopper, no 4-card major."
+
+
+#: ...and what follows it, while they pass: the doubler raises to 3NT on
+#: TAKEOUT_1NT_GAME+ HCP, invites with 2NT on TAKEOUT_1NT_INVITE+, else
+#: passes; the advancer accepts the invitation with 9-10.
+TAKEOUT_1NT_INVITE = 17
+TAKEOUT_1NT_GAME = 19
+
+
+def _takeout_1nt_spot(ctx: Ctx, doubler: str, extra: int) -> bool:
+    """1x (P) (P) X (P) 1NT, or 1x X (P) 1NT, then `extra` calls since the
+    1NT, and they have bid nothing but the opening."""
+    if not _takeout_doubler(ctx, doubler):
+        return False
+    advancer = PARTNERS[doubler]
+    k = next((i for i, (w, c) in enumerate(ctx.calls) if w == advancer and c != 'Pass'), None)
+    if k is None or ctx.calls[k][1] != '1NT' or len(ctx.calls) != k + 1 + extra:
+        return False
+    opening = next((c for _, c in ctx.calls if c != 'Pass'), '')
+    their = [c for w, c in ctx.calls if w not in (doubler, advancer) and c != 'Pass']
+    ours = [c for w, c in ctx.calls[:k] if w in (doubler, advancer) and c != 'Pass']
+    return level_of(opening) == 1 and their == [opening] and ours == ['X']
+
+
+def _after_takeout_1nt(ctx: Ctx) -> tuple | None:
+    h = ctx.h
+    if _takeout_1nt_spot(ctx, ctx.me, 1):
+        if h.hcp >= TAKEOUT_1NT_GAME and ctx.ok('3NT'):
+            return '3NT', TO_PLAY
+        if h.hcp >= TAKEOUT_1NT_INVITE and ctx.ok('2NT'):
+            return '2NT', f"{TAKEOUT_1NT_INVITE}-{TAKEOUT_1NT_GAME - 1} HCP. Invites 3NT."
+        return 'Pass', "No game opposite 6-10."
+    if (_takeout_1nt_spot(ctx, ctx.pd, 3) and ctx.calls[-2][1] == '2NT'
+            and ctx.calls[-2][0] == ctx.pd):
+        if h.hcp >= TAKEOUT_1NT_HCP[1] - 1 and ctx.ok('3NT'):
+            return '3NT', TO_PLAY
+        return 'Pass', "Declining the invitation."
     return None
 
 
