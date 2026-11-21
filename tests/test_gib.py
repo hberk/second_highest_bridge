@@ -371,6 +371,44 @@ def test_negative_doubler_gives_preference_to_openers_first_suit():
     assert bid(west, '1S', '2C', 'X', 'Pass', '2D', 'Pass', '2S', 'Pass', dealer='West')[0] == 'Pass'
 
 
+def test_advancer_goes_back_to_partners_first_suit():
+    """The user's training board (2026-11-21): (2S) 3H (4S) P (P) 5D (X).
+    North, four hearts and one diamond, passed 5D doubled (-500); the first
+    suit is the longer or as long, so equal or more length goes back to it."""
+    north = '9S 9H 8H 7H 3H AD KC QC 9C 8C 7C 4C 3C'
+    calls = ('2S', '3H', '4S', 'Pass', 'Pass', '5D', 'X')
+    assert bid(north, *calls, dealer='East') == ('5H', "Preference to \u2665, partner's first suit.")
+    assert bid(north, *calls[:-1], 'Pass', dealer='East')[0] == '5H'
+    # Over 4S itself North still passes: no new rule pushes the five level.
+    assert bid(north, *calls[:3], dealer='East')[0] == 'Pass'
+    # Equal length goes back at the same level...
+    calls = ('1C', '1S', '2C', 'Pass', 'Pass', '2H', 'Pass')
+    assert bid('QS 3S 2S KH 5H 4H JD 4D 3D 2D 6C 5C 4C', *calls, dealer='East')[0] == '2S'
+    # ...longer in the second suit passes.
+    assert bid('QS 2S KH 5H 4H 3H JD 4D 3D 2D 6C 5C 4C', *calls, dealer='East')[0] == 'Pass'
+
+
+def test_five_two_preference_over_four_three():
+    """The user's training board (2026-11-21): P 1H P 1S P 2D P P P on
+    QJ976 K8 AJT 542 opposite 2 AQJT6 K654 KT9: 2D took three tricks, 2H
+    five. A 5-2 fit plays better than a 4-3, so a doubleton in the five-card
+    first suit goes back to it with three of the second."""
+    calls = ('Pass', '1H', 'Pass', '1S', 'Pass', '2D', 'Pass')
+    south = 'QS JS 9S 7S 6S KH 8H AD JD 10D 5C 4C 2C'
+    assert bid(south, *calls, dealer='South') == ('2H', 'Preference to \u2665.')
+    # Four diamonds: the 4-4 fit is the bigger one, pass.
+    assert bid('QS JS 9S 7S 6S 8H AD JD 10D 2D 5C 4C 2C', *calls, dealer='South')[0] == 'Pass'
+    # A singleton heart is not a fit.
+    assert bid('QS JS 9S 7S 6S 8H AD JD 10D 6C 5C 4C 2C', *calls, dealer='South')[0] == 'Pass'
+    # 1S 1NT 2D: a doubleton spade and three diamonds give preference too.
+    calls = ('1S', 'Pass', '1NT', 'Pass', '2D', 'Pass')
+    assert bid('5S 4S KH 8H 7H 6H AD JD 10D 6C 5C 4C 2C', *calls)[0] == '2S'
+    # A minor opening promised no five: 1D 1S 2C with two diamonds and three
+    # clubs still passes.
+    calls = ('1D', 'Pass', '1S', 'Pass', '2C', 'Pass')
+    assert bid('QS JS 9S 7S 6S 8H 7H 6H JD 2D 5C 4C 2C', *calls)[0] != '2D'
+
+
 def test_negative_doubler_and_opener_raise_the_longest_fit():
     """The user's call (2026-11-09): after 1x (y) X (P) 2z (P) the doubler
     with 11+ and an eight-card fit in opener's suits invites at 3 (game on

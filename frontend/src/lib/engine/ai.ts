@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { Ctx, doublerGuard, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
+import { Ctx, doublerGuard, FIVE_TWO_PREFERENCE, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -761,10 +761,18 @@ function backToOpeningSuit(partner: Seat, auction: AuctionState, groups: Groups,
   if (!opened || pStrain === opened || !isSuit(pStrain)
     || !hb || hb[2] !== partner || hb[1] !== pStrain || auction.doubled !== 'None'
     || firstNamer(auction, pStrain) !== partner
-    || groups[opened].length < groups[pStrain as Suit].length) return null;
+    || !prefersOpened(groups, opened, pStrain as Suit)) return null;
   const call = `${hb[0]}${opened}`;
   if (!legal.includes(call)) return null;
-  return [call, `Preference: as many ${SUIT_SYM[opened]} as ${SUIT_SYM[pStrain]}.`];
+  return [call, `Preference to ${SUIT_SYM[opened]}.`];
+}
+
+/** As many cards in the opened suit as in the new one, or a doubleton
+ *  one short when a major opening promised five (gib FIVE_TWO_PREFERENCE). */
+function prefersOpened(groups: Groups, opened: Suit, next: Suit): boolean {
+  const a = groups[opened].length, b = groups[next].length;
+  if (a >= b) return true;
+  return FIVE_TWO_PREFERENCE && (opened === 'H' || opened === 'S') && a >= 2 && a + 1 >= b;
 }
 
 /** The call this hand makes, and an alert saying what it shows. */

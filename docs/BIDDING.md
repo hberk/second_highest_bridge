@@ -160,6 +160,20 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   10,000 each: see ROBOT_PROGRESS. Over their double it cost 0.07 a board
   (the robots' takeout double runs into a penalty double; opener raised one
   preference to a doubled 4♥), so a doubled new suit is left alone.
+- **Back to partner's first suit** (`gib.BACK_TO_FIRST`, `_back_to_first_suit`;
+  the user's board, 2026-11-21: (2♠) 3♥ (4♠) P (P) 5♦ (X) passed out at -500
+  on ♠9 ♥9873 ♦A ♣KQ98743). `_advance` read only partner's first call, so
+  a second suit was never seen. Partner opened one of a suit or overcalled
+  (3 level or lower), then bid a new suit, and I have not bid: the first
+  suit at the same level when it is the bigger fit (`_prefers_first`), also
+  over their double. Never a level higher. Robots never bid a second suit
+  there, so it plays only opposite a human (0 changes in 40,000 boards).
+- **5-2 over 4-3** (`gib.FIVE_TWO_PREFERENCE`, `_prefers_first`,
+  `ai._prefers_opened`; the user's board, 2026-11-21: P 1♥ P 1♠ P 2♦ passed
+  out on ♠QJ976 ♥K8 ♦AJT ♣542, 2♦ three tricks, 2♥ five). A first suit
+  that promised five (a major opening, any overcall) against a second that
+  promised four: a doubleton or more one short of the second goes back to
+  the first. Seeds 7M-9M, 3,000 each: +0.08, +0.14, +0.10 (ROBOT_PROGRESS).
 - **Preference after a negative double** (`NEG_PREFERENCE`,
   `_negative_doubler_preference`, `_preference_stands`; the user's board,
   2026-11-09: P 1♦ (1♠) X (P) 2♣ passed out on ♠AQ875 ♥9432 ♦AK4 ♣J).

@@ -404,7 +404,7 @@ def _decide(ctx: Ctx) -> tuple | None:
         if not ctx.seq:
             return opening(ctx)
         return uncontested(ctx)
-    decision = _contested_raise_game(ctx) or contested(ctx)
+    decision = _contested_raise_game(ctx) or _back_to_first_suit(ctx) or contested(ctx)
     if decision is None and _owns(ctx):
         decision = continuation(ctx)
     return decision
@@ -1166,13 +1166,31 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
             return f"2{y}", f"6+ {SYM[y]}, to play."
         if h.len[z] >= 4 and ol == 2:
             return 'Pass', "Happy in opener's second suit."
-        if (h.len[x] >= 2 and ctx.ok(f"2{x}") and h.len[x] >= h.len[z]
+        if (h.len[x] >= 2 and ctx.ok(f"2{x}") and _prefers_first(h, x, z, x in MAJORS)
                 and not _thin_minor_preference(ctx, x, ol)):
             return f"2{x}", f"Preference to {SYM[x]}."
         if ol == 1 and ctx.ok('1NT'):
             return '1NT', "Minimum."
         return 'Pass', "No game."
     return None
+
+
+#: Partner's first suit promised five, the second four: the first is the
+#: bigger fit whenever my length in it is at most one short of the second
+#: (the user's call, 2026-11-21, on a training board: P 1♥ P 1♠ P 2♦ P P P
+#: on ♠QJ976 ♥K8 ♦AJT ♣542 opposite ♠2 ♥AQJT6 ♦K654 ♣KT9, "5-2 plays
+#: better than 4-3"; 2♦ took three tricks, 2♥ five). Off, the first suit
+#: needed as many cards as the second.
+FIVE_TWO_PREFERENCE = True
+
+
+def _prefers_first(h: Hand, a: str, b: str, five: bool) -> bool:
+    """Back to partner's first suit a over the second suit b: as long or
+    longer in a, or, when a promised five (`five`) and b four, a doubleton
+    or more in a and one card fewer than in b: the fit in a is as big."""
+    if h.len[a] >= h.len[b]:
+        return True
+    return FIVE_TWO_PREFERENCE and five and h.len[a] >= 2 and h.len[a] + 1 >= h.len[b]
 
 
 #: 1m-1y-1z: responder's 2m preference needs four cards, or three with a side
@@ -1228,7 +1246,7 @@ def _after_1nt_response(ctx: Ctx, x: str, o: str, lo: int, hi: int) -> tuple:
         return f"3{x}", f"3+ {SYM[x]} support, 10-11 HCP. Limit raise."
     if os_ == x:
         return 'Pass', "No game."
-    if x in MAJORS and h.len[x] >= 2 and h.len[x] >= h.len[os_] and ctx.ok(f"2{x}"):
+    if x in MAJORS and h.len[x] >= 2 and _prefers_first(h, x, os_, True) and ctx.ok(f"2{x}"):
         return f"2{x}", f"Preference to {SYM[x]}."
     need = MINOR_RAISE_LEN.get(os_)
     if (MINOR_RAISE and need and x in MAJORS and h.len[os_] >= need
@@ -3077,6 +3095,50 @@ def _forcing(ctx: Ctx, call: str) -> bool:
 
 
 # ── Contested auctions ────────────────────────────────────────────────────────
+
+#: Partner bid two suits and I have not bid: with as many cards in the first
+#: suit as in the second, or more, go back to the first at the same level
+#: (the user's call, 2026-11-21, on a training board: (2♠) 3♥ (4♠) P (P) 5♦
+#: (X) passed out on ♠9 ♥9873 ♦A ♣KQ98743, -500, with four hearts opposite
+#: five). The first suit is the longer or as long, so equal length goes back
+#: too. There was no rule here: `_advance` read only partner's first call,
+#: so the second suit was never seen. Only the same level, never a level
+#: higher: a preference that raises the contract is a decision this rule
+#: does not make. Partner opened one of a suit or overcalled at the three
+#: level or lower, and neither suit is theirs. BACK_TO_FIRST_DOUBLED takes
+#: it over their double of the second suit too.
+BACK_TO_FIRST = True
+BACK_TO_FIRST_DOUBLED = True
+
+
+def _back_to_first_suit(ctx: Ctx) -> tuple | None:
+    if not BACK_TO_FIRST or ctx.mine():
+        return None
+    seq = ctx.seq
+    if len(seq) != 2 or ctx.ours[0][0] != ctx.pd or ctx.ours[1][0] != ctx.pd:
+        return None
+    a, b = strain_of(seq[0]), strain_of(seq[1])
+    if a not in SUITS or b not in SUITS or a == b:
+        return None
+    if shown_suit(seq, 0) != a or shown_suit(seq, 1) != b:
+        return None
+    if level_of(seq[0]) > (1 if ctx.we_opened else 3):
+        return None
+    theirs = {strain_of(c) for _, c in ctx.theirs}
+    if a in theirs or b in theirs:
+        return None
+    hb = ctx.auction.highest_bid
+    if hb is None or hb[2] != ctx.pd or hb[1] != b or ctx.auction.doubled == 'XX':
+        return None
+    if ctx.auction.doubled == 'X' and not BACK_TO_FIRST_DOUBLED:
+        return None
+    if not _prefers_first(ctx.h, a, b, a in MAJORS or not ctx.we_opened):
+        return None
+    call = f"{hb[0]}{a}"
+    if not ctx.ok(call):
+        return None
+    return call, f"Preference to {SYM[a]}, partner's first suit."
+
 
 def contested(ctx: Ctx) -> tuple | None:
     seq = ctx.seq

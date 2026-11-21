@@ -1022,7 +1022,7 @@ def _back_to_opening_suit(partner: str, auction: AuctionState, groups: dict,
                           p_strain: str, legal: list[str]) -> tuple | None:
     """Partner opened one of a suit and has now bid a new suit, the last bid
     at the table: with as many cards in the opened suit, prefer it at the same
-    level. Not once they double it: on fresh deals (3 x 10,000) the
+    level (a doubleton one short of it opposite a major opening: gib.FIVE_TWO_PREFERENCE). Not once they double it: on fresh deals (3 x 10,000) the
     preference over 1H P 1S P 2D (X) cost 0.07 a board, the robots' takeout
     doubles running into penalty doubles and opener raising the preference to
     a doubled game; undoubled it was flat."""
@@ -1031,13 +1031,21 @@ def _back_to_opening_suit(partner: str, auction: AuctionState, groups: dict,
     if (not opened or p_strain == opened or p_strain not in SUITS
             or hb is None or hb[2] != partner or hb[1] != p_strain or auction.doubled != 'None'
             or _first_namer(auction, p_strain) != partner
-            or len(groups[opened]) < len(groups[p_strain])):
+            or not _prefers_opened(groups, opened, p_strain)):
         return None
     call = f"{hb[0]}{opened}"
     if call not in legal:
         return None
-    return call, (f"Preference: as many {SUIT_SYM[opened]} as "
-                  f"{SUIT_SYM[p_strain]}.")
+    return call, f"Preference to {SUIT_SYM[opened]}."
+
+
+def _prefers_opened(groups: dict, opened: str, new: str) -> bool:
+    """As many cards in the opened suit as in the new one, or a doubleton
+    one short when a major opening promised five (gib.FIVE_TWO_PREFERENCE)."""
+    a, b = len(groups[opened]), len(groups[new])
+    if a >= b:
+        return True
+    return gib.FIVE_TWO_PREFERENCE and opened in ('H', 'S') and a >= 2 and a + 1 >= b
 
 
 #: Partner opened one of a minor and has not bid it again: that promises
