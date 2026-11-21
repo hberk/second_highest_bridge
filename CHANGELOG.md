@@ -6,6 +6,45 @@ Releases are tagged on main, and the tag matches the version in
 what it was measured to be worth is in
 [docs/ROBOT_PROGRESS.md](docs/ROBOT_PROGRESS.md).
 
+## v0.1.8-alpha (unreleased)
+
+Fifteen approved bidding changes from the Nov 19-21 boards, and the tricks
+table split by declarer.
+
+- Bidding training's recap and History show double dummy tricks a row per
+  declarer, with your contract's cell boxed, so 5♣ by South reads South's
+  tricks, not North's.
+- Rebidding your own suit opposite partner's weak two counts partner's
+  pre-empt as less, so the robots stop at the two or three level.
+- After 1x (overcall) 1M .. 2M, responder with six trumps bids the game it
+  would bid unopposed.
+- A passed responder raises to the two level, not a pre-emptive jump, after
+  the opponents' balancing action.
+- A game-forcing auction is never passed below game, and responder with no
+  fit yet bids 2NT ("No fit yet. Game forcing.").
+- With partner's two suits, go back to the first one when it is the bigger
+  fit; a doubleton in partner's five-card first suit goes back to it rather
+  than a 4-3 fit.
+- The penalty double counts long trumps.
+- Responder raises partner's weak two over their overcall on any strength
+  above 9 HCP with three trumps.
+- Answering a takeout double: 1NT on 6-10 HCP with a stopper, 2NT on 11-15
+  (invites) and 3NT on 16+.
+- The takeout doubler raises partner's advance only with extras (16+ HCP and
+  four trumps).
+- Garbage Stayman over partner's penalty double of their 1NT; your 2♣ there
+  is answered as Stayman.
+- Opposite our Unusual 2NT or Michaels, advancer bids game on trumps and
+  shortness.
+- A balancing takeout double over a weak two on shortness, with partner's
+  penalty pass.
+
+The bidding changes together, against all off on 1,000 fresh deals:
++1.02, +2.77, +1.17 points a board (three seeds, t 2.5, 5.8, 3.2). Card play
+is unchanged; on the same 199 deals the changed contracts move tricks given
+away a board to 2.13 for the declaring side, 0.41 for the opening lead and
+1.82 for the defence (from 2.11, 0.40, 1.80).
+
 ## v0.1.7-alpha (unreleased)
 
 Seven approved changes from the Nov 17 boards: five bidding fixes, one
