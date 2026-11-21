@@ -4855,6 +4855,14 @@ function theyOpened(ctx: Ctx): Decision | null {
       if (decision) return decision;
     }
   }
+  if (TAKEOUT_1NT_ADVANCE) {
+    const nt = afterTakeout1nt(ctx);
+    if (nt) return nt;
+  }
+  if (TAKEOUT_NT_ADVANCE) {
+    const nt = afterTakeoutNt(ctx);
+    if (nt) return nt;
+  }
   const minor = answerMinorAsk(ctx);
   if (minor) return minor;
   const relay = answerRelay(ctx);
@@ -5445,6 +5453,10 @@ function advance(ctx: Ctx): Decision | null {
       }
       return ['Pass', 'Not forced after their bid.'];
     }
+    const nt = TAKEOUT_1NT_ADVANCE ? takeout1ntAdvance(ctx, opening, theirs) : null;
+    if (nt) return nt;
+    const jump = TAKEOUT_NT_ADVANCE ? takeoutNtJump(ctx, opening, theirs) : null;
+    if (jump) return jump;
     return null;
   }
   const ps = strainOf(p);
@@ -5484,6 +5496,136 @@ function advance(ctx: Ctx): Decision | null {
     }
     return ['Pass', 'Nothing to add.'];
   }
+  return null;
+}
+
+/** (1x) X (P) 1NT: a stopper in their suit and no suit worth naming. The
+ *  cheapest-suit answer named a three-card suit as if it were four. The
+ *  user's board (2026-11-21): 1♥ P P X P 1♠ on ♠964 ♥J632 ♦K98 ♣A76 went
+ *  2♠ doubled -300 on a 4-3 fit; 1NT makes. TAKEOUT_1NT_HCP high-card
+ *  points, a stopper, no four-card unbid major, no five-card unbid suit and
+ *  no four-card suit to name below 1NT. False keeps the suit answer. */
+export const TAKEOUT_1NT_ADVANCE = true;
+export const TAKEOUT_1NT_HCP: [number, number] = [6, 10];
+/** Only when every unbid suit is three cards or fewer: the hand that would
+ *  otherwise name a three-card suit. False allows a four-card minor too. */
+export const TAKEOUT_1NT_ONLY_THREE = true;
+
+function takeout1ntAdvance(ctx: Ctx, opening: string | null | undefined, theirs: string[]): Decision | null {
+  const h = ctx.h;
+  const partners = ctx.partners();
+  if (partners.length !== 1 || partners[0] !== 'X' || !opening || levelOf(opening) !== 1 || !ctx.ok('1NT')) return null;
+  const their = strainOf(opening);
+  if (!isSuit(their) || theirs.length !== 1 || theirs[0] !== their) return null;
+  const bids = ctx.calls.filter(([w, c]) => w !== ctx.me && w !== ctx.pd && c !== 'Pass');
+  if (bids.length !== 1 || bids[0][1] !== opening) return null;
+  if (ctx.calls.some(([w, c]) => w === ctx.me && c !== 'Pass')) return null;
+  const [lo, hi] = TAKEOUT_1NT_HCP;
+  if (!(lo <= h.hcp && h.hcp <= hi && h.stopper(their))) return null;
+  const unbid = SUITS.filter((s) => s !== their);
+  if (unbid.some((s) => isMajor(s) && h.len[s] >= 4)) return null;
+  if (unbid.some((s) => h.len[s] >= 5)) return null;
+  if (unbid.some((s) => h.len[s] >= 4 && idx(s) > idx(their))) return null;   // 1♣ X P 1♦: a real suit, at the one level
+  if (TAKEOUT_1NT_ONLY_THREE && unbid.some((s) => h.len[s] >= 4)) return null;
+  if (TAKEOUT_1NT_ONLY_THREE) return ['1NT', `${lo}-${hi} HCP, ${SYM[their]} stopper, no 4-card suit to bid.`];
+  if (isMajor(their)) {
+    const other = their === 'H' ? 'S' : 'H';
+    return ['1NT', `${lo}-${hi} HCP, ${SYM[their]} stopper, at most 3 ${SYM[other]}.`];
+  }
+  return ['1NT', `${lo}-${hi} HCP, ${SYM[their]} stopper, no 4-card major.`];
+}
+
+/** ...and what follows it, while they pass. By judgement points
+ *  (TAKEOUT_1NT_BY_JUDGE, the user's reminder 2026-11-21: notrump games
+ *  need more here), as opposite our 1NT: the doubler bids 3NT when its judge
+ *  plus advancer's 6 reaches NT_GAME, invites with 2NT when plus 10 does,
+ *  and advancer accepts when its judge plus the invitation's floor does.
+ *  False: 3NT on TAKEOUT_1NT_GAME+ HCP, 2NT on TAKEOUT_1NT_INVITE+, accept 9-10. */
+export const TAKEOUT_1NT_BY_JUDGE = true;
+export const TAKEOUT_1NT_INVITE = 17;
+export const TAKEOUT_1NT_GAME = 19;
+
+/** 1x (P) (P) X (P) 1NT, or 1x X (P) 1NT, then `extra` calls since the
+ *  1NT, and they have bid nothing but the opening. `nt` names another
+ *  notrump advance (2NT, 3NT) in its place. */
+function takeout1ntSpot(ctx: Ctx, doubler: Seat, extra: number, nt = '1NT'): boolean {
+  if (!takeoutDoubler(ctx, doubler)) return false;
+  const advancer = PARTNERS[doubler];
+  const k = ctx.calls.findIndex(([w, c]) => w === advancer && c !== 'Pass');
+  if (k < 0 || ctx.calls[k][1] !== nt || ctx.calls.length !== k + 1 + extra) return false;
+  const opening = ctx.calls.find(([, c]) => c !== 'Pass')?.[1] ?? '';
+  const their = ctx.calls.filter(([w, c]) => w !== doubler && w !== advancer && c !== 'Pass').map(([, c]) => c);
+  const ours = ctx.calls.slice(0, k).filter(([w, c]) => (w === doubler || w === advancer) && c !== 'Pass').map(([, c]) => c);
+  return levelOf(opening) === 1 && their.length === 1 && their[0] === opening && ours.length === 1 && ours[0] === 'X';
+}
+
+function afterTakeout1nt(ctx: Ctx): Decision | null {
+  const h = ctx.h;
+  const [lo, hi] = TAKEOUT_1NT_HCP;
+  let pts: number, game: number, invite: number, accept: number, invites: string;
+  if (TAKEOUT_1NT_BY_JUDGE) {
+    pts = h.judge; game = NT_GAME - lo; invite = NT_GAME - hi;
+    accept = NT_GAME - invite;
+    invites = 'Invites 3NT.';
+  } else {
+    pts = h.hcp; game = TAKEOUT_1NT_GAME; invite = TAKEOUT_1NT_INVITE;
+    accept = hi - 1;
+    invites = `${invite}-${game - 1} HCP. Invites 3NT.`;
+  }
+  if (takeout1ntSpot(ctx, ctx.me, 1)) {
+    if (pts >= game && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+    if (pts >= invite && ctx.ok('2NT')) return ['2NT', invites];
+    return ['Pass', 'No game opposite 6-10.'];
+  }
+  const prev = ctx.calls[ctx.calls.length - 2];
+  if (takeout1ntSpot(ctx, ctx.pd, 3) && prev[1] === '2NT' && prev[0] === ctx.pd) {
+    if ((TAKEOUT_1NT_BY_JUDGE ? h.judge : h.hcp) >= accept && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+    return ['Pass', 'Declining the invitation.'];
+  }
+  return null;
+}
+
+/** (1x) X (P) 2NT and 3NT: the other notrump answers to a takeout double,
+ *  which had no meaning (the trainer showed them undefined; the cheapest
+ *  suit, or a jump in it, was the only answer). A balanced hand with a
+ *  stopper in their suit and no four-card unbid major: 2NT on
+ *  TAKEOUT_2NT_HCP invites, 3NT on TAKEOUT_3NT_HCP+ is to play. Notrump
+ *  games here need NT_GAME (28) between the hands and the doubler holds 12
+ *  or so, so 3NT starts at 16, not the textbook 13. The doubler raises 2NT
+ *  to 3NT on TAKEOUT_2NT_ACCEPT+ HCP and passes 3NT. Only over a direct
+ *  double unless TAKEOUT_NT_BALANCING: a balancing double is light. */
+export const TAKEOUT_NT_ADVANCE = true;
+export const TAKEOUT_2NT_HCP: [number, number] = [11, 15];
+export const TAKEOUT_3NT_HCP = 16;
+export const TAKEOUT_2NT_ACCEPT = 15;
+export const TAKEOUT_NT_BALANCING = false;
+
+function takeoutNtJump(ctx: Ctx, opening: string | null | undefined, theirs: string[]): Decision | null {
+  const h = ctx.h;
+  const partners = ctx.partners();
+  if (partners.length !== 1 || partners[0] !== 'X' || !opening || levelOf(opening) !== 1) return null;
+  const their = strainOf(opening);
+  if (!isSuit(their) || theirs.length !== 1 || theirs[0] !== their) return null;
+  const bids = ctx.calls.filter(([w, c]) => w !== ctx.me && w !== ctx.pd && c !== 'Pass');
+  if (bids.length !== 1 || bids[0][1] !== opening) return null;
+  const k = ctx.calls.findIndex(([, c]) => c !== 'Pass');
+  if (ctx.calls.slice(k).some(([w]) => w === ctx.me) && !TAKEOUT_NT_BALANCING) return null;   // 1x P P X P: I passed it once
+  if (ctx.calls.some(([w, c]) => w === ctx.me && c !== 'Pass')) return null;
+  if (!(h.balanced && h.stopper(their))) return null;
+  if (MAJORS.some((s) => s !== their && h.len[s] >= 4)) return null;
+  const [lo, hi] = TAKEOUT_2NT_HCP;
+  const stop = `${SYM[their]} stopper, balanced`;
+  if (h.hcp >= TAKEOUT_3NT_HCP && ctx.ok('3NT')) return ['3NT', `${TAKEOUT_3NT_HCP}+ HCP, ${stop}. To play.`];
+  if (lo <= h.hcp && h.hcp <= hi && ctx.ok('2NT')) return ['2NT', `${lo}-${hi} HCP, ${stop}. Invites 3NT.`];
+  return null;
+}
+
+function afterTakeoutNt(ctx: Ctx): Decision | null {
+  if (takeout1ntSpot(ctx, ctx.me, 1, '2NT')) {
+    if (ctx.h.hcp >= TAKEOUT_2NT_ACCEPT && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+    return ['Pass', 'Declining the invitation.'];
+  }
+  if (takeout1ntSpot(ctx, ctx.me, 1, '3NT')) return ['Pass', 'Partner chose the game.'];
   return null;
 }
 

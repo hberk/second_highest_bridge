@@ -46,6 +46,59 @@ def test_minor_preference_needs_four():
     assert bid('4S AH QH JH 10H 5H 5D 4D 3D KC 7C 5C 2C', *calls, dealer='South')[0] == '2D'
 
 
+def test_takeout_double_1nt_advance():
+    # The user's board (2026-11-21): 1♥ P P X P on ♠964 ♥J632 ♦K98 ♣A76
+    # answers 1NT, not 1♠ on three spades.
+    south = '9S 6S 4S JH 6H 3H 2H KD 9D 8D AC 7C 6C'
+    call, why = bid(south, '1H', 'Pass', 'Pass', 'X', 'Pass', dealer='East')
+    assert (call, why) == ('1NT', '6-10 HCP, ♥ stopper, no 4-card suit to bid.')
+    assert bid(south, '1H', 'X', 'Pass', dealer='North')[0] == '1NT'
+    # Four spades, five diamonds or no stopper still name a suit.
+    assert bid('9S 6S 4S 3S JH 6H 3H KD 9D 8D AC 7C 6C', '1H', 'X', 'Pass', dealer='North')[0] == '1S'
+    assert bid('9S QH 6H 3H 2H KD 9D 8D 5D 4D AC 7C 6C', '1H', 'X', 'Pass', dealer='North')[0] != '1NT'
+    assert bid('9S 6S 4S 10H 6H 3H 2H KD 9D 8D AC 7C 6C', '1H', 'X', 'Pass', dealer='North')[0] != '1NT'
+    # Over a minor, a four-card suit at the one level is named first.
+    assert bid('9S 6S 4S 6H 3H 2H KD 9D 8D 5D AC QC 6C', '1C', 'X', 'Pass', dealer='North')[0] in ('1D', '2D')
+    call, why = bid('9S 6S 4S 6H 3H 2H KD 9D 8D AC QC 7C 6C', '1C', 'X', 'Pass', dealer='North')
+    assert (call, why) == ('1NT', '6-10 HCP, ♣ stopper, no 4-card suit to bid.')
+    # A four-card minor at the two level is still named (TAKEOUT_1NT_ONLY_THREE).
+    assert bid('9S 6S 4S JH 6H 3H KD 9D 8D 2D AC 7C 6C', '1H', 'X', 'Pass', dealer='North')[0] != '1NT'
+    # The doubler counts judgement points (kings and queens 3) against
+    # NT_GAME, as opposite our 1NT: game on 22+, an invitation on 18-21.
+    calls = ('1H', 'X', 'Pass', '1NT', 'Pass')
+    assert bid('KS QS 7S 5S 8H KD QD 6D 2D KC QC 10C 9C', *calls, dealer='North') == ('2NT', 'Invites 3NT.')
+    assert bid('KS QS 7S 5S 8H KD QD 6D 2D KC QC JC 9C', *calls, dealer='North')[0] == '2NT'
+    assert bid('KS QS 7S 5S 8H KD QD JD 2D KC QC 10C 9C', *calls, dealer='North')[0] == '2NT'
+    assert bid('KS QS JS 5S 8H KD QD JD 2D KC QC JC 9C', *calls, dealer='North')[0] == '3NT'
+    # Three aces count little here: 19 HCP, judge 16, passes.
+    assert bid('AS KS 7S 5S 8H AD KD 6D 2D KC QC 10C 9C', *calls, dealer='North')[0] == 'Pass'
+    # The advancer accepts on 10+.
+    invited = calls + ('2NT', 'Pass')
+    assert bid('QS 6S 4S QH 10H 3H 2H KD 9D 8D AC 7C 6C', *invited, dealer='North')[0] == '3NT'
+    assert bid(south, *invited, dealer='North')[0] == 'Pass'
+
+
+def test_takeout_double_2nt_3nt_advance():
+    # (1x) X (P) 2NT invites on 11-15 balanced with a stopper, 3NT is 16+:
+    # notrump games need 28 between the hands here (TAKEOUT_NT_ADVANCE).
+    call, why = bid('KS 6S 4S KH JH 3H AD 9D 8D QC 7C 6C 2C', '1H', 'X', 'Pass', dealer='North')
+    assert (call, why) == ('2NT', '11-15 HCP, ♥ stopper, balanced. Invites 3NT.')
+    call, why = bid('KS 6S 4S KH JH 3H AD QD 8D AC 7C 6C 2C', '1H', 'X', 'Pass', dealer='North')
+    assert (call, why) == ('3NT', '16+ HCP, ♥ stopper, balanced. To play.')
+    # A four-card spade suit, or no heart stopper, is not notrump.
+    assert bid('KS 6S 4S 3S KH JH AD 9D 8D QC 7C 6C 2C', '1H', 'X', 'Pass', dealer='North')[0] != '2NT'
+    assert bid('KS 6S 4S 5H 4H 3H AD KD 8D QC JC 6C 2C', '1H', 'X', 'Pass', dealer='North')[0] != '2NT'
+    # Not after a balancing double: the advancer passed 1♥ once already.
+    assert bid('KS 6S 4S KH JH 3H AD 9D 8D QC 7C 6C 2C', '1H', 'Pass', 'Pass', 'X', 'Pass',
+               dealer='West')[0] not in ('2NT', '3NT')
+    # The doubler raises 2NT on 15+ and passes 3NT.
+    calls = ('1H', 'X', 'Pass', '2NT', 'Pass')
+    assert bid('AS KS 7S 5S 8H AD KD 6D 2D QC 10C 9C 4C', *calls, dealer='North')[0] == '3NT'
+    assert bid('AS QS 7S 5S 8H AD JD 6D 2D KC 10C 9C 4C', *calls, dealer='North') == ('Pass', 'Declining the invitation.')
+    assert bid('AS KS 7S 5S 8H AD KD 6D 2D QC 10C 9C 4C', '1H', 'X', 'Pass', '3NT', 'Pass',
+               dealer='North')[0] == 'Pass'
+
+
 # ── Openings ──────────────────────────────────────────────────────────────────
 
 def test_openings():

@@ -392,6 +392,25 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     minor, or 18+). Experts in the championship archive act here with
     natural bids and doubles (over 1♠-1NT: X 51, 2♣ 48, 2♥ 43, 2♦ 35 of
     1,293) and almost never with 2NT or the cuebid (1 and 3).
+    And **with a stopper and no suit, the answer is 1NT**
+    (`gib.TAKEOUT_1NT_ADVANCE`, the user's board 2026-11-21): 1♥ P P X P
+    on ♠964 ♥J632 ♦K98 ♣A76 named the cheapest three-card suit, 1♠, and
+    played 2♠ doubled for -300. Now (1x) X (P) 1NT is 6-10 HCP, a stopper
+    and no four-card unbid suit (`TAKEOUT_1NT_ONLY_THREE`). The doubler
+    counts judgement points against `NT_GAME`, as opposite our 1NT
+    (`TAKEOUT_1NT_BY_JUDGE`): 3NT on 22+, 2NT on 18-21, and advancer
+    accepts on 10+; by HCP (3NT 19+ or 20+) scored a hair lower. It is
+    rare (90 auctions in 116,000 boards) and +0.01 a board overall; letting
+    a four-card minor bid 1NT too measured -0.05 (ROBOT_PROGRESS, 11-21).
+    **The jumps to 2NT and 3NT** (`gib.TAKEOUT_NT_ADVANCE`, 2026-11-21)
+    had no meaning before. Over a direct double, a balanced hand with a
+    stopper and no four-card unbid major bids 2NT on 11-15 HCP (invites)
+    and 3NT on 16+, not the textbook 13+, because notrump games need
+    `NT_GAME` between the hands here; the doubler raises 2NT on 15+ HCP
+    and passes 3NT. It hardly ever comes up (about 1 board in 3,000) and
+    is neutral: 6 seeds, 192,000 boards, -0.00 a board. Textbook ranges
+    (2NT 11-12, 3NT 13+) scored the same; allowing it after a balancing
+    double (`TAKEOUT_NT_BALANCING`) ten times as often and -0.01.
     And **the answer to a takeout double never names a suit they bid**
     (`ai.ADVANCE_NOT_THEIRS`, the user's rule): `_advance_double` left out
     only their last strain, so 1♠ P 1NT X P was answered 2♠ and doubled.
