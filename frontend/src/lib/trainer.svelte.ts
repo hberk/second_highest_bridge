@@ -97,8 +97,9 @@ export interface Recap {
    *  they are the same. */
   parting: number | null;
   checks: CallCheck[];
-  /** N/S tricks double dummy per strain, the better declarer. */
-  dd: Record<Strain, number>;
+  /** Strain -> North and South declaring -> N/S tricks double dummy: the
+   *  score uses the real declarer's count, which can be a trick short of partner's. */
+  dd: Record<Strain, Record<'North' | 'South', number>>;
   judge: { you: number; partner: number };
   hcp: { you: number; partner: number };
   /** The longest suit N/S hold together, and its length. */
@@ -438,7 +439,8 @@ export class Trainer {
       robotAlerts,
       parting,
       checks,
-      dd: Object.fromEntries(STRAINS.map((s) => [s, nsTricks(id, s)])) as Record<Strain, number>,
+      dd: Object.fromEntries(STRAINS.map((s) =>
+        [s, { North: nsTricks(id, s, 'North'), South: nsTricks(id, s, 'South') }])) as Record<Strain, Record<'North' | 'South', number>>,
       judge: { you: you.judge, partner: partner.judge },
       hcp: { you: you.hcp, partner: partner.hcp },
       fit: { suit: fitSuit, length: you.len[fitSuit] + partner.len[fitSuit] },

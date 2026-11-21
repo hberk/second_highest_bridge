@@ -1,5 +1,8 @@
   - **Tricks per strain and par (2026-11-17).** Under each History board's
-    result, the trainer's table (N/S and E/W rows, the better declarer) and
+    result, a row per declarer (`components/DdTricks.svelte`, shared with
+    Bidding training's recap, which shows North and South; since 2026-11-21,
+    as the better declarer's count could sit beside a score of down one, and
+    the contract played is boxed) and
     par from `parFromTricks` (`dd/table.svelte.ts`). Challenge deals use the
     stored table at once; any other deal is solved on a tap in
     `dd/tableWorker.ts` (the wasm `value` export: one load per strain, its
