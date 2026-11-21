@@ -394,7 +394,7 @@ def _decide(ctx: Ctx) -> tuple | None:
         if not ctx.seq:
             return opening(ctx)
         return uncontested(ctx)
-    decision = contested(ctx)
+    decision = _back_to_first_suit(ctx) or contested(ctx)
     if decision is None and _owns(ctx):
         decision = continuation(ctx)
     return decision
@@ -2987,6 +2987,50 @@ def _forcing(ctx: Ctx, call: str) -> bool:
 
 
 # ── Contested auctions ────────────────────────────────────────────────────────
+
+#: Partner bid two suits and I have not bid: with as many cards in the first
+#: suit as in the second, or more, go back to the first at the same level
+#: (the user's call, 2026-11-21, on a training board: (2♠) 3♥ (4♠) P (P) 5♦
+#: (X) passed out on ♠9 ♥9873 ♦A ♣KQ98743, -500, with four hearts opposite
+#: five). The first suit is the longer or as long, so equal length goes back
+#: too. There was no rule here: `_advance` read only partner's first call,
+#: so the second suit was never seen. Only the same level, never a level
+#: higher: a preference that raises the contract is a decision this rule
+#: does not make. Partner opened one of a suit or overcalled at the three
+#: level or lower, and neither suit is theirs. BACK_TO_FIRST_DOUBLED takes
+#: it over their double of the second suit too.
+BACK_TO_FIRST = True
+BACK_TO_FIRST_DOUBLED = True
+
+
+def _back_to_first_suit(ctx: Ctx) -> tuple | None:
+    if not BACK_TO_FIRST or ctx.mine():
+        return None
+    seq = ctx.seq
+    if len(seq) != 2 or ctx.ours[0][0] != ctx.pd or ctx.ours[1][0] != ctx.pd:
+        return None
+    a, b = strain_of(seq[0]), strain_of(seq[1])
+    if a not in SUITS or b not in SUITS or a == b:
+        return None
+    if shown_suit(seq, 0) != a or shown_suit(seq, 1) != b:
+        return None
+    if level_of(seq[0]) > (1 if ctx.we_opened else 3):
+        return None
+    theirs = {strain_of(c) for _, c in ctx.theirs}
+    if a in theirs or b in theirs:
+        return None
+    hb = ctx.auction.highest_bid
+    if hb is None or hb[2] != ctx.pd or hb[1] != b or ctx.auction.doubled == 'XX':
+        return None
+    if ctx.auction.doubled == 'X' and not BACK_TO_FIRST_DOUBLED:
+        return None
+    if ctx.h.len[a] < ctx.h.len[b]:
+        return None
+    call = f"{hb[0]}{a}"
+    if not ctx.ok(call):
+        return None
+    return call, f"Preference: {SYM[a]} as long as {SYM[b]} or longer."
+
 
 def contested(ctx: Ctx) -> tuple | None:
     seq = ctx.seq

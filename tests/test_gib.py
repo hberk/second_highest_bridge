@@ -371,6 +371,23 @@ def test_negative_doubler_gives_preference_to_openers_first_suit():
     assert bid(west, '1S', '2C', 'X', 'Pass', '2D', 'Pass', '2S', 'Pass', dealer='West')[0] == 'Pass'
 
 
+def test_advancer_goes_back_to_partners_first_suit():
+    """The user's training board (2026-11-21): (2S) 3H (4S) P (P) 5D (X).
+    North, four hearts and one diamond, passed 5D doubled (-500); the first
+    suit is the longer or as long, so equal or more length goes back to it."""
+    north = '9S 9H 8H 7H 3H AD KC QC 9C 8C 7C 4C 3C'
+    calls = ('2S', '3H', '4S', 'Pass', 'Pass', '5D', 'X')
+    assert bid(north, *calls, dealer='East') == ('5H', 'Preference: \u2665 as long as \u2666 or longer.')
+    assert bid(north, *calls[:-1], 'Pass', dealer='East')[0] == '5H'
+    # Over 4S itself North still passes: no new rule pushes the five level.
+    assert bid(north, *calls[:3], dealer='East')[0] == 'Pass'
+    # Equal length goes back at the same level...
+    calls = ('1C', '1S', '2C', 'Pass', 'Pass', '2H', 'Pass')
+    assert bid('QS 3S 2S KH 5H 4H JD 4D 3D 2D 6C 5C 4C', *calls, dealer='East')[0] == '2S'
+    # ...longer in the second suit passes.
+    assert bid('QS 2S KH 5H 4H 3H JD 4D 3D 2D 6C 5C 4C', *calls, dealer='East')[0] == 'Pass'
+
+
 def test_negative_doubler_and_opener_raise_the_longest_fit():
     """The user's call (2026-11-09): after 1x (y) X (P) 2z (P) the doubler
     with 11+ and an eight-card fit in opener's suits invites at 3 (game on

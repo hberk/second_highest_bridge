@@ -350,7 +350,7 @@ function decide(ctx: Ctx): Decision | null {
     if (!ctx.seq.length) return opening(ctx);
     return uncontested(ctx);
   }
-  let decision = contested(ctx);
+  let decision = backToFirstSuit(ctx) ?? contested(ctx);
   if (decision === null && owns(ctx)) decision = continuation(ctx);
   return decision;
 }
@@ -2728,6 +2728,39 @@ function forcing(ctx: Ctx, call: string): boolean {
 }
 
 // ── Contested auctions ────────────────────────────────────────────────────────
+
+// Partner bid two suits and I have not bid: with as many cards in the first
+// suit as in the second, or more, go back to the first at the same level
+// (the user's call, 2026-11-21, on a training board: (2♠) 3♥ (4♠) P (P) 5♦
+// (X) passed out on ♠9 ♥9873 ♦A ♣KQ98743, -500, with four hearts opposite
+// five). The first suit is the longer or as long, so equal length goes back
+// too. There was no rule here: `advance` read only partner's first call,
+// so the second suit was never seen. Only the same level, never a level
+// higher: a preference that raises the contract is a decision this rule
+// does not make. Partner opened one of a suit or overcalled at the three
+// level or lower, and neither suit is theirs. BACK_TO_FIRST_DOUBLED takes
+// it over their double of the second suit too.
+export const BACK_TO_FIRST = true;
+export const BACK_TO_FIRST_DOUBLED = true;
+
+function backToFirstSuit(ctx: Ctx): Decision | null {
+  if (!BACK_TO_FIRST || ctx.mine().length) return null;
+  const seq = ctx.seq;
+  if (seq.length !== 2 || ctx.ours[0][0] !== ctx.pd || ctx.ours[1][0] !== ctx.pd) return null;
+  const a = strainOf(seq[0]), b = strainOf(seq[1]);
+  if (!isSuit(a) || !isSuit(b) || a === b) return null;
+  if (shownSuit(seq, 0) !== a || shownSuit(seq, 1) !== b) return null;
+  if (levelOf(seq[0]) > (ctx.weOpened ? 1 : 3)) return null;
+  const theirs = new Set(ctx.theirs.map(([, c]) => strainOf(c)));
+  if (theirs.has(a) || theirs.has(b)) return null;
+  const hb = ctx.auction.highestBid;
+  if (!hb || hb[2] !== ctx.pd || hb[1] !== b || ctx.auction.doubled === 'XX') return null;
+  if (ctx.auction.doubled === 'X' && !BACK_TO_FIRST_DOUBLED) return null;
+  if (ctx.h.len[a] < ctx.h.len[b]) return null;
+  const call = `${hb[0]}${a}`;
+  if (!ctx.ok(call)) return null;
+  return [call, `Preference: ${SYM[a]} as long as ${SYM[b]} or longer.`];
+}
 
 function contested(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
