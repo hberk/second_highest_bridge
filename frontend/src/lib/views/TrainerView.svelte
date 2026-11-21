@@ -259,12 +259,15 @@
           {#each ['C', 'D', 'H', 'S', 'NT'] as s (s)}
             <span><Strain level="" strain={s as StrainT} /></span>
           {/each}
-          <span class="bt-dd-l">tricks</span>
-          {#each ['C', 'D', 'H', 'S', 'NT'] as s (s)}
-            <span class:best={recap.par.side === 'N/S' && recap.par.strain === s}>{recap.dd[s as StrainT]}</span>
+          {#each ['North', 'South'] as const as seat (seat)}
+            <span class="bt-dd-l">{seat}</span>
+            {#each ['C', 'D', 'H', 'S', 'NT'] as s (s)}
+              <span class:best={recap.par.side === 'N/S' && recap.par.strain === s && recap.dd[seat][s as StrainT] === recap.par.tricks}
+                class:bt-dd-mine={recap.contract?.declarer === seat && recap.contract.strain === s}>{recap.dd[seat][s as StrainT]}</span>
+            {/each}
           {/each}
         </div>
-        <p class="bt-note">N/S tricks double dummy, the better declarer.</p>
+        <p class="bt-note">N/S tricks double dummy by declarer{#if recap.contract && ['North', 'South'].includes(recap.contract.declarer)}; your contract is boxed{/if}.</p>
       </section>
 
       <button class="btn primary full big bt-next" onclick={() => { showEW = false; resetAsk = false; trainer.newBoard(); }}>Next board</button>
