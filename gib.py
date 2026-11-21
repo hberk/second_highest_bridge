@@ -5108,13 +5108,17 @@ NT_X_SYSTEMS = True
 NT_X_ADVANCE_FIX = True
 
 
-#: Stayman over our penalty double of their 1NT (the user asked why not,
-#: 2026-11-21). None: only transfers pull the double, as the user adopted.
-#: 'all': the doubler's partner also bids 2♣ Stayman whenever it would over a
-#: 1NT opening, which in this system is invitational or better, never weak.
-#: 'weak': garbage Stayman: 7 or fewer HCP with 4+ in both majors; over 2♦
-#: it bids 2♥, pass or correct, and passes a major answer.
-NT_X_STAYMAN: str | None = None
+#: Stayman over our penalty double of their 1NT (the user, 2026-11-21:
+#: "that's what a user would expect ... probably just garbage Stayman").
+#: Whoever bids 2♣, the doubler answers it as Stayman. 'all': the doubler's partner also bids
+#: 2♣ Stayman whenever it would over a 1NT opening (invitational or better,
+#: never weak), and the doubler answers it as over 1NT. 'weak': garbage
+#: Stayman instead: 7 or fewer HCP with 4+ in both majors; over 2♦ it bids
+#: 2♥, pass or correct. None: only transfers pull the double (Nov 4).
+#: Measured 2026-11-21, 60,000 fresh boards: 'all' -0.003 a board (2
+#: auctions changed, both worse), 'weak' -0.03 (17: 5 better, 12 worse).
+#: The user chose 'weak', cost and all: good hands still pass the double.
+NT_X_STAYMAN: str | None = 'weak'
 NT_X_STAYMAN_HCP = 7
 
 
@@ -5199,9 +5203,9 @@ def _nt_x_systems(ctx: Ctx) -> tuple | None:
             return decision
         if (NT_X_STAYMAN == 'weak' and ctx.h.hcp <= NT_X_STAYMAN_HCP
                 and all(ctx.h.len[m] >= 4 for m in MAJORS) and ctx.ok('2C')):
-            return '2C', "Stayman: asks for a 4-card major. Artificial."
+            return '2C', f"Stayman: weak, 4+ {SYM['H']} and 4+ {SYM['S']}. Artificial."
         return 'Pass', "Penalty double: passing."
-    if NT_X_STAYMAN == 'weak' and ctx.seq[1] == '2C' and ctx.me != ctx.opener:
+    if NT_X_STAYMAN == 'weak' and ctx.seq[1] == '2C':
         garbage = _nt_x_garbage(ctx)
         if garbage:
             return garbage

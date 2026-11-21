@@ -4588,6 +4588,17 @@ export const NT_X_ADVANCE_FIX = true;
 // the three level; the transfer bidder without game values has said all.
 export const NT_X_INTERFERED = true;
 const NT_X_TRANSFERS: Record<string, Suit> = { '2D': 'H', '2H': 'S', '4D': 'H', '4H': 'S' };
+// Stayman over our penalty double of their 1NT (the user, 2026-11-21:
+// "that's what a user would expect ... probably just garbage Stayman").
+// Whoever bids 2♣, the doubler answers it as Stayman. 'all': the doubler's partner also bids
+// 2♣ Stayman whenever it would over a 1NT opening (invitational or better,
+// never weak), and the doubler answers it as over 1NT. 'weak': garbage
+// Stayman instead: 7 or fewer HCP with 4+ in both majors; over 2♦ it bids
+// 2♥, pass or correct. null: only transfers pull the double (Nov 4).
+// Measured: 'all' -0.003 a board, 'weak' -0.03. The user chose 'weak', cost
+// and all: good hands still pass the double.
+export const NT_X_STAYMAN: 'all' | 'weak' | null = 'weak';
+export const NT_X_STAYMAN_HCP = 7;
 
 /** Their only bid is a 1NT opening and our first call doubled it. */
 function penaltyXOf1NT(ctx: Ctx): boolean {
@@ -4648,9 +4659,35 @@ function ntXSystems(ctx: Ctx): Decision | null {
     if (ctx.me === ctx.opener) return null;
     const decision = ntResponse(asOpened, 1, NT1[0], NT1[1]);
     if (decision[0] in NT_X_TRANSFERS) return decision;
+    if (NT_X_STAYMAN === 'all' && decision[0] === '2C') return decision;
+    if (NT_X_STAYMAN === 'weak' && ctx.h.hcp <= NT_X_STAYMAN_HCP
+        && MAJORS.every((m) => ctx.h.len[m] >= 4) && ctx.ok('2C')) {
+      return ['2C', `Stayman: weak, 4+ ${SYM.H} and 4+ ${SYM.S}. Artificial.`];
+    }
     return ['Pass', 'Penalty double: passing.'];
   }
+  if (NT_X_STAYMAN === 'weak' && ctx.seq[1] === '2C') {
+    const garbage = ntXGarbage(ctx);
+    if (garbage) return garbage;
+  }
   return notrump(asOpened, 0);
+}
+
+/** 1NT (P P) X P 2♣ on a weak hand with both majors: the doubler's
+ *  partner places the contract, and the doubler picks a major. */
+function ntXGarbage(ctx: Ctx): Decision | null {
+  const seq = ctx.seq;
+  const h = ctx.h;
+  if (seq.length === 3 && h.hcp <= NT_X_STAYMAN_HCP) {
+    if (seq[2] === '2D' && ctx.ok('2H')) return ['2H', `Weak, 4+ ${SYM.H} and 4+ ${SYM.S}: pass or correct.`];
+    return ['Pass', 'Weak: to play.'];
+  }
+  if (seq.length === 4 && seq[2] === '2D' && seq[3] === '2H') {
+    if (h.len.S > h.len.H && ctx.ok('2S')) return ['2S', `Longer ${SYM.S}.`];
+    return ['Pass', 'Partner placed the contract.'];
+  }
+  if (seq.length === 5 && seq[2] === '2D' && seq[3] === '2H') return ['Pass', 'Partner placed the contract.'];
+  return null;
 }
 
 function theyOpened(ctx: Ctx): Decision | null {
