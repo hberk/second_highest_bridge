@@ -1003,7 +1003,7 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
     if (isMajor(z) && h.len[z] >= 4 && ctx.ok(`2${z}`)) return [`2${z}`, `4+ ${SYM[z]}, minimum.`];
     if (isSuit(y) && h.len[y] >= 6 && ctx.ok(`2${y}`)) return [`2${y}`, `6+ ${SYM[y]}, to play.`];
     if (h.len[z] >= 4 && ol === 2) return ['Pass', "Happy in opener's second suit."];
-    if (h.len[x] >= 2 && ctx.ok(`2${x}`) && h.len[x] >= h.len[z] && !thinMinorPreference(ctx, x, ol)) {
+    if (h.len[x] >= 2 && ctx.ok(`2${x}`) && prefersFirst(h, x, z, isMajor(x)) && !thinMinorPreference(ctx, x, ol)) {
       return [`2${x}`, `Preference to ${SYM[x]}.`];
     }
     if (ol === 1 && ctx.ok('1NT')) return ['1NT', 'Minimum.'];
@@ -1019,6 +1019,22 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
 /** 1m-1y-1z: responder's 2m preference needs four cards, or three with a side
  *  singleton or void; a flatter minimum bids 1NT (the user's call, 2026-11-17). */
 export const MINOR_PREF_FOUR = true;
+
+// Partner's first suit promised five, the second four: the first is the
+// bigger fit whenever my length in it is at most one short of the second
+// (the user's call, 2026-11-21, on a training board: P 1♥ P 1♠ P 2♦ P P P
+// on ♠QJ976 ♥K8 ♦AJT ♣542 opposite ♠2 ♥AQJT6 ♦K654 ♣KT9, "5-2 plays
+// better than 4-3"; 2♦ took three tricks, 2♥ five). Off, the first suit
+// needed as many cards as the second.
+export const FIVE_TWO_PREFERENCE = true;
+
+/** Back to partner's first suit a over the second suit b: as long or
+ *  longer in a, or, when a promised five (`five`) and b four, a doubleton
+ *  or more in a and one card fewer than in b: the fit in a is as big. */
+function prefersFirst(h: Hand, a: Suit, b: Suit, five: boolean): boolean {
+  if (h.len[a] >= h.len[b]) return true;
+  return FIVE_TWO_PREFERENCE && five && h.len[a] >= 2 && h.len[a] + 1 >= h.len[b];
+}
 
 function thinMinorPreference(ctx: Ctx, x: Suit, ol: number): boolean {
   const h = ctx.h;
@@ -1060,7 +1076,7 @@ function after1ntResponse(ctx: Ctx, x: Suit, o: string, lo: number, hi: number):
     return [`3${x}`, `3+ ${SYM[x]} support, 10-11 HCP. Limit raise.`];
   }
   if (os === x) return ['Pass', 'No game.'];
-  if (isMajor(x) && h.len[x] >= 2 && h.len[x] >= h.len[os as Suit] && ctx.ok(`2${x}`)) {
+  if (isMajor(x) && h.len[x] >= 2 && prefersFirst(h, x, os as Suit, true) && ctx.ok(`2${x}`)) {
     return [`2${x}`, `Preference to ${SYM[x]}.`];
   }
   const need = isSuit(os) ? MINOR_RAISE_LEN[os] : undefined;
@@ -2756,10 +2772,10 @@ function backToFirstSuit(ctx: Ctx): Decision | null {
   const hb = ctx.auction.highestBid;
   if (!hb || hb[2] !== ctx.pd || hb[1] !== b || ctx.auction.doubled === 'XX') return null;
   if (ctx.auction.doubled === 'X' && !BACK_TO_FIRST_DOUBLED) return null;
-  if (ctx.h.len[a] < ctx.h.len[b]) return null;
+  if (!prefersFirst(ctx.h, a, b, isMajor(a) || !ctx.weOpened)) return null;
   const call = `${hb[0]}${a}`;
   if (!ctx.ok(call)) return null;
-  return [call, `Preference: ${SYM[a]} as long as ${SYM[b]} or longer.`];
+  return [call, `Preference to ${SYM[a]}, partner's first suit.`];
 }
 
 function contested(ctx: Ctx): Decision | null {

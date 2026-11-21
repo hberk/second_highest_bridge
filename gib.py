@@ -1122,13 +1122,31 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
             return f"2{y}", f"6+ {SYM[y]}, to play."
         if h.len[z] >= 4 and ol == 2:
             return 'Pass', "Happy in opener's second suit."
-        if (h.len[x] >= 2 and ctx.ok(f"2{x}") and h.len[x] >= h.len[z]
+        if (h.len[x] >= 2 and ctx.ok(f"2{x}") and _prefers_first(h, x, z, x in MAJORS)
                 and not _thin_minor_preference(ctx, x, ol)):
             return f"2{x}", f"Preference to {SYM[x]}."
         if ol == 1 and ctx.ok('1NT'):
             return '1NT', "Minimum."
         return 'Pass', "No game."
     return None
+
+
+#: Partner's first suit promised five, the second four: the first is the
+#: bigger fit whenever my length in it is at most one short of the second
+#: (the user's call, 2026-11-21, on a training board: P 1♥ P 1♠ P 2♦ P P P
+#: on ♠QJ976 ♥K8 ♦AJT ♣542 opposite ♠2 ♥AQJT6 ♦K654 ♣KT9, "5-2 plays
+#: better than 4-3"; 2♦ took three tricks, 2♥ five). Off, the first suit
+#: needed as many cards as the second.
+FIVE_TWO_PREFERENCE = True
+
+
+def _prefers_first(h: Hand, a: str, b: str, five: bool) -> bool:
+    """Back to partner's first suit a over the second suit b: as long or
+    longer in a, or, when a promised five (`five`) and b four, a doubleton
+    or more in a and one card fewer than in b: the fit in a is as big."""
+    if h.len[a] >= h.len[b]:
+        return True
+    return FIVE_TWO_PREFERENCE and five and h.len[a] >= 2 and h.len[a] + 1 >= h.len[b]
 
 
 #: 1m-1y-1z: responder's 2m preference needs four cards, or three with a side
@@ -1184,7 +1202,7 @@ def _after_1nt_response(ctx: Ctx, x: str, o: str, lo: int, hi: int) -> tuple:
         return f"3{x}", f"3+ {SYM[x]} support, 10-11 HCP. Limit raise."
     if os_ == x:
         return 'Pass', "No game."
-    if x in MAJORS and h.len[x] >= 2 and h.len[x] >= h.len[os_] and ctx.ok(f"2{x}"):
+    if x in MAJORS and h.len[x] >= 2 and _prefers_first(h, x, os_, True) and ctx.ok(f"2{x}"):
         return f"2{x}", f"Preference to {SYM[x]}."
     need = MINOR_RAISE_LEN.get(os_)
     if (MINOR_RAISE and need and x in MAJORS and h.len[os_] >= need
@@ -3024,12 +3042,12 @@ def _back_to_first_suit(ctx: Ctx) -> tuple | None:
         return None
     if ctx.auction.doubled == 'X' and not BACK_TO_FIRST_DOUBLED:
         return None
-    if ctx.h.len[a] < ctx.h.len[b]:
+    if not _prefers_first(ctx.h, a, b, a in MAJORS or not ctx.we_opened):
         return None
     call = f"{hb[0]}{a}"
     if not ctx.ok(call):
         return None
-    return call, f"Preference: {SYM[a]} as long as {SYM[b]} or longer."
+    return call, f"Preference to {SYM[a]}, partner's first suit."
 
 
 def contested(ctx: Ctx) -> tuple | None:
