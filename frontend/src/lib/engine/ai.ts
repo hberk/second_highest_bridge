@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { Ctx, doublerGuard, FIVE_TWO_PREFERENCE, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
+import { advanceRaiseGuard, Ctx, doublerGuard, FIVE_TWO_PREFERENCE, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -1078,7 +1078,8 @@ function doubledOrBase(player: Seat, hand: Card[], auction: AuctionState,
 function baseBidExplained(player: Seat, hand: Card[], auction: AuctionState): Decision {
   const decision = systemBidExplained(player, hand, auction);
   return settingsAi.useGib
-    ? doublerGuard(player, hand, auction, jamAlert(player, hand, auction, decision))
+    ? advanceRaiseGuard(player, hand, auction,
+      doublerGuard(player, hand, auction, jamAlert(player, hand, auction, decision)))
     : decision;
 }
 

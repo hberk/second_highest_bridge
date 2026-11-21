@@ -1115,6 +1115,20 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   doublers who used to jump to 4♥ and now stop in 3♥. On the user's own
   deal the pass was double dummy best: ♥AKJT742 opposite a singleton takes
   7 tricks under the second-highest rule.
+- **The doubler raises the advance only with extras** (`ADVANCE_RAISE_HCP`,
+  `advance_raise_guard`; the user's Bidding training deal 136, 2026-11-21:
+  P P P 1♦ P P X P 1♠ P 2♠ on ♠Q32 ♥AQ63 ♦82 ♣J874, alerted "3+ ♠ support, 6+
+  points. Limited."). No GIB branch answers (1x) X (P) 1y (P), so the old
+  system's `_response` read the advance as an opening and raised on three
+  trumps. The double already promised the support: uncontested, the raise
+  needs 4+ trumps and 16+ HCP, or three with 19+, and says "Extras after the
+  double."; a minimum passes. 3 x 10,000 fresh deals: +0.02/+0.02/+0.08 (t
+  +2.45/+1.20/+2.50, 147 auctions, 69 better, 6 worse); 18 HCP measured about
+  the same. In competition (a redouble, or they bid after the double) the
+  same rule lost (-0.09/-0.04/+0.01), so there the raise stays and its alert
+  reads "Competing after the double." The doubler's cuebid of their suit
+  after the advance (1♣ X P 1♠ P 2♣) was alerted as a free bid, "5+ ♣, 8+
+  points"; it now reads "Cuebid: 18+ HCP, a strong hand." and needs 18+.
 - **A five-card major is bid, not doubled** (`NEG_BIDS_FIVE`, the user's
   Bidding training deal, 2026-10-28: 1♦ (1♥) X on ♠AKJT53 ♥8 ♦J83 ♣T62,
   and the spade fit was lost). Over a minor opening the negative double was
