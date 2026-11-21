@@ -2323,7 +2323,7 @@ function jump(ctx: Ctx, i: number): boolean {
 /** Raise partner's pre-empt over their overcall with a strong hand (the
  *  user's board, 2026-11-21: 2♥ (2♠) P on 15 HCP and ♥AKJ). True lets the
  *  LoTT raise a pre-empt on any strength above LOTT_RAISE. See gib.py. */
-export const RAISE_PREEMPT_STRONG = false;
+export const RAISE_PREEMPT_STRONG = true;
 /** ...and game in partner's weak-two major on 3+ trumps and this many
  *  judgement points, as `preempt` bids it uncontested. null is off. */
 export const WEAK_TWO_GAME_JUDGE: number | null = null;

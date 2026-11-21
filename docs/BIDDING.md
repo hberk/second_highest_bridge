@@ -538,6 +538,20 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     42-69 auctions changed, 6-21 worse; 8 HCP +0.01 / +0.26 / +0.12 (t +0.18,
     +3.14, +1.13) but more auctions changed and more worse, so 10 stays.
     (`/mnt/project-files/balance-three/`.)
+  - **A strong raise of partner's pre-empt** (`RAISE_PREEMPT_STRONG`; the
+    user's board, 2026-11-21). 2♥ (2♠) P on ♠93 ♥AKJ ♦KJT98 ♣K73, 15 HCP;
+    East/West make 12 tricks in hearts. Uncontested, `preempt` raises to 3♥,
+    but over their overcall `we_opened_contested` has no responder branch for
+    a two-level opening and the LoTT raise stopped at `LOTT_RAISE`'s 9 HCP,
+    so the hand fell to `ai_bid`, which read the weak two as an opening and
+    passed (the three level sat above `_place`'s ceiling). Now the LoTT raises
+    partner's pre-empt (my first call, their suit bid over it, 3+ trumps) on
+    any strength above `LOTT_RAISE`; the alert stays "3+ ♥, competitive.".
+    Fresh deals, head to head, 20,000 x 4 dealers: **+0.08 (t +2.97), +0.15
+    (t +5.12), +0.11 (t +4.18)**, about 355 auctions changed a seed, 74-92
+    worse. Game in the major at 16+ judgement points (`WEAK_TWO_GAME_JUDGE`,
+    as uncontested) added +0.01 to +0.03 on 9-20 boards; off (the user's
+    call: no extra games). (`/mnt/project-files/weak-two-raise/`.)
 - **Count the fit** (`FIT_COUNT`, `_fit_bonus`; the user's call, 2026-10-22).
   Where GIB judges game once a fit is known -- opener after 1M-2M and 1M-3M,
   responder after a game try and after opener's raise, and `continuation`'s

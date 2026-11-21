@@ -2518,7 +2518,7 @@ def _jump(ctx: Ctx, i: int) -> bool:
 #: as an opening and passed ("No extra values") because the three level sat
 #: above its ceiling. True lets the LoTT raise a pre-empt on any strength
 #: above LOTT_RAISE (its alert, "3+ ♥, competitive.", quotes no HCP).
-RAISE_PREEMPT_STRONG = False
+RAISE_PREEMPT_STRONG = True
 #: ...and with RAISE_PREEMPT_STRONG, game in partner's major on 3+ trumps
 #: and WEAK_TWO_GAME_JUDGE+ judgement points, as `preempt` bids it
 #: uncontested. A game raise: a separate variant (None is off).
