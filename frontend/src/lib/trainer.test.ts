@@ -57,10 +57,10 @@ describe('Bidding training', () => {
       if (r.par.side) expect(r.par.doubled === 'X').toBe(r.par.tricks < r.par.level + 6);
       expect(r.par.score).toBe(trainingPar(r.dealId, t.vulnerability).score);
       for (const s of ['C', 'D', 'H', 'S', 'NT'] as const) {
-        expect(Math.max(r.dd.North[s], r.dd.South[s])).toBe(nsTricks(r.dealId, s));
+        expect(Math.max(r.dd[s].North, r.dd[s].South)).toBe(nsTricks(r.dealId, s));
       }
       // The score counts the real declarer's tricks, which the table shows.
-      if (r.contract && (r.contract.declarer === 'North' || r.contract.declarer === 'South')) expect(r.tricks).toBe(r.dd[r.contract.declarer as 'North' | 'South'][r.contract.strain]);
+      if (r.contract && (r.contract.declarer === 'North' || r.contract.declarer === 'South')) expect(r.tricks).toBe(r.dd[r.contract.strain][r.contract.declarer as 'North' | 'South']);
       // Every call South made is looked at.
       expect(r.checks.length).toBe(t.calls.filter(([p]) => p === 'South').length);
       // The robots' auction on the same board, and where the two part.
@@ -205,7 +205,7 @@ describe('Bidding training', () => {
     const r = t.recap!;
     expect(r.contract).toMatchObject({ level: 5, strain: 'C', declarer: 'South' });
     expect([r.tricks, r.score]).toEqual([10, -50]);
-    expect([r.dd.North.C, r.dd.South.C]).toEqual([11, 10]);
+    expect([r.dd.C.North, r.dd.C.South]).toEqual([11, 10]);
     const html = render(TrainerView, { props: { trainer: t } }).body;
     expect(html).toMatch(/class="[^"]*bt-dd-mine[^"]*">10</);
     expect(html).toContain('your contract is boxed');
