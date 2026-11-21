@@ -952,6 +952,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   3+, and a weak transferer passes (`NT_X_INTERFERED`). Once the doubler has
   bid again, advancer stops passing automatically (`NT_X_ADVANCE_FIX`).
   0.00 a board on 60,000 fresh boards.
+  Stayman stays available (`NT_X_STAYMAN = 'weak'`; the user, 2026-11-21:
+  "that's what a user would expect"): the doubler answers anyone's 2♣ as
+  over 1NT, and the robots bid it as garbage Stayman only, 7 or fewer HCP
+  with 4+ in both majors (2♥ over 2♦ is pass or correct). Good hands still
+  pass the double. It costs -0.03 a board on 60,000 fresh boards (17
+  auctions changed, 5 better, 12 worse: pulling 1NT doubled that was going
+  down 3 or 4); kept as the user's system. Invitational Stayman (`'all'`)
+  measured -0.003 (2 auctions, both worse).
 - **Systems on over their 2♣ overcall of our 1NT** (`NT_2C_SYSTEMS`,
   `_nt_2c_systems`; the user's system, 2026-11-04): X is Stayman, 2♦/2♥
   transfer, and the uncontested continuations run while they pass. +0.00 a board on 60,000 fresh boards.
