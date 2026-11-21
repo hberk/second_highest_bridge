@@ -111,6 +111,12 @@ CUE_MINOR_SUPPORT = True
 #: three (the user's rule, 2026-11-17: P 1♣ (1♥) 3♣ on ♣A642). With four,
 #: responder makes the simple raise or passes.
 PREEMPT_MINOR_FIVE = True
+#: A responder who has already passed partner's 1x, and meets the opponents'
+#: balancing action (1♠ P P X P 2♥, the user's board 2026-11-21), raises to the
+#: cheapest level instead of jumping: the pre-emptive jump raise takes room from
+#: an opponent who has not yet found a fit, and here they have both spoken and
+#: the passed responder's strength is already known. 4+ trumps, or 3+ with 6+ HCP.
+PASSED_RESPONDER_RAISE = False
 #: Advancer's cuebid raise can pass three of partner's suit (1♦ (2♣) 2♦ 3♦),
 #: forcing 3NT or four. So when their suit ranks above ours, 2NT is the
 #: limit raise or better (artificial), leaving three as partner's sign-off,
@@ -3860,12 +3866,34 @@ def _unusual_cue_reply(ctx: Ctx) -> tuple | None:
     return None
 
 
+def _responder_passed(ctx: Ctx) -> bool:
+    """I have already passed partner's opening: their action came in the pass-out seat."""
+    at = next(k for k, (w, c) in enumerate(ctx.calls) if (w, c) == ctx.ours[0])
+    return any(w == ctx.me for w, _ in ctx.calls[at + 1:])
+
+
+def _passed_responder_raise(ctx: Ctx, x: str) -> tuple | None:
+    """The simple raise after a balancing action, never the pre-emptive jump."""
+    h = ctx.h
+    if not (PASSED_RESPONDER_RAISE and _responder_passed(ctx)):
+        return None
+    if not (h.len[x] >= _preempt_support(x) or (h.len[x] >= 3 and h.hcp >= 6)):
+        return None
+    call = ctx.cheapest(x, 2)
+    if call and level_of(call) == 2:
+        return call, f"3+ {SYM[x]} ({_preempt_support(x)}+ under 6 HCP). Competing."
+    return None
+
+
 def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
     h = ctx.h
     hcp = h.hcp
     sup = h.len[x]
     lb = _last_their_bid(ctx)
     if not lb:                                               # they doubled
+        passed = _passed_responder_raise(ctx, x)
+        if passed:
+            return passed
         if x in MAJORS and sup >= 4 and hcp >= 10 and ctx.ok('2NT'):
             return '2NT', f"Jordan: 4+ {SYM[x]}, 10+ HCP."
         if hcp >= 10 and ctx.ok('XX'):
@@ -3927,6 +3955,9 @@ def _respond_over_interference(ctx: Ctx, x: str) -> tuple:
                         and sup < 4 and h.judge < 12)
         if call and level_of(call) <= 3 and not cue_too_high:
             return call, f"Cuebid: {need}+ {SYM[x]}, 10+ HCP. Artificial."
+    passed = _passed_responder_raise(ctx, x)
+    if passed:
+        return passed
     if sup >= _preempt_support(x) and hcp <= 9 and ctx.ok(f"3{x}") and lvl <= 2 and \
             rank_of(f"3{x}") > rank_of(ctx.cheapest(x, 1) or '1C'):
         if ctx.cheapest(x, 2) != f"3{x}":

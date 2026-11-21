@@ -58,6 +58,9 @@ export const settingsGib = { judgeByVariant: true, cueLimitAt3: true };
 export const CUE_MINOR_SUPPORT = true;
 /** Responder's pre-emptive jump raise over interference needs 5+ trumps in a minor (gib.py). */
 export const PREEMPT_MINOR_FIVE = true;
+/** A responder who already passed partner's 1x raises to the cheapest level over
+ *  the opponents' balancing action, never the pre-emptive jump (gib.py). */
+export const PASSED_RESPONDER_RAISE = false;
 /** Advancer's cuebid raise past three of partner's suit: 2NT is the limit
  *  raise or better and the cuebid asks for a stopper for 3NT. See gib.py. */
 export const CUE_2NT = true;
@@ -3467,12 +3470,29 @@ function unusualCueReply(ctx: Ctx): Decision | null {
   return null;
 }
 
+function responderPassed(ctx: Ctx): boolean {
+  const [ow, oc] = ctx.ours[0];
+  const at = ctx.calls.findIndex(([w, c]) => w === ow && c === oc);
+  return ctx.calls.slice(at + 1).some(([w]) => w === ctx.me);
+}
+
+function passedResponderRaise(ctx: Ctx, x: Suit): Decision | null {
+  const h = ctx.h;
+  if (!(PASSED_RESPONDER_RAISE && responderPassed(ctx))) return null;
+  if (!(h.len[x] >= preemptSupport(x) || (h.len[x] >= 3 && h.hcp >= 6))) return null;
+  const call = ctx.cheapest(x, 2);
+  if (call && levelOf(call) === 2) return [call, `3+ ${SYM[x]} (${preemptSupport(x)}+ under 6 HCP). Competing.`];
+  return null;
+}
+
 function respondOverInterference(ctx: Ctx, x: Suit): Decision {
   const h = ctx.h;
   const hcp = h.hcp;
   const sup = h.len[x];
   const lb = lastTheirBid(ctx);
   if (!lb) {
+    const passed = passedResponderRaise(ctx, x);
+    if (passed) return passed;
     if (isMajor(x) && sup >= 4 && hcp >= 10 && ctx.ok('2NT')) return ['2NT', `Jordan: 4+ ${SYM[x]}, 10+ HCP.`];
     if (hcp >= 10 && ctx.ok('XX')) return ['XX', '10+ HCP.'];
     if (sup >= preemptSupport(x) && hcp <= 9 && ctx.ok(`3${x}`)) return [`3${x}`, `${preemptSupport(x)}+ ${SYM[x]}, under 10 HCP. Pre-emptive.`];
@@ -3530,6 +3550,8 @@ function respondOverInterference(ctx: Ctx, x: Suit): Decision {
       && sup < 4 && h.judge < 12;
     if (call && levelOf(call) <= 3 && !cueTooHigh) return [call, `Cuebid: ${need}+ ${SYM[x]}, 10+ HCP. Artificial.`];
   }
+  const passed = passedResponderRaise(ctx, x);
+  if (passed) return passed;
   if (sup >= preemptSupport(x) && hcp <= 9 && ctx.ok(`3${x}`) && lvl <= 2
     && rankOf(`3${x}`) > rankOf(ctx.cheapest(x, 1) ?? '1C')) {
     if (ctx.cheapest(x, 2) !== `3${x}`) return [`3${x}`, `${preemptSupport(x)}+ ${SYM[x]}, under 10 HCP. Pre-emptive.`];
