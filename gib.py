@@ -394,7 +394,7 @@ def _decide(ctx: Ctx) -> tuple | None:
         if not ctx.seq:
             return opening(ctx)
         return uncontested(ctx)
-    decision = contested(ctx)
+    decision = _contested_raise_game(ctx) or contested(ctx)
     if decision is None and _owns(ctx):
         decision = continuation(ctx)
     return decision
@@ -938,6 +938,40 @@ def _rebid_over_new_suit(ctx: Ctx, x: str, y: str) -> tuple:
 #: The same test answers opener's jump raise (1x-1M-3M, 15-17), so there too
 #: game comes 6 points sooner; those auctions were in the measurement.
 RAISE_TRY_GAME = 6
+#: ...and the same test when they have come in (the user's board,
+#: 2026-11-21: 1♣ (1♥) 1♠ (P) 2♠ (3♥) 3♠ with West ♠KJ8762 ♥K94 ♦A63 ♣3
+#: opposite ♠A543 ♥J7 ♦QJ7 ♣AT54; E/W take 12 tricks in spades). Unopposed,
+#: `responder_rebid` bids 4♠ on that hand. Once they bid, no branch judged
+#: game: the Law of Total Tricks bid 3♠ on nine trumps, and with them
+#: passing, the fallback's count (6.18 + 2.06 + 1 = 9.24 < GAME_TRICKS)
+#: passed. Partner's raise is read as CONTESTED_RAISE_GAME_PARTNER trumps
+#: (contested, a raise shows 3+; unopposed 4+), and responder needs
+#: CONTESTED_RAISE_GAME_LEN of them.
+CONTESTED_RAISE_GAME = True
+CONTESTED_RAISE_GAME_PARTNER = 4
+CONTESTED_RAISE_GAME_LEN = 6
+
+
+def _contested_raise_game(ctx: Ctx) -> tuple | None:
+    """Game for responder after 1x .. 1M .. 2M with the opponents in the
+    auction, on `responder_rebid`'s test for the unopposed 1x-1M-2M."""
+    if not CONTESTED_RAISE_GAME or not ctx.we_opened or len(ctx.ours) != 3:
+        return None
+    (w0, x), (w1, r), (w2, o) = ctx.ours
+    y = strain_of(r)
+    if (w0 != ctx.pd or w1 != ctx.me or w2 != ctx.pd or level_of(x) != 1
+            or strain_of(x) not in SUITS or level_of(r) != 1 or y not in MAJORS
+            or o != f"2{y}" or ctx.auction.doubled != 'None'
+            or ctx.h.len[y] < CONTESTED_RAISE_GAME_LEN):
+        return None
+    game = f"4{y}"
+    if not ctx.ok(game):
+        return None
+    lo, _ = opener_range(ctx.seq)
+    if ctx.h.judge + _fit_bonus(ctx.h, y, CONTESTED_RAISE_GAME_PARTNER) + lo + RAISE_TRY_GAME < GAME_MAJOR:
+        return None
+    hb = ctx.auction.highest_bid
+    return game, (LOTT_ALERT if hb[2] not in (ctx.me, ctx.pd) else TO_PLAY)
 
 
 def opener_range(seq: list[str]) -> tuple[int, int]:

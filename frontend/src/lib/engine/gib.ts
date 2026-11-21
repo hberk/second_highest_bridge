@@ -350,7 +350,7 @@ function decide(ctx: Ctx): Decision | null {
     if (!ctx.seq.length) return opening(ctx);
     return uncontested(ctx);
   }
-  let decision = contested(ctx);
+  let decision = contestedRaiseGame(ctx) ?? contested(ctx);
   if (decision === null && owns(ctx)) decision = continuation(ctx);
   return decision;
 }
@@ -837,6 +837,31 @@ function rebidOverNewSuit(ctx: Ctx, x: Suit, y: Suit): Decision {
  *  added to the hand for the direct game test only, cancelling the 4-4 fit's
  *  -6 (the user's deal of 2026-11-13; gib.py has the measurement). */
 export const RAISE_TRY_GAME = 6;
+/** ...and the same test when they have come in (the user's board,
+ *  2026-11-21: 1♣ (1♥) 1♠ (P) 2♠ (3♥) 3♠ on ♠KJ8762 ♥K94 ♦A63 ♣3; gib.py
+ *  has the measurement). Partner's raise is read as
+ *  CONTESTED_RAISE_GAME_PARTNER trumps; responder needs CONTESTED_RAISE_GAME_LEN. */
+export const CONTESTED_RAISE_GAME = true;
+export const CONTESTED_RAISE_GAME_PARTNER = 4;
+export const CONTESTED_RAISE_GAME_LEN = 6;
+
+/** Game for responder after 1x .. 1M .. 2M with the opponents in the
+ *  auction, on `responderRebid`'s test for the unopposed 1x-1M-2M. */
+function contestedRaiseGame(ctx: Ctx): Decision | null {
+  if (!CONTESTED_RAISE_GAME || !ctx.weOpened || ctx.ours.length !== 3) return null;
+  const [[w0, x], [w1, r], [w2, o]] = ctx.ours;
+  const y = strainOf(r);
+  if (w0 !== ctx.pd || w1 !== ctx.me || w2 !== ctx.pd || levelOf(x) !== 1
+      || !isSuit(strainOf(x)) || levelOf(r) !== 1 || !(y === 'H' || y === 'S')
+      || o !== `2${y}` || ctx.auction.doubled !== 'None'
+      || ctx.h.len[y] < CONTESTED_RAISE_GAME_LEN) return null;
+  const game = `4${y}`;
+  if (!ctx.ok(game)) return null;
+  const [lo] = openerRange(ctx.seq);
+  if (ctx.h.judge + fitBonus(ctx.h, y, CONTESTED_RAISE_GAME_PARTNER) + lo + RAISE_TRY_GAME < GAME_MAJOR) return null;
+  const hb = ctx.auction.highestBid!;
+  return [game, hb[2] !== ctx.me && hb[2] !== ctx.pd ? LOTT_ALERT : TO_PLAY];
+}
 
 function openerRange(seq: string[]): [number, number] {
   const x = strainOf(seq[0]) as Suit;
