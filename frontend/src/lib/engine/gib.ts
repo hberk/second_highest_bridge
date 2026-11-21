@@ -60,7 +60,7 @@ export const CUE_MINOR_SUPPORT = true;
 export const PREEMPT_MINOR_FIVE = true;
 /** A responder who already passed partner's 1x raises to the cheapest level over
  *  the opponents' balancing action, never the pre-emptive jump (gib.py). */
-export const PASSED_RESPONDER_RAISE = false;
+export const PASSED_RESPONDER_RAISE = true;
 /** Advancer's cuebid raise past three of partner's suit: 2NT is the limit
  *  raise or better and the cuebid asks for a stopper for 3NT. See gib.py. */
 export const CUE_2NT = true;

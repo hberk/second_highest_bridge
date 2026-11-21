@@ -116,7 +116,7 @@ PREEMPT_MINOR_FIVE = True
 #: cheapest level instead of jumping: the pre-emptive jump raise takes room from
 #: an opponent who has not yet found a fit, and here they have both spoken and
 #: the passed responder's strength is already known. 4+ trumps, or 3+ with 6+ HCP.
-PASSED_RESPONDER_RAISE = False
+PASSED_RESPONDER_RAISE = True
 #: Advancer's cuebid raise can pass three of partner's suit (1♦ (2♣) 2♦ 3♦),
 #: forcing 3NT or four. So when their suit ranks above ours, 2NT is the
 #: limit raise or better (artificial), leaving three as partner's sign-off,
