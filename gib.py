@@ -348,6 +348,10 @@ def gib_bid(player: str, cards: list[Card], auction: AuctionState) -> tuple | No
     decision = _minor_not_notrump(ctx, decision) or decision
     if decision is None:
         return None
+    if GF_NO_PASS and decision[0] == 'Pass' and _forced_to_game(ctx):
+        forced = continuation(ctx)
+        if forced[0] != 'Pass' and forced[0] in ctx.legal:
+            decision = forced
     if decision[0] not in ctx.legal:
         ILLEGAL.append((tuple(ctx.calls), decision))
         decision = continuation(ctx)
@@ -1243,13 +1247,18 @@ def opener_third(ctx: Ctx, x: str) -> tuple | None:
         if strain_of(last) in MINORS and last != f"4{x}":
             return None
         return 'Pass', "Partner placed the contract."
+    if last == '2NT' and GF_NO_PASS and _forced_to_game(ctx):
+        if x in MAJORS and h.len[x] >= 6 and ctx.ok(f"3{x}"):
+            return f"3{x}", f"6+ {SYM[x]}. Game forcing."
+        return continuation(ctx)
     if last == '2NT' and level_of(o) <= 2:
         if hcp >= 13:
             if x in MAJORS and h.len[x] >= 6:
                 return f"4{x}", TO_PLAY
             return '3NT', TO_PLAY
         return 'Pass', "Minimum."
-    if level_of(last) == 3 and strain_of(last) in SUITS and last != o:
+    if level_of(last) == 3 and strain_of(last) in SUITS and last != o \
+            and not (GF_NO_PASS and _forced_to_game(ctx)):
         # Responder's three-level suit here is invitational: game needs a
         # little more than a minimum.
         s = strain_of(last)
@@ -2067,6 +2076,44 @@ def _shown_lengths(seq: list[str], parity: int, natural: bool = False) -> dict:
             base = 7
         lengths[s] = max(lengths[s], base + (1 if times >= 2 else 0))
     return lengths
+
+
+#: A game-forcing auction is never passed below game (the user's board,
+#: 2026-11-21: 1♥ 2♣ 2♥ 2NT, and North passed 2NT as if it invited, "2♣ was
+#: game forcing"). Opener's third call read responder's 2NT and three-level
+#: new suit as invitations whatever the response (robots alone: 1♠ 2♥ 2♠ 3♦
+#: passed, "Declining the invitation"); now the auction goes on to game, and
+#: a pass the tables still make below 3NT there is replaced by
+#: `continuation`'s game-forced call. Uncontested auctions only: a raise
+#: (1♥ 2♥ 3♣, a game try) is not one.
+GF_NO_PASS = True
+#: ...and responder, game forced with no fit and no long suit to show, bids
+#: 2NT (natural, forcing) where it would have jumped to 3NT (not where
+#: MAJOR_OVER_3NT knows a major fit and bids 4M), so opener can
+#: still show a six-card major, and 2NT has a meaning there.
+GF_2NT = True
+GF_2NT_ALERT = "No fit yet. Game forcing."
+#: ...but a minor both of us have bid may still be passed below game
+#: (1♦ 2♣ 2♦ 3♦): forcing those on to 3NT or 5m lost on fresh deals.
+GF_MINOR_STOP = True
+
+
+def _forced_to_game(ctx: Ctx) -> bool:
+    """Is our uncontested auction game forcing (a 2/1, Jacoby 2NT, a splinter,
+    a strong 2♣, a jump shift, fourth suit) with our undoubled contract still
+    below 3NT?"""
+    seq = ctx.seq
+    if ctx.theirs or not ctx.we_opened or len(seq) < 2 or ctx.natural:
+        return False
+    if strain_of(seq[1]) == strain_of(seq[0]):
+        return False                 # a raise: 1♥ 2♥ 3♣ is a game try
+    hb = ctx.auction.highest_bid
+    if hb is None or hb[2] not in (ctx.me, ctx.pd) or ctx.auction.doubled != 'None':
+        return False
+    s = hb[1]
+    if GF_MINOR_STOP and s in MINORS and len({w for w, c in ctx.ours if strain_of(c) == s}) == 2:
+        return False                 # an agreed minor below game: the robots' stop (measured)
+    return rank_of(ctx.current()) < rank_of('3NT') and _game_forced(seq, ctx)
 
 
 def _game_forced(seq: list[str], ctx: Ctx) -> bool:
@@ -2957,6 +3004,9 @@ def continuation(ctx: Ctx) -> tuple:
                 call = ctx.cheapest(s, 2)
                 if call and rank_of(call) < rank_of('3NT'):
                     return call, natural(s)
+        if GF_2NT and gf and ctx.ok('2NT') and _forced_to_game(ctx) \
+                and not _major_over_notrump(ctx, ('3NT', TO_PLAY)):
+            return '2NT', GF_2NT_ALERT
         if ctx.ok('3NT'):
             return '3NT', TO_PLAY
         return 'Pass', "Game reached."

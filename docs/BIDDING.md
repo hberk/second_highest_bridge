@@ -619,6 +619,19 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     (t = +5.05); singleton values 0.5-1.5 all
     positive on the library, 1.0 best; a singleton in GIB's own `_fit_bonus`
     changed 7-12 auctions and lost 0.2 (t = -2).
+- **A game force is never passed below game** (`GF_NO_PASS`, `GF_2NT`,
+  `GF_MINOR_STOP`; the user's board, 2026-11-21: P 1♥ P 2♣ P 2♥ P 2NT and
+  North passed 2NT). `_forced_to_game` says when: our uncontested auction
+  is game forcing by `_game_forced`, the first response was not a raise
+  (1♥ 2♥ 3♣ is a game try), and our undoubled contract is below 3NT.
+  Opener's third call then answers 2NT with 3M on six of the major, else
+  `continuation`, and no longer reads a three-level new suit as an invitation
+  (robots alone passed 1♠ 2♥ 2♠ 3♦). Any pass left there becomes
+  `continuation`'s game-forced call. A minor both partners bid stays a stop:
+  forcing 1♦ 2♣ 2♦ 3♦ on lost about 0.06 a board. Responder with no fit and
+  nothing to show bids 2NT ("No fit yet. Game forcing.") instead of 3NT,
+  unless `MAJOR_OVER_3NT` knows a major fit (1♥ 2♣ 2♥ on a doubleton is 4♥).
+  Measured in ROBOT_PROGRESS.md, 11-21: neutral to slightly positive.
 - **Game by points** (`GAME`, `GAME_MAJOR`, `NT_GAME`, `MAJOR_OVER_3NT`,
   `RESPONSE_MIN`, `LOTT_MAX`; the user's calls, 2026-10-23). Measured with
   `research/gib_fresh_h2h.py` on 3,000 fresh random deals (12,000 boards),
