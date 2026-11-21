@@ -2351,3 +2351,26 @@ def test_pass_out_seat_competes_only_with_five_trumps_and_values():
     four = 'KS JS AH 9H 3H 10D 7D 6D 4D 9C 8C 2C 5S'    # four diamonds: no
     call, _ = bid(four, '1D', 'Pass', '2D', '2S', 'Pass', 'Pass', dealer='West')
     assert call != '3D', call
+
+
+# ── Responder's game after a contested single raise (CONTESTED_RAISE_GAME) ───
+
+def test_responder_bids_game_over_their_three_level_after_partners_raise():
+    """1♣ (1♥) 1♠ (P) 2♠ (3♥): West's six spades and 11 HCP bid 4♠, the
+    game `responder_rebid` bids unopposed (the user's board, 2026-11-21:
+    3♠ and E/W take 12 tricks). Off, the LoTT's 3♠."""
+    west = 'KS JS 8S 7S 6S 2S KH 9H 4H AD 6D 3D 3C'
+    calls = ('1C', '1H', '1S', 'Pass', '2S', '3H')
+    saved = gib.CONTESTED_RAISE_GAME
+    try:
+        gib.CONTESTED_RAISE_GAME = True
+        assert bid(west, *calls, dealer='East')[0] == '4S'
+        assert bid(west, *calls[:5], 'Pass', dealer='East')[0] == '4S'
+        weak = 'KS JS 8S 7S 6S 2S 5H 9H 4H AD 6D 3D 3C'      # 8 HCP: compete only
+        assert bid(weak, *calls, dealer='East')[0] != '4S'
+        five = 'KS JS 8S 7S 6S KH 9H 4H 2H AD 6D 3D 3C'      # five spades: no
+        assert bid(five, *calls, dealer='East')[0] != '4S'
+        gib.CONTESTED_RAISE_GAME = False
+        assert bid(west, *calls, dealer='East')[0] == '3S'
+    finally:
+        gib.CONTESTED_RAISE_GAME = saved

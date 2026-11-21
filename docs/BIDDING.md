@@ -574,6 +574,17 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     **+0.24, +0.27, +0.29 a board (t = +6.8 to +8.3, ~500 auctions changed
     a seed)**, games made 55%. Adding invitations lost: opener declines most
     of them, and 3M fails where 2M made (`/mnt/project-files/raise-try/`).
+  - **...and when they have come in** (`CONTESTED_RAISE_GAME`, on with six trumps; the
+    user's board, 2026-11-21: 1♣ (1♥) 1♠ (P) 2♠ (3♥) 3♠ on ♠KJ8762 ♥K94
+    ♦A63 ♣3, E/W take 12 tricks in spades). No contested branch judged
+    game: the LoTT bid 3♠ on nine trumps, and with them passing the
+    fallback's count (9.24) passed. The same test now runs with partner's
+    raise read as `CONTESTED_RAISE_GAME_PARTNER` trumps (4; contested, a
+    raise shows 3+). 3 seeds × 10,000 fresh deals: +0.20, +0.03, +0.09 a
+    board (t +4.1, +0.6, +2.0, ~130 auctions a seed), +1.15 IMPs a changed
+    auction; read as three, +0.06, +0.02, +0.01. The user's pick (11-21):
+    responder needs six trumps (`CONTESTED_RAISE_GAME_LEN = 6`), +0.09,
+    +0.02, +0.05 a board (t +3.1, +0.9, +1.9, ~40 auctions a seed).
 - **Slam bidding doesn't pay here** (2026-10-23, the 101 slam deals of
   `research/data/dd_slam.jsonl`; [SOLVER.md](SOLVER.md) for how they were
   found). The robots bid slam on 0 of their 404 auctions: the opponents buy
