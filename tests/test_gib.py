@@ -2351,3 +2351,26 @@ def test_pass_out_seat_competes_only_with_five_trumps_and_values():
     four = 'KS JS AH 9H 3H 10D 7D 6D 4D 9C 8C 2C 5S'    # four diamonds: no
     call, _ = bid(four, '1D', 'Pass', '2D', '2S', 'Pass', 'Pass', dealer='West')
     assert call != '3D', call
+
+
+def test_balancing_double_of_a_weak_two_on_shortness():
+    # The user's deal (2026-11-21): West A976 - Q9842 QJ87 passed 2♥ P P;
+    # East's KJ632 sat behind the hearts. With the switches on, West doubles
+    # and East leaves it in.
+    old = gib.BALANCE_WEAK_TWO_X, gib.WEAK_TWO_X_PENALTY
+    gib.BALANCE_WEAK_TWO_X, gib.WEAK_TWO_X_PENALTY = 8, 5
+    try:
+        west = 'AS 9S 7S 6S QD 9D 8D 4D 2D QC JC 8C 7C'
+        call, why = bid(west, 'Pass', '2H', 'Pass', 'Pass', dealer='West')
+        assert call == 'X' and why.startswith('Balancing takeout: 7+ HCP')
+        # A doubleton heart needs the full 13.
+        assert bid('AS 9S 7S 5H 4H QD 9D 8D 2D QC JC 8C 7C',
+                   'Pass', '2H', 'Pass', 'Pass', dealer='West')[0] == 'Pass'
+        east = 'KS 4S KH JH 6H 3H 2H AD 7D 3D 10C 5C 2C'
+        call, why = bid(east, 'Pass', '2H', 'Pass', 'Pass', 'X', 'Pass', dealer='West')
+        assert call == 'Pass' and why.startswith('Penalty')
+        # Small hearts answer the double.
+        assert bid('KS 4S 8H 6H 3H 2H AD 7D 5D 3D 10C 5C 2C',
+                   'Pass', '2H', 'Pass', 'Pass', 'X', 'Pass', dealer='West')[0] != 'Pass'
+    finally:
+        gib.BALANCE_WEAK_TWO_X, gib.WEAK_TWO_X_PENALTY = old
