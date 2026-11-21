@@ -348,6 +348,8 @@ def gib_bid(player: str, cards: list[Card], auction: AuctionState) -> tuple | No
         decision = placed
     if not decision or decision[0] not in ('X', 'XX'):     # a penalty double outranks the jam
         decision = _jam_game(ctx) or decision
+    if not decision or decision[0] == 'Pass':
+        decision = _weak_two_game(ctx) or decision
     decision = _total_tricks(ctx, decision) or decision
     decision = _major_over_notrump(ctx, decision) or decision
     decision = _fit_over_notrump(ctx, decision) or decision
@@ -2612,6 +2614,53 @@ def _jump(ctx: Ctx, i: int) -> bool:
     return level_of(call) > need
 
 
+#: Raise partner's pre-empt over their overcall with a strong hand (the
+#: user's board, 2026-11-21: 2♥ (2♠) P on ♠93 ♥AKJ ♦KJT98 ♣K73, 15 HCP;
+#: 6♥ makes). Uncontested, `preempt` raises 2♥ to 3♥ (or 4♥ at 16+
+#: judgement points); over a suit overcall `we_opened_contested` has no
+#: responder branch for a two-level opening, and the LoTT raise stops at
+#: LOTT_RAISE's 9 HCP, so the hand fell to `ai_bid`, which read the weak two
+#: as an opening and passed ("No extra values") because the three level sat
+#: above its ceiling. True lets the LoTT raise a pre-empt on any strength
+#: above LOTT_RAISE (its alert, "3+ ♥, competitive.", quotes no HCP).
+RAISE_PREEMPT_STRONG = True
+#: ...and with RAISE_PREEMPT_STRONG, game in partner's major on 3+ trumps
+#: and WEAK_TWO_GAME_JUDGE+ judgement points, as `preempt` bids it
+#: uncontested. A game raise: a separate variant (None is off).
+WEAK_TWO_GAME_JUDGE: int | None = None
+
+
+def _partner_preempted(ctx: Ctx) -> bool:
+    """Is partner's pre-empt (a weak two or a three-level suit opening) our
+    side's only call, with their suit bid over it and my first call to come?"""
+    if not ctx.we_opened or ctx.seq == [] or len(ctx.ours) != 1 or ctx.ours[0][0] != ctx.pd:
+        return False
+    first = ctx.seq[0]
+    lvl, x = level_of(first), strain_of(first)
+    if x not in SUITS or not (lvl == 3 or (lvl == 2 and x != 'C')):
+        return False
+    if any(w == ctx.me for w, _ in ctx.calls[ctx.calls.index(ctx.ours[0]) + 1:]):
+        return False
+    hb = ctx.auction.highest_bid
+    return hb is not None and hb[2] not in (ctx.me, ctx.pd) and ctx.auction.doubled == 'None'
+
+
+def _raise_preempt_strong(ctx: Ctx, s: str) -> bool:
+    return (RAISE_PREEMPT_STRONG and ctx.h.hcp > LOTT_RAISE[1] and ctx.h.len[s] >= 3
+            and _partner_preempted(ctx) and strain_of(ctx.seq[0]) == s)
+
+
+def _weak_two_game(ctx: Ctx) -> tuple | None:
+    """Game in partner's weak-two major over their overcall (WEAK_TWO_GAME_JUDGE)."""
+    if WEAK_TWO_GAME_JUDGE is None or not RAISE_PREEMPT_STRONG or not _partner_preempted(ctx):
+        return None
+    x = strain_of(ctx.seq[0])
+    if (level_of(ctx.seq[0]) != 2 or x not in MAJORS or ctx.h.len[x] < 3
+            or ctx.h.judge < WEAK_TWO_GAME_JUDGE or not ctx.ok(f"4{x}")):
+        return None
+    return f"4{x}", JAM_ALERT.format(SYM[x])
+
+
 def _total_tricks(ctx: Ctx, decision: tuple | None) -> tuple | None:
     if not LOTT or not ctx.theirs or (decision and decision[0] != 'Pass'):
         return None
@@ -2628,7 +2677,8 @@ def _total_tricks(ctx: Ctx, decision: tuple | None) -> tuple | None:
                    for i, (w, _) in enumerate(ctx.ours))
         weak = LOTT_SHORT and ctx.h.hcp < LOTT_RAISE[0] and ctx.h.len[s] >= 3 \
             and ctx.h.short(s)
-        if not mine and not weak and not LOTT_RAISE[0] <= ctx.h.hcp <= LOTT_RAISE[1]:
+        if not mine and not weak and not LOTT_RAISE[0] <= ctx.h.hcp <= LOTT_RAISE[1] \
+                and not _raise_preempt_strong(ctx, s):
             continue
         call = ctx.cheapest(s, 1)
         extra = 1 if _balance_three(ctx, s, n, mine) else 0

@@ -314,6 +314,7 @@ export function gibBid(player: Seat, cards: Card[], auction: AuctionState): Deci
   if (!decision || (decision[0] !== 'X' && decision[0] !== 'XX')) {
     decision = jamGame(ctx) ?? decision;   // a penalty double outranks the jam
   }
+  if (!decision || decision[0] === 'Pass') decision = weakTwoGame(ctx) ?? decision;
   decision = totalTricks(ctx, decision) ?? decision;
   decision = majorOverNotrump(ctx, decision) ?? decision;
   decision = fitOverNotrump(ctx, decision) ?? decision;
@@ -2398,6 +2399,42 @@ function jump(ctx: Ctx, i: number): boolean {
   return levelOf(call) > need;
 }
 
+/** Raise partner's pre-empt over their overcall with a strong hand (the
+ *  user's board, 2026-11-21: 2♥ (2♠) P on 15 HCP and ♥AKJ). True lets the
+ *  LoTT raise a pre-empt on any strength above LOTT_RAISE. See gib.py. */
+export const RAISE_PREEMPT_STRONG = true;
+/** ...and game in partner's weak-two major on 3+ trumps and this many
+ *  judgement points, as `preempt` bids it uncontested. null is off. */
+export const WEAK_TWO_GAME_JUDGE: number | null = null;
+
+/** Is partner's pre-empt our side's only call, with their suit bid over it
+ *  and my first call to come? */
+function partnerPreempted(ctx: Ctx): boolean {
+  if (!ctx.weOpened || !ctx.seq.length || ctx.ours.length !== 1 || ctx.ours[0][0] !== ctx.pd) return false;
+  const first = ctx.seq[0];
+  const lvl = levelOf(first);
+  const x = strainOf(first);
+  if (!isSuit(x) || !(lvl === 3 || (lvl === 2 && x !== 'C'))) return false;
+  const at = ctx.calls.findIndex(([w, c]) => w === ctx.ours[0][0] && c === ctx.ours[0][1]);
+  if (ctx.calls.slice(at + 1).some(([w]) => w === ctx.me)) return false;
+  const hb = ctx.auction.highestBid;
+  return !!hb && hb[2] !== ctx.me && hb[2] !== ctx.pd && ctx.auction.doubled === 'None';
+}
+
+function raisePreemptStrong(ctx: Ctx, s: Suit): boolean {
+  return RAISE_PREEMPT_STRONG && ctx.h.hcp > LOTT_RAISE[1] && ctx.h.len[s] >= 3
+    && partnerPreempted(ctx) && strainOf(ctx.seq[0]) === s;
+}
+
+/** Game in partner's weak-two major over their overcall (WEAK_TWO_GAME_JUDGE). */
+function weakTwoGame(ctx: Ctx): Decision | null {
+  if (WEAK_TWO_GAME_JUDGE === null || !RAISE_PREEMPT_STRONG || !partnerPreempted(ctx)) return null;
+  const x = strainOf(ctx.seq[0]);
+  if (levelOf(ctx.seq[0]) !== 2 || !isMajor(x) || ctx.h.len[x as Suit] < 3
+    || ctx.h.judge < WEAK_TWO_GAME_JUDGE || !ctx.ok(`4${x}`)) return null;
+  return [`4${x}`, jamText(x as Suit)];
+}
+
 function totalTricks(ctx: Ctx, decision: Decision | null): Decision | null {
   if (!LOTT || !ctx.theirs.length || (decision && decision[0] !== 'Pass')) return null;
   const hb = ctx.auction.highestBid;
@@ -2411,7 +2448,8 @@ function totalTricks(ctx: Ctx, decision: Decision | null): Decision | null {
       && (shownSuit(ctx.seq, i, ctx.natural) === s || cueRaise(ctx, i) === s));
     const weak = LOTT_SHORT && ctx.h.hcp < LOTT_RAISE[0] && ctx.h.len[s] >= 3
       && ctx.h.short(s).length > 0;
-    if (!mine && !weak && !(LOTT_RAISE[0] <= ctx.h.hcp && ctx.h.hcp <= LOTT_RAISE[1])) continue;
+    if (!mine && !weak && !(LOTT_RAISE[0] <= ctx.h.hcp && ctx.h.hcp <= LOTT_RAISE[1])
+      && !raisePreemptStrong(ctx, s)) continue;
     const call = ctx.cheapest(s, 1);
     if (call === null || levelOf(call) > Math.min(n - 6 + totalBonus(ctx, n) + (balanceThree(ctx, s, n, mine) ? 1 : 0), LOTT_MAX)) continue;
     const extra = balanceThree(ctx, s, n, mine) ? 1 : 0;
