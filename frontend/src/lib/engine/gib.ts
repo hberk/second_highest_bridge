@@ -5332,7 +5332,7 @@ export const TAKEOUT_1NT_ADVANCE = true;
 export const TAKEOUT_1NT_HCP: [number, number] = [6, 10];
 /** Only when every unbid suit is three cards or fewer: the hand that would
  *  otherwise name a three-card suit. False allows a four-card minor too. */
-export const TAKEOUT_1NT_ONLY_THREE = false;
+export const TAKEOUT_1NT_ONLY_THREE = true;
 
 function takeout1ntAdvance(ctx: Ctx, opening: string | null | undefined, theirs: string[]): Decision | null {
   const h = ctx.h;
@@ -5350,6 +5350,7 @@ function takeout1ntAdvance(ctx: Ctx, opening: string | null | undefined, theirs:
   if (unbid.some((s) => h.len[s] >= 5)) return null;
   if (unbid.some((s) => h.len[s] >= 4 && idx(s) > idx(their))) return null;   // 1♣ X P 1♦: a real suit, at the one level
   if (TAKEOUT_1NT_ONLY_THREE && unbid.some((s) => h.len[s] >= 4)) return null;
+  if (TAKEOUT_1NT_ONLY_THREE) return ['1NT', `${lo}-${hi} HCP, ${SYM[their]} stopper, no 4-card suit to bid.`];
   if (isMajor(their)) {
     const other = their === 'H' ? 'S' : 'H';
     return ['1NT', `${lo}-${hi} HCP, ${SYM[their]} stopper, at most 3 ${SYM[other]}.`];

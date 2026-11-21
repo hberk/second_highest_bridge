@@ -51,7 +51,7 @@ def test_takeout_double_1nt_advance():
     # answers 1NT, not 1♠ on three spades.
     south = '9S 6S 4S JH 6H 3H 2H KD 9D 8D AC 7C 6C'
     call, why = bid(south, '1H', 'Pass', 'Pass', 'X', 'Pass', dealer='East')
-    assert (call, why) == ('1NT', '6-10 HCP, ♥ stopper, at most 3 ♠.')
+    assert (call, why) == ('1NT', '6-10 HCP, ♥ stopper, no 4-card suit to bid.')
     assert bid(south, '1H', 'X', 'Pass', dealer='North')[0] == '1NT'
     # Four spades, five diamonds or no stopper still name a suit.
     assert bid('9S 6S 4S 3S JH 6H 3H KD 9D 8D AC 7C 6C', '1H', 'X', 'Pass', dealer='North')[0] == '1S'
@@ -60,7 +60,9 @@ def test_takeout_double_1nt_advance():
     # Over a minor, a four-card suit at the one level is named first.
     assert bid('9S 6S 4S 6H 3H 2H KD 9D 8D 5D AC QC 6C', '1C', 'X', 'Pass', dealer='North')[0] in ('1D', '2D')
     call, why = bid('9S 6S 4S 6H 3H 2H KD 9D 8D AC QC 7C 6C', '1C', 'X', 'Pass', dealer='North')
-    assert (call, why) == ('1NT', '6-10 HCP, ♣ stopper, no 4-card major.')
+    assert (call, why) == ('1NT', '6-10 HCP, ♣ stopper, no 4-card suit to bid.')
+    # A four-card minor at the two level is still named (TAKEOUT_1NT_ONLY_THREE).
+    assert bid('9S 6S 4S JH 6H 3H KD 9D 8D 2D AC 7C 6C', '1H', 'X', 'Pass', dealer='North')[0] != '1NT'
     # The doubler: game on 19+, an invitation on 17-18, else pass.
     calls = ('1H', 'X', 'Pass', '1NT', 'Pass')
     assert bid('AS KS 7S 5S 8H AD KD 6D 2D KC QC 10C 9C', *calls, dealer='North')[0] == '3NT'

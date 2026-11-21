@@ -5939,8 +5939,12 @@ def _advance(ctx: Ctx) -> tuple | None:
 TAKEOUT_1NT_ADVANCE = True
 TAKEOUT_1NT_HCP = (6, 10)
 #: Only when every unbid suit is three cards or fewer: the hand that would
-#: otherwise name a three-card suit. False allows a four-card minor too.
-TAKEOUT_1NT_ONLY_THREE = False
+#: otherwise name a three-card suit. False allows a four-card minor too,
+#: which measured -0.10, -0.00, -0.05 a board (t -1.7, -0.2, -1.3; seeds
+#: 7M/8M/9M x 3,000); True -0.10, +0.01, +0.01 (t -1.9, +1.2, +1.4), 20
+#: auctions in 36,000 boards, the loss one deal: doubler's four spades
+#: opposite three made 2♠ doubled.
+TAKEOUT_1NT_ONLY_THREE = True
 
 
 def _takeout_1nt_advance(ctx: Ctx, opening: str | None, theirs: list[str]) -> tuple | None:
@@ -5967,6 +5971,8 @@ def _takeout_1nt_advance(ctx: Ctx, opening: str | None, theirs: list[str]) -> tu
         return None                      # 1♣ X P 1♦: a real suit, at the one level
     if TAKEOUT_1NT_ONLY_THREE and any(h.len[s] >= 4 for s in unbid):
         return None
+    if TAKEOUT_1NT_ONLY_THREE:
+        return '1NT', f"{lo}-{hi} HCP, {SYM[their]} stopper, no 4-card suit to bid."
     if their in MAJORS:
         other = 'S' if their == 'H' else 'H'
         return '1NT', f"{lo}-{hi} HCP, {SYM[their]} stopper, at most 3 {SYM[other]}."
