@@ -2602,3 +2602,26 @@ def test_doubler_cuebid_of_their_suit_is_alerted_as_a_cuebid():
     west = 'KS AH QH 5H KD QD 7D 2D AC QC JC 6C 5C'     # 21 HCP
     call, why = bid(west, '1C', 'X', 'Pass', '1S', 'Pass', dealer='South')
     assert call == '2C' and why == 'Cuebid: 18+ HCP, a strong hand.', (call, why)
+
+
+def test_balancing_double_of_a_weak_two_on_shortness():
+    # The user's deal (2026-11-21): West A976 - Q9842 QJ87 passed 2♥ P P;
+    # East's KJ632 sat behind the hearts. With the switches on, West doubles
+    # and East leaves it in.
+    old = gib.BALANCE_WEAK_TWO_X, gib.WEAK_TWO_X_PENALTY
+    gib.BALANCE_WEAK_TWO_X, gib.WEAK_TWO_X_PENALTY = 8, 5
+    try:
+        west = 'AS 9S 7S 6S QD 9D 8D 4D 2D QC JC 8C 7C'
+        call, why = bid(west, 'Pass', '2H', 'Pass', 'Pass', dealer='West')
+        assert call == 'X' and why.startswith('Balancing takeout: 7+ HCP')
+        # A doubleton heart needs the full 13.
+        assert bid('AS 9S 7S 5H 4H QD 9D 8D 2D QC JC 8C 7C',
+                   'Pass', '2H', 'Pass', 'Pass', dealer='West')[0] == 'Pass'
+        east = 'KS 4S KH JH 6H 3H 2H AD 7D 3D 10C 5C 2C'
+        call, why = bid(east, 'Pass', '2H', 'Pass', 'Pass', 'X', 'Pass', dealer='West')
+        assert call == 'Pass' and why.startswith('Penalty')
+        # Small hearts answer the double.
+        assert bid('KS 4S 8H 6H 3H 2H AD 7D 5D 3D 10C 5C 2C',
+                   'Pass', '2H', 'Pass', 'Pass', 'X', 'Pass', dealer='West')[0] != 'Pass'
+    finally:
+        gib.BALANCE_WEAK_TWO_X, gib.WEAK_TWO_X_PENALTY = old

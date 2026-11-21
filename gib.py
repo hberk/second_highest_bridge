@@ -5321,6 +5321,24 @@ BALANCE_DISCOUNT = 4
 BALANCE_WEAK_TWO = 3
 BALANCE_WEAK_TWO_LEN = 6
 
+#: The balancing takeout double over their weak two, 2x P P X, on shape:
+#: at most BALANCE_WEAK_TWO_X_SHORT cards in their suit, three or more in
+#: each other suit, and BALANCE_WEAK_TWO_X HCP or more (one fewer with a
+#: void). None: the plain two-level takeout floor (13 HCP) applies. West's
+#: A976 - Q9842 QJ87 passed 2♥ P P with partner's KJ632 behind the hearts
+#: (the user's deal, 2026-11-21, 2♥ made, -150). Measured with the penalty
+#: pass below, 6 x 6,000 fresh deals: -0.05/+0.13/+0.07/+0.13/+0.14/+0.16 a
+#: board (+0.10 mean); a doubleton allowed (SHORT 2) the same mean on 2.5x
+#: as many auctions, 10 HCP +0.06, the double without the pass flat. Makes
+#: the robots bid more; the user adopted it as a test of their idea.
+BALANCE_WEAK_TWO_X: int | None = 8
+BALANCE_WEAK_TWO_X_SHORT = 1
+#: ... and partner, who passed their weak two directly, leaves the double in
+#: for penalty with WEAK_TWO_X_PENALTY or more of their suit and two of its
+#: top five honours (the trap pass the double was made for). Four trumps
+#: measured -0.19/-0.09/+0.04: 2M doubled making costs 560-670.
+WEAK_TWO_X_PENALTY: int | None = 5
+
 
 def _pass_out_over(ctx: Ctx) -> str | None:
     """Their opening, a suit bid at the one or two level, when I am in the
@@ -6109,6 +6127,15 @@ def _defend(ctx: Ctx) -> tuple | None:
                 and (MAJORS_TAKEOUT_BALANCE or not bal)):
             shape_ok = True               # both majors: the other minor may be short
         need = (TAKEOUT_MIN if lvl == 1 else 13) - bal
+        if BALANCE_WEAK_TWO_X and _weak_two_balance(ctx):
+            # One alert for the call, whichever hand holds it.
+            low = BALANCE_WEAK_TWO_X - 1
+            short = h.len[their] <= BALANCE_WEAK_TWO_X_SHORT and all(
+                h.len[s] >= 3 for s in SUITS if s != their)
+            floor = BALANCE_WEAK_TWO_X - (1 if h.len[their] == 0 else 0)
+            if (short and hcp >= floor) or (shape_ok and hcp >= need) or hcp >= 18:
+                return 'X', f"Balancing takeout: {low}+ HCP. Partner may pass for penalty."
+            need = 99
         if (shape_ok and hcp >= need) or hcp >= 18:
             return 'X', f"Balancing takeout: {need}+ HCP." if bal else f"Takeout: {need}+ HCP."
     if lvl == 3 and h.balanced and hcp >= 16 and h.stopper(their) and ctx.ok('3NT'):
@@ -6158,6 +6185,19 @@ def _direct_over_opening(ctx: Ctx) -> bool:
     at = min(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.pd and c != 'Pass')
     bids = [c for _, c in ctx.calls[:at] if c != 'Pass']
     return len(bids) == 1
+
+
+def _weak_two_x_trap(ctx: Ctx) -> bool:
+    """2x P P X P, my call: partner's balancing double of their weak two,
+    and I passed the weak two directly."""
+    i = next((k for k, (w, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None:
+        return False
+    w, c = ctx.calls[i]
+    tail = [x for _, x in ctx.calls[i + 1:]]
+    return (w not in (ctx.me, ctx.pd) and level_of(c) == 2 and strain_of(c) in SUITS
+            and c != '2C' and tail == ['Pass', 'Pass', 'X', 'Pass']
+            and ctx.calls[i + 1][0] == ctx.me)
 
 
 def _advance(ctx: Ctx) -> tuple | None:
@@ -6224,6 +6264,10 @@ def _advance(ctx: Ctx) -> tuple | None:
         if call and level_of(call) <= 5:
             return call, "Choosing between partner's two suits."
         return 'Pass', "No room."
+    if p == 'X' and WEAK_TWO_X_PENALTY and _weak_two_x_trap(ctx):
+        their = strain_of(opening)
+        if h.len[their] >= WEAK_TWO_X_PENALTY and h.top(their, ('A', 'K', 'Q', 'J', '10')) >= 2:
+            return 'Pass', f"Penalty: converting partner's double, length in {SYM[their]}."
     if p == 'X':
         if parse_bid(ctx.calls[-1][1]) and ctx.calls[-1][1] != opening:
             unbid = [s for s in SUITS if s not in theirs]
