@@ -1217,7 +1217,7 @@ PENALTY_STRONG = 20
 #: plus 13.5 for partner's 10-17 overcall, half a point short; 4S went three
 #: down). Each trump past the length the double needs (5 at the two level,
 #: 4 higher) adds this many judgement points. None leaves the count alone.
-PENALTY_TRUMP_JP: float | None = None
+PENALTY_TRUMP_JP: float | None = 4
 
 
 def _partner_middle(partner: str, auction: AuctionState, alerts: dict, mine: int) -> float:

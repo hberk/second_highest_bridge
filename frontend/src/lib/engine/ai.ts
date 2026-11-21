@@ -778,7 +778,7 @@ export const PENALTY_STRONG = 20;
 /** Trump length counts toward PENALTY_JUDGE: each trump past the length the
  *  double needs adds this many judgement points; null leaves the count
  *  alone. See ai.py. */
-export const PENALTY_TRUMP_JP: number | null = null;
+export const PENALTY_TRUMP_JP: number | null = 4;
 
 /** Has an opponent's alert shown PENALTY_STRONG or more points? */
 function oppShownStrong(player: Seat, auction: AuctionState, alerts: Record<number, string>): boolean {

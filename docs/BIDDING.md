@@ -436,6 +436,12 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     four trumps double only if they haven't both named the suit. Seeds 7M-9M
     (10,000 deals): -0.10, +0.17, -0.22, a tie, more auctions worse than
     better on every seed. Branch `claude/project-thread-e0klhw`.
+  - **Long trumps count toward the double** (`PENALTY_TRUMP_JP = 4`; the
+    user's training deal 30, 2026-11-21): each trump past the length the
+    double needs adds 4 judgement points. West ♠AJ752 passed P P 1♠ (2♥) 2♠
+    (4♥) 4♠ on 6 JP + 13.5 for the 10-17 overcall, half a point short; 4♠
+    took seven tricks. Seeds 7M-9M (5,000 deals): +0.83, +0.63, +1.09 a
+    board (t 5.2-7.8). +2 measured +0.56, +6 +0.97; the user picked +4.
   - **The penalty double of 1NT is for balanced hands** (`NT_X_SHAPE = 'two'`;
     the user's deal, 2026-11-13): 1NT P P X with ♠AT865 ♥J ♦AK5 ♣QJT4, partner
     transferred to hearts on 0-5-4-4 (systems on) and 2♥ played on a 5-1 fit.
