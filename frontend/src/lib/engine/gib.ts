@@ -319,6 +319,10 @@ export function gibBid(player: Seat, cards: Card[], auction: AuctionState): Deci
   decision = fitOverNotrump(ctx, decision) ?? decision;
   decision = minorNotNotrump(ctx, decision) ?? decision;
   if (decision === null) return null;
+  if (GF_NO_PASS && decision[0] === 'Pass' && forcedToGame(ctx)) {
+    const forced = continuation(ctx);
+    if (forced[0] !== 'Pass' && ctx.legal.includes(forced[0])) decision = forced;
+  }
   if (!ctx.legal.includes(decision[0] as string)) {
     ILLEGAL.push([ctx.calls, decision]);
     decision = continuation(ctx);
@@ -1144,6 +1148,10 @@ function openerThird(ctx: Ctx, x: Suit): Decision | null {
     if (isMinor(strainOf(last)) && last !== `4${x}`) return null;
     return ['Pass', 'Partner placed the contract.'];
   }
+  if (last === '2NT' && GF_NO_PASS && forcedToGame(ctx)) {
+    if (isMajor(x) && h.len[x] >= 6 && ctx.ok(`3${x}`)) return [`3${x}`, `6+ ${SYM[x]}. Game forcing.`];
+    return continuation(ctx);
+  }
   if (last === '2NT' && levelOf(o) <= 2) {
     if (hcp >= 13) {
       if (isMajor(x) && h.len[x] >= 6) return [`4${x}`, TO_PLAY];
@@ -1151,7 +1159,8 @@ function openerThird(ctx: Ctx, x: Suit): Decision | null {
     }
     return ['Pass', 'Minimum.'];
   }
-  if (levelOf(last) === 3 && isSuit(strainOf(last)) && last !== o) {
+  if (levelOf(last) === 3 && isSuit(strainOf(last)) && last !== o
+    && !(GF_NO_PASS && forcedToGame(ctx))) {
     const s = strainOf(last) as Suit;
     if (hcp >= 14 || (hcp >= 13 && levelOf(o) === 2)) {
       if (isMajor(s)) return [`4${s}`, TO_PLAY];
@@ -1924,6 +1933,32 @@ function shownLengths(seq: string[], parity: number, natural = false): Record<Su
     lengths[s] = Math.max(lengths[s], base + (times >= 2 ? 1 : 0));
   }
   return lengths;
+}
+
+/** A game-forcing auction is never passed below game (the user's board,
+ *  2026-11-21: 1♥ 2♣ 2♥ 2NT, passed as if 2NT invited). Uncontested auctions
+ *  only: a raise (1♥ 2♥ 3♣, a game try) is not one. */
+export const GF_NO_PASS = true;
+/** ...and responder, game forced with no fit and no long suit to show, bids
+ *  2NT where it would have jumped to 3NT. */
+export const GF_2NT = true;
+export const GF_2NT_ALERT = 'No fit yet. Game forcing.';
+/** ...but a minor both of us have bid may still be passed below game (1♦ 2♣ 2♦ 3♦). */
+export const GF_MINOR_STOP = true;
+
+/** Is our uncontested auction game forcing, with our undoubled contract still
+ *  below 3NT? `_forced_to_game` in gib.py. */
+function forcedToGame(ctx: Ctx): boolean {
+  const seq = ctx.seq;
+  if (ctx.theirs.length || !ctx.weOpened || seq.length < 2 || ctx.natural) return false;
+  if (strainOf(seq[1]) === strainOf(seq[0])) return false;   // a raise: 1♥ 2♥ 3♣ is a game try
+  const hb = ctx.auction.highestBid;
+  if (hb === null || (hb[2] !== ctx.me && hb[2] !== ctx.pd) || ctx.auction.doubled !== 'None') return false;
+  const s = hb[1];
+  if (GF_MINOR_STOP && isMinor(s) && new Set(ctx.ours.filter(([, c]) => strainOf(c) === s).map(([w]) => w)).size === 2) {
+    return false;   // an agreed minor below game: the robots' stop (measured)
+  }
+  return rankOf(ctx.current() as string) < rankOf('3NT') && gameForced(seq, ctx);
 }
 
 function gameForced(seq: string[], ctx: Ctx): boolean {
@@ -2728,6 +2763,8 @@ function continuation(ctx: Ctx): Decision {
         if (call && rankOf(call) < rankOf('3NT')) return [call, natural(s)];
       }
     }
+    if (GF_2NT && gf && ctx.ok('2NT') && forcedToGame(ctx)
+      && !majorOverNotrump(ctx, ['3NT', TO_PLAY])) return ['2NT', GF_2NT_ALERT];
     if (ctx.ok('3NT')) return ['3NT', TO_PLAY];
     return ['Pass', 'Game reached.'];
   }

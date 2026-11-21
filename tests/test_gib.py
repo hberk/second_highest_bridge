@@ -1247,6 +1247,27 @@ def test_a_known_major_fit_plays_in_game_not_3nt():
     assert call == '3NT' and 'choice of games' in why, (call, why)
 
 
+def test_a_game_forcing_auction_is_never_passed_below_game():
+    """The user's board, 2026-11-21: P 1♥ P 2♣ P 2♥ P 2NT P, and North passed
+    2NT as if it invited. "2♣ was game forcing"."""
+    north = 'JS 5S KH 10H 9H 7H 4H 2H AD JD 10D QC 7C'
+    call, why = bid(north, 'Pass', '1H', 'Pass', '2C', 'Pass', '2H', 'Pass', '2NT', 'Pass',
+                    dealer='West')
+    assert call == '3H' and 'Game forcing' in why, (call, why)
+    # Robots alone (fresh deal 215): 1♠ 2♥ 2♠ 3♦ was passed, "Declining the invitation".
+    call, _ = bid('AS 9S 7S 5S 4S 3S JH 5H AC QC JC 7C 5C',
+                  '1S', 'Pass', '2H', 'Pass', '2S', 'Pass', '3D', 'Pass')
+    assert call != 'Pass', call
+    # A raise is no game force: 1♥ 2♥ 3♣ is a game try, and 3♥ can be passed.
+    call, _ = bid('AS 7S 3S KH 6H 5H 4H 9D 6D 5D 8C 6C 4C',
+                  '1H', 'Pass', '2H', 'Pass', '3C', 'Pass')
+    assert call == '3H', call
+    # Game forced, no fit, nothing to show: 2NT, which now has a meaning.
+    call, why = bid('KS QS 3S 6H KD 6D 5D 4D AC QC JC 6C 4C',
+                    '1H', 'Pass', '2C', 'Pass', '2H', 'Pass')
+    assert (call, why) == ('2NT', gib.GF_2NT_ALERT), (call, why)
+
+
 def test_a_double_of_an_artificial_bid_directs_the_lead():
     """The user's call, 2026-10-28 (Bidding training): P P P 2♣ P 2♦ X with
     ♦KJT97 is lead-directing, not takeout -- 5+ cards and 4+ judgement points
