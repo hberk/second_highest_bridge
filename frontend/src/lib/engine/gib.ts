@@ -4550,6 +4550,15 @@ export const BALANCE_DISCOUNT = 4;
 export const BALANCE_WEAK_TWO = 3;
 export const BALANCE_WEAK_TWO_LEN = 6;
 
+/** The balancing takeout double over their weak two, 2x P P X, on shape:
+ *  at most BALANCE_WEAK_TWO_X_SHORT of their suit, 3+ in each other suit and
+ *  BALANCE_WEAK_TWO_X HCP (one fewer with a void); partner, who passed the
+ *  weak two directly, leaves it in with WEAK_TWO_X_PENALTY+ of their suit and
+ *  two of its top five honours (the user's deal, 2026-11-21). See gib.py. */
+export const BALANCE_WEAK_TWO_X: number | null = 8;
+export const BALANCE_WEAK_TWO_X_SHORT = 1;
+export const WEAK_TWO_X_PENALTY: number | null = 5;
+
 /** Their opening, a suit bid at the one or two level, when I am in the
  *  pass-out seat after it (1x P P or 2x P P); else null. */
 function passOutOver(ctx: Ctx): string | null {
@@ -5149,7 +5158,16 @@ function defend(ctx: Ctx): Decision | null {
       shapeOk = true;                 // both majors: the other minor may be short
     }
     const need = (lvl === 1 ? TAKEOUT_MIN : 13) - bal;
-    if ((shapeOk && hcp >= need) || hcp >= 18) {
+    if (BALANCE_WEAK_TWO_X && weakTwoBalance(ctx)) {
+      // One alert for the call, whichever hand holds it.
+      const low = BALANCE_WEAK_TWO_X - 1;
+      const short = h.len[their] <= BALANCE_WEAK_TWO_X_SHORT
+        && SUITS.every((s) => s === their || h.len[s] >= 3);
+      const floor = BALANCE_WEAK_TWO_X - (h.len[their] === 0 ? 1 : 0);
+      if ((short && hcp >= floor) || (shapeOk && hcp >= need) || hcp >= 18) {
+        return ['X', `Balancing takeout: ${low}+ HCP. Partner may pass for penalty.`];
+      }
+    } else if ((shapeOk && hcp >= need) || hcp >= 18) {
       return ['X', bal ? `Balancing takeout: ${need}+ HCP.` : `Takeout: ${need}+ HCP.`];
     }
   }
@@ -5191,6 +5209,18 @@ function directOverOpening(ctx: Ctx): boolean {
     if (ctx.calls[i][0] === ctx.pd && ctx.calls[i][1] !== 'Pass') { at = i; break; }
   }
   return ctx.calls.slice(0, at).filter(([, c]) => c !== 'Pass').length === 1;
+}
+
+/** 2x P P X P, my call: partner's balancing double of their weak two, and
+ *  I passed the weak two directly. */
+function weakTwoXTrap(ctx: Ctx): boolean {
+  const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
+  if (i < 0) return false;
+  const [w, c] = ctx.calls[i];
+  const tail = ctx.calls.slice(i + 1).map(([, x]) => x);
+  return w !== ctx.me && w !== ctx.pd && levelOf(c) === 2 && isSuit(strainOf(c))
+    && c !== '2C' && tail.join(' ') === 'Pass Pass X Pass'
+    && ctx.calls[i + 1][0] === ctx.me;
 }
 
 function advance(ctx: Ctx): Decision | null {
@@ -5256,6 +5286,12 @@ function advance(ctx: Ctx): Decision | null {
     }
     if (call && levelOf(call) <= 5) return [call, "Choosing between partner's two suits."];
     return ['Pass', 'No room.'];
+  }
+  if (p === 'X' && WEAK_TWO_X_PENALTY && weakTwoXTrap(ctx)) {
+    const t = strainOf(opening!) as Suit;
+    if (h.len[t] >= WEAK_TWO_X_PENALTY && h.top(t, ['A', 'K', 'Q', 'J', '10']) >= 2) {
+      return ['Pass', `Penalty: converting partner's double, length in ${SYM[t]}.`];
+    }
   }
   if (p === 'X') {
     const lastCall = ctx.calls[ctx.calls.length - 1];

@@ -1109,6 +1109,15 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     takeout double is unchanged. Experts acted on 7 of 13 hands with a six-card
     suit and 7-10 HCP there, never with 6 or fewer. +0.04, +0.08, +0.07 a
     board on three sets of 3,000 fresh deals, within noise.
+  - **The balancing takeout double over a weak two** (`BALANCE_WEAK_TWO_X = 8`,
+    `WEAK_TWO_X_PENALTY = 5`, 2026-11-21; the user's deal: West A976 - Q9842
+    QJ87 passed 2♥ P P, East's KJ632 trap-passed, 2♥ made). After 2♦/2♥/2♠
+    P P, a singleton or void in their suit with 3+ in each other suit doubles
+    on 8+ HCP (7 with a void), "Balancing takeout: 7+ HCP. Partner may pass for
+    penalty."; partner, who passed the weak two directly, leaves it in with
+    five of their suit and two of AKQJT. Six sets of 6,000 fresh deals: -0.05,
+    +0.13, +0.07, +0.13, +0.14, +0.16 a board. The double alone was flat; the
+    pass on four trumps lost (-0.19 on seed 7). Bids more: the user's call.
   - **A three-level overcall after their 1NT needs six cards**
     (`OVERCALL_3_AFTER_1NT = 6`, 2026-11-13). Once they have bid more than
     the 1NT opening (1NT P 2NT P 3♣ P P), the Cappelletti branch no longer

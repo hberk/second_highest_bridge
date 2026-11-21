@@ -5071,13 +5071,18 @@ BALANCE_WEAK_TWO_LEN = 6
 #: each other suit, and BALANCE_WEAK_TWO_X HCP or more (one fewer with a
 #: void). None: the plain two-level takeout floor (13 HCP) applies. West's
 #: A976 - Q9842 QJ87 passed 2♥ P P with partner's KJ632 behind the hearts
-#: (the user's deal, 2026-11-21, 2♥ made, -150).
-BALANCE_WEAK_TWO_X: int | None = None
+#: (the user's deal, 2026-11-21, 2♥ made, -150). Measured with the penalty
+#: pass below, 6 x 6,000 fresh deals: -0.05/+0.13/+0.07/+0.13/+0.14/+0.16 a
+#: board (+0.10 mean); a doubleton allowed (SHORT 2) the same mean on 2.5x
+#: as many auctions, 10 HCP +0.06, the double without the pass flat. Makes
+#: the robots bid more; the user adopted it as a test of their idea.
+BALANCE_WEAK_TWO_X: int | None = 8
 BALANCE_WEAK_TWO_X_SHORT = 1
 #: ... and partner, who passed their weak two directly, leaves the double in
 #: for penalty with WEAK_TWO_X_PENALTY or more of their suit and two of its
-#: top five honours (the trap pass the double was made for).
-WEAK_TWO_X_PENALTY: int | None = None
+#: top five honours (the trap pass the double was made for). Four trumps
+#: measured -0.19/-0.09/+0.04: 2M doubled making costs 560-670.
+WEAK_TWO_X_PENALTY: int | None = 5
 
 
 def _pass_out_over(ctx: Ctx) -> str | None:
