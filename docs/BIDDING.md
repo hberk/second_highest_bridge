@@ -205,6 +205,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   promise was. 10,000 fresh deals (`research/gib_fresh_h2h.py`, seed 7M):
   **+0.26 a board, t = +3.46, 247 auctions changed** (115 better, 84 worse);
   1.0 measured +0.26 (t = +3.12), 0.0 +0.23 (t = +2.61).
+- **Rebidding my own suit opposite partner's pre-empt** (`REBID_PROMISE_PREEMPT
+  = 1.0`; the user's board, 2026-11-21: P 2♦ (2♥) 2♠ (3♦) P (3♥) 4♠ on ♠KQJT743
+  ♥Q ♦2 ♣8652, -400; double dummy spades take 6, their hearts 10). The free bid
+  already valued the weak two at `PROMISE_PREEMPT`, but the rebid read it as a
+  one-level response (2.89), lifting 7.62 to 10.51, game. Now 1.0: Pass here.
+  Fresh deals, 3 x 10,000 (~35 auctions each): 1.0 -0.03/+0.04/+0.00 a board,
+  2.06 -0.01/+0.01/+0.01, 0.0 as 1.0. Neutral, kept as the more conservative
+  call (the user's pick); `/mnt/project-files/weak-two-rebid/`.
 - **A 2♣ rebid shows six clubs** (2026-11-04, the user's board 53: 1♣ P 1NT
   P 2♣ alerted "4+ ♣"; "a rebid of 2♣ should show 6, only 5 in very unusual
   circumstances"). After 1♣-1y or 1♣-1NT, 2♣ was the fallback on four or five

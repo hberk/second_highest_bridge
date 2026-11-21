@@ -703,7 +703,7 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
   }
 
   if (bestLen >= OPEN_SUIT_LENGTH + 1) {
-    const [call, why] = place(bestSuit, ev.suit_pts[bestSuit] + PROMISE_RESPONDED_1, legal);
+    const [call, why] = place(bestSuit, ev.suit_pts[bestSuit] + rebidPromise(partner, auction), legal);
     if (call === 'Pass') return [call, why];
     if (OPENER_TWO_SUITS && mine.every(([, strain]) => strain !== bestSuit)) {
       return [call, newSuitAlert(player, auction, bestSuit)];
@@ -724,6 +724,18 @@ function openedOneOf(seat: Seat, auction: AuctionState): Suit | null {
   if (!first || first[0] !== seat) return null;
   const parsed = parseBid(first[1]);
   return parsed && parsed[0] === 1 && isSuit(parsed[1]) ? parsed[1] as Suit : null;
+}
+
+/** What partner's pre-empt promises when this hand rebids its own long suit
+ *  (the user's board, 2026-11-21: P 2♦ (2♥) 2♠ (3♦) P (3♥) 4♠, -400): a weak
+ *  two read as a one-level response pushed it to game. See ai.py. */
+export const REBID_PROMISE_PREEMPT: number | null = 1.0;
+
+function rebidPromise(partner: Seat, auction: AuctionState): number {
+  if (REBID_PROMISE_PREEMPT !== null && preemptIndex(partner, auction) !== null) {
+    return REBID_PROMISE_PREEMPT;
+  }
+  return PROMISE_RESPONDED_1;
 }
 
 /** Would this hand rebid its own six-card suit instead? Then that comes

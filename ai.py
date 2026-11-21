@@ -983,8 +983,11 @@ def _opened_one_of(seat: str, auction: AuctionState) -> str | None:
 #: reads a weak two as PROMISE_PREEMPT, but the rebid read it as a one-level
 #: response (PROMISE_RESPONDED_1), 0.83 more, and that pushed 9.68 to 10.51,
 #: game. A weak two is 5-10 points, most of them in its own suit, and partner
-#: has not raised. None keeps PROMISE_RESPONDED_1.
-REBID_PROMISE_PREEMPT: float | None = None
+#: has not raised. Fresh deals, 3 x 10,000 (~35 auctions each): 1.0 gave
+#: -0.03/+0.04/+0.00 a board, 2.06 -0.01/+0.01/+0.01, 0.0 as 1.0: neutral,
+#: kept as the more conservative call (Pass on the board). None keeps
+#: PROMISE_RESPONDED_1.
+REBID_PROMISE_PREEMPT: float | None = 1.0
 
 
 def _rebid_promise(partner: str, auction: AuctionState) -> float:
