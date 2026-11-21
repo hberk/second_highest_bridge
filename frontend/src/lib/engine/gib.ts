@@ -5358,9 +5358,13 @@ function takeout1ntAdvance(ctx: Ctx, opening: string | null | undefined, theirs:
   return ['1NT', `${lo}-${hi} HCP, ${SYM[their]} stopper, no 4-card major.`];
 }
 
-/** ...and what follows it, while they pass: the doubler raises to 3NT on
- *  TAKEOUT_1NT_GAME+ HCP, invites with 2NT on TAKEOUT_1NT_INVITE+, else
- *  passes; the advancer accepts the invitation with 9-10. */
+/** ...and what follows it, while they pass. By judgement points
+ *  (TAKEOUT_1NT_BY_JUDGE, the user's reminder 2026-11-21: notrump games
+ *  need more here), as opposite our 1NT: the doubler bids 3NT when its judge
+ *  plus advancer's 6 reaches NT_GAME, invites with 2NT when plus 10 does,
+ *  and advancer accepts when its judge plus the invitation's floor does.
+ *  False: 3NT on TAKEOUT_1NT_GAME+ HCP, 2NT on TAKEOUT_1NT_INVITE+, accept 9-10. */
+export const TAKEOUT_1NT_BY_JUDGE = true;
 export const TAKEOUT_1NT_INVITE = 17;
 export const TAKEOUT_1NT_GAME = 19;
 
@@ -5379,14 +5383,25 @@ function takeout1ntSpot(ctx: Ctx, doubler: Seat, extra: number): boolean {
 
 function afterTakeout1nt(ctx: Ctx): Decision | null {
   const h = ctx.h;
+  const [lo, hi] = TAKEOUT_1NT_HCP;
+  let pts: number, game: number, invite: number, accept: number, invites: string;
+  if (TAKEOUT_1NT_BY_JUDGE) {
+    pts = h.judge; game = NT_GAME - lo; invite = NT_GAME - hi;
+    accept = NT_GAME - invite;
+    invites = 'Invites 3NT.';
+  } else {
+    pts = h.hcp; game = TAKEOUT_1NT_GAME; invite = TAKEOUT_1NT_INVITE;
+    accept = hi - 1;
+    invites = `${invite}-${game - 1} HCP. Invites 3NT.`;
+  }
   if (takeout1ntSpot(ctx, ctx.me, 1)) {
-    if (h.hcp >= TAKEOUT_1NT_GAME && ctx.ok('3NT')) return ['3NT', TO_PLAY];
-    if (h.hcp >= TAKEOUT_1NT_INVITE && ctx.ok('2NT')) return ['2NT', `${TAKEOUT_1NT_INVITE}-${TAKEOUT_1NT_GAME - 1} HCP. Invites 3NT.`];
+    if (pts >= game && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+    if (pts >= invite && ctx.ok('2NT')) return ['2NT', invites];
     return ['Pass', 'No game opposite 6-10.'];
   }
   const prev = ctx.calls[ctx.calls.length - 2];
   if (takeout1ntSpot(ctx, ctx.pd, 3) && prev[1] === '2NT' && prev[0] === ctx.pd) {
-    if (h.hcp >= TAKEOUT_1NT_HCP[1] - 1 && ctx.ok('3NT')) return ['3NT', TO_PLAY];
+    if ((TAKEOUT_1NT_BY_JUDGE ? h.judge : h.hcp) >= accept && ctx.ok('3NT')) return ['3NT', TO_PLAY];
     return ['Pass', 'Declining the invitation.'];
   }
   return null;

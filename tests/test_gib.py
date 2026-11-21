@@ -63,14 +63,18 @@ def test_takeout_double_1nt_advance():
     assert (call, why) == ('1NT', '6-10 HCP, ♣ stopper, no 4-card suit to bid.')
     # A four-card minor at the two level is still named (TAKEOUT_1NT_ONLY_THREE).
     assert bid('9S 6S 4S JH 6H 3H KD 9D 8D 2D AC 7C 6C', '1H', 'X', 'Pass', dealer='North')[0] != '1NT'
-    # The doubler: game on 19+, an invitation on 17-18, else pass.
+    # The doubler counts judgement points (kings and queens 3) against
+    # NT_GAME, as opposite our 1NT: game on 22+, an invitation on 18-21.
     calls = ('1H', 'X', 'Pass', '1NT', 'Pass')
-    assert bid('AS KS 7S 5S 8H AD KD 6D 2D KC QC 10C 9C', *calls, dealer='North')[0] == '3NT'
-    assert bid('AS KS 7S 5S 8H AD KD 6D 2D KC JC 10C 9C', *calls, dealer='North')[0] == '2NT'
-    assert bid('AS QS 7S 5S 8H AD JD 6D 2D KC JC 10C 9C', *calls, dealer='North')[0] == 'Pass'
-    # The advancer accepts with 9-10.
+    assert bid('KS QS 7S 5S 8H KD QD 6D 2D KC QC 10C 9C', *calls, dealer='North') == ('2NT', 'Invites 3NT.')
+    assert bid('KS QS 7S 5S 8H KD QD 6D 2D KC QC JC 9C', *calls, dealer='North')[0] == '2NT'
+    assert bid('KS QS 7S 5S 8H KD QD JD 2D KC QC 10C 9C', *calls, dealer='North')[0] == '2NT'
+    assert bid('KS QS JS 5S 8H KD QD JD 2D KC QC JC 9C', *calls, dealer='North')[0] == '3NT'
+    # Three aces count little here: 19 HCP, judge 16, passes.
+    assert bid('AS KS 7S 5S 8H AD KD 6D 2D KC QC 10C 9C', *calls, dealer='North')[0] == 'Pass'
+    # The advancer accepts on 10+.
     invited = calls + ('2NT', 'Pass')
-    assert bid('9S 6S 4S QH 6H 3H 2H KD 9D 8D AC 7C 6C', *invited, dealer='North')[0] == '3NT'
+    assert bid('QS 6S 4S QH 10H 3H 2H KD 9D 8D AC 7C 6C', *invited, dealer='North')[0] == '3NT'
     assert bid(south, *invited, dealer='North')[0] == 'Pass'
 
 

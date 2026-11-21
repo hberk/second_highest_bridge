@@ -374,8 +374,10 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     (`gib.TAKEOUT_1NT_ADVANCE`, the user's board 2026-11-21): 1♥ P P X P
     on ♠964 ♥J632 ♦K98 ♣A76 named the cheapest three-card suit, 1♠, and
     played 2♠ doubled for -300. Now (1x) X (P) 1NT is 6-10 HCP, a stopper
-    and no four-card unbid suit (`TAKEOUT_1NT_ONLY_THREE`); the doubler
-    bids 3NT on 19+, 2NT on 17-18, and advancer accepts with 9-10. It is
+    and no four-card unbid suit (`TAKEOUT_1NT_ONLY_THREE`). The doubler
+    counts judgement points against `NT_GAME`, as opposite our 1NT
+    (`TAKEOUT_1NT_BY_JUDGE`): 3NT on 22+, 2NT on 18-21, and advancer
+    accepts on 10+; by HCP (3NT 19+ or 20+) scored a hair lower. It is
     rare (90 auctions in 116,000 boards) and +0.01 a board overall; letting
     a four-card minor bid 1NT too measured -0.05 (ROBOT_PROGRESS, 11-21).
     And **the answer to a takeout double never names a suit they bid**
