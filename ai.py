@@ -1240,6 +1240,12 @@ PENALTY_ALERT = "Penalty: {n}+ {sym}."
 #: 169 Stayman answers with 4+ trumps behind them (BIDDING.md).
 PENALTY_STRONG_STOP = True
 PENALTY_STRONG = 20
+#: Trump length counts toward PENALTY_JUDGE (the user's training deal 30,
+#: 2026-11-21: P P 1S 2H 2S 4H 4S, West AJ752 JT632 J4 J passed 4S on 6 JP
+#: plus 13.5 for partner's 10-17 overcall, half a point short; 4S went three
+#: down). Each trump past the length the double needs (5 at the two level,
+#: 4 higher) adds this many judgement points. None leaves the count alone.
+PENALTY_TRUMP_JP: float | None = 4
 
 
 def _partner_middle(partner: str, auction: AuctionState, alerts: dict, mine: int) -> float:
@@ -1295,7 +1301,8 @@ def _penalty_double(player: str, hand: list[Card], auction: AuctionState,
             and _opp_shown_strong(player, auction, alerts)):
         return None
     mine = gib.Hand(hand).judge
-    if mine + _partner_middle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE:
+    extra = PENALTY_TRUMP_JP * (n - need) if PENALTY_TRUMP_JP else 0
+    if mine + extra + _partner_middle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE:
         return None
     if not _double_is_free(auction):
         return None
