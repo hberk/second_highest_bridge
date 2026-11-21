@@ -948,7 +948,7 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
         return call, why
 
     if best_len >= OPEN_SUIT_LENGTH + 1:
-        combined = ev['suit_pts'][best_suit] + PROMISE_RESPONDED_1
+        combined = ev['suit_pts'][best_suit] + _rebid_promise(partner, auction)
         call, why = _place(best_suit, combined, legal, best_len)
         if call != 'Pass':
             why = f"6+ {SUIT_SYM[best_suit]}, rebidding the suit."
@@ -975,6 +975,23 @@ def _opened_one_of(seat: str, auction: AuctionState) -> str | None:
         return None
     parsed = parse_bid(first[1])
     return parsed[1] if parsed and parsed[0] == 1 and parsed[1] in SUITS else None
+
+
+#: What partner's PRE-EMPT promises when this hand rebids its own long suit
+#: (the user's board, 2026-11-21: P 2♦ (2♥) 2♠ (3♦) P (3♥) 4♠ on ♠KQJT743
+#: ♥Q ♦2 ♣8652 opposite ♠8 ♥J643 ♦KQT643 ♣JT, -400). The free bid already
+#: reads a weak two as PROMISE_PREEMPT, but the rebid read it as a one-level
+#: response (PROMISE_RESPONDED_1), 0.83 more, and that pushed 9.68 to 10.51,
+#: game. A weak two is 5-10 points, most of them in its own suit, and partner
+#: has not raised. None keeps PROMISE_RESPONDED_1.
+REBID_PROMISE_PREEMPT: float | None = None
+
+
+def _rebid_promise(partner: str, auction: AuctionState) -> float:
+    """What partner promises towards this hand's own long suit, rebid."""
+    if REBID_PROMISE_PREEMPT is not None and _preempt_index(partner, auction) is not None:
+        return REBID_PROMISE_PREEMPT
+    return PROMISE_RESPONDED_1
 
 
 def _own_long_suit_bids(mine: list, ev: dict, best_suit: str, best_len: int,
