@@ -5108,6 +5108,16 @@ NT_X_SYSTEMS = True
 NT_X_ADVANCE_FIX = True
 
 
+#: Stayman over our penalty double of their 1NT (the user asked why not,
+#: 2026-11-21). None: only transfers pull the double, as the user adopted.
+#: 'all': the doubler's partner also bids 2♣ Stayman whenever it would over a
+#: 1NT opening, which in this system is invitational or better, never weak.
+#: 'weak': garbage Stayman: 7 or fewer HCP with 4+ in both majors; over 2♦
+#: it bids 2♥, pass or correct, and passes a major answer.
+NT_X_STAYMAN: str | None = None
+NT_X_STAYMAN_HCP = 7
+
+
 def _penalty_x_of_1nt(ctx: Ctx) -> bool:
     """Their only bid is a 1NT opening and our first call doubled it."""
     return (not ctx.we_opened and bool(ctx.seq) and ctx.seq[0] == 'X'
@@ -5185,8 +5195,34 @@ def _nt_x_systems(ctx: Ctx) -> tuple | None:
         decision = _nt_response(as_opened, 1, *NT1)
         if decision[0] in NT_X_TRANSFERS:
             return decision
+        if NT_X_STAYMAN == 'all' and decision[0] == '2C':
+            return decision
+        if (NT_X_STAYMAN == 'weak' and ctx.h.hcp <= NT_X_STAYMAN_HCP
+                and all(ctx.h.len[m] >= 4 for m in MAJORS) and ctx.ok('2C')):
+            return '2C', "Stayman: asks for a 4-card major. Artificial."
         return 'Pass', "Penalty double: passing."
+    if NT_X_STAYMAN == 'weak' and ctx.seq[1] == '2C' and ctx.me != ctx.opener:
+        garbage = _nt_x_garbage(ctx)
+        if garbage:
+            return garbage
     return notrump(as_opened, 0)
+
+
+def _nt_x_garbage(ctx: Ctx) -> tuple | None:
+    """1NT (P P) X P 2♣ on a weak hand with both majors: the doubler's
+    partner places the contract, and the doubler picks a major."""
+    seq, h = ctx.seq, ctx.h
+    if len(seq) == 3 and h.hcp <= NT_X_STAYMAN_HCP:
+        if seq[2] == '2D' and ctx.ok('2H'):
+            return '2H', f"Weak, 4+ {SYM['H']} and 4+ {SYM['S']}: pass or correct."
+        return 'Pass', "Weak: to play."
+    if len(seq) == 4 and seq[2] == '2D' and seq[3] == '2H':
+        if h.len['S'] > h.len['H'] and ctx.ok('2S'):
+            return '2S', f"Longer {SYM['S']}."
+        return 'Pass', "Partner placed the contract."
+    if len(seq) == 5 and seq[2] == '2D' and seq[3] == '2H':
+        return 'Pass', "Partner placed the contract."
+    return None
 
 
 def they_opened(ctx: Ctx) -> tuple | None:

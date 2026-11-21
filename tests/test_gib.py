@@ -2023,6 +2023,31 @@ def test_systems_on_over_our_double_of_their_1nt():
     assert call == '2S', call
 
 
+def test_stayman_over_our_double_of_their_1nt():
+    """The user, 2026-11-21: why no Stayman after 1NT P P (X) P? Off by
+    default (only transfers pull); NT_X_STAYMAN 'weak' is garbage Stayman."""
+    weak = 'QS 9S 8S 2S JH 8H 7H 4H 9D 8D 6D 5C 4C'
+    calls = ('1NT', 'Pass', 'Pass', 'X', 'Pass')
+    assert bid(weak, *calls, dealer='South')[0] == 'Pass'
+    gib.NT_X_STAYMAN = 'weak'
+    try:
+        call, why = bid(weak, *calls, dealer='South')
+        assert call == '2C' and 'Stayman' in why, (call, why)
+        call, why = bid(weak, *calls, '2C', 'Pass', '2D', 'Pass', dealer='South')
+        assert call == '2H' and 'pass or correct' in why, (call, why)
+        doubler = 'AS KS 7S QH 9H AD KD QD 4D KC JC 3C 2C'
+        call, _ = bid(doubler, *calls, '2C', 'Pass', '2D', 'Pass', '2H', 'Pass',
+                      dealer='South')
+        assert call == '2S', call
+        call, _ = bid(weak, *calls, '2C', 'Pass', '2H', 'Pass', dealer='South')
+        assert call == 'Pass', call
+        # Invitational values still defend.
+        call, _ = bid('AS 9S 8S 2S KH 8H 7H 4H 9D 8D 6D 5C 4C', *calls, dealer='South')
+        assert call == 'Pass', call
+    finally:
+        gib.NT_X_STAYMAN = None
+
+
 def test_systems_on_over_their_2c():
     """The user's deal, 2026-11-04: 1NT (2♣) X (Stayman) P 2♦ P and East
     passed with ♠JT762 ♥A93 ♦A42 ♣KT. Now 2♥ transfers; after Stayman's
