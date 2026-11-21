@@ -2333,6 +2333,22 @@ def test_new_minor_forcing_doubled_is_still_answered():
     assert call != 'Pass', call
 
 
+# ── A passed responder over a balancing action (PASSED_RESPONDER_RAISE) ───────
+
+def test_passed_responder_raises_to_two_over_a_balancing_double():
+    """P P 1♠ P P X P 2♥: East already passed 1♠, so the jump to 3♠ pre-empts
+    nothing; the simple 2♠ competes (the user's board, 2026-11-21)."""
+    east = '10S 9S 6S 4S 9H 7H 7D 6D 4D 2D AC JC 8C'
+    call, why = bid(east, 'Pass', 'Pass', '1S', 'Pass', 'Pass', 'X', 'Pass', '2H', dealer='East')
+    assert call == '2S' and 'Competing' in why, (call, why)
+
+
+def test_unpassed_responder_still_jumps_over_a_direct_overcall():
+    east = '10S 9S 6S 4S 9H 7H 7D 6D 4D 2D AC JC 8C'
+    call, why = bid(east, '1S', '2H', dealer='West')
+    assert call == '3S' and 'Pre-emptive' in why, (call, why)
+
+
 # ── Competing to the three level from the pass-out seat (LOTT_BALANCE) ────────
 
 def test_inverted_raiser_competes_to_3d_in_the_pass_out_seat():

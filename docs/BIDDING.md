@@ -842,6 +842,16 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   passes. Measured on fresh deals, 10,000 deals per seed: seed 7 -0.01 a board
   (t = -0.06), seed 8 -0.06 (t = -0.66). Not significant; kept because it is the
   user's rule.
+- **A passed responder raises to the two level over a balancing action**
+  (`PASSED_RESPONDER_RAISE`, `_passed_responder_raise`; the user's board,
+  2026-11-21: P P 1♠ P P X P 2♥ 3♠ on ♠T964 ♥97 ♦7642 ♣AJ8). "Responder's first
+  call over interference" counts only our side's bids, so it missed that
+  responder had already passed and fired the pre-emptive jump raise. Now a
+  responder who passed partner's 1x bids the cheapest two-level raise on 4+
+  trumps (5+ in a minor), or 3+ with 6+ HCP; after a direct overcall nothing
+  changes. Measured on fresh deals, 20,000 per seed: +0.01 (t = +0.96), 0.00
+  (t = +0.19), -0.01 (t = -0.86), about 90 auctions a seed. Neutral; kept as the
+  user's rule (/mnt/project-files/passed-raise/REPORT.md).
 - **Answers to responder's cuebids over their Unusual 2NT**
   (`UNUSUAL_CUE_REPLY`, `_unusual_cue_reply`; the user's board, 2026-11-04:
   Pass 1♠ (2NT) 3♣ P, North passed the artificial limit raise on ♠AJ543
