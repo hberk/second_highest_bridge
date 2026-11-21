@@ -316,6 +316,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     in it. Before, advancer always took the cheapest preference: deal 163,
     (1♦) 2NT (P) with five clubs and a 10-card fit bid 3♣, and N/S defended
     4♦ where 7♣ makes; now 5♣, 13 tricks.
+  - `TWO_SUITER_FIT_GAME` / `_MAJOR` (`_advance`, the user's call,
+    2026-11-20): `TWO_SUITER_GAME` counts partner as a flat 8 and this hand
+    by its high cards, so a 10-card fit and shortness counted for nothing:
+    board 12, (1♦) 2NT (P) on ♠Q2 ♥2 ♦QT974 ♣KQJ96 (16 + 8 = 24) bid 3♣
+    where 7♣ makes. With 4+ trumps advancer now counts judgement points + 3
+    for each trump past three + 3 for a side singleton (5 for a void), and
+    bids game at 21 in a minor, 15 in a major. Board 12 is 25. Filtered fresh
+    deals, head to head: +1.7 to +3.6 a filtered board (`ROBOT_PROGRESS.md`).
   - `TWO_SUITER_BLAST` (`_advance`, the user's call, 2026-11-13): with six
     or more of a major partner showed, advancer bids 4M at once, whatever
     the strength: (1♣) 2♣ (2♠) on ♠- ♥KQJ963 ♦AJT73 ♣65 bid 3♥ (no game

@@ -2014,6 +2014,26 @@ export const TWO_SUITER_GAME = true;
  *  cards of it, whatever the strength (the user's call, 2026-11-12). 0 is off. */
 export const TWO_SUITER_BLAST: number = 6;
 
+/** Advancer's game opposite our two-suiter on playing strength: judgement
+ *  points, plus TWO_SUITER_FIT_CARD for each trump past three, plus
+ *  SHORT_POINTS for a void or singleton outside trumps, with 4+ trumps
+ *  (the user's board 12, 2026-11-19). null is off. See gib.py. */
+export const TWO_SUITER_FIT_GAME: number | null = 21;
+export const TWO_SUITER_FIT_GAME_MAJOR: number | null = 15;
+export const TWO_SUITER_FIT_CARD = 3;
+
+function twoSuiterFitPoints(h: Hand, trump: Suit): number {
+  let short = 0;
+  for (const s of SUITS) if (s !== trump) short = Math.max(short, SHORT_POINTS[h.len[s]] ?? 0);
+  return h.judge + TWO_SUITER_FIT_CARD * (h.len[trump] - 3) + short;
+}
+
+function twoSuiterFitGame(h: Hand, choice: Suit, a: Suit, b: Suit | null): boolean {
+  const need = isMajor(choice) ? TWO_SUITER_FIT_GAME_MAJOR : TWO_SUITER_FIT_GAME;
+  return need !== null && (choice === a || choice === b) && h.len[choice] >= 4
+    && twoSuiterFitPoints(h, choice) >= need;
+}
+
 function twoSuiterGameAlert(s: Suit): string {
   if (TWO_SUITER_BLAST) return `3+ ${SYM[s]}: game values or a long fit. To play.`;
   return `3+ ${SYM[s]}, game values. To play.`;
@@ -5504,6 +5524,9 @@ function advance(ctx: Ctx): Decision | null {
     }
     if (TWO_SUITER_GAME && (choice === a || choice === b) && h.len[choice] >= 3
       && h.judge + TWO_SUITED_MIN >= (isMajor(choice) ? GAME_MAJOR : GAME) && ctx.ok(game)) {
+      return [game, twoSuiterGameAlert(choice)];
+    }
+    if (twoSuiterFitGame(h, choice, a, b) && ctx.ok(game) && ctx.cheapest(choice, 2) !== game) {
       return [game, twoSuiterGameAlert(choice)];
     }
     const call = ctx.cheapest(choice, 2);

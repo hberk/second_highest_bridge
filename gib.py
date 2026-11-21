@@ -2218,6 +2218,34 @@ TWO_SUITER_GAME = True
 TWO_SUITER_BLAST = 6
 
 
+#: Advancer's game opposite our two-suiter on playing strength, not high
+#: cards alone (the user's board 12, 2026-11-19: (1♦) 2NT (P) 3♣ on
+#: ♠Q2 ♥2 ♦QT974 ♣KQJ96, partner ♠KJ9 ♥AQ973 ♦- ♣A8754, 13 tricks in
+#: clubs). TWO_SUITER_GAME counts partner as a flat TWO_SUITED_MIN and this
+#: hand by its high cards, so a 16-count with five trumps came to 24 of the
+#: 32 a minor game needs. Here each trump past three adds
+#: TWO_SUITER_FIT_CARD and a void or singleton outside trumps SHORT_POINTS;
+#: game when that reaches TWO_SUITER_FIT_GAME (TWO_SUITER_FIT_GAME_MAJOR in a
+#: major), with 4+ trumps. None is off. Board 12 scores 25. Fresh deals with
+#: a 5-5 hand and partner's fit, head to head (the user's pick, 2026-11-20):
+#: 21/15 +3.57/+2.58/+1.66 a board (3 x 2,000), minors alone +0.40/+0.48/
+#: +0.42 (3 x 3,000); 23/19 gained less, 19/13 more with many more losses.
+TWO_SUITER_FIT_GAME = 21
+TWO_SUITER_FIT_GAME_MAJOR = 15
+TWO_SUITER_FIT_CARD = 3
+
+
+def _two_suiter_fit_points(h: Hand, trump: str) -> int:
+    short = max((SHORT_POINTS.get(h.len[s], 0) for s in SUITS if s != trump), default=0)
+    return h.judge + TWO_SUITER_FIT_CARD * (h.len[trump] - 3) + short
+
+
+def _two_suiter_fit_game(h: Hand, choice: str, two: tuple) -> bool:
+    need = TWO_SUITER_FIT_GAME_MAJOR if choice in MAJORS else TWO_SUITER_FIT_GAME
+    return (need is not None and choice in two and h.len[choice] >= 4
+            and _two_suiter_fit_points(h, choice) >= need)
+
+
 def _two_suiter_game_alert(s: str) -> str:
     if TWO_SUITER_BLAST:
         return f"3+ {SYM[s]}: game values or a long fit. To play."
@@ -6185,6 +6213,9 @@ def _advance(ctx: Ctx) -> tuple | None:
         if (TWO_SUITER_GAME and choice in (a, b) and h.len[choice] >= 3
                 and h.judge + TWO_SUITED_MIN >= (GAME_MAJOR if choice in MAJORS else GAME)
                 and ctx.ok(game)):
+            return game, _two_suiter_game_alert(choice)
+        if (_two_suiter_fit_game(h, choice, (a, b)) and ctx.ok(game)
+                and ctx.cheapest(choice, 2) != game):
             return game, _two_suiter_game_alert(choice)
         call = ctx.cheapest(choice, 2)
         if (TWO_SUITER_FREE and call and level_of(ctx.calls[-1][1])
