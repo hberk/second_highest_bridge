@@ -36,6 +36,33 @@ def bid(cards: str, *calls: str, dealer: str = 'North') -> tuple:
     return ai.ai_bid_explained(auction.current_player(), hand(cards), auction)
 
 
+def test_spades_first_with_five_five_majors():
+    # The user's board (2026-11-22): 1♦ 1♥ 3♦ 3NT down one on ♠QT732 ♥KT832
+    # ♦J ♣A6 opposite ♠A ♥A74 ♦AKQ974 ♣T97. With SPADES_FIRST_55, 1♠ then 3♥
+    # reaches 4♥.
+    north = 'AS AH 7H 4H AD KD QD 9D 7D 4D 10C 9C 7C'
+    south = 'QS 10S 7S 3S 2S KH 10H 8H 3H 2H JD AC 6C'
+    weak = 'QS 10S 7S 3S 2S KH 10H 8H 3H 2H JD 6C 5C'
+    saved = gib.SPADES_FIRST_55
+    try:
+        gib.SPADES_FIRST_55 = False
+        assert bid(south, '1D', 'Pass')[0] == '1H'
+        gib.SPADES_FIRST_55 = True
+        assert bid(south, '1D', 'Pass')[0] == '1S'
+        assert bid('QS 10S 7S 3S KH 10H 8H 3H 2H JD 5D AC 6C', '1D', 'Pass')[0] == '1H'
+        calls = ('1D', 'Pass', '1S', 'Pass', '3D', 'Pass')
+        assert bid(south, *calls) == ('3H', '5+ ♥, 5+ ♠. Game forcing.')
+        assert bid(north, *calls, '3H', 'Pass') == ('4H', 'To play, ♥.')
+        assert bid(south, '1D', 'Pass', '1S', 'Pass', '2NT', 'Pass')[0] == '3H'
+        for rebid in ('1NT', '2D'):
+            calls = ('1D', 'Pass', '1S', 'Pass', rebid, 'Pass')
+            assert bid(weak, *calls) == ('2H', '5+ ♥, 5+ ♠, to play.')
+            assert bid(north, *calls, '2H', 'Pass')[0] == 'Pass'
+            assert bid('KS 5S 4S 7H AD KD QD 9D 7D 4D 10C 9C 7C', *calls, '2H', 'Pass')[0] == '2S'
+    finally:
+        gib.SPADES_FIRST_55 = saved
+
+
 def test_minor_preference_needs_four():
     # The user's board (2026-11-17): 1♦ 1♥ 1♠, three small diamonds and a flat
     # hand bid 1NT, not a 2♦ preference.
