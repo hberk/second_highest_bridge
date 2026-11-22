@@ -1391,6 +1391,38 @@ def test_smolen_only_over_the_stayman_denial():
     assert bid(west, '2NT', 'Pass', '3C', 'Pass', '3D', 'Pass', dealer='East')[0] == '3H'
 
 
+def test_opener_answers_the_shortness_ask():
+    """The user's board, 2026-11-22: 1♠ 2♠ 2NT (short-suit try), and a person
+    asks 3♣ where the shortness is. Robot opener names it; the robots never ask."""
+    north = 'QS JS 10S 9S 8S 2S 10H AD KD QD AC 7C 3C'
+    calls = ('1S', 'Pass', '2S', 'Pass', '2NT', 'Pass')
+    import meanings
+    assert meanings.gib_alert(after(*calls), '3C') == gib.SHORT_ASK_ALERT
+    assert meanings.gib_alert(after(*calls), '3D') is None
+    call, why = bid(north, *calls, '3C', 'Pass')
+    assert (call, why) == ('3H', 'Short ♥: a singleton or void. Artificial.')
+    assert bid(north, *calls, '3C', 'Pass', '3H', 'Pass', '3S', 'Pass')[0] == 'Pass'
+    # Hearts: 2♠ is the try, 2NT the ask, 3♥ says spades.
+    assert gib._short_reply('H', 'S') == '3H' and gib._short_reply('S', 'C') == '3S'
+    hearts = ('1H', 'Pass', '2H', 'Pass', '2S', 'Pass')
+    assert meanings.gib_alert(after(*hearts), '2NT') == gib.SHORT_ASK_ALERT
+    west = 'AS KH QH JH 8H 7H AD 3D AC QC 9C 5C 2C'
+    assert bid(west, *hearts, '2NT', 'Pass')[0] == '3H'
+    # Not when they have bid.
+    assert gib.understood_alert(after('1S', '2D', '2S', 'Pass', '2NT', 'Pass'), '3C') is None
+
+
+def test_game_try_counts_the_trumps():
+    """2026-11-22: after a game try, 9 trumps bid game and 8 stop."""
+    north = 'QS JS 10S 9S 8S 10H 2H AD KD QD AC 7C 3C'    # five spades, 2NT try
+    calls = ('1S', 'Pass', '2S', 'Pass', '2NT', 'Pass')
+    assert bid('KS 6S 5S KH 5H 3H 9D 6D 2D KC QC 9C 6C', *calls)[0] == '3S'
+    assert bid('KS 6S 5S 4S 5H 3H 9D 6D 2D KC QC 9C 6C', *calls)[0] == '4S'   # four trumps
+    assert bid(north, *calls, '3S', 'Pass') == ('Pass', 'Partner declined the game try.')
+    six = 'QS JS 10S 9S 8S 2S 10H AD KD QD AC 7C 3C'      # the user's North
+    assert bid(six, *calls, '3S', 'Pass')[0] == '4S'
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_') and callable(fn):
@@ -1430,7 +1462,7 @@ def test_a_game_forcing_auction_is_never_passed_below_game():
                   '1S', 'Pass', '2H', 'Pass', '2S', 'Pass', '3D', 'Pass')
     assert call != 'Pass', call
     # A raise is no game force: 1♥ 2♥ 3♣ is a game try, and 3♥ can be passed.
-    call, _ = bid('AS 7S 3S KH 6H 5H 4H 9D 6D 5D 8C 6C 4C',
+    call, _ = bid('AS 7S 3S KH 6H 5H 9D 6D 5D 4D 8C 6C 4C',
                   '1H', 'Pass', '2H', 'Pass', '3C', 'Pass')
     assert call == '3H', call
     # Game forced, no fit, nothing to show: 2NT, which now has a meaning.

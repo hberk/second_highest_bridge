@@ -60,6 +60,24 @@ SELF_SPLINTER_MIN = 18
 #: Opener makes that splinter (measurement switch; responder answers it
 #: either way, since a human opener can bid it).
 SELF_SPLINTER = True
+#: After opener's short-suit game try (1♥-2♥-2♠, 1♠-2♠-2NT), responder may
+#: ask where the shortness is with the next step (2NT over 2♠, 3♣ over 2NT)
+#: and robot opener names it: the suit at the three level, or three of the
+#: major for the one suit with no call below it (♠ for hearts, ♣ for spades).
+#: The robots answer it but never ask (the user's call, 2026-11-22): asking,
+#: then staying out of game with honours opposite the shortness, measured
+#: -0.02 to -0.05 a board on 3 x 40,000 deals; such games make about 43%.
+#: Trump length after a game try (the user's question, 2026-11-22). On 850
+#: short-suit tries, 4M made 34% with 3 trumps opposite 5, 58% with 4
+#: opposite 5 and 64% with 3 opposite 6, against a break-even near 40%:
+#: the ninth trump decides, not the honours. TRY_FOUR_ACCEPT: responder
+#: accepts the short-suit try with four trumps; TRY_FOUR_ACCEPT_ALL also the
+#: help-suit tries. TRY_FIVE_PASS: opener passes responder's 3M with five
+#: trumps (an 8-card fit), and still bids on with six. Together, on 3 x 40,000
+#: fresh deals: +0.03, -0.01, +0.06 a board (on, the user's call 2026-11-22).
+TRY_FOUR_ACCEPT = True
+TRY_FOUR_ACCEPT_ALL = True
+TRY_FIVE_PASS = True
 TWO_OVER_ONE = 12
 JUMP_SHIFT_POINTS = 17        # Soloway: 17+ total points, 4+ controls
 DRURY = (10, 12)
@@ -802,6 +820,52 @@ def _is_splinter(x: str, r: str) -> bool:
     return False
 
 
+def _short_try(x: str) -> str:
+    """Opener's short-suit game try after 1x-2x."""
+    return '2S' if x == 'H' else '2NT'
+
+
+def _short_ask(x: str) -> str:
+    """Responder's ask: where is the shortness?"""
+    return '2NT' if x == 'H' else '3C'
+
+
+def _short_reply(x: str, s: str) -> str:
+    """Opener's answer naming short suit `s`; three of the major is the
+    suit that has no call of its own below it."""
+    if s == 'S' or (x == 'S' and s == 'C'):
+        return f"3{x}"
+    return f"3{s}"
+
+
+SHORT_ASK_ALERT = "Asks where the short suit is. Artificial."
+
+
+def understood_alert(auction: AuctionState, call: str) -> str | None:
+    """The alert for a call the robots answer but do not make themselves, so a
+    person who makes it reads what partner will take it to mean. Like every
+    alert it depends only on the auction and the call. Today one call: the
+    ask after opener's short-suit game try (1♠-2♠-2NT-3♣, 1♥-2♥-2♠-2NT),
+    which robot opener answers (`opener_third`) though no robot makes it."""
+    me = auction.current_player()
+    side = (me, PARTNERS[me])
+    if any(c != 'Pass' for w, c in auction.calls if w not in side):
+        return None
+    seq = [c for w, c in auction.calls if c != 'Pass']
+    first = next((w for w, c in auction.calls if c != 'Pass'), None)
+    if len(seq) != 3 or first != PARTNERS[me]:
+        return None
+    x = strain_of(seq[0])
+    if (x in MAJORS and level_of(seq[0]) == 1 and seq[1] == f"2{x}"
+            and seq[2] == _short_try(x) and call == _short_ask(x)):
+        return SHORT_ASK_ALERT
+    return None
+
+
+def _short_alert(s: str) -> str:
+    return f"Short {SYM[s]}: a singleton or void. Artificial."
+
+
 def _jacoby_rebid(ctx: Ctx, x: str) -> tuple:
     h = ctx.h
     short = h.short(x)
@@ -833,8 +897,7 @@ def _game_try(ctx: Ctx, x: str) -> tuple:
     if hcp >= 18 or fit >= 18 or (hcp >= 17 and not short):
         return f"4{x}", TO_PLAY
     if short:
-        step = '2S' if x == 'H' else '2NT'
-        return step, "Short-suit game try. Artificial."
+        return _short_try(x), "Short-suit game try. Artificial."
     for s in SUITS:
         call = f"3{s}"
         if (s != x and h.len[s] >= 3 and h.top(s, ('A', 'K')) <= 1
@@ -1111,9 +1174,12 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
                 return f"4{x}", "Choice of games: a fourth trump or a short suit."
             return 'Pass', "Choice of games: three trumps, no short suit."
         if o in ('2S', '2NT') and o != f"2{x}":
-            return (f"4{x}", TO_PLAY) if fit >= 9 else (f"3{x}", "Declining the game try.")
+            if fit >= 9 or (TRY_FOUR_ACCEPT and h.len[x] >= 4):
+                return f"4{x}", TO_PLAY
+            return f"3{x}", "Declining the game try."
         if ol == 3 and os_ in SUITS and os_ != x:
             accept = fit >= 9 or (fit >= 8 and (h.len[os_] <= 1 or h.top(os_, ('A', 'K', 'Q')) >= 1))
+            accept = accept or (TRY_FOUR_ACCEPT_ALL and h.len[x] >= 4)
             return (f"4{x}", TO_PLAY) if accept else (f"3{x}", "Declining the game try.")
         if o == f"3{x}":
             return (f"4{x}", TO_PLAY) if fit >= 9 else ('Pass', "Declining the invitation.")
@@ -1414,6 +1480,14 @@ def opener_third(ctx: Ctx, x: str) -> tuple | None:
     hcp = h.judge
     r, o, last = seq[1], seq[2], seq[3]
     y = strain_of(r)
+    if (x in MAJORS and r == f"2{x}" and o == _short_try(x) and last == _short_ask(x)
+            and h.short(x)):
+        s = h.short(x)[0]
+        return _short_reply(x, s), _short_alert(s)
+    if (TRY_FIVE_PASS and x in MAJORS and r == f"2{x}" and last == f"3{x}" and h.len[x] <= 5
+            and (o == _short_try(x) or (level_of(o) == 3 and strain_of(o) in SUITS
+                                        and strain_of(o) != x))):
+        return 'Pass', "Partner declined the game try."
     if last in ('3NT', '6NT'):
         return 'Pass', "Partner placed the contract."
     if _five_five_shown(seq):
@@ -5273,7 +5347,7 @@ def _nt_interference(ctx: Ctx) -> tuple | None:
     if competed:
         return competed
     if ctx.i_am_opener() and seq == ['1NT', 'X'] and ctx.calls[-1][1] == 'Pass' \
-            and _neg_x_spot(ctx, doubled=True):
+            and their in MAJORS and _neg_x_spot(ctx, doubled=True):    # not after they ran to 2NT
         return _answer_neg_x(ctx, their)
     if not ctx.i_am_opener() and len(seq) == 3 and seq[1] == 'X' \
             and _neg_x_spot(ctx, doubled=True):
