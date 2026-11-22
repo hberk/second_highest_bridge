@@ -303,7 +303,10 @@ def _reads_as(calls: list, i: int) -> str | None:
         p_suits = [_reads_as(calls, k) for k, (w, c) in enumerate(calls[:i])
                    if w == PARTNERS[who] and parse_bid(c)]
         p_suits = [x for x in p_suits if x in SUITS and x != s]
-        return p_suits[0] if p_suits else None
+        opened_minor = (named == theirs[0] and calls[named][1] in ('1C', '1D'))
+        # A cue shows partner's suit; with no suit from partner, or of their
+        # one-level minor opening (often short), it stays natural.
+        return p_suits[0] if p_suits and not opened_minor else s
     return s
 
 
