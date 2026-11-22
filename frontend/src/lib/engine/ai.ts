@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { advanceRaiseGuard, ARTIFICIAL_READ, Ctx, NT_X_SYSTEMS, OVER_1NT_2C, shownSuit, doublerGuard, FIVE_TWO_PREFERENCE, gibBid, Hand, ourTwoSuiter, isGameBid, gameValuesShown, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
+import { advanceRaiseGuard, ARTIFICIAL_READ, Ctx, DOUBLE_SHOWN_NATURAL, NT_X_SYSTEMS, OVER_1NT_2C, shownSuit, doublerGuard, FIVE_TWO_PREFERENCE, gibBid, Hand, ourTwoSuiter, isGameBid, gameValuesShown, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -206,7 +206,8 @@ function readsAs(calls: [Seat, string][], i: number): string | null {
       return shownSuit(['1NT', ...seq.slice(1)], seq.length - 1);
     }
   }
-  const named = theirs.find((k) => readsAs(calls, k) === s || callShows(calls, k).has(s));
+  const named = theirs.find((k) => readsAs(calls, k) === s
+    || (callShows(calls, k).has(s) && !(DOUBLE_SHOWN_NATURAL && calls[k][1] === 'X')));
   if (named !== undefined) {
     let ourEarlier = false;
     for (let k = 0; k < named; k++) {

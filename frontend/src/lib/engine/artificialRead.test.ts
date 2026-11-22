@@ -32,3 +32,9 @@ test('artificial bids are read for what they show', () => {
   expect(bid('West', '9S 5S AH 4H 2H KD 6D AC KC QC 10C 8C 3C',
     ['1C', '2S', 'Pass', 'Pass', '3C', 'Pass', '3S', 'Pass'])[0]).not.toBe('Pass');
 });
+
+// tests/test_bidding_rebids.py: DOUBLE_SHOWN_NATURAL (fresh deal 98, seed 8M).
+test('a suit shown only by their double is bid naturally', () => {
+  expect(bid('East', 'KS JS 8S 6S 5S 4S 3S QH 9D 8D 9C 6C 5C',
+    ['1D', '1H', 'X', '2S', '3D', '4H', 'Pass'])[0]).toBe('4S');
+});

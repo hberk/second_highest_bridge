@@ -2265,6 +2265,8 @@ function afterTwoSuiterAlone(ctx: Ctx): Decision | null {
 /** Our side's artificial calls are read for what they show, never as the
  *  suit they name (the user, 2026-11-22). See gib.py and ai.ts readsAs. */
 export const ARTIFICIAL_READ = true;
+/** ...but a bid of a suit they showed only by a double stays natural (1♦ 1♥ X 2♠). */
+export const DOUBLE_SHOWN_NATURAL = true;
 
 /** P P 1M P 2♣ by a passed hand: Drury, support for the major. */
 function ourDrury(ctx: Ctx): boolean {

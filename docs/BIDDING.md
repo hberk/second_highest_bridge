@@ -1494,6 +1494,11 @@ average, not on that board.
   a transfer after (1NT) X raised as hearts, a cue over the unusual 2NT
   raised as clubs, and passing partner's cue (`_not_partners_artificial`).
   Fresh deals: -0.05 a board, in the noise; kept as a correctness fix.
+  A bid of a suit they showed only by a **double** stays natural
+  (`gib.DOUBLE_SHOWN_NATURAL`, the PR #76 review): 1♦ 1♥ X (4+ ♠) 2♠ is the
+  pre-emptive spade bid it was alerted as, not a cue showing hearts. Fresh
+  deals 3 x 3,000: -0.03, +0.01, +0.03 a board (t -1.85, +0.29, +1.87), 23
+  auctions changed (8 better, 14 worse), noise; on so the alerts stay true.
 
 ## The previous system (`ai.USE_GIB = False`)
 
