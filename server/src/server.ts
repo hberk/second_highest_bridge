@@ -25,7 +25,7 @@ export interface Options {
   dbPath: string;
   /** The beta build's files; none served when unset. */
   publicDir?: string;
-  /** Origins allowed to open a table: `https://bridge.ettamei.com`. */
+  /** Origins allowed to open a table, e.g. `http://localhost:5173`. */
   allowedOrigins: string[];
   /** The reverse proxy's address: only from it is X-Real-IP believed. */
   trustedProxy?: string;

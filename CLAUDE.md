@@ -54,14 +54,12 @@ installed 2026-10-27), so no Visual Studio Build Tools are needed; `cargo` is in
 `~/.cargo/bin`, which a shell opened before the install may not have on its PATH.
 
 ```bash
-cd server          # the multiplayer table server (Node 24): docs/MULTIPLAYER_PLAN.md
+cd server          # the table server for Node 24, now only for local dev and tests: docs/MULTIPLAYER_PLAN.md
 npm install
 npm test           # real sockets on a random port, a temp SQLite file
 npm run check      # tsc
 npm run dev        # build and run on :8787 (BRIDGE_DEV=1 ALLOWED_ORIGINS=http://localhost:5173)
 npm run bench      # robot decision times and retained memory, 200 boards
-BRIDGE_HOST=<ct ip> ./deploy.sh   # a manual deploy to the homelab (retired: main no longer releases to it)
-BRIDGE_HOST=<ct ip> ./fetch-logs.sh --since 7d   # the game log, into logs/ (gitignored)
 ```
 
 ```bash
@@ -75,7 +73,7 @@ npm run dev        # wrangler dev on :8787 (needs `npm run site` first)
 
 main deploys it to https://bridge.second-highest.workers.dev (the `cloudflare` job in
 `pages.yml`, with the `cloudflare` environment's secrets). It is the game's only site:
-GitHub Pages and the homelab release stopped on 2026-11-22.
+GitHub Pages and the homelab were retired on 2026-11-22.
 
 ## Environment
 
@@ -111,7 +109,7 @@ Full Bridge Bidding (Auction) from 1♣ to 7NT with Pass, Double (X), and Redoub
 | `gib.py`, `ai.py` | robot bidding (GIB first, the previous system as fallback), hand evaluation, card play | [BIDDING](docs/BIDDING.md), [CHALLENGE](docs/CHALLENGE.md) |
 | `challenge.py`, `data/solved_deals.json` | head-to-head mode on 400 solved deals | [CHALLENGE](docs/CHALLENGE.md) |
 | `frontend/src/lib/table/` | multiplayer: the table core, the protocol, the browser's `RemoteTable` | [MULTIPLAYER_PLAN](docs/MULTIPLAYER_PLAN.md) |
-| `server/` | the multiplayer table server (Node, SQLite, WebSockets), deployed to the homelab | [MULTIPLAYER_PLAN](docs/MULTIPLAYER_PLAN.md) |
+| `server/` | the table code Cloudflare shares (`tables.ts`, `store.ts`), plus a Node server (SQLite, WebSockets) for local dev and tests; not deployed | [MULTIPLAYER_PLAN](docs/MULTIPLAYER_PLAN.md) |
 | `server/cf/` | the same tables on Cloudflare: a Worker, a Durable Object per table | [MULTIPLAYER_PLAN](docs/MULTIPLAYER_PLAN.md#m7-built-2026-11-18) |
 | `data/training_deals.json` | Bidding training's own solved deals, never the challenge's | [FRONTEND](docs/FRONTEND.md) |
 | `frontend/` | the game: the phone-first web app (Svelte), a static site | [FRONTEND](docs/FRONTEND.md) |
