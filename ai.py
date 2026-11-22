@@ -297,9 +297,9 @@ def _reads_as(calls: list, i: int) -> str | None:
     # partner's suit, or no suit of its own.
     named = next((k for k in theirs if _reads_as(calls, k) == s
                   or s in _call_shows(calls, k)), None)
-    if named is not None and not any(_reads_as(calls, k) == s
+    if named is not None and not any(_reads_as(calls, k) == s or s in _call_shows(calls, k)
                                      for k, (w, c) in enumerate(calls[:named])
-                                     if w in side and parse_bid(c)):
+                                     if w in side and c != 'Pass'):
         p_suits = [_reads_as(calls, k) for k, (w, c) in enumerate(calls[:i])
                    if w == PARTNERS[who] and parse_bid(c)]
         p_suits = [x for x in p_suits if x in SUITS and x != s]
