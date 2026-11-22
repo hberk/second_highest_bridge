@@ -5503,6 +5503,14 @@ function weakTwoXTrap(ctx: Ctx): boolean {
     && ctx.calls[i + 1][0] === ctx.me;
 }
 
+/** The advancer's answer to Cappelletti's 2♦ (majors) or 2NT (minors) is a
+ *  choice between partner's suits, not a suit of its own. Alert only. See gib.py. */
+export const CAPPELLETTI_CHOICE_ALERT = true;
+
+function cappellettiChoice(pair: string, s: Suit): string {
+  return CAPPELLETTI_CHOICE_ALERT ? `Choosing between partner's ${pair}.` : natural(s);
+}
+
 function advance(ctx: Ctx): Decision | null {
   const h = ctx.h;
   const hcp = h.hcp;
@@ -5530,7 +5538,7 @@ function advance(ctx: Ctx): Decision | null {
     if (p === '2D') {
       const s: Suit = h.len.H >= h.len.S ? 'H' : 'S';
       const call = ctx.cheapest(s, 2);
-      return call && levelOf(call) <= 3 ? [call, natural(s)] : ['Pass', 'No room.'];
+      return call && levelOf(call) <= 3 ? [call, cappellettiChoice('majors', s)] : ['Pass', 'No room.'];
     }
     if (p === '2H' || p === '2S') {
       const s = strainOf(p) as Suit;
@@ -5540,7 +5548,7 @@ function advance(ctx: Ctx): Decision | null {
     if (p === '2NT') {
       const m: Suit = h.len.C >= h.len.D ? 'C' : 'D';
       const call = ctx.cheapest(m, 3);
-      return call && levelOf(call) <= 4 ? [call, natural(m)] : ['Pass', 'No room.'];
+      return call && levelOf(call) <= 4 ? [call, cappellettiChoice('minors', m)] : ['Pass', 'No room.'];
     }
     return null;
   }

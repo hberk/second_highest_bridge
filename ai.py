@@ -1479,8 +1479,100 @@ def ai_bid_explained(player: str, hand: list[Card], auction: AuctionState,
                 or _lead_doubler_passes(player, hand, auction, alerts)
                 or _penalty_or_base(player, hand, auction, alerts))
     decision = _compete_cap(player, auction, decision)
+    if SHOWN_FIRST_AGREED:
+        decision = decision[0], _agreed_not_support(player, auction, decision[0], decision[1])
     auction.__dict__.setdefault('_robot_said', {})[len(auction.calls)] = decision
     return decision
+
+
+#: A raise of a suit I showed first is not support for partner's suit (the
+#: user's board, 2026-11-22: (1NT) P (P) 2♦ (P) 2♥ (P) 3♥, the 2♦ Cappelletti
+#: for the majors and 2♥ partner's choice, was alerted "3+ ♥ support,
+#: agreeing the suit"). The branches that raise read partner's bid as
+#: partner's own suit whenever my earlier call showed the suit without
+#: naming it: Cappelletti, Michaels and the unusual 2NT, the negative
+#: double. Partner's bid there is a choice or an answer, and my raise says
+#: the suit is agreed. Alerts only: no call changes.
+SHOWN_FIRST_AGREED = True
+_SUPPORT_RE = re.compile(r'^\d+\+ ([\u2660\u2665\u2666\u2663]) support(, agreeing the suit)?')
+_SYM_SUIT = {v: k for k, v in SUIT_SYM.items()}
+
+
+#: ...and a suit I bid before only as an artificial call (Cappelletti's 2♦,
+#: a Michaels cuebid, Drury's 2♣) is new when I bid it naturally: it was
+#: alerted "6+ ♦, rebidding the suit".
+_REBID_RE = re.compile(r'^(\d+\+ [\u2660\u2665\u2666\u2663])(, rebidding the suit\.|\. Rebidding my own suit\.)$')
+
+
+def _agreed_not_support(player: str, auction: AuctionState, call: str, why: str) -> str:
+    bid = parse_bid(call)
+    r = _REBID_RE.match(why)
+    if r and bid and _bid_only_artificially(player, auction, bid[1]):
+        return f"{r.group(1)}, a new suit."
+    m = _SUPPORT_RE.match(why)
+    if not m or not bid or bid[1] != _SYM_SUIT[m.group(1)]:
+        return why
+    if not _showed_first(player, auction, bid[1]):
+        return why
+    rest = why[m.end():]
+    if m.group(2) or rest in ('', '.'):
+        return f"{m.group(1)} agreed: partner bid the suit I showed."
+    return f"{m.group(1)} agreed{rest}"
+
+
+def _showed_first(player: str, auction: AuctionState, strain: str) -> bool:
+    """Did a call of mine show `strain`, naming it or not, before partner
+    first bid it? (1♣ P 1♦ P 1♥ X 2♥ P 4♥ was "3+ ♥ support" too.)"""
+    partner = PARTNERS[player]
+    calls = auction.calls
+    upto = next((i for i, (w, c) in enumerate(calls)
+                 if w == partner and parse_bid(c) and parse_bid(c)[1] == strain), len(calls))
+    return any(w == player and (strain in _call_shows(calls, i) or (
+        parse_bid(c) and parse_bid(c)[1] == strain and not _call_shows(calls, i)))
+        for i, (w, c) in enumerate(calls[:upto]))
+
+
+def _bid_only_artificially(player: str, auction: AuctionState, strain: str) -> bool:
+    """Have I bid `strain` before, and only as calls that showed other suits?"""
+    calls = auction.calls
+    mine = [i for i, (w, c) in enumerate(calls)
+            if w == player and parse_bid(c) and parse_bid(c)[1] == strain]
+    return bool(mine) and all(_call_shows(calls, i) and strain not in _call_shows(calls, i)
+                              for i in mine)
+
+
+def _call_shows(calls: list, i: int) -> set:
+    """The suits call i shows without naming them, read from the auction
+    alone: Cappelletti over their 1NT, Michaels and the unusual 2NT over
+    their one-level suit, Drury, our negative double of their suit overcall."""
+    who, call = calls[i]
+    side = (who, PARTNERS[who])
+    bids = [k for k, (_, c) in enumerate(calls[:i]) if c != 'Pass']
+    if not bids:
+        return set()
+    f = bids[0]
+    opener, opening = calls[f]
+    if opener not in side and len(bids) == 1 and (i == f + 1 or i == f + 3):
+        # Our first call, straight over their opening or in the pass-out seat.
+        if opening == '1NT':
+            return {'2D': {'H', 'S'}, '2H': {'H'}, '2S': {'S'}, '2NT': {'C', 'D'}}.get(call, set())
+        lvl, their = parse_bid(opening) if parse_bid(opening) else (0, None)
+        if lvl == 1 and their in SUITS:
+            if call == '2NT':
+                return set([s for s in SUITS if s != their][:2])
+            if call == f"2{their}":
+                return {'H', 'S'} if their in ('C', 'D') else {'S' if their == 'H' else 'H'}
+        return set()
+    if (call == '2C' and opener == PARTNERS[who] and opening in ('1H', '1S') and len(bids) == 1
+            and i == f + 2 and any(w == who for w, _ in calls[:f])):
+        return {opening[1]}                                   # Drury
+    if (call == 'X' and opener == PARTNERS[who] and len(bids) == 2 and i == bids[1] + 1
+            and parse_bid(opening) and parse_bid(opening)[0] == 1 and parse_bid(opening)[1] in SUITS):
+        over = parse_bid(calls[bids[1]][1])
+        if over and calls[bids[1]][0] not in side and over[1] in SUITS:
+            unbid = [s for s in SUITS if s not in (parse_bid(opening)[1], over[1])]
+            return set([s for s in unbid if s in ('H', 'S')] or unbid)
+    return set()
 
 
 #: The ceiling on competing over their bid (the user's training deal 30,

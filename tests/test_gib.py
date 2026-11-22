@@ -2655,3 +2655,52 @@ def test_balancing_double_of_a_weak_two_on_shortness():
                    'Pass', '2H', 'Pass', 'Pass', 'X', 'Pass', dealer='West')[0] != 'Pass'
     finally:
         gib.BALANCE_WEAK_TWO_X, gib.WEAK_TWO_X_PENALTY = old
+
+
+def _alert(dealer: str, *calls: str, call: str) -> str | None:
+    from meanings import gib_alert
+    auction = AuctionState(dealer=dealer, vulnerability='None')
+    for c in calls:
+        auction.apply_call(auction.current_player(), c)
+    return gib_alert(auction, call)
+
+
+def test_a_raise_of_a_suit_i_showed_first_is_not_support():
+    """The user's board, 2026-11-22: (1NT) P (P) 2♦ (P) 2♥ (P) 3♥. The 2♦ is
+    Cappelletti for the majors and 2♥ partner's choice, so 3♥ and 4♥ agree
+    my suit; they were alerted "3+ ♥ support, agreeing the suit"."""
+    prefix = ('1NT', 'Pass', 'Pass', '2D', 'Pass')
+    assert _alert('West', *prefix, call='2H') == "Choosing between partner's majors, ♥."
+    for call in ('3H', '4H'):
+        why = _alert('West', *prefix, '2H', 'Pass', call=call)
+        assert why == "♥ agreed: partner bid the suit I showed.", (call, why)
+    # A natural suit after the artificial 2♦ is new, not a rebid.
+    assert _alert('West', *prefix, '2H', 'Pass', call='3D') == "6+ ♦, a new suit."
+    # Michaels: 1♠ (2♠) P (3♥) P 4♥ by the Michaels bidder.
+    why = _alert('East', '1S', '2S', 'Pass', '3H', 'Pass', call='4H')
+    assert why and 'support' not in why and why.startswith('♥ agreed'), why
+    # The negative double over Michaels showed spades; so did a natural 1♥.
+    assert _alert('South', '1H', '2H', 'X', '3D', '3S', 'Pass', call='4S') == "♠ agreed, game values."
+    assert _alert('South', '1C', 'Pass', '1D', 'Pass', '1H', 'X', '2H', 'Pass',
+                  call='4H') == "♥ agreed: partner bid the suit I showed."
+
+
+def test_which_calls_show_a_suit_without_naming_it():
+    calls = lambda dealer, *cs: list(zip(
+        [PLAYERS[(PLAYERS.index(dealer) + k) % 4] for k in range(len(cs))], cs))
+    assert ai._call_shows(calls('West', '1NT', 'Pass', 'Pass', '2D'), 3) == {'H', 'S'}
+    assert ai._call_shows(calls('West', '1NT', '2NT'), 1) == {'C', 'D'}
+    assert ai._call_shows(calls('West', '1NT', '2H'), 1) == {'H'}
+    assert ai._call_shows(calls('North', '1D', '2D'), 1) == {'H', 'S'}
+    assert ai._call_shows(calls('North', '1H', '2H'), 1) == {'S'}
+    assert ai._call_shows(calls('North', '1H', '2NT'), 1) == {'C', 'D'}
+    assert ai._call_shows(calls('North', '1C', '1H', 'X'), 2) == {'S'}
+    assert ai._call_shows(calls('North', '1C', '1D', 'X'), 2) == {'H', 'S'}
+    assert ai._call_shows(calls('North', '1H', '2H', 'X'), 2) == {'S'}
+    assert ai._call_shows(calls('North', 'Pass', 'Pass', '1H', 'Pass', '2C'), 4) == {'H'}
+    # Natural calls show nothing hidden: an overcall, a response, an
+    # unpassed 2♣, and a double after our side has bid twice.
+    assert ai._call_shows(calls('North', '1C', '1H'), 1) == set()
+    assert ai._call_shows(calls('North', '1H', 'Pass', '2C'), 2) == set()
+    assert ai._call_shows(calls('North', '1NT', 'Pass', '2D'), 2) == set()
+    assert ai._call_shows(calls('North', '1C', 'Pass', '1H', '1S', 'X'), 4) == set()

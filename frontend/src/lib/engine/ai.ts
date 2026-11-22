@@ -1004,10 +1004,100 @@ export function aiBidExplained(player: Seat, hand: Card[], auction: AuctionState
   const decision = preemptorPasses(player, hand, auction, known)
     ?? leadDoublerPasses(player, hand, auction, known)
     ?? penaltyOrBase(player, hand, auction, known);
-  const capped = competeCap(player, auction, decision);
+  let capped = competeCap(player, auction, decision);
+  if (SHOWN_FIRST_AGREED) capped = [capped[0], agreedNotSupport(player, auction, capped[0], capped[1])];
   if (!robotSaid.has(auction)) robotSaid.set(auction, new Map());
   robotSaid.get(auction)!.set(auction.calls.length, capped);
   return capped;
+}
+
+/** A raise of a suit I showed first is not support for partner's suit (the
+ *  user's board, 2026-11-22: (1NT) P (P) 2♦ (P) 2♥ (P) 3♥ was alerted "3+ ♥
+ *  support, agreeing the suit"). Alerts only. See ai.py. */
+export const SHOWN_FIRST_AGREED = true;
+const SUPPORT_RE = /^\d+\+ ([♠♥♦♣]) support(, agreeing the suit)?/u;
+const SYM_SUIT: Record<string, Suit> = { '♠': 'S', '♥': 'H', '♦': 'D', '♣': 'C' };
+
+/** ...and a suit I bid before only as an artificial call is new when I bid
+ *  it naturally. See ai.py. */
+const REBID_RE = /^(\d+\+ [♠♥♦♣])(, rebidding the suit\.|\. Rebidding my own suit\.)$/u;
+
+function agreedNotSupport(player: Seat, auction: AuctionState, call: string, why: string): string {
+  const bid = parseBid(call);
+  const r = REBID_RE.exec(why);
+  if (r && bid && bidOnlyArtificially(player, auction, bid[1])) return `${r[1]}, a new suit.`;
+  const m = SUPPORT_RE.exec(why);
+  if (!m || !bid || bid[1] !== SYM_SUIT[m[1]]) return why;
+  if (!showedFirst(player, auction, bid[1])) return why;
+  const rest = why.slice(m[0].length);
+  if (m[2] || rest === '' || rest === '.') return `${m[1]} agreed: partner bid the suit I showed.`;
+  return `${m[1]} agreed${rest}`;
+}
+
+/** Did a call of mine show `strain`, naming it or not, before partner first bid it? */
+function showedFirst(player: Seat, auction: AuctionState, strain: string): boolean {
+  const partner = PARTNERS[player];
+  const calls = auction.calls;
+  let upto = calls.findIndex(([w, c]) => w === partner && parseBid(c)?.[1] === strain);
+  if (upto < 0) upto = calls.length;
+  return calls.slice(0, upto).some(([w, c], i) => {
+    if (w !== player) return false;
+    const shown = callShows(calls, i);
+    return shown.has(strain) || (parseBid(c)?.[1] === strain && shown.size === 0);
+  });
+}
+
+/** Have I bid `strain` before, and only as calls that showed other suits? */
+function bidOnlyArtificially(player: Seat, auction: AuctionState, strain: string): boolean {
+  const calls = auction.calls;
+  const mine: number[] = [];
+  calls.forEach(([w, c], i) => { if (w === player && parseBid(c)?.[1] === strain) mine.push(i); });
+  return mine.length > 0 && mine.every((i) => {
+    const shown = callShows(calls, i);
+    return shown.size > 0 && !shown.has(strain);
+  });
+}
+
+/** The suits call i shows without naming them, read from the auction alone:
+ *  Cappelletti over their 1NT, Michaels and the unusual 2NT over their
+ *  one-level suit, Drury, our negative double of their suit overcall. */
+function callShows(calls: [Seat, string][], i: number): Set<string> {
+  const [who, call] = calls[i];
+  const side = [who, PARTNERS[who]];
+  const bids: number[] = [];
+  for (let k = 0; k < i; k++) if (calls[k][1] !== 'Pass') bids.push(k);
+  if (!bids.length) return new Set();
+  const f = bids[0];
+  const [opener, opening] = calls[f];
+  const open = parseBid(opening);
+  if (!side.includes(opener) && bids.length === 1 && (i === f + 1 || i === f + 3)) {
+    if (opening === '1NT') {
+      const capp: Record<string, string[]> = { '2D': ['H', 'S'], '2H': ['H'], '2S': ['S'], '2NT': ['C', 'D'] };
+      return new Set(capp[call] ?? []);
+    }
+    if (open && open[0] === 1 && (SUITS as readonly string[]).includes(open[1])) {
+      const their = open[1];
+      if (call === '2NT') return new Set(SUITS.filter((s) => s !== their).slice(0, 2));
+      if (call === `2${their}`) {
+        return new Set(their === 'C' || their === 'D' ? ['H', 'S'] : [their === 'H' ? 'S' : 'H']);
+      }
+    }
+    return new Set();
+  }
+  if (call === '2C' && opener === PARTNERS[who] && (opening === '1H' || opening === '1S')
+      && bids.length === 1 && i === f + 2 && calls.slice(0, f).some(([w]) => w === who)) {
+    return new Set([opening[1]]);                                          // Drury
+  }
+  if (call === 'X' && opener === PARTNERS[who] && bids.length === 2 && i === bids[1] + 1
+      && open && open[0] === 1 && (SUITS as readonly string[]).includes(open[1])) {
+    const over = parseBid(calls[bids[1]][1]);
+    if (over && !side.includes(calls[bids[1]][0]) && (SUITS as readonly string[]).includes(over[1])) {
+      const unbid = SUITS.filter((s) => s !== open[1] && s !== over[1]);
+      const majors = unbid.filter((s) => s === 'H' || s === 'S');
+      return new Set(majors.length ? majors : unbid);
+    }
+  }
+  return new Set();
 }
 
 /** The ceiling on competing over their bid (the user's training deal 30,
