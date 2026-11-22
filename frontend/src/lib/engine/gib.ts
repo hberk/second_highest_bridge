@@ -1062,7 +1062,7 @@ export const MINOR_PREF_FOUR = true;
 // and no fit for the minor gives simple preference to 2M, not 2NT (the
 // user's call, 2026-11-22, on a board: 1♥ 1♠ 2♦ 2NT, down one, on
 // ♠K9652 ♥Q4 ♦KT5 ♣K42 opposite ♠AT4 ♥AKJ97 ♦AJ96 ♣7). Off, 2NT.
-export const PREFER_OVER_2NT = false;
+export const PREFER_OVER_2NT = true;
 /** Opener's judgement points to try again over the preference; null: opener
  *  passes it, as before (measured better, 2026-11-22). */
 export const PREFER_CONTINUE: number | null = null;

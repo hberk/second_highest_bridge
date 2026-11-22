@@ -469,8 +469,9 @@ def test_invitational_preference_over_2nt():
     and opener's maximum makes the try."""
     calls = ('1H', 'Pass', '1S', 'Pass', '2D', 'Pass')
     south = 'KS 9S 6S 5S 2S QH 4H KD 10D 5D KC 4C 2C'
-    assert bid(south, *calls) == ('2NT', 'Invitational.')
     old = gib.PREFER_OVER_2NT, gib.PREFER_CONTINUE
+    gib.PREFER_OVER_2NT = False
+    assert bid(south, *calls) == ('2NT', 'Invitational.')
     gib.PREFER_OVER_2NT = True
     try:
         assert bid(south, *calls) == ('2H', 'Preference to \u2665.')

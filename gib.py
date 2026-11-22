@@ -1191,8 +1191,9 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
 #: opener has more they can always continue"). 2NT was the invitation for
 #: any hand that could reach GAME opposite opener's maximum, whatever its
 #: fit: here 14 judgement points + 18. A 5-2 major plays as well as 4-3
-#: (FIVE_TWO_PREFERENCE) and a trick lower than 2NT. Off, 2NT.
-PREFER_OVER_2NT = False
+#: (FIVE_TWO_PREFERENCE) and a trick lower than 2NT. Off, 2NT. On by the
+#: user's OK, 2026-11-22: 3 x 30,000 fresh deals +0.01/+0.02/+0.01 a board.
+PREFER_OVER_2NT = True
 #: Opener's judgement points to try again over the preference (2NT, or 3M
 #: with six), and responder accepts with the hands that bid 2NT before.
 #: None: opener passes the preference, as before. Measured 2026-11-22 on
