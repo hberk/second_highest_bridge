@@ -2655,3 +2655,18 @@ def test_balancing_double_of_a_weak_two_on_shortness():
                    'Pass', '2H', 'Pass', 'Pass', 'X', 'Pass', dealer='West')[0] != 'Pass'
     finally:
         gib.BALANCE_WEAK_TWO_X, gib.WEAK_TWO_X_PENALTY = old
+
+
+def test_lone_three_level_rebid_needs_a_seventh_card_or_16():
+    # The gap survey (2026-11-22): 1♠ (2♣) P (2♠) 3♠ on six spades and 10 HCP
+    # went for 4♠ doubled. From the three level a lone rebid needs 7 cards or 16+.
+    six = 'AS KS JS 9S 5S 3S QH 8H 4H 7D 6D 5C 3C'
+    assert bid(six, '1S', '2C', 'Pass', '2S')[0] != '3S'
+    seven = 'AS KS JS 9S 5S 3S 2S QH 8H 4H 7D 6D 5C'
+    assert bid(seven, '1S', '2C', 'Pass', '2S')[0] == '3S'
+
+
+def test_game_force_without_a_fit_rebids_a_six_card_suit():
+    # 1♦ P 2♣ P 2♠ P: six clubs rebid before the generic 2NT (GF_NO_FIT_SUITS).
+    call, why = bid('9S AH KH 9H 2H KD 7D KC QC JC 9C 4C 2C', '1D', 'Pass', '2C', 'Pass', '2S', 'Pass')
+    assert (call, why) == ('3C', '6+ ♣. Game forcing.'), (call, why)

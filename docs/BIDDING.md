@@ -712,6 +712,12 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   nothing to show bids 2NT ("No fit yet. Game forcing.") instead of 3NT,
   unless `MAJOR_OVER_3NT` knows a major fit (1♥ 2♣ 2♥ on a doubleton is 4♥).
   Measured in ROBOT_PROGRESS.md, 11-21: neutral to slightly positive.
+  Before that 2NT (`GF_NO_FIT_SUITS`, 2026-11-22) a hand with a six-card suit
+  of its own rebids it (1♦ 2♣ 2♠ 3♣), and two cards in partner's twice-bid
+  suit raise it, game in a major (not when `MAJOR_OVER_3NT` already knows
+  a major game): the generic 2NT then 3NT reached notrump
+  games on misfits below the 28 HCP they need here. +0.12 / +0.08 / +0.14 a
+  board, 3 x 3,000 fresh deals.
 - **Game by points** (`GAME`, `GAME_MAJOR`, `NT_GAME`, `MAJOR_OVER_3NT`,
   `RESPONSE_MIN`, `LOTT_MAX`; the user's calls, 2026-10-23). Measured with
   `research/gib_fresh_h2h.py` on 3,000 fresh random deals (12,000 boards),
@@ -1192,6 +1198,16 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   points, and alerts "6+ ♠"; below it, five cards and 12+ points still
   rebid ("5+"). **+0.27 a board, t = +3.8, 237 auctions**. Partner raising it
   on two cards as well: +0.28, so left out.
+- **A three-level lone rebid needs a seventh card or 16+ HCP**
+  (`ai.REBID_ALONE_THREE = (7, 16)`, 2026-11-22, from the survey of calls no
+  rule defines, `/mnt/project-files/undefined-followups/`): the six-card
+  rebid at the three level with partner silent lost the most of the old
+  system's own-suit rebids against par (1♠ (2♣) P (2♠) 3♠ on six spades and
+  10 HCP, 4♠ doubled). Fresh deals, 3 x 3,000: **+0.48 / +0.29 / +0.39 a
+  board**. Adding a takeout double on shortness instead measured -0.28.
+  The same survey's other suggestions are in ROBOT_PROGRESS (11-22); a game
+  force with no fit now rebids a six-card suit or raises partner's twice-bid
+  suit before the generic 2NT (`gib.GF_NO_FIT_SUITS`, +0.12).
 - **Every lone rebid shows six; a suit doubled and left in is passed**
   (2026-11-04, the user's board 1♦ P P 1♠ X P P 2♠ on ♠AQT82, and the user's
   rules). `REBID_ALONE_SIX_FROM = 2`: with partner silent, repeating my own

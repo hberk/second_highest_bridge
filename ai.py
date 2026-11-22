@@ -437,6 +437,12 @@ REBID_LENGTH = 6               # extra length is its own reason to bid again
 #: rebid at any level. 2 (the user's rule, 2026-11-04): every lone rebid of my
 #: own suit shows six. 20,000 fresh deals: +0.50 a board, t = +5.1 (BIDDING.md).
 REBID_ALONE_SIX_FROM = 2
+#: From the three level up a lone rebid also needs a seventh card or 16+ HCP
+#: (2026-11-22, the gap survey: the six-card three-level rebid was a call
+#: the system made with nothing more to say, 1S (2C) P (2S) 3S went for
+#: 4S doubled). Fresh deals, head to head (3 x 3,000): +0.53 / +0.20 /
+#: +0.37 a board. None: six cards rebid at any level, as before.
+REBID_ALONE_THREE: tuple | None = (7, 16)
 
 # The cuebid -- advancer bidding the OPPONENTS' suit to show a good raise of
 # partner's overcall -- has no threshold constant because the AI does not make the
@@ -740,6 +746,10 @@ def _rebid_alone(player: str, auction: AuctionState, ev: dict, groups: dict,
         level = parse_bid(call)[0] if call else 0
         long_only = REBID_ALONE_SIX_FROM and level >= REBID_ALONE_SIX_FROM
         if call and long_only and held < REBID_LENGTH:
+            return 'Pass', "Partner has passed; not enough to bid again alone."
+        if call and long_only and REBID_ALONE_THREE and level >= 3 \
+                and held < REBID_ALONE_THREE[0] \
+                and sum(_HCP.get(c.rank, 0) for g in groups.values() for c in g) < REBID_ALONE_THREE[1]:
             return 'Pass', "Partner has passed; not enough to bid again alone."
         if call and long_only and level <= ceiling:
             return call, (f"{REBID_LENGTH}+ {SUIT_SYM[my_first]}. "
@@ -1475,143 +1485,11 @@ def ai_bid_explained(player: str, hand: list[Card], auction: AuctionState,
     (`_robot_alerts`), so a plain robot loop needs to pass nothing."""
     if alerts is None:
         alerts = _robot_alerts(auction)
-    decision = (_lebensohl(player, hand, auction)
-                or _preemptor_passes(player, hand, auction, alerts)
+    decision = (_preemptor_passes(player, hand, auction, alerts)
                 or _lead_doubler_passes(player, hand, auction, alerts)
                 or _penalty_or_base(player, hand, auction, alerts))
-    decision = _gap_rules(player, hand, auction, decision)
     decision = _compete_cap(player, auction, decision)
     auction.__dict__.setdefault('_robot_said', {})[len(auction.calls)] = decision
-    return decision
-
-
-# ── Gap rules (research, 2026-11-22): follow-ups the system did not define ──
-#: Each is off. Survey: /mnt/project-files/undefined-followups/.
-#: GAP_LOTT: the old system's "No extra values." pass while they hold the
-#: contract and we have a known 8+ fit: GIB's Law of Total Tricks decides.
-GAP_LOTT = False
-#: GAP_REBID_ALONE: a lone rebid of my suit (partner silent) at the three
-#: level needs 7 cards or 16+ HCP; GAP_REBID_ALONE_X adds a takeout double
-#: (13+ HCP, 0-1 in their only suit, 3+ in each other unbid suit, level <= 2).
-GAP_REBID_ALONE = False
-GAP_REBID_ALONE_X = False
-#: GAP_FREE_RAISE: opener raises a free one-level response (made over their
-#: overcall) only with 4 trumps; with 3 it rebids 1NT (balanced, stopper) or
-#: its own suit instead.
-GAP_FREE_RAISE = False
-#: GAP_RESPONDER_VALUES: responder's "Fewer than 3 and no five-card suit"
-#: pass, partner's suit doubled: XX on 10+ HCP; partner's suit overcalled
-#: below 3NT: penalty X on 10+ HCP with 4+ of their suit.
-GAP_RESPONDER_VALUES = False
-#: GAP_LEBENSOHL: (2x) X (P) ? -- 2NT on 0-7 HCP when my suit needs the three
-#: level; doubler relays 3♣ (unless 19+ HCP); advancer passes or corrects.
-GAP_LEBENSOHL = False
-#: The doubler relays on any strength (19+ passed 2NT without it).
-LEBENSOHL_ALWAYS_RELAY = False
-LEBENSOHL_ALERT = "Lebensohl: weak, asks partner to bid 3♣. Artificial."
-LEBENSOHL_RELAY_ALERT = "Relay to 3♣, as asked. Artificial."
-
-
-def _gap_hcp(hand: list[Card]) -> int:
-    return sum({'A': 4, 'K': 3, 'Q': 2, 'J': 1}.get(c.rank, 0) for c in hand)
-
-
-def _gap_lens(hand: list[Card]) -> dict:
-    return {s: sum(1 for c in hand if c.suit == s) for s in SUITS}
-
-
-def _lebensohl(player: str, hand: list[Card], auction: AuctionState) -> tuple | None:
-    if not GAP_LEBENSOHL:
-        return None
-    calls = [c for _, c in auction.calls]
-    first = next((i for i, c in enumerate(calls) if c != 'Pass'), None)
-    if first is None:
-        return None
-    seq = calls[first:]
-    opener = auction.calls[first][0]
-    if PARTNERSHIP[opener] == PARTNERSHIP[player] or seq[0] not in ('2D', '2H', '2S'):
-        return None
-    theirs = seq[0][1]
-    legal = auction.legal_calls()
-    lens = _gap_lens(hand)
-    hcp = _gap_hcp(hand)
-    me_doubler = auction.calls[first + 1][0] == player if len(auction.calls) > first + 1 else False
-    if seq[1:] == ['X', 'Pass'] and not me_doubler:
-        best = max((s for s in SUITS if s != theirs), key=lambda s: (lens[s], SUITS.index(s)))
-        if hcp <= 7 and _cheapest(best, 1, legal) and parse_bid(_cheapest(best, 1, legal))[0] >= 3 \
-                and '2NT' in legal:
-            return '2NT', LEBENSOHL_ALERT
-        return None
-    if seq[1:] == ['X', 'Pass', '2NT', 'Pass'] and me_doubler:
-        if (hcp < 19 or LEBENSOHL_ALWAYS_RELAY) and '3C' in legal:
-            return '3C', LEBENSOHL_RELAY_ALERT
-        return None
-    if seq[1:] == ['X', 'Pass', '2NT', 'Pass', '3C', 'Pass'] and not me_doubler:
-        best = max((s for s in SUITS if s != theirs), key=lambda s: (lens[s], SUITS.index(s)))
-        if best == 'C':
-            return 'Pass', "Clubs: to play."
-        call = _cheapest(best, 3, legal)
-        if call and parse_bid(call)[0] == 3:
-            return call, f"To play, {SUIT_SYM[best]}. Weak."
-        return 'Pass', "Clubs: to play."
-    return None
-
-
-def _gap_rules(player: str, hand: list[Card], auction: AuctionState,
-               decision: tuple) -> tuple:
-    call, why = decision
-    legal = auction.legal_calls()
-    partner = PARTNERS[player]
-    hb = auction.highest_bid
-    theirs_hold = hb is not None and PARTNERSHIP[hb[2]] != PARTNERSHIP[player]
-    lens = _gap_lens(hand)
-    hcp = _gap_hcp(hand)
-    if GAP_LOTT and call == 'Pass' and why == "No extra values." and theirs_hold:
-        ctx = gib.Ctx(player, hand, auction)
-        lott = gib._total_tricks(ctx, None)
-        if lott and lott[0] in legal:
-            return lott
-    if (GAP_REBID_ALONE or GAP_REBID_ALONE_X) and why.endswith("Rebidding my own suit.") \
-            and parse_bid(call) and parse_bid(call)[0] >= 3 and GAP_REBID_ALONE:
-        s = parse_bid(call)[1]
-        if lens[s] < 7 and hcp < 16:
-            decision = ('Pass', "Partner has passed; not enough to bid again alone.")
-            call, why = decision
-    if GAP_REBID_ALONE_X and call == 'Pass' and why.startswith("Partner has passed") \
-            and 'X' in legal and theirs_hold and hb[0] <= 2 and hb[1] in SUITS:
-        named = {parse_bid(c)[1] for w, c in auction.calls
-                 if parse_bid(c) and PARTNERSHIP[w] != PARTNERSHIP[player]}
-        mine = {parse_bid(c)[1] for w, c in auction.calls if w == player and parse_bid(c)}
-        if len(named) == 1 and hcp >= 13 and lens[hb[1]] <= 1 \
-                and all(lens[s] >= 3 for s in SUITS if s not in named | mine):
-            return 'X', "13+ HCP, short in their suit. Takeout."
-    if GAP_FREE_RAISE and why.endswith("support, agreeing the suit.") and parse_bid(call):
-        s = parse_bid(call)[1]
-        pbids = [(w, c) for w, c in auction.calls if w == partner and parse_bid(c)]
-        mine = [c for w, c in auction.calls if w == player and parse_bid(c)]
-        over = any(PARTNERSHIP[w] != PARTNERSHIP[player] and parse_bid(c)
-                   for w, c in auction.calls[:auction.calls.index(pbids[0])]) if pbids else False
-        if len(pbids) == 1 and len(mine) == 1 and parse_bid(pbids[0][1]) == (1, s) \
-                and over and lens[s] == 3:
-            ev_groups = {x: [c for c in hand if c.suit == x] for x in SUITS}
-            their = {parse_bid(c)[1] for w, c in auction.calls
-                     if parse_bid(c) and PARTNERSHIP[w] != PARTNERSHIP[player]}
-            g = gib.Hand(hand)
-            if g.balanced and all(g.stopper(t) for t in their) and '1NT' in legal:
-                return '1NT', "Balanced minimum, stopper in their suit."
-            my = parse_bid(mine[0])[1]
-            again = _cheapest(my, 1, legal)
-            if again and parse_bid(again)[0] <= 2 and lens[my] >= 5:
-                return again, f"5+ {SUIT_SYM[my]}. Minimum, rebidding my suit."
-    if GAP_RESPONDER_VALUES and call == 'Pass' and why.endswith("and no five-card suit.") \
-            and hcp >= 10 and auction.calls:
-        last_who, last = auction.calls[-1]
-        if last == 'X' and 'XX' in legal and PARTNERSHIP[last_who] != PARTNERSHIP[player]:
-            return 'XX', "10+ HCP, no fit. Suggests defending."
-        b = parse_bid(last)
-        if b and PARTNERSHIP[last_who] != PARTNERSHIP[player] and b[1] in SUITS \
-                and lens[b[1]] >= 4 and 'X' in legal and gib.rank_of(last) < gib.rank_of('3NT'):
-            return 'X', "Penalty: 10+ HCP and length in their suit."
     return decision
 
 

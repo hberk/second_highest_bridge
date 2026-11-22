@@ -139,6 +139,9 @@ export const REBID_LENGTH = 6;
 // From this level up a lone rebid needs the sixth card, so it shows six.
 // 2 (the user's rule, 2026-11-04): every lone rebid of my own suit shows six.
 export const REBID_ALONE_SIX_FROM: number | null = 2;
+/** From the three level up a lone rebid also needs a seventh card or 16+ HCP:
+ *  `REBID_ALONE_THREE` in ai.py. */
+export const REBID_ALONE_THREE: [number, number] | null = [7, 16];
 export const RAISE_POINTS = 6;
 export const JUMP_RAISE_POINTS = 10;
 export const RESPONSE_POINTS_SHOWN = 6;
@@ -410,6 +413,10 @@ function rebidAlone(player: Seat, auction: AuctionState, ev: HandEval, groups: G
     const level = call ? levelOf(call) : 0;
     const longOnly = REBID_ALONE_SIX_FROM !== null && level >= REBID_ALONE_SIX_FROM;
     if (call && longOnly && held < REBID_LENGTH) {
+      return ['Pass', 'Partner has passed; not enough to bid again alone.'];
+    }
+    if (call && longOnly && REBID_ALONE_THREE && level >= 3 && held < REBID_ALONE_THREE[0]
+        && hcp(SUITS.flatMap((s) => groups[s])) < REBID_ALONE_THREE[1]) {
       return ['Pass', 'Partner has passed; not enough to bid again alone.'];
     }
     if (call && longOnly && level <= ceiling) {
