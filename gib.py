@@ -60,6 +60,26 @@ SELF_SPLINTER_MIN = 18
 #: Opener makes that splinter (measurement switch; responder answers it
 #: either way, since a human opener can bid it).
 SELF_SPLINTER = True
+#: After opener's short-suit game try (1♥-2♥-2♠, 1♠-2♠-2NT), responder asks
+#: where the shortness is with the next step (2NT over 2♠, 3♣ over 2NT) and
+#: opener names it: the suit at the three level, or three of the major for
+#: the one suit that cannot be bid below it (♠ for hearts, ♣ for spades).
+#: Responder then bids game when the values are not wasted opposite it: the
+#: game-try fit count less the K/Q/J/10/9 held in the short suit, plus
+#: SHORT_ASK_BONUS for knowing the shortness fits (the user's idea,
+#: 2026-11-22, board IMG_1114). Responder asks only when that game is
+#: possible; otherwise it declines at once, as before. Measurement switch.
+SHORT_ASK = False
+SHORT_ASK_BONUS = 3
+#: Control for the measurement: accept the short-suit try on the same count
+#: plus bonus without asking, so the ask's own value can be told apart.
+SHORT_ASK_LOOSE = False
+#: Opener passes responder's 3M after any game try (1M-2M-try-3M). Without
+#: it the general "three-level suit is invitational" branch of opener_third
+#: took 3M as an invitation, and every game-trying opener (15+ JP) went on
+#: to game: the try asked a question whose answer was never read.
+TRY_DECLINE_PASS = False
+SHORT_TRY_ACCEPT = 9          # responder's fit count that accepts a game try
 TWO_OVER_ONE = 12
 JUMP_SHIFT_POINTS = 17        # Soloway: 17+ total points, 4+ controls
 DRURY = (10, 12)
@@ -518,6 +538,11 @@ def one_suit(ctx: Ctx) -> tuple:
         decision = opener_third(ctx, x)
         if decision:
             return decision
+    if (n == 5 and x in MAJORS and seq[1] == f"2{x}" and seq[2] == _short_try(x)
+            and seq[3] == _short_ask(x)):
+        decision = _after_short_reply(ctx, x)
+        if decision:
+            return decision
     if (n == 5 and seq[2] == '2NT' and seq[3] == '3C' and level_of(seq[1]) == 1
             and strain_of(seq[1]) in MAJORS):
         ans = seq[4]
@@ -730,6 +755,55 @@ def _is_splinter(x: str, r: str) -> bool:
     return False
 
 
+def _short_try(x: str) -> str:
+    """Opener's short-suit game try after 1x-2x."""
+    return '2S' if x == 'H' else '2NT'
+
+
+def _short_ask(x: str) -> str:
+    """Responder's ask: where is the shortness?"""
+    return '2NT' if x == 'H' else '3C'
+
+
+def _short_reply(x: str, s: str) -> str:
+    """Opener's answer naming short suit `s`; three of the major is the
+    suit that has no call of its own below it."""
+    if s in ('C', 'D', 'H') and f"3{s}" != f"3{x}" and not (x == 'S' and s == 'C'):
+        return f"3{s}"
+    return f"3{x}"
+
+
+def _short_shown(x: str, reply: str) -> str | None:
+    for s in SUITS:
+        if s != x and _short_reply(x, s) == reply:
+            return s
+    return None
+
+
+def _short_alert(s: str) -> str:
+    return f"Short {SYM[s]}: a singleton or void. Artificial."
+
+
+def _wasted(h: Hand, s: str) -> int:
+    """Judgement points in `s` that a shortness opposite would waste: all
+    but the ace."""
+    return h.suit_judge(s) - (1 if h.has(s, 'A') else 0)
+
+
+def _after_short_reply(ctx: Ctx, x: str) -> tuple | None:
+    """1x-2x-try-ask-reply: game when our values are outside the short suit."""
+    s = _short_shown(x, ctx.seq[4])
+    if s is None:
+        return None
+    h = ctx.h
+    work = h.judge + _fit_bonus(h, x, 5) - _wasted(h, s) + SHORT_ASK_BONUS
+    if work >= SHORT_TRY_ACCEPT and ctx.ok(f"4{x}"):
+        return f"4{x}", f"To play: few values in {SYM[s]}."
+    if ctx.seq[4] == f"3{x}":
+        return 'Pass', "Declining the game try."
+    return f"3{x}", "Declining the game try."
+
+
 def _jacoby_rebid(ctx: Ctx, x: str) -> tuple:
     h = ctx.h
     short = h.short(x)
@@ -761,8 +835,7 @@ def _game_try(ctx: Ctx, x: str) -> tuple:
     if hcp >= 18 or fit >= 18 or (hcp >= 17 and not short):
         return f"4{x}", TO_PLAY
     if short:
-        step = '2S' if x == 'H' else '2NT'
-        return step, "Short-suit game try. Artificial."
+        return _short_try(x), "Short-suit game try. Artificial."
     for s in SUITS:
         call = f"3{s}"
         if (s != x and h.len[s] >= 3 and h.top(s, ('A', 'K')) <= 1
@@ -1039,7 +1112,14 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
                 return f"4{x}", "Choice of games: a fourth trump or a short suit."
             return 'Pass', "Choice of games: three trumps, no short suit."
         if o in ('2S', '2NT') and o != f"2{x}":
-            return (f"4{x}", TO_PLAY) if fit >= 9 else (f"3{x}", "Declining the game try.")
+            if fit >= SHORT_TRY_ACCEPT:
+                return f"4{x}", TO_PLAY
+            if (SHORT_ASK and o == _short_try(x) and fit + SHORT_ASK_BONUS >= SHORT_TRY_ACCEPT
+                    and ctx.ok(_short_ask(x))):
+                return _short_ask(x), "Asks where the short suit is. Artificial."
+            if SHORT_ASK_LOOSE and fit + SHORT_ASK_BONUS >= SHORT_TRY_ACCEPT:
+                return f"4{x}", TO_PLAY
+            return f"3{x}", "Declining the game try."
         if ol == 3 and os_ in SUITS and os_ != x:
             accept = fit >= 9 or (fit >= 8 and (h.len[os_] <= 1 or h.top(os_, ('A', 'K', 'Q')) >= 1))
             return (f"4{x}", TO_PLAY) if accept else (f"3{x}", "Declining the game try.")
@@ -1294,6 +1374,14 @@ def opener_third(ctx: Ctx, x: str) -> tuple | None:
     hcp = h.judge
     r, o, last = seq[1], seq[2], seq[3]
     y = strain_of(r)
+    if (x in MAJORS and r == f"2{x}" and o == _short_try(x) and last == _short_ask(x)
+            and h.short(x)):
+        s = h.short(x)[0]
+        return _short_reply(x, s), _short_alert(s)
+    if (TRY_DECLINE_PASS and x in MAJORS and r == f"2{x}" and last == f"3{x}"
+            and (o == _short_try(x) or (level_of(o) == 3 and strain_of(o) in SUITS
+                                        and strain_of(o) != x))):
+        return 'Pass', "Partner declined the game try."
     if last in ('3NT', '6NT'):
         return 'Pass', "Partner placed the contract."
     if o == '2NT' and last == '3C' and y in MAJORS and level_of(r) == 1:
