@@ -1193,10 +1193,12 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
 #: fit: here 14 judgement points + 18. A 5-2 major plays as well as 4-3
 #: (FIVE_TWO_PREFERENCE) and a trick lower than 2NT. Off, 2NT.
 PREFER_OVER_2NT = False
-#: Opener's judgement points to try again over the preference: the top of
-#: the 2m rebid's range (18), so the try needs no more of responder than
-#: the old 2NT did. Responder accepts with the hands that bid 2NT before.
-PREFER_CONTINUE = 18
+#: Opener's judgement points to try again over the preference (2NT, or 3M
+#: with six), and responder accepts with the hands that bid 2NT before.
+#: None: opener passes the preference, as before. Measured 2026-11-22 on
+#: 3 x 30,000 fresh deals: at 18 the try reached no game and turned 2M into
+#: 2NT, +0.00/+0.01/+0.01 a board; None +0.01/+0.02/+0.01 (t 1.4/4.2/2.6).
+PREFER_CONTINUE: int | None = None
 
 
 def _prefer_over_2nt(ctx: Ctx, x: str, y: str, z: str) -> bool:
@@ -1213,6 +1215,7 @@ def _after_preference_try(ctx: Ctx, x: str) -> tuple | None:
     seq = ctx.seq
     o, pref, last = seq[2], seq[3], seq[4]
     if not (PREFER_OVER_2NT and x in MAJORS and pref == f"2{x}" and level_of(seq[1]) == 1
+            and strain_of(seq[1]) in SUITS
             and level_of(o) == 2 and strain_of(o) in MINORS and last in ('2NT', f"3{x}")):
         return None
     accept = ctx.h.judge + opener_range(seq[:3])[1] >= GAME
@@ -1371,8 +1374,9 @@ def opener_third(ctx: Ctx, x: str) -> tuple | None:
                 return f"4{s}", TO_PLAY
             return '3NT', TO_PLAY
         return 'Pass', "Declining the invitation."
-    if (PREFER_OVER_2NT and x in MAJORS and last == f"2{x}" and level_of(r) == 1
-            and level_of(o) == 2 and strain_of(o) in MINORS and hcp >= PREFER_CONTINUE):
+    if (PREFER_OVER_2NT and x in MAJORS and last == f"2{x}" and level_of(r) == 1 and y in SUITS
+            and level_of(o) == 2 and strain_of(o) in MINORS and PREFER_CONTINUE is not None
+            and hcp >= PREFER_CONTINUE):
         # 1M-1y-2m-2M: the preference now holds the invitational hands too
         # (PREFER_OVER_2NT), so a maximum makes the try itself.
         if h.len[x] >= 6 and ctx.ok(f"3{x}"):

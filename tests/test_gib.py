@@ -470,23 +470,26 @@ def test_invitational_preference_over_2nt():
     calls = ('1H', 'Pass', '1S', 'Pass', '2D', 'Pass')
     south = 'KS 9S 6S 5S 2S QH 4H KD 10D 5D KC 4C 2C'
     assert bid(south, *calls) == ('2NT', 'Invitational.')
-    old = gib.PREFER_OVER_2NT
+    old = gib.PREFER_OVER_2NT, gib.PREFER_CONTINUE
     gib.PREFER_OVER_2NT = True
     try:
         assert bid(south, *calls) == ('2H', 'Preference to \u2665.')
         # Four diamonds: no preference, 2NT as before.
         assert bid('KS 9S 6S 5S 2S QH 4H KD 10D 5D 3D KC 2C', *calls)[0] == '2NT'
-        # A minimum opener passes the preference; a maximum tries 2NT.
+        # Opener passes the preference, even a maximum (PREFER_CONTINUE None).
         pref = calls + ('2H', 'Pass')
-        assert bid('AS 10S 4S AH KH JH 9H 7H AD JD 9D 6D 7C', *pref)[0] == 'Pass'
         top = 'QS 4S AH KH QH JH 7H KD QD JD 6D 7C 2C'
+        assert bid(top, *pref)[0] == 'Pass'
+        # With PREFER_CONTINUE a maximum tries 2NT; a minimum still passes.
+        gib.PREFER_CONTINUE = 18
+        assert bid('AS 10S 4S AH KH JH 9H 7H AD JD 9D 6D 7C', *pref)[0] == 'Pass'
         assert bid(top, *pref) == ('2NT', 'Maximum. Invitational.')
         # Responder accepts with the old 2NT hand, declines with less.
         tried = pref + ('2NT', 'Pass')
         assert bid(south, *tried)[0] == '3NT'
         assert bid('KS 9S 6S 5S 2S QH 4H JD 7D 5D QC 4C 2C', *tried)[0] == 'Pass'
     finally:
-        gib.PREFER_OVER_2NT = old
+        gib.PREFER_OVER_2NT, gib.PREFER_CONTINUE = old
 
 
 def test_negative_doubler_and_opener_raise_the_longest_fit():
