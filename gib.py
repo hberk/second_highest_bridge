@@ -79,6 +79,16 @@ SHORT_ASK_LOOSE = False
 #: took 3M as an invitation, and every game-trying opener (15+ JP) went on
 #: to game: the try asked a question whose answer was never read.
 TRY_DECLINE_PASS = False
+#: Trump length after a game try (the user's question, 2026-11-22). On 850
+#: short-suit tries, 4M made 34% with 3 trumps opposite 5, 58% with 4
+#: opposite 5 and 64% with 3 opposite 6, against a break-even near 40%:
+#: the ninth trump decides, not the honours. TRY_FOUR_ACCEPT: responder
+#: accepts the short-suit try with four trumps; TRY_FOUR_ACCEPT_ALL also the
+#: help-suit tries. TRY_FIVE_PASS: opener passes responder's 3M with five
+#: trumps (an 8-card fit), and still bids on with six.
+TRY_FOUR_ACCEPT = False
+TRY_FOUR_ACCEPT_ALL = False
+TRY_FIVE_PASS = False
 SHORT_TRY_ACCEPT = 9          # responder's fit count that accepts a game try
 TWO_OVER_ONE = 12
 JUMP_SHIFT_POINTS = 17        # Soloway: 17+ total points, 4+ controls
@@ -1112,7 +1122,7 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
                 return f"4{x}", "Choice of games: a fourth trump or a short suit."
             return 'Pass', "Choice of games: three trumps, no short suit."
         if o in ('2S', '2NT') and o != f"2{x}":
-            if fit >= SHORT_TRY_ACCEPT:
+            if fit >= SHORT_TRY_ACCEPT or (TRY_FOUR_ACCEPT and h.len[x] >= 4):
                 return f"4{x}", TO_PLAY
             if (SHORT_ASK and o == _short_try(x) and fit + SHORT_ASK_BONUS >= SHORT_TRY_ACCEPT
                     and ctx.ok(_short_ask(x))):
@@ -1122,6 +1132,7 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
             return f"3{x}", "Declining the game try."
         if ol == 3 and os_ in SUITS and os_ != x:
             accept = fit >= 9 or (fit >= 8 and (h.len[os_] <= 1 or h.top(os_, ('A', 'K', 'Q')) >= 1))
+            accept = accept or (TRY_FOUR_ACCEPT_ALL and h.len[x] >= 4)
             return (f"4{x}", TO_PLAY) if accept else (f"3{x}", "Declining the game try.")
         if o == f"3{x}":
             return (f"4{x}", TO_PLAY) if fit >= 9 else ('Pass', "Declining the invitation.")
@@ -1378,6 +1389,10 @@ def opener_third(ctx: Ctx, x: str) -> tuple | None:
             and h.short(x)):
         s = h.short(x)[0]
         return _short_reply(x, s), _short_alert(s)
+    if (TRY_FIVE_PASS and x in MAJORS and r == f"2{x}" and last == f"3{x}" and h.len[x] <= 5
+            and (o == _short_try(x) or (level_of(o) == 3 and strain_of(o) in SUITS
+                                        and strain_of(o) != x))):
+        return 'Pass', "Partner declined the game try."
     if (TRY_DECLINE_PASS and x in MAJORS and r == f"2{x}" and last == f"3{x}"
             and (o == _short_try(x) or (level_of(o) == 3 and strain_of(o) in SUITS
                                         and strain_of(o) != x))):
