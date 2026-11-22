@@ -9,6 +9,7 @@ import { SAVE_KEY } from './saves';
 import { legalPlays } from './engine/auction';
 import { SUIT_SYMBOLS, type Seat, type Suit } from './engine/card';
 import { seatAt } from './seats';
+import { settings } from './settings.svelte';
 import TableView from './views/TableView.svelte';
 import DesktopTableView from './views/DesktopTableView.svelte';
 import HistoryView from './views/HistoryView.svelte';
@@ -253,7 +254,9 @@ describe('table flow', () => {
     expect(challengeGame.canUndo).toBe(false);
   });
 
-  it('moves on from a finished trick by a tap on the felt, or by leading when you won it', () => {
+  it.each([false, true])('moves on from a finished trick by a tap on the felt, or by leading when you won it (always Next trick: %s)', (always) => {
+    const before = settings.alwaysNext;
+    settings.alwaysNext = always;
     let leads = 0;
     for (let seed = 1; seed < 12 && leads < 3; seed++) {
       const game = new Game(null, prng(seed));
@@ -269,10 +272,16 @@ describe('table flow', () => {
           const mine = (w === game.mySeat && c.declarer !== seatAt(game.mySeat, 'top'))
             || (w === seatAt(game.mySeat, 'top') && c.declarer === game.mySeat);
           if (mine) {
-            for (const html of htmls) {
-              expect(html).toContain('Your lead');
-              expect(html).not.toContain('>Next trick');
-              expect(html).not.toContain('Tap for the next trick');
+            if (always) {
+              // The button shows on a trick you won too; leading still works.
+              expectBoth(htmls, '>Next trick');
+              expect(htmls[0]).toContain('Tap for the next trick');
+            } else {
+              for (const html of htmls) {
+                expect(html).toContain('Your lead');
+                expect(html).not.toContain('>Next trick');
+                expect(html).not.toContain('Tap for the next trick');
+              }
             }
             const card = game.hands[w][0];
             // What the view does when a card is tapped: clear the trick, lead it.
@@ -291,6 +300,7 @@ describe('table flow', () => {
         }
       }
     }
+    settings.alwaysNext = before;
     expect(leads).toBeGreaterThan(0);
   });
 
