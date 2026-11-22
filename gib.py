@@ -6009,6 +6009,30 @@ def _first_bid_1nt(ctx: Ctx) -> bool:
 NT_X_SHAPE: str | None = 'two'
 
 
+#: No takeout double of their game once both opponents have bid: after they
+#: showed game values it is not a competitive auction any more, and we never
+#: want to bid higher, so the double is for penalty (the user, 2026-11-22, on
+#: training deal 374: 1H P 2H P 3S P 4H, North K86 Q974 T2 T862 could not
+#: double, as X was takeout 13+, and 4H went four down). Part scores keep the
+#: takeout double (1H P 2H P P X). False keeps it for game too.
+GAME_PENALTY_X = False
+
+
+def game_values_shown(theirs: list, lb: str) -> bool:
+    """Did their constructive auction reach game? Both bid, a one-level,
+    1NT, 2C or 2NT opening (not a pre-empt), and the game call is not a jump:
+    1H 4H, 2H 4H and 3H 4H are pre-emptive raises. `theirs` is their non-pass
+    calls as (seat, call), `lb` their last bid."""
+    if not _is_game_bid(lb) or len({w for w, _ in theirs}) != 2:
+        return False
+    bids = [c for _, c in theirs if parse_bid(c)]
+    first = bids[0]
+    if level_of(first) > 1 and first not in ('1NT', '2C', '2NT'):
+        return False
+    prev = bids[-2] if len(bids) >= 2 else None
+    return prev is not None and level_of(lb) - level_of(prev) <= 1
+
+
 def _defend(ctx: Ctx) -> tuple | None:
     """Our first action after they opened."""
     h = ctx.h
@@ -6122,6 +6146,7 @@ def _defend(ctx: Ctx) -> tuple | None:
                 return call, f"5+ {SYM[s]}, {need[0]}-{need[1]} HCP. Overcall."
     # Takeout double, through 4H.
     if (ctx.ok('X') and rank_of(lb) <= rank_of('4H') and their in SUITS
+            and not (GAME_PENALTY_X and game_values_shown(ctx.theirs, lb))
             and not (LEAD_DOUBLE and _their_artificial(ctx, len(ctx.calls) - 1))
             and _takeout_after_notrump(ctx)):
         shape_ok = h.len[their] <= 2 and all(h.len[s] >= 3 for s in SUITS if s != their)

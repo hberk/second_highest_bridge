@@ -5321,6 +5321,23 @@ function firstBid1nt(ctx: Ctx): boolean {
 // unbalanced hand bids Cappelletti or passes.
 export const NT_X_SHAPE: 'cappelletti' | 'two' | 'strict' | null = 'two';
 
+/** No takeout double of their game once both opponents have bid
+ *  constructively: the double is for penalty (the user, 2026-11-22, training
+ *  deal 374). Part scores keep the takeout double. See gib.py. */
+export const GAME_PENALTY_X = false;
+
+/** Did their constructive auction reach game? Both bid, a one-level, 1NT, 2C
+ *  or 2NT opening (not a pre-empt), and the game call is not a jump. See
+ *  `game_values_shown` in gib.py. */
+export function gameValuesShown(theirs: [Seat, string][], lb: string): boolean {
+  if (!isGameBid(lb) || new Set(theirs.map(([w]) => w)).size !== 2) return false;
+  const bids = theirs.map(([, c]) => c).filter((c) => parseBid(c) !== null);
+  const first = bids[0];
+  if (levelOf(first) > 1 && !['1NT', '2C', '2NT'].includes(first)) return false;
+  if (bids.length < 2) return false;
+  return levelOf(lb) - levelOf(bids[bids.length - 2]) <= 1;
+}
+
 function defend(ctx: Ctx): Decision | null {
   const h = ctx.h;
   const hcp = h.hcp;
@@ -5430,6 +5447,7 @@ function defend(ctx: Ctx): Decision | null {
     }
   }
   if (ctx.ok('X') && rankOf(lb) <= rankOf('4H') && isSuit(their)
+    && !(GAME_PENALTY_X && gameValuesShown(ctx.theirs, lb))
     && !(LEAD_DOUBLE && theirArtificial(ctx, ctx.calls.length - 1))
     && takeoutAfterNotrump(ctx)) {
     let shapeOk = h.len[their] <= 2 && SUITS.every((s) => s === their || h.len[s] >= 3);

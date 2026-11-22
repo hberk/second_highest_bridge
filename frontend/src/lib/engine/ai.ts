@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { advanceRaiseGuard, Ctx, doublerGuard, FIVE_TWO_PREFERENCE, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
+import { advanceRaiseGuard, Ctx, doublerGuard, FIVE_TWO_PREFERENCE, gibBid, Hand, ourTwoSuiter, isGameBid, gameValuesShown, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -799,6 +799,19 @@ export const PENALTY_STRONG = 20;
  *  double needs adds this many judgement points; null leaves the count
  *  alone. See ai.py. */
 export const PENALTY_TRUMP_JP: number | null = 4;
+/** Their agreed suit counts toward PENALTY_JUDGE: when both opponents bid it
+ *  and their constructive auction reached game (`gameValuesShown`), add this
+ *  many judgement points; null leaves the count alone. See ai.py. */
+export const PENALTY_FIT_JP: number | null = null;
+
+/** Both opponents bid the suit of `last`, their game, reached
+ *  constructively. See `_their_game_fit` in ai.py. */
+export function theirGameFit(player: Seat, auction: AuctionState, last: string): boolean {
+  const theirs = auction.calls.filter(([w, c]) => w !== player && w !== PARTNERS[player] && c !== 'Pass');
+  const suit = parseBid(last)![1];
+  const bidders = new Set(theirs.filter(([, c]) => parseBid(c)?.[1] === suit).map(([w]) => w));
+  return bidders.size === 2 && gameValuesShown(theirs, last);
+}
 
 /** Has an opponent's alert shown PENALTY_STRONG or more points? */
 function oppShownStrong(player: Seat, auction: AuctionState, alerts: Record<number, string>): boolean {
@@ -850,7 +863,8 @@ function penaltyDouble(player: Seat, hand: Card[], auction: AuctionState,
   if (PENALTY_STRONG_STOP && level < (suit === 'H' || suit === 'S' ? 4 : 5)
     && oppShownStrong(player, auction, alerts)) return null;
   const mine = new Hand(hand).judge;
-  const extra = PENALTY_TRUMP_JP ? PENALTY_TRUMP_JP * (n - need) : 0;
+  let extra = PENALTY_TRUMP_JP ? PENALTY_TRUMP_JP * (n - need) : 0;
+  if (PENALTY_FIT_JP && theirGameFit(player, auction, `${level}${suit}`)) extra += PENALTY_FIT_JP;
   if (mine + extra + partnerMiddle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE) return null;
   if (!doubleIsFree(auction)) return null;
   return ['X', `Penalty: ${need}+ ${SUIT_SYM[suit]}.`];
