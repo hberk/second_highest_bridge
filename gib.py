@@ -629,13 +629,76 @@ def _one_level_response_alert(m: str, x: str) -> str:
     return f"4+ {SYM[m]}, {RESPONSE_MIN}+ HCP, or {SHORT_RESPONSE_MIN}+ short in {SYM[x]}."
 
 
+#: Responder to 1♣/1♦ with five or more in both majors, equal length, bids
+#: 1♠ first and shows hearts next time (the user's call, 2026-11-22: 1♦ 1♥ 3♦
+#: 3NT down one on ♠QT732 ♥KT832 ♦J ♣A6 opposite ♠A ♥A74 ♦AKQ974 ♣T97, where
+#: 1♠ then 3♥ reaches 4♥). Over opener's rebid, responder bids 3♥ (game
+#: forcing: opener picks 4♥ or 4♠ on three cards, else 3NT) with major-game
+#: values, and over 1NT or opener's minor 2♥ with less (to play: opener
+#: passes or gives preference to 2♠). Off: 1♥ with 5-5.
+SPADES_FIRST_55 = False
+#: The 3♥ game force needs responder's judgement points plus opener's minimum
+#: to reach this; the major-suit game bar, as a six-card suit uses it.
+SPADES_FIRST_55_GF = GAME_MAJOR
+
+
+def _five_five_shown(seq: list[str]) -> bool:
+    """1m 1♠ (rebid) 2♥/3♥, uncontested: responder showed 5-5 in the majors
+    by SPADES_FIRST_55. The rebid is 1NT, 2NT, opener's minor or a lower
+    suit, never hearts or a spade raise."""
+    if not SPADES_FIRST_55 or len(seq) < 4:
+        return False
+    x, r, o, last = strain_of(seq[0]), seq[1], seq[2], seq[3]
+    if x not in MINORS or level_of(seq[0]) != 1 or r != '1S' or last not in ('2H', '3H'):
+        return False
+    if last == '2H':
+        return o in ('1NT', f"2{x}")
+    return o in ('1NT', '2NT', f"2{x}", f"3{x}") or (
+        strain_of(o) in MINORS and level_of(o) == 2 and SUITS.index(strain_of(o)) < SUITS.index(x))
+
+
+def _five_five_rebid(ctx: Ctx, x: str, o: str, lo: int, hi: int) -> tuple | None:
+    """Responder's second call after 1m 1♠ (rebid) with 5-5 majors."""
+    h = ctx.h
+    if not (SPADES_FIRST_55 and h.len['S'] >= 5 and h.len['H'] == h.len['S']):
+        return None
+    hcp = h.judge
+    if o == f"3{x}" or (hcp + lo >= SPADES_FIRST_55_GF
+                        and _five_five_shown(ctx.seq[:3] + ['3H'])):
+        if ctx.ok('3H'):
+            return '3H', f"5+ {SYM['H']}, 5+ {SYM['S']}. Game forcing."
+        return None
+    if o in ('1NT', f"2{x}") and ctx.ok('2H'):
+        return '2H', f"5+ {SYM['H']}, 5+ {SYM['S']}, to play."
+    return None
+
+
+def _five_five_answer(ctx: Ctx) -> tuple:
+    """Opener over responder's 2♥/3♥ showing 5-5 majors."""
+    h = ctx.h
+    s, hh = h.len['S'], h.len['H']
+    if ctx.seq[3] == '2H':
+        if s >= 3 and s > hh and ctx.ok('2S'):
+            return '2S', f"Preference to {SYM['S']}."
+        return 'Pass', "Happy in hearts."
+    if hh >= 3 and hh >= s and ctx.ok('4H'):
+        return '4H', TO_PLAY
+    if s >= 3 and ctx.ok('4S'):
+        return '4S', TO_PLAY
+    if hh >= 3 and ctx.ok('4H'):
+        return '4H', TO_PLAY
+    return '3NT', TO_PLAY
+
+
 def respond_minor(ctx: Ctx, x: str) -> tuple:
     h = ctx.h
     hcp, sup = h.hcp, h.len[x]
     passed = ctx.passed_hand(ctx.me)
     if hcp < RESPONSE_MIN:
         if hcp >= SHORT_RESPONSE_MIN and sup <= 1:
-            for m in ('H', 'S', 'D') if h.len['H'] >= h.len['S'] else ('S', 'H', 'D'):
+            hearts_first = h.len['H'] > h.len['S'] or (
+                h.len['H'] == h.len['S'] and not (SPADES_FIRST_55 and h.len['S'] >= 5))
+            for m in ('H', 'S', 'D') if hearts_first else ('S', 'H', 'D'):
                 if h.len[m] >= 4 and SUITS.index(m) > SUITS.index(x) and ctx.ok(f"1{m}"):
                     return f"1{m}", _one_level_response_alert(m, x)
         return 'Pass', f"Fewer than {RESPONSE_MIN} HCP."
@@ -647,7 +710,8 @@ def respond_minor(ctx: Ctx, x: str) -> tuple:
             and all(h.len['C'] > h.len[m] for m in MAJORS)):
         return '2C', f"4+ {SYM['C']}, 12+ HCP. Game forcing."
     if majors:
-        m = 'S' if (len(majors) == 2 and h.len['S'] > h.len['H']) else majors[0]
+        m = 'S' if (len(majors) == 2 and (h.len['S'] > h.len['H'] or (
+            SPADES_FIRST_55 and h.len['S'] == h.len['H'] >= 5))) else majors[0]
         return f"1{m}", _one_level_response_alert(m, x)
     if x == 'C' and h.len['D'] >= 4:
         return '1D', _one_level_response_alert('D', x)
@@ -1058,6 +1122,10 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
     lo, hi = opener_range(seq)
     if r == '1NT':
         return _after_1nt_response(ctx, x, o, lo, hi)
+    if x in MINORS and r == '1S' and not (os_ == 'S' or os_ == 'H'):
+        decision = _five_five_rebid(ctx, x, o, lo, hi)
+        if decision:
+            return decision
 
     # 1x-1y-rebid: the most common sequences in bridge.
     if os_ == y and y in SUITS:                          # opener raised
@@ -1296,6 +1364,8 @@ def opener_third(ctx: Ctx, x: str) -> tuple | None:
     y = strain_of(r)
     if last in ('3NT', '6NT'):
         return 'Pass', "Partner placed the contract."
+    if _five_five_shown(seq):
+        return _five_five_answer(ctx)
     if o == '2NT' and last == '3C' and y in MAJORS and level_of(r) == 1:
         other = 'H' if y == 'S' else 'S'
         if h.len[y] >= 3:
