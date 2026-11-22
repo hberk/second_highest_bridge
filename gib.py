@@ -518,6 +518,15 @@ def one_suit(ctx: Ctx) -> tuple:
         decision = opener_third(ctx, x)
         if decision:
             return decision
+    if (n == 5 and seq[3] == '2H' and seq[4] == '3H' and SPADES_FIRST_55_RAISE
+            and _five_five_shown(seq[:4])):
+        # Opener's invitation shows a fit worth GAME_MAJOR minus the top and
+        # the bottom of the 2♥ range: accept on the middle of that.
+        fit = ctx.h.judge + _fit_bonus(ctx.h, 'H', 4)
+        shown = GAME_MAJOR - (FIVE_FIVE_WEAK[0] + FIVE_FIVE_WEAK[1]) // 2
+        if fit + shown >= GAME_MAJOR and ctx.ok('4H'):
+            return '4H', TO_PLAY
+        return 'Pass', "Declining the invitation."
     if (n == 5 and seq[2] == '2NT' and seq[3] == '3C' and level_of(seq[1]) == 1
             and strain_of(seq[1]) in MAJORS):
         ans = seq[4]
@@ -640,6 +649,11 @@ SPADES_FIRST_55 = False
 #: The 3♥ game force needs responder's judgement points plus opener's minimum
 #: to reach this; the major-suit game bar, as a six-card suit uses it.
 SPADES_FIRST_55_GF = GAME_MAJOR
+#: Opener raises the 2♥ (5-5, to play) on four hearts: 4♥ when the fit and
+#: responder's minimum make game, 3♥ invites when his maximum would.
+SPADES_FIRST_55_RAISE = False
+#: Responder's 2♥ shows this many judgement points at least and at most.
+FIVE_FIVE_WEAK = (6, 14)
 
 
 def _five_five_shown(seq: list[str]) -> bool:
@@ -678,6 +692,12 @@ def _five_five_answer(ctx: Ctx) -> tuple:
     h = ctx.h
     s, hh = h.len['S'], h.len['H']
     if ctx.seq[3] == '2H':
+        if SPADES_FIRST_55_RAISE and hh >= 4:
+            fit = h.judge + _fit_bonus(h, 'H', 5)
+            if fit + FIVE_FIVE_WEAK[0] >= GAME_MAJOR and ctx.ok('4H'):
+                return '4H', TO_PLAY
+            if fit + FIVE_FIVE_WEAK[1] >= GAME_MAJOR and ctx.ok('3H'):
+                return '3H', f"4+ {SYM['H']}, invitational."
         if s >= 3 and s > hh and ctx.ok('2S'):
             return '2S', f"Preference to {SYM['S']}."
         return 'Pass', "Happy in hearts."
