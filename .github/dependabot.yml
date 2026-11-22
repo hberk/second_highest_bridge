@@ -2,7 +2,7 @@
 #
 # Security fixes don't wait for this schedule: with Dependabot security
 # updates turned on (Settings -> Advanced Security), a known vulnerability
-# gets its own PR as soon as it's published. Every PR runs the Pages workflow,
+# gets its own PR as soon as it's published. Every PR runs the build and test workflow (pages.yml),
 # so the Python tests and the TS engine's parity with Python check it first.
 version: 2
 updates:

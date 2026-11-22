@@ -158,7 +158,7 @@ in this game. Approved from the phone mockups the same day.
 
 | id | requirement | pri | status | how we know |
 |---|---|---|---|---|
-| E1 | A static site on GitHub Pages; no server | P0 | Met | `pages.yml` |
+| E1 | Solo play is a static site that needs no server (hosted on Cloudflare since 2026-11-22, GitHub Pages before) | P0 | Met | `pages.yml`, `cloudflare` job |
 | E2 | Small: ~105 KB gzipped plus 21 KB of solver | P1 | Met | `npm run build` |
 | E3 | The solver's memory capped for phones (102 MB) | P0 | Met | `TABLE_LIMIT` |
 | E4 | Every string the app shows is escaped; no `{@html}` | P0 | Met | `lin.test.ts` |
