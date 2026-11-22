@@ -1333,6 +1333,27 @@ def test_smolen_only_over_the_stayman_denial():
     assert bid(west, '2NT', 'Pass', '3C', 'Pass', '3D', 'Pass', dealer='East')[0] == '3H'
 
 
+def test_opener_answers_the_shortness_ask():
+    """The user's board, 2026-11-22: 1♠ 2♠ 2NT (short-suit try), and a person
+    asks 3♣ where the shortness is. Robot opener names it; the robots never ask."""
+    north = 'QS JS 10S 9S 8S 2S 10H AD KD QD AC 7C 3C'
+    calls = ('1S', 'Pass', '2S', 'Pass', '2NT', 'Pass')
+    import meanings
+    assert meanings.gib_alert(after(*calls), '3C') == gib.SHORT_ASK_ALERT
+    assert meanings.gib_alert(after(*calls), '3D') is None
+    call, why = bid(north, *calls, '3C', 'Pass')
+    assert (call, why) == ('3H', 'Short ♥: a singleton or void. Artificial.')
+    assert bid(north, *calls, '3C', 'Pass', '3H', 'Pass', '3S', 'Pass')[0] == 'Pass'
+    # Hearts: 2♠ is the try, 2NT the ask, 3♥ says spades.
+    assert gib._short_reply('H', 'S') == '3H' and gib._short_reply('S', 'C') == '3S'
+    hearts = ('1H', 'Pass', '2H', 'Pass', '2S', 'Pass')
+    assert meanings.gib_alert(after(*hearts), '2NT') == gib.SHORT_ASK_ALERT
+    west = 'AS KH QH JH 8H 7H AD 3D AC QC 9C 5C 2C'
+    assert bid(west, *hearts, '2NT', 'Pass')[0] == '3H'
+    # Not when they have bid.
+    assert gib.understood_alert(after('1S', '2D', '2S', 'Pass', '2NT', 'Pass'), '3C') is None
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_') and callable(fn):

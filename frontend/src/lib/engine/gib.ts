@@ -32,6 +32,11 @@ export const SPLINTER: [number, number] = [13, 16];
 export const SELF_SPLINTER_MIN = 18;
 /** Opener makes that splinter (measurement switch); responder answers it either way. */
 export const SELF_SPLINTER = true;
+/** The robots answer responder's ask after a short-suit game try, but never
+ *  ask (gib.py). Trump length after a game try: measurement switches. */
+export const TRY_FOUR_ACCEPT = false;
+export const TRY_FOUR_ACCEPT_ALL = false;
+export const TRY_FIVE_PASS = false;
 export const TWO_OVER_ONE = 12;
 export const JUMP_SHIFT_POINTS = 17;
 export const DRURY: [number, number] = [10, 12];
@@ -652,6 +657,46 @@ function isSplinter(x: string, r: string): boolean {
   return false;
 }
 
+/** Opener's short-suit game try after 1x-2x. */
+function shortTry(x: string): string {
+  return x === 'H' ? '2S' : '2NT';
+}
+
+/** Responder's ask: where is the shortness? */
+function shortAsk(x: string): string {
+  return x === 'H' ? '2NT' : '3C';
+}
+
+/** Opener's answer naming short suit `s`; three of the major is the suit
+ *  that has no call of its own below it. */
+function shortReply(x: string, s: string): string {
+  if (s === 'S' || (x === 'S' && s === 'C')) return `3${x}`;
+  return `3${s}`;
+}
+
+export const SHORT_ASK_ALERT = 'Asks where the short suit is. Artificial.';
+
+/** The alert for a call the robots answer but do not make themselves
+ *  (`understood_alert` in gib.py): the ask after opener's short-suit try. */
+export function understoodAlert(auction: AuctionState, call: string): string | null {
+  const me = auction.currentPlayer();
+  const pd = PARTNERS[me];
+  if (auction.calls.some(([w, c]) => w !== me && w !== pd && c !== 'Pass')) return null;
+  const seq = auction.calls.filter(([, c]) => c !== 'Pass').map(([, c]) => c);
+  const first = auction.calls.find(([, c]) => c !== 'Pass');
+  if (seq.length !== 3 || !first || first[0] !== pd) return null;
+  const x = strainOf(seq[0]);
+  if (isMajor(x) && levelOf(seq[0]) === 1 && seq[1] === `2${x}`
+    && seq[2] === shortTry(x as string) && call === shortAsk(x as string)) {
+    return SHORT_ASK_ALERT;
+  }
+  return null;
+}
+
+function shortAlert(s: Suit): string {
+  return `Short ${SYM[s]}: a singleton or void. Artificial.`;
+}
+
 function jacobyRebid(ctx: Ctx, x: Suit): Decision {
   const h = ctx.h;
   const short = h.short(x);
@@ -682,8 +727,7 @@ function gameTry(ctx: Ctx, x: Suit): Decision {
   }
   if (hcp >= 18 || fit >= 18 || (hcp >= 17 && !short.length)) return [`4${x}`, TO_PLAY];
   if (short.length) {
-    const step = x === 'H' ? '2S' : '2NT';
-    return [step, 'Short-suit game try. Artificial.'];
+    return [shortTry(x), 'Short-suit game try. Artificial.'];
   }
   for (const s of SUITS) {
     const call = `3${s}`;
@@ -921,11 +965,13 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
       return ['Pass', 'Choice of games: three trumps, no short suit.'];
     }
     if ((o === '2S' || o === '2NT') && o !== `2${x}`) {
-      return fit >= 9 ? [`4${x}`, TO_PLAY] : [`3${x}`, 'Declining the game try.'];
+      if (fit >= 9 || (TRY_FOUR_ACCEPT && h.len[x] >= 4)) return [`4${x}`, TO_PLAY];
+      return [`3${x}`, 'Declining the game try.'];
     }
     if (ol === 3 && isSuit(os) && os !== x) {
       const accept = fit >= 9
-        || (fit >= 8 && (h.len[os as Suit] <= 1 || h.top(os as Suit, ['A', 'K', 'Q']) >= 1));
+        || (fit >= 8 && (h.len[os as Suit] <= 1 || h.top(os as Suit, ['A', 'K', 'Q']) >= 1))
+        || (TRY_FOUR_ACCEPT_ALL && h.len[x] >= 4);
       return accept ? [`4${x}`, TO_PLAY] : [`3${x}`, 'Declining the game try.'];
     }
     if (o === `3${x}`) return fit >= 9 ? [`4${x}`, TO_PLAY] : ['Pass', 'Declining the invitation.'];
@@ -1151,6 +1197,14 @@ function openerThird(ctx: Ctx, x: Suit): Decision | null {
   const o = seq[2];
   const last = seq[3];
   const y = strainOf(r);
+  if (isMajor(x) && r === `2${x}` && o === shortTry(x) && last === shortAsk(x) && h.short(x).length) {
+    const s = h.short(x)[0];
+    return [shortReply(x, s), shortAlert(s)];
+  }
+  if (TRY_FIVE_PASS && isMajor(x) && r === `2${x}` && last === `3${x}` && h.len[x] <= 5
+    && (o === shortTry(x) || (levelOf(o) === 3 && isSuit(strainOf(o)) && strainOf(o) !== x))) {
+    return ['Pass', 'Partner declined the game try.'];
+  }
   if (last === '3NT' || last === '6NT') return ['Pass', 'Partner placed the contract.'];
   if (o === '2NT' && last === '3C' && isMajor(y) && levelOf(r) === 1) {
     const ys = y as Suit;
