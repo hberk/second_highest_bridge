@@ -1506,6 +1506,8 @@ GAP_RESPONDER_VALUES = False
 #: GAP_LEBENSOHL: (2x) X (P) ? -- 2NT on 0-7 HCP when my suit needs the three
 #: level; doubler relays 3♣ (unless 19+ HCP); advancer passes or corrects.
 GAP_LEBENSOHL = False
+#: The doubler relays on any strength (19+ passed 2NT without it).
+LEBENSOHL_ALWAYS_RELAY = False
 LEBENSOHL_ALERT = "Lebensohl: weak, asks partner to bid 3♣. Artificial."
 LEBENSOHL_RELAY_ALERT = "Relay to 3♣, as asked. Artificial."
 
@@ -1541,7 +1543,7 @@ def _lebensohl(player: str, hand: list[Card], auction: AuctionState) -> tuple | 
             return '2NT', LEBENSOHL_ALERT
         return None
     if seq[1:] == ['X', 'Pass', '2NT', 'Pass'] and me_doubler:
-        if hcp < 19 and '3C' in legal:
+        if (hcp < 19 or LEBENSOHL_ALWAYS_RELAY) and '3C' in legal:
             return '3C', LEBENSOHL_RELAY_ALERT
         return None
     if seq[1:] == ['X', 'Pass', '2NT', 'Pass', '3C', 'Pass'] and not me_doubler:
