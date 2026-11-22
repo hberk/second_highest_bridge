@@ -6281,6 +6281,17 @@ def _weak_two_x_trap(ctx: Ctx) -> bool:
             and ctx.calls[i + 1][0] == ctx.me)
 
 
+#: The advancer's answer to Cappelletti's 2♦ (the majors) or 2NT (the
+#: minors) is a choice between partner's suits, not a suit of its own: it was
+#: alerted "Natural, ♥.", and the overcaller's raise read it as hearts
+#: (the user's board, 2026-11-22). Alert only.
+CAPPELLETTI_CHOICE_ALERT = True
+
+
+def _cappelletti_choice(pair: str, s: str) -> str:
+    return f"Choosing between partner's {pair}." if CAPPELLETTI_CHOICE_ALERT else natural(s)
+
+
 def _advance(ctx: Ctx) -> tuple | None:
     """Partner acted over their opening; this is my first call."""
     h = ctx.h
@@ -6308,7 +6319,8 @@ def _advance(ctx: Ctx) -> tuple | None:
         if p == '2D':
             s = 'H' if h.len['H'] >= h.len['S'] else 'S'
             call = ctx.cheapest(s, 2)
-            return (call, natural(s)) if call and level_of(call) <= 3 else ('Pass', "No room.")
+            return (call, _cappelletti_choice('majors', s)) if call and level_of(call) <= 3 \
+                else ('Pass', "No room.")
         if p in ('2H', '2S'):
             s = strain_of(p)
             if h.len[s] >= 2:
@@ -6318,7 +6330,8 @@ def _advance(ctx: Ctx) -> tuple | None:
         if p == '2NT':
             m = 'C' if h.len['C'] >= h.len['D'] else 'D'
             call = ctx.cheapest(m, 3)
-            return (call, natural(m)) if call and level_of(call) <= 4 else ('Pass', "No room.")
+            return (call, _cappelletti_choice('minors', m)) if call and level_of(call) <= 4 \
+                else ('Pass', "No room.")
         return None
     two = _two_suits_shown(ctx, p, opening)
     if two:
