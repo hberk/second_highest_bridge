@@ -1793,12 +1793,33 @@ def _base_bid_explained(player: str, hand: list[Card], auction: AuctionState) ->
         if decision:
             return decision
     decision = _previous_system(player, hand, auction, legal)
+    if gib.ARTIFICIAL_READ:
+        placed = _not_partners_artificial(player, auction, legal)
+        if placed and decision[0] in ('Pass', placed[0]):
+            decision = placed               # one alert for the call, whichever branch
     hb = auction.highest_bid
     bid = parse_bid(decision[0])
     if (PARTNERS_GAME_STANDS and bid and hb and hb[2] == PARTNERS[player]
             and hb[0] >= _game_level(hb[1]) and bid[0] > hb[0]):
         return 'Pass', "Partner's game stands."
     return decision
+
+
+def _not_partners_artificial(player: str, auction: AuctionState, legal: list[str]) -> tuple | None:
+    """Partner's artificial bid is the highest (a cuebid showing support,
+    Drury): passing would play it. Bid the suit it shows, cheapest (a fresh
+    deal: 1♣ 2♠ P P 3♣ P 3♠ P, passed in 3♠ doubled once 3♠ read as ♣)."""
+    hb = auction.highest_bid
+    if not hb or hb[2] != PARTNERS[player]:
+        return None
+    k = max(i for i, (w, c) in enumerate(auction.calls) if w == hb[2] and parse_bid(c))
+    s = _reads_as(auction.calls, k)
+    if s is None or s == hb[1]:
+        return None
+    call = _cheapest(s, hb[0], legal) if s in STRAINS else None
+    if call and parse_bid(call)[0] <= 5:
+        return call, f"Partner's {auction.calls[k][1]} showed {SUIT_SYM.get(s, s)}: placing the contract."
+    return None
 
 
 def _previous_system(player: str, hand: list[Card], auction: AuctionState,
