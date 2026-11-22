@@ -2671,11 +2671,10 @@ def test_a_raise_of_a_suit_i_showed_first_is_not_support():
     my suit; they were alerted "3+ ♥ support, agreeing the suit"."""
     prefix = ('1NT', 'Pass', 'Pass', '2D', 'Pass')
     assert _alert('West', *prefix, call='2H') == "Choosing between partner's majors, ♥."
-    for call in ('3H', '4H'):
-        why = _alert('West', *prefix, '2H', 'Pass', call=call)
-        assert why == "♥ agreed: partner bid the suit I showed.", (call, why)
-    # A natural suit after the artificial 2♦ is new, not a rebid.
-    assert _alert('West', *prefix, '2H', 'Pass', call='3D') == "6+ ♦, a new suit."
+    # gib.ARTIFICIAL_READ: the raise is the two-suiter's invitation (the
+    # user, 2026-11-22: "3♥ should show extra values"), never game alone.
+    why = _alert('West', *prefix, '2H', 'Pass', call='3H')
+    assert why == "♥ agreed, extra values or shape. Invites.", why
     # Michaels: 1♠ (2♠) P (3♥) P 4♥ by the Michaels bidder.
     why = _alert('East', '1S', '2S', 'Pass', '3H', 'Pass', call='4H')
     assert why and 'support' not in why and why.startswith('♥ agreed'), why

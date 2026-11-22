@@ -324,6 +324,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     for each trump past three + 3 for a side singleton (5 for a void), and
     bids game at 21 in a minor, 15 in a major. Board 12 is 25. Filtered fresh
     deals, head to head: +1.7 to +3.6 a filtered board (`ROBOT_PROGRESS.md`).
+  - `TWO_SUITER_ALONE` (`gib_bid`, the user's call, 2026-11-22): partner
+    has only passed and they outbid us. With 6-5 or better in the two suits
+    the two-suiter bids the longer (the higher on a tie) cheapest, at most
+    3 of a major or 4 of a minor: (1♥) 2♥ (3♥) P (P) 4♣ on ♠AJ632 ♥T ♦-
+    ♣AQT8653, "6+ ♣, extra shape". Before, `ai._rebid_alone` read 2♥ as
+    hearts and passed. Advancer passes the rebid ("Partner's rebid
+    stands"), or with `TWO_SUITER_ALONE_FIT` bids game in either suit on
+    the `TWO_SUITER_FIT_GAME` count. +0.6 a filtered board (ROBOT_PROGRESS).
   - `TWO_SUITER_BLAST` (`_advance`, the user's call, 2026-11-13): with six
     or more of a major partner showed, advancer bids 4M at once, whatever
     the strength: (1♣) 2♣ (2♠) on ♠- ♥KQJ963 ♦AJT73 ♣65 bid 3♥ (no game
@@ -1410,6 +1418,23 @@ cards, advancer names the suit at the cheapest level, three at most. Fresh deals
 -0.00, +0.04 (noise); both **+0.53, +0.35, +0.22** (t = +5.6, +4.6, +3.0). On deal 51 itself
 hearts by North take 9 tricks double dummy, so 4♥ is down one where 2♥ made an overtrick: the rule wins on
 average, not on that board.
+
+- **Artificial calls are read for what they show** (`gib.ARTIFICIAL_READ`,
+  the user, 2026-11-22: "I don't want to see artificial bids read as natural
+  anymore"). `ai._reads_as` reads each bid from the auction alone: the
+  system's uncontested `shown_suit`, `ai._call_shows` (Cappelletti,
+  Michaels, the unusual 2NT, Drury, the negative X), Cappelletti's 2♣ and
+  its 2♦ relay, transfers over our X of 1NT, and a cue of their suit as
+  partner's suit (not of their 1♣/1♦ opening, often short). `ai._bids_by`
+  and `_first_namer` use it; the flow in `_previous_system` stays on raw
+  calls. Fixed with it: opener raising Drury 2♣ as clubs
+  (`_opener_over_forcing_response`), the Cappelletti bidder raising
+  partner's choice as partner's own suit (now `_two_suiter_choice`: pass, or
+  invite with 15+ HCP or 6-5, `ai.CAPPELLETTI_INVITE_HCP`; never game
+  alone, 4♥ X was -1,300; advancer accepts with 10+, 8+ with four trumps),
+  a transfer after (1NT) X raised as hearts, a cue over the unusual 2NT
+  raised as clubs, and passing partner's cue (`_not_partners_artificial`).
+  Fresh deals: -0.05 a board, in the noise; kept as a correctness fix.
 
 ## The previous system (`ai.USE_GIB = False`)
 

@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { advanceRaiseGuard, Ctx, doublerGuard, FIVE_TWO_PREFERENCE, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
+import { advanceRaiseGuard, ARTIFICIAL_READ, Ctx, NT_X_SYSTEMS, OVER_1NT_2C, shownSuit, doublerGuard, FIVE_TWO_PREFERENCE, gibBid, Hand, ourTwoSuiter, isGameBid, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -151,13 +151,78 @@ type Bid = [number, string];
 const isSuit = (s: string | null): s is Suit => s !== null && (SUITS as readonly string[]).includes(s);
 const suitIndex = (s: Suit) => SUITS.indexOf(s);
 
-function bidsBy(seat: Seat, auction: AuctionState): Bid[] {
+/** (level, strain) for each bid `seat` made. With ARTIFICIAL_READ (and not
+ *  `raw`), an artificial bid counts as the one suit it shows or not at all
+ *  (readsAs). See ai.py. */
+function bidsBy(seat: Seat, auction: AuctionState, raw = false): Bid[] {
   const out: Bid[] = [];
-  for (const [who, call] of auction.calls) {
+  auction.calls.forEach(([who, call], i) => {
     const parsed = parseBid(call);
-    if (who === seat && parsed) out.push(parsed);
-  }
+    if (who !== seat || !parsed) return;
+    if (raw || !ARTIFICIAL_READ) { out.push(parsed); return; }
+    const s = readsAs(auction.calls, i);
+    if (s) out.push([parsed[0], s]);
+  });
   return out;
+}
+
+/** The strain bid i shows: its own, the one suit an artificial bid shows,
+ *  or null for an artificial bid showing no single suit. See ai.py. */
+function readsAs(calls: [Seat, string][], i: number): string | null {
+  const [who, call] = calls[i];
+  const bid = parseBid(call);
+  if (!bid) return null;
+  const s = bid[1];
+  if (!ARTIFICIAL_READ) return s;
+  const inSide = (w: Seat) => w === who || w === PARTNERS[who];
+  const shows = callShows(calls, i);
+  if (shows.size) {
+    if (shows.has(s)) return s;
+    const opening = calls.slice(0, i).find(([, c]) => c !== 'Pass')?.[1] ?? null;
+    if (shows.size === 1 && opening && opening[0] === '1' && call === `2${opening.slice(1)}`) {
+      return null;                     // Michaels over a major: and a minor
+    }
+    return shows.size === 1 ? [...shows][0] : null;
+  }
+  const ours: [Seat, string][] = calls.slice(0, i).filter(([w, c]) => inSide(w) && c !== 'Pass');
+  const theirs: number[] = [];
+  for (let k = 0; k < i; k++) if (!inSide(calls[k][0]) && calls[k][1] !== 'Pass') theirs.push(k);
+  const seq = [...ours.map(([, c]) => c), call];
+  if (!theirs.length) {
+    const shown = shownSuit(seq, seq.length - 1);
+    return shown || (s === 'NT' ? 'NT' : null);
+  }
+  if (s === 'NT') return s;
+  let ourFirst = i;
+  for (let k = 0; k < i; k++) if (inSide(calls[k][0]) && calls[k][1] !== 'Pass') { ourFirst = k; break; }
+  const first = theirs[0] < ourFirst ? calls[theirs[0]] : null;
+  if (first && first[1] === '1NT') {
+    if (!ours.length && call === '2C' && OVER_1NT_2C) return null;
+    if (ours.length === 1 && ours[0][0] === PARTNERS[who] && ours[0][1] === '2C' && call === '2D') return null;
+    if (ours.length && ours[0][1] === 'X' && theirs.length === 1 && NT_X_SYSTEMS) {
+      return shownSuit(['1NT', ...seq.slice(1)], seq.length - 1);
+    }
+  }
+  const named = theirs.find((k) => readsAs(calls, k) === s || callShows(calls, k).has(s));
+  if (named !== undefined) {
+    let ourEarlier = false;
+    for (let k = 0; k < named; k++) {
+      if (inSide(calls[k][0]) && calls[k][1] !== 'Pass'
+        && (readsAs(calls, k) === s || callShows(calls, k).has(s))) { ourEarlier = true; break; }
+    }
+    if (!ourEarlier) {
+      const pSuits: string[] = [];
+      for (let k = 0; k < i; k++) {
+        if (calls[k][0] === PARTNERS[who] && parseBid(calls[k][1])) {
+          const x = readsAs(calls, k);
+          if (isSuit(x) && x !== s) pSuits.push(x);
+        }
+      }
+      const openedMinor = named === theirs[0] && (calls[named][1] === '1C' || calls[named][1] === '1D');
+      return pSuits.length && !openedMinor ? pSuits[0] : s;
+    }
+  }
+  return s;
 }
 
 function doubledBy(seat: Seat, auction: AuctionState): boolean {
@@ -175,9 +240,9 @@ function theirSuit(player: Seat, auction: AuctionState): string | null {
 }
 
 function firstNamer(auction: AuctionState, strain: string): Seat | null {
-  for (const [who, call] of auction.calls) {
-    const parsed = parseBid(call);
-    if (parsed && parsed[1] === strain) return who;
+  for (let k = 0; k < auction.calls.length; k++) {
+    const [who, call] = auction.calls[k];
+    if (parseBid(call) && readsAs(auction.calls, k) === strain) return who;
   }
   return null;
 }
@@ -266,7 +331,7 @@ function contestAlert(player: Seat, auction: AuctionState, call: string, why: st
   const s = bid ? bid[1] : null;
   if (!LOTT || hb === null || s === null || !isSuit(s) || auction.doubled !== 'None'
     || PARTNERSHIP[hb[2]] === PARTNERSHIP[player]) return why;
-  const mine = bidsBy(player, auction).some(([, strain]) => strain === s);
+  const mine = bidsBy(player, auction, true).some(([, strain]) => strain === s);
   if (!mine && supportXRaise(auction.calls, player, s)) return supportXRaiseAlert(s as Suit);
   return nameTheSuit(call, mine ? LOTT_ALERT : raiseAlert(s as Suit, LOTT_ALERT));
 }
@@ -400,7 +465,12 @@ function advanceGame(theirs: string | null, groups: Groups, pts: number,
 
 function rebidAlone(player: Seat, auction: AuctionState, ev: HandEval, groups: Groups,
   legal: string[]): Decision {
-  const myFirst = bidsBy(player, auction)[0][1] as Suit;
+  const mine = bidsBy(player, auction);
+  if (ARTIFICIAL_READ && (!mine.length || !isSuit(mine[0][1]))) {
+    // My bids showed no suit of their own (Michaels, Cappelletti).
+    return ['Pass', 'Already described.'];
+  }
+  const myFirst = mine[0][1] as Suit;
   const pts = points(groups);
   const held = groups[myFirst].length;
   if (held >= REBID_LENGTH || (pts >= REBID_MINIMUM && held >= OPEN_SUIT_LENGTH)) {
@@ -425,7 +495,8 @@ function rebidAlone(player: Seat, auction: AuctionState, ev: HandEval, groups: G
 
 function response(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
   groups: Groups, bestSuit: Suit, bestLen: number, legal: string[]): Decision {
-  const theirs = bidsBy(partner, auction);
+  let theirs = bidsBy(partner, auction);
+  if (!theirs.length) theirs = bidsBy(partner, auction, true);
   const [pLevel, pStrain] = theirs[theirs.length - 1];
 
   if (!isSuit(pStrain)) {
@@ -561,14 +632,49 @@ export const TWO_SUITER_SHAPE_LEN = 11;
 export const TWO_SUITER_SHAPE_DOUBLED = false;
 /** Advancer accepts the invite with this many HCP, two fewer with four trumps. */
 export const TWO_SUITER_ACCEPT_HCP = 8;
+/** After Cappelletti over their 1NT and partner's choice, the raise invites
+ *  with CAPPELLETTI_INVITE_HCP+ or extra shape, never game alone; advancer
+ *  accepts with CAPPELLETTI_ACCEPT_HCP, two fewer with four trumps. See ai.py. */
+export const CAPPELLETTI_INVITE_HCP: number | null = 15;
+export const CAPPELLETTI_ACCEPT_HCP = 10;
+
+function ourTwoSuits(player: Seat, auction: AuctionState, cards: Card[],
+  strain: string): [[Suit, Suit | null] | null, boolean] {
+  let two = ourTwoSuiter(new Ctx(player, cards, auction));
+  let overNt = false;
+  if (!two && ARTIFICIAL_READ) {
+    const k = auction.calls.findIndex(([w, c]) => w === player && c !== 'Pass');
+    const shows = k >= 0 ? [...callShows(auction.calls, k)].sort() as Suit[] : [];
+    if (shows.length === 2) { two = [shows[0], shows[1]]; overNt = true; }
+    else if (shows.length === 1 && (auction.calls[k][1] === '2H' || auction.calls[k][1] === '2S')) {
+      two = [shows[0], null]; overNt = true;
+    }
+  }
+  if (two && two[1] === null && ARTIFICIAL_READ) {
+    two = [two[0], strain === 'C' || strain === 'D' ? strain : null];
+  }
+  return [two, overNt];
+}
 
 function twoSuiterChoice(player: Seat, partner: Seat, auction: AuctionState, groups: Groups,
   strain: string, legal: string[]): Decision | null {
   const cards = SUITS.flatMap((s) => groups[s]);
-  const two = ourTwoSuiter(new Ctx(player, cards, auction));
+  const [two, overNt] = ourTwoSuits(player, auction, cards, strain);
   if (!two || !isSuit(strain) || !two.includes(strain as Suit)
     || firstNamer(auction, strain) !== partner) return null;
   const hb = auction.highestBid;
+  if (hb && hb[2] === partner && overNt && CAPPELLETTI_INVITE_HCP !== null) {
+    const shape = two.reduce((n, x) => n + (x
+      ? groups[x].length : Math.max(groups.C.length, groups.D.length)), 0);
+    if (hcp(cards) >= CAPPELLETTI_INVITE_HCP || shape >= TWO_SUITER_SHAPE_LEN) {
+      const level = hb[0] + 1;
+      const call = `${level}${strain}`;
+      if (legal.includes(call) && level < (strain === 'H' || strain === 'S' ? 4 : 5)) {
+        return [call, `${SUPPORT_LENGTH}+ ${SUIT_SYM[strain]} support, extra values or shape. Invites.`];
+      }
+    }
+    return ['Pass', CHOICE_STANDS];
+  }
   if (hb && hb[2] === partner) {
     if (hcp(cards) >= TWO_SUITER_RAISE_HCP) {
       const game = gameCall(strain, legal);
@@ -632,12 +738,13 @@ function choiceShowsFit(partner: Seat, auction: AuctionState, strain: string): b
 function shapeInviteAnswer(player: Seat, partner: Seat, auction: AuctionState, groups: Groups,
   strain: string, legal: string[]): Decision | null {
   const cards = SUITS.flatMap((s) => groups[s]);
-  const two = ourTwoSuiter(new Ctx(player, cards, auction));
+  const [two, overNt] = ourTwoSuits(partner, auction, cards, strain);
   const hb = auction.highestBid;
   if (!two || !isSuit(strain) || !two.includes(strain as Suit) || !hb || hb[2] !== partner
     || hb[1] !== strain) return null;
   if (firstNamer(auction, strain) !== player) return null;
-  const need = TWO_SUITER_ACCEPT_HCP - (groups[strain as Suit].length >= 4 ? 2 : 0);
+  const accept = overNt && CAPPELLETTI_INVITE_HCP !== null ? CAPPELLETTI_ACCEPT_HCP : TWO_SUITER_ACCEPT_HCP;
+  const need = accept - (groups[strain as Suit].length >= 4 ? 2 : 0);
   if (hcp(cards) >= need) {
     const game = gameCall(strain, legal);
     if (game) return [game, 'Accepts the invitation.'];
@@ -649,6 +756,11 @@ function rebid(player: Seat, partner: Seat, auction: AuctionState, ev: HandEval,
   groups: Groups, bestSuit: Suit, bestLen: number, legal: string[]): Decision {
   const mine = bidsBy(player, auction);
   const theirs = bidsBy(partner, auction);
+  if (ARTIFICIAL_READ && theirs.length && !mine.length && TWO_SUITER_CHOICE) {
+    // My only bids showed two suits: partner's bid is a choice between them.
+    const choice = twoSuiterChoice(player, partner, auction, groups, theirs[theirs.length - 1][1], legal);
+    if (choice) return choice;
+  }
   if (!mine.length || !theirs.length) return ['Pass', 'Pass.'];
   const pStrain = theirs[theirs.length - 1][1];
   const myFirst = mine[0][1] as Suit;
@@ -1183,7 +1295,11 @@ function systemBidExplained(player: Seat, hand: Card[], auction: AuctionState): 
     const decision = gibBid(player, hand, auction);
     if (decision) return decision;
   }
-  const decision = previousSystem(player, hand, auction, legal);
+  let decision = previousSystem(player, hand, auction, legal);
+  if (ARTIFICIAL_READ) {
+    const placed = notPartnersArtificial(player, auction, legal);
+    if (placed && (decision[0] === 'Pass' || decision[0] === placed[0])) decision = placed;
+  }
   const hb = auction.highestBid;
   const bid = parseBid(decision[0]);
   if (PARTNERS_GAME_STANDS && bid && hb && hb[2] === PARTNERS[player]
@@ -1191,6 +1307,22 @@ function systemBidExplained(player: Seat, hand: Card[], auction: AuctionState): 
     return ['Pass', "Partner's game stands."];
   }
   return decision;
+}
+
+/** Partner's artificial bid is the highest: passing would play it. Bid the
+ *  suit it shows, cheapest. See ai.py. */
+function notPartnersArtificial(player: Seat, auction: AuctionState, legal: string[]): Decision | null {
+  const hb = auction.highestBid;
+  if (!hb || hb[2] !== PARTNERS[player]) return null;
+  let k = -1;
+  auction.calls.forEach(([w, c], i) => { if (w === hb[2] && parseBid(c)) k = i; });
+  const s = readsAs(auction.calls, k);
+  if (s === null || s === hb[1]) return null;
+  const call = cheapest(s, hb[0], legal);
+  if (call && levelOf(call) <= 5) {
+    return [call, `Partner's ${auction.calls[k][1]} showed ${SUIT_SYM[s] ?? s}: placing the contract.`];
+  }
+  return null;
 }
 
 function previousSystem(player: Seat, hand: Card[], auction: AuctionState,
@@ -1201,8 +1333,8 @@ function previousSystem(player: Seat, hand: Card[], auction: AuctionState,
   let bestLen = groups[bestSuit].length;
 
   const partner = PARTNERS[player];
-  const myBids = bidsBy(player, auction);
-  const partnerBids = bidsBy(partner, auction);
+  const myBids = bidsBy(player, auction, true);
+  const partnerBids = bidsBy(partner, auction, true);
   const opponentsBid = auction.calls.some(
     ([who, c]) => who !== player && who !== partner
       && (parseBid(c) !== null || c === 'X' || c === 'XX'));

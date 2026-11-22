@@ -2268,11 +2268,11 @@ def _two_suiter_game_alert(s: str) -> str:
 #: Michaels with the minor unknown, the minor is the longer minor. Before,
 #: the cue was read as natural (`ai._rebid_alone`: "not enough to bid again
 #: alone", one heart) or `continuation` found no game. None is off.
-TWO_SUITER_ALONE: int | None = None
+TWO_SUITER_ALONE: int | None = 11
 TWO_SUITER_ALONE_MAJOR_MAX = 3
 TWO_SUITER_ALONE_MINOR_MAX = 4
 #: ...and advancer bids game over the rebid with a real fit. Off passes.
-TWO_SUITER_ALONE_FIT = False
+TWO_SUITER_ALONE_FIT = True
 
 
 def _two_suiter_alone_suits(ctx: Ctx) -> tuple | None:
@@ -3856,7 +3856,7 @@ def _answer_reopening(ctx: Ctx) -> tuple | None:
 #: ♠AJ632 ♥T ♦- ♣AQT8653 because `ai._rebid_alone` read 2♥ as hearts).
 #: Covers `ai._bids_by`/`_first_namer` (`ai._reads_as`), the two-suiter's
 #: choice after Cappelletti, and Drury here. Off keeps the old reading.
-ARTIFICIAL_READ = False
+ARTIFICIAL_READ = True
 
 
 def _our_drury(ctx: Ctx) -> bool:
