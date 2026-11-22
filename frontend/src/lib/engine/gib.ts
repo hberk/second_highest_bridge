@@ -5324,7 +5324,7 @@ export const NT_X_SHAPE: 'cappelletti' | 'two' | 'strict' | null = 'two';
 /** No takeout double of their game once both opponents have bid
  *  constructively: the double is for penalty (the user, 2026-11-22, training
  *  deal 374). Part scores keep the takeout double. See gib.py. */
-export const GAME_PENALTY_X = false;
+export const GAME_PENALTY_X = true;
 
 /** Did their constructive auction reach game? Both bid, a one-level, 1NT, 2C
  *  or 2NT opening (not a pre-empt), and the game call is not a jump. See

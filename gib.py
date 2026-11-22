@@ -6014,8 +6014,9 @@ NT_X_SHAPE: str | None = 'two'
 #: want to bid higher, so the double is for penalty (the user, 2026-11-22, on
 #: training deal 374: 1H P 2H P 3S P 4H, North K86 Q974 T2 T862 could not
 #: double, as X was takeout 13+, and 4H went four down). Part scores keep the
-#: takeout double (1H P 2H P P X). False keeps it for game too.
-GAME_PENALTY_X = False
+#: takeout double (1H P 2H P P X). Measured with PENALTY_FIT_JP (BIDDING.md);
+#: the user picked it on, 2026-11-22. False keeps the takeout double for game.
+GAME_PENALTY_X = True
 
 
 def game_values_shown(theirs: list, lb: str) -> bool:

@@ -802,7 +802,7 @@ export const PENALTY_TRUMP_JP: number | null = 4;
 /** Their agreed suit counts toward PENALTY_JUDGE: when both opponents bid it
  *  and their constructive auction reached game (`gameValuesShown`), add this
  *  many judgement points; null leaves the count alone. See ai.py. */
-export const PENALTY_FIT_JP: number | null = null;
+export const PENALTY_FIT_JP: number | null = 4;
 
 /** Both opponents bid the suit of `last`, their game, reached
  *  constructively. See `_their_game_fit` in ai.py. */

@@ -492,7 +492,7 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     took seven tricks. Seeds 7M-9M (5,000 deals): +0.83, +0.63, +1.09 a
     board (t 5.2-7.8). +2 measured +0.56, +6 +0.97; the user picked +4.
   - **A double of their constructive game is for penalty** (`gib.GAME_PENALTY_X`
-    with `ai.PENALTY_FIT_JP`, both off pending the user's pick; the user's
+    with `ai.PENALTY_FIT_JP = 4`, on: the user's pick, 2026-11-22; the user's
     training deal 374, 2026-11-22): 1♥ P 2♥ P 3♠ P 4♥ P P, North ♠K86 ♥Q974
     passed because X there was a takeout double (13+), and 4♥ went four down.
     Once both opponents bid to game (a one-level, 1NT, 2♣ or 2NT opening,

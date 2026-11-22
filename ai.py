@@ -1252,9 +1252,10 @@ PENALTY_TRUMP_JP: float | None = 4
 #: 9 JP plus 10.3 for a partner who never bid; 4H went four down). When both
 #: opponents bid the suit and their constructive auction reached game
 #: (`gib.game_values_shown`), their fit is breaking badly into my length:
-#: add this many judgement points. None leaves the count alone. Counting it
+#: add this many judgement points (4, the user's pick, 2026-11-22). None
+#: leaves the count alone. Counting it
 #: in part scores too measured worse on one seed in three (BIDDING.md).
-PENALTY_FIT_JP: float | None = None
+PENALTY_FIT_JP: float | None = 4
 
 
 def _partner_middle(partner: str, auction: AuctionState, alerts: dict, mine: int) -> float:

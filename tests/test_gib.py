@@ -2660,29 +2660,29 @@ def test_balancing_double_of_a_weak_two_on_shortness():
 def test_double_of_their_constructive_game_is_for_penalty():
     """The user's training deal 374 (2026-11-22): 1♥ P 2♥ P 3♠ P 4♥ P P,
     North ♠K86 ♥Q974 ♦T2 ♣T862 passed (X was takeout, 13+) and 4♥ went four
-    down. With GAME_PENALTY_X and PENALTY_FIT_JP the double is for penalty."""
+    down. GAME_PENALTY_X and PENALTY_FIT_JP make the double a penalty one."""
     north = 'KS 8S 6S QH 9H 7H 4H 10D 2D 10C 8C 6C 2C'
     game = ('1H', 'Pass', '2H', 'Pass', '3S', 'Pass', '4H', 'Pass', 'Pass')
     takeout = 'AS QS 7S 3S 2H AD KD 9D 4D KC QC 5C 3C'
-    assert bid(north, *game, dealer='West')[0] == 'Pass'
-    assert bid(takeout, *game, dealer='West')[0] == 'X'
+    call, why = bid(north, *game, dealer='West')
+    assert call == 'X' and why.startswith('Penalty'), (call, why)
+    # The takeout hand no longer doubles their game.
+    assert bid(takeout, *game, dealer='West')[0] != 'X'
+    # Part scores keep the takeout double: 1♥ P 2♥ P P X.
+    call, why = bid(takeout, '1H', 'Pass', '2H', 'Pass', 'Pass', dealer='West')
+    assert call == 'X' and 'akeout' in why, (call, why)
+    # Pre-emptive raises to game are not game values.
+    assert gib.game_values_shown([('West', '1H'), ('East', '2H'), ('West', '3S'),
+                                  ('East', '4H')], '4H')
+    assert not gib.game_values_shown([('West', '2H'), ('East', '4H')], '4H')
+    assert not gib.game_values_shown([('West', '1H'), ('East', '4H')], '4H')
+    assert not gib.game_values_shown([('West', '3H'), ('East', '4H')], '4H')
     old = gib.GAME_PENALTY_X, ai.PENALTY_FIT_JP
-    gib.GAME_PENALTY_X, ai.PENALTY_FIT_JP = True, 4
+    gib.GAME_PENALTY_X, ai.PENALTY_FIT_JP = False, None
     ai._FREE.clear()
     try:
-        call, why = bid(north, *game, dealer='West')
-        assert call == 'X' and why.startswith('Penalty'), (call, why)
-        # The takeout hand no longer doubles their game.
-        assert bid(takeout, *game, dealer='West')[0] != 'X'
-        # Part scores keep the takeout double: 1♥ P 2♥ P P X.
-        call, why = bid(takeout, '1H', 'Pass', '2H', 'Pass', 'Pass', dealer='West')
-        assert call == 'X' and 'akeout' in why, (call, why)
-        # A pre-emptive raise to game keeps it too: 2♥ P 4♥.
-        assert gib.game_values_shown([('West', '1H'), ('East', '2H'), ('West', '3S'),
-                                      ('East', '4H')], '4H')
-        assert not gib.game_values_shown([('West', '2H'), ('East', '4H')], '4H')
-        assert not gib.game_values_shown([('West', '1H'), ('East', '4H')], '4H')
-        assert not gib.game_values_shown([('West', '3H'), ('East', '4H')], '4H')
+        assert bid(north, *game, dealer='West')[0] == 'Pass'
+        assert bid(takeout, *game, dealer='West')[0] == 'X'
     finally:
         gib.GAME_PENALTY_X, ai.PENALTY_FIT_JP = old
         ai._FREE.clear()

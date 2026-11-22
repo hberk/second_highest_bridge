@@ -12,10 +12,10 @@ test('a constructive game is told from a pre-emptive raise', () => {
   expect(gameValuesShown([['West', '3H'], ['East', '4H']], '4H')).toBe(false);
   expect(gameValuesShown([['West', '1H'], ['East', '2H']], '2H')).toBe(false);
 });
-test('switched off, North passes their 4H on deal 374', () => {
-  expect(GAME_PENALTY_X).toBe(false);
-  expect(PENALTY_FIT_JP).toBe(null);
+test('North doubles their 4H for penalty on deal 374', () => {
+  expect(GAME_PENALTY_X).toBe(true);
+  expect(PENALTY_FIT_JP).toBe(4);
   const a = new AuctionState('West' as any, 'Both' as any);
   for (const c of ['1H', 'Pass', '2H', 'Pass', '3S', 'Pass', '4H', 'Pass', 'Pass']) a.applyCall(a.currentPlayer(), c);
-  expect(aiBidExplained('North', hand('KS 8S 6S QH 9H 7H 4H 10D 2D 10C 8C 6C 2C'), a)[0]).toBe('Pass');
+  expect(aiBidExplained('North', hand('KS 8S 6S QH 9H 7H 4H 10D 2D 10C 8C 6C 2C'), a)).toEqual(['X', 'Penalty: 4+ ♥.']);
 });
