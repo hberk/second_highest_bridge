@@ -23,10 +23,11 @@ npm run fixtures   # export the Python engine's behaviour (needs Python 3.12+)
 npm test           # TS engine parity with Python + headless table flow + WASM solver
 npm run check      # svelte-check
 npm run dev        # local dev server
-npm run build      # static site in frontend/dist, deployed to GitHub Pages
+npm run build      # the solo-only static site in frontend/dist (a build check; not deployed)
 ```
 
-The game, hosted on GitHub Pages: no server, everything runs in the browser,
+The game, hosted on Cloudflare (https://bridge.second-highest.workers.dev, the
+`cloudflare` job): solo play needs no server and runs entirely in the browser,
 ~105 KB gzipped including the deal library, plus 21 KB for the double dummy
 solver. It began as a port of a Streamlit app (`app.py`, `web/`), retired on
 2026-10-21 once this one did everything it did; the Python engine stays and
@@ -304,7 +305,10 @@ remains the reference.
   go into Hand history with `table_id` and `my_seat`, outside the solo
   session score.
 - Deployment: `.github/workflows/pages.yml` exports fixtures, type-checks,
-  tests and builds, and deploys `frontend/dist` to GitHub Pages from `main`.
+  tests and builds, and its `cloudflare` job deploys the beta build (solo and
+  tables) with the Worker from `main`. Until 2026-11-22 it also deployed
+  `frontend/dist` to GitHub Pages; that was retired, and `npm run build` is
+  now only a check. The Pages notes below are kept for the record.
   **Nothing runs while the repo is private** (metered Actions minutes; every
   job is skipped, except a manual "Run workflow"). Once public, every push and
   pull request is checked (Pages on a private personal repo would need GitHub

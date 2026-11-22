@@ -11,6 +11,9 @@ what it was measured to be worth is in
 The approved bidding changes from the Nov 22 boards and an always-on
 Next trick button.
 
+- The game has one site, https://bridge.second-highest.workers.dev: main no
+  longer deploys to GitHub Pages (hberk.github.io) or releases to the homelab.
+
 - Play setting "Always show Next trick", on by default: the button shows
   after every trick, so everyone at a table sees the trick is over. Leading a
   card straight away still works.

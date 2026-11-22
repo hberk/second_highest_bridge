@@ -44,7 +44,7 @@ npm run fixtures   # export the Python engine's behaviour (needs Python 3.12+)
 npm test           # TS engine parity with Python + headless table flow + WASM solver
 npm run check      # svelte-check
 npm run dev        # local dev server
-npm run build      # static site in frontend/dist, deployed to GitHub Pages
+npm run build      # the solo-only static site in frontend/dist (a build check; not deployed)
 npm run dev:beta   # the multiplayer beta: tables proxied to a local server/
 npm run build:beta # the beta site in frontend/dist-beta, served by server/
 ```
@@ -60,7 +60,7 @@ npm test           # real sockets on a random port, a temp SQLite file
 npm run check      # tsc
 npm run dev        # build and run on :8787 (BRIDGE_DEV=1 ALLOWED_ORIGINS=http://localhost:5173)
 npm run bench      # robot decision times and retained memory, 200 boards
-BRIDGE_HOST=<ct ip> ./deploy.sh   # a manual deploy to the homelab (main deploys itself)
+BRIDGE_HOST=<ct ip> ./deploy.sh   # a manual deploy to the homelab (retired: main no longer releases to it)
 BRIDGE_HOST=<ct ip> ./fetch-logs.sh --since 7d   # the game log, into logs/ (gitignored)
 ```
 
@@ -74,7 +74,8 @@ npm run dev        # wrangler dev on :8787 (needs `npm run site` first)
 ```
 
 main deploys it to https://bridge.second-highest.workers.dev (the `cloudflare` job in
-`pages.yml`, with the `cloudflare` environment's secrets).
+`pages.yml`, with the `cloudflare` environment's secrets). It is the game's only site:
+GitHub Pages and the homelab release stopped on 2026-11-22.
 
 ## Environment
 
@@ -98,7 +99,7 @@ threshold could bid differently on the two. 3.12 is the reference.
 
 This is a Contract Bridge variant where **the second-highest card in the winning suit wins each trick** (not the highest). The winning suit is trump if any trump was played, otherwise the led suit (including in No-Trump contracts). If only one card of the winning suit is played it wins outright.
 
-Full Bridge Bidding (Auction) from 1♣ to 7NT with Pass, Double (X), and Redouble (XX), Dealer and Vulnerability rotations, and complete duplicate Bridge scoring. Solo: the human plays South; North, East, and West bid via AI. If N/S wins the contract, dummy is revealed and played by the human declarer. Multiplayer (the beta at bridge.ettamei.com): two to four people in any seats, robots in the rest; every view turns so you sit at the bottom.
+Full Bridge Bidding (Auction) from 1♣ to 7NT with Pass, Double (X), and Redouble (XX), Dealer and Vulnerability rotations, and complete duplicate Bridge scoring. Solo: the human plays South; North, East, and West bid via AI. If N/S wins the contract, dummy is revealed and played by the human declarer. Multiplayer (the beta at bridge.second-highest.workers.dev): two to four people in any seats, robots in the rest; every view turns so you sit at the bottom.
 
 ## Where things are
 
@@ -185,7 +186,7 @@ it before going against one.
 | [CHALLENGE.md](docs/CHALLENGE.md) | touching challenge mode, grading or robot card play |
 | [SOLVER.md](docs/SOLVER.md) | touching `bridge/solver/`, `research/solver-rs/` or the dataset |
 | [FRONTEND.md](docs/FRONTEND.md) | working in `frontend/` |
-| [HOSTING_AND_LOCAL_SAVES.md](docs/HOSTING_AND_LOCAL_SAVES.md) | changing the GitHub Pages deployment or browser-saved games |
+| [HOSTING_AND_LOCAL_SAVES.md](docs/HOSTING_AND_LOCAL_SAVES.md) | changing where the site is hosted or browser-saved games |
 | [ONLINE_PLAN.md](docs/ONLINE_PLAN.md) | planning accounts, saved hands or live tables |
 | [MULTIPLAYER_PLAN.md](docs/MULTIPLAYER_PLAN.md) | building live tables: milestones, protocol, tests |
 
