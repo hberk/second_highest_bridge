@@ -1030,7 +1030,10 @@ function agreedNotSupport(player: Seat, auction: AuctionState, call: string, why
   if (!m || !bid || bid[1] !== SYM_SUIT[m[1]]) return why;
   if (!showedFirst(player, auction, bid[1])) return why;
   const rest = why.slice(m[0].length);
-  if (m[2] || rest === '' || rest === '.') return `${m[1]} agreed: partner bid the suit I showed.`;
+  if (m[2] || rest === '' || rest === '.') {
+    // Bidding on over partner's choice or answer shows extras. See ai.py.
+    return isGameBid(call) ? `${m[1]} agreed, game values.` : `${m[1]} agreed, extra values. Invites.`;
+  }
   return `${m[1]} agreed${rest}`;
 }
 

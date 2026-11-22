@@ -2671,9 +2671,8 @@ def test_a_raise_of_a_suit_i_showed_first_is_not_support():
     my suit; they were alerted "3+ ♥ support, agreeing the suit"."""
     prefix = ('1NT', 'Pass', 'Pass', '2D', 'Pass')
     assert _alert('West', *prefix, call='2H') == "Choosing between partner's majors, ♥."
-    for call in ('3H', '4H'):
-        why = _alert('West', *prefix, '2H', 'Pass', call=call)
-        assert why == "♥ agreed: partner bid the suit I showed.", (call, why)
+    assert _alert('West', *prefix, '2H', 'Pass', call='3H') == "♥ agreed, extra values. Invites."
+    assert _alert('West', *prefix, '2H', 'Pass', call='4H') == "♥ agreed, game values."
     # A natural suit after the artificial 2♦ is new, not a rebid.
     assert _alert('West', *prefix, '2H', 'Pass', call='3D') == "6+ ♦, a new suit."
     # Michaels: 1♠ (2♠) P (3♥) P 4♥ by the Michaels bidder.
@@ -2682,7 +2681,7 @@ def test_a_raise_of_a_suit_i_showed_first_is_not_support():
     # The negative double over Michaels showed spades; so did a natural 1♥.
     assert _alert('South', '1H', '2H', 'X', '3D', '3S', 'Pass', call='4S') == "♠ agreed, game values."
     assert _alert('South', '1C', 'Pass', '1D', 'Pass', '1H', 'X', '2H', 'Pass',
-                  call='4H') == "♥ agreed: partner bid the suit I showed."
+                  call='4H') == "♥ agreed, game values."
 
 
 def test_which_calls_show_a_suit_without_naming_it():
