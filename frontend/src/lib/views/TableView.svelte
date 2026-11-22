@@ -179,7 +179,7 @@
           <TrickFelt trick={lastTrick.plays} winner={lastTrick.winner} {labels} {me} />
         {:else}
           <TrickFelt trick={game.trick} winner={game.phase === 'trick_done' ? game.trickWinner : null}
-            {labels} awaiting={who} {me} hint={!m.leadNext}
+            {labels} awaiting={who} {me} hint={m.showNext}
             onadvance={game.phase === 'trick_done' ? () => game.nextTrick() : undefined} />
         {/if}
       {/snippet}
@@ -208,7 +208,7 @@
       {/if}
 
       <section class="hand-zone">
-        {#if game.phase === 'trick_done' && !m.leadNext}
+        {#if m.showNext}
           <button class="btn primary full big" onclick={() => game.nextTrick()}>
             {game.gameOver ? 'See the result' : 'Next trick'}{settings.fastPlay ? ' (automatic)' : ''}
           </button>

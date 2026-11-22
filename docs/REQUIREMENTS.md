@@ -70,6 +70,7 @@ first part of **B7** (the penalty double where X is free).
 | P5 | The last trick can be looked at again from trick 2 on | P1 | Met | `qol.test.ts` |
 | P6 | Forced cards (only one legal) are **not** played for you unless you turn it on; off by default | P1 | Met (2026-10-15) | `settings.autoPlay`, `qol.test.ts` |
 | P7 | Fast play: next trick after a short pause, opt-in | P2 | Met | `settings.fastPlay`, `qol.test.ts` |
+| P7a | Next trick button after every trick, also one you won (a setting, on by default) | P2 | Met (2026-11-22) | `settings.alwaysNext`, `game.test.ts` |
 | P8 | A passed-out board is recorded and counted | P1 | Met | `Game.passedOutCount` |
 | P9 | A session scoreboard: N/S total, made and set, running total, margin against the robots on challenge boards | P2 | Met | `SessionScore.svelte` |
 | P10 | Claim the rest of the tricks | Later | Open | not built; LIN imports claims already |

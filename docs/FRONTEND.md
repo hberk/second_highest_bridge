@@ -207,7 +207,10 @@ remains the reference.
   (2026-11-02): a finished trick moves on with a tap anywhere on the felt
   (`TrickFelt`'s `onadvance`) or the Next trick button, and when you won it
   you just play your next card (`TableModel.leadNext` / `play`: the trick
-  clears and the card leads, no button); **undo** (2026-11-02):
+  clears and the card leads); **always show Next trick** (2026-11-22,
+  `settings.alwaysNext`, on by default): the button and the felt's hint show
+  after a trick you won too (`TableModel.showNext`), because multiplayer
+  players couldn't tell the trick was over; off, that trick has no button; **undo** (2026-11-02):
   `Game.undoBid` takes back your last call and the robots' after it until
   "Start play", solo only: not in Challenge or Training (both scored
   against the robots, and undo would show their replies first), not once
