@@ -1206,25 +1206,54 @@ TWO_SUITER_SHAPE_LEN = 11
 TWO_SUITER_SHAPE_DOUBLED = False
 
 
-def _two_suiter_choice(player: str, partner: str, auction: AuctionState, groups: dict,
-                       strain: str, legal: list[str]) -> tuple | None:
-    cards = [c for g in groups.values() for c in g]
+#: After our Cappelletti two-suiter over their 1NT and partner's choice,
+#: the raise one level invites with CAPPELLETTI_INVITE_HCP+ or extra shape
+#: (the user, 2026-11-22: "3♥ should show extra values"); game alone was
+#: 4♥ X -1,300 opposite a choice on two cards. Advancer accepts with
+#: CAPPELLETTI_ACCEPT_HCP, two fewer with four trumps. None keeps the
+#: Michaels rules. Read only with gib.ARTIFICIAL_READ.
+CAPPELLETTI_INVITE_HCP: int | None = 15
+CAPPELLETTI_ACCEPT_HCP = 10
+
+
+def _our_two_suits(player: str, auction: AuctionState, cards: list, strain: str) -> tuple:
+    """(the two suits my first call showed, the second None if unknown;
+    whether it was over their 1NT), or (None, False)."""
     two = gib._our_two_suiter(gib.Ctx(player, cards, auction))
+    over_nt = False
     if not two and gib.ARTIFICIAL_READ:
         # Cappelletti over their 1NT: 2♦ the majors, 2♥/2♠ that major and a
         # minor, 2NT the minors.
         k = next((k for k, (w, c) in enumerate(auction.calls) if w == player and c != 'Pass'), None)
         shows = sorted(_call_shows(auction.calls, k)) if k is not None else []
         if len(shows) == 2:
-            two = (shows[0], shows[1])
+            two, over_nt = (shows[0], shows[1]), True
         elif len(shows) == 1 and auction.calls[k][1] in ('2H', '2S'):
-            two = (shows[0], None)
+            two, over_nt = (shows[0], None), True
     if two and two[1] is None and gib.ARTIFICIAL_READ:
-        # Michaels over a major: the minor is unknown until partner names one.
+        # The minor is unknown until partner names one.
         two = (two[0], strain if strain in ('C', 'D') else None)
+    return two, over_nt
+
+
+def _two_suiter_choice(player: str, partner: str, auction: AuctionState, groups: dict,
+                       strain: str, legal: list[str]) -> tuple | None:
+    cards = [c for g in groups.values() for c in g]
+    two, over_nt = _our_two_suits(player, auction, cards, strain)
     if not two or strain not in two or _first_namer(auction, strain) != partner:
         return None
     hb = auction.highest_bid
+    if hb and hb[2] == partner and over_nt and CAPPELLETTI_INVITE_HCP is not None:
+        # Over their 1NT, partner's choice may be a bust opposite a 15-17
+        # opener: extra values or shape invite, never game by myself.
+        shape = sum(len(groups[x]) if x else max(len(groups['C']), len(groups['D'])) for x in two)
+        if hcp(cards) >= CAPPELLETTI_INVITE_HCP or shape >= TWO_SUITER_SHAPE_LEN:
+            level = hb[0] + 1
+            call = f"{level}{strain}"
+            if call in legal and level < (4 if strain in ('H', 'S') else 5):
+                return call, (f"{SUPPORT_LENGTH}+ {SUIT_SYM[strain]} support, "
+                              f"extra values or shape. Invites.")
+        return 'Pass', CHOICE_STANDS
     if hb and hb[2] == partner:
         if hcp(cards) >= TWO_SUITER_RAISE_HCP:
             game = _game_call(strain, legal)
@@ -1293,13 +1322,15 @@ TWO_SUITER_ACCEPT_HCP = 8
 def _shape_invite_answer(player: str, partner: str, auction: AuctionState, groups: dict,
                          strain: str, legal: list[str]) -> tuple | None:
     cards = [c for g in groups.values() for c in g]
-    two = gib._our_two_suiter(gib.Ctx(player, cards, auction))
+    two, over_nt = _our_two_suits(partner, auction, cards, strain)
     hb = auction.highest_bid
     if not two or strain not in two or not hb or hb[2] != partner or hb[1] != strain:
         return None
     if _first_namer(auction, strain) != player:
         return None
-    need = TWO_SUITER_ACCEPT_HCP - (2 if len(groups[strain]) >= 4 else 0)
+    accept = CAPPELLETTI_ACCEPT_HCP if over_nt and CAPPELLETTI_INVITE_HCP is not None \
+        else TWO_SUITER_ACCEPT_HCP
+    need = accept - (2 if len(groups[strain]) >= 4 else 0)
     if hcp(cards) >= need:
         game = _game_call(strain, legal)
         if game:
