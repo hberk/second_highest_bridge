@@ -50,7 +50,7 @@ The bidding changes together, against all off on 1,000 fresh deals:
 +0.91, +0.65, +1.81 points a board (three seeds, t 1.6, 1.2, 3.2). Card play
 is unchanged; on the same 199 deals the changed contracts move tricks given
 away a board to 2.12 for the declaring side, 0.41 for the opening lead and
-1.79 for the defence (from 2.13, 0.41, 1.82).
+1.78 for the defence (from 2.13, 0.41, 1.82).
 
 ## v0.1.8-alpha (unreleased)
 
