@@ -298,7 +298,7 @@ remains the reference.
   strip of who sits where above the ordinary table. The route is `#/t/<id>`.
   Only the **beta build** (`npm run build:beta`, `--mode beta`, `.env.beta`,
   out to `dist-beta/`) shows Play with friends: its CSP allows one socket
-  origin, `wss://bridge.ettamei.com`, and it drops page-view counting; the
+  origin, `wss://bridge.second-highest.workers.dev`, and it drops page-view counting; the
   Pages build is unchanged and opens no socket. `npm run dev:beta` proxies
   `/tables` to a table server on `localhost:8787` (`server/`, `npm run dev`
   with `ALLOWED_ORIGINS=http://localhost:5173`). Boards finished at a table

@@ -1,6 +1,6 @@
 // The Store's SQL (../../src/sql.ts) on a Durable Object's own SQLite. Every
 // statement here runs synchronously; `transactionSync` makes a change all or
-// none, as node:sqlite's begin/commit does on the homelab.
+// none, as node:sqlite's begin/commit does in the Node server.
 //
 // It also counts the rows written, which is the Free plan's binding limit
 // (100,000 a day, MULTIPLAYER_PLAN.md "The Free plan's budget").

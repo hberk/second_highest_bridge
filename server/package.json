@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.9-alpha",
   "type": "module",
-  "description": "The multiplayer table server: the frontend's table core behind HTTP and WebSockets.",
+  "description": "The table core behind HTTP and WebSockets for Node, for local development and tests; server/cf shares its Tables and Store.",
   "engines": { "node": ">=24" },
   "scripts": {
     "build": "node build.mjs",

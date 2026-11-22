@@ -1,5 +1,5 @@
 // The few SQL calls the Store makes, so the same Store runs on two databases:
-// node:sqlite on the homelab (one file for every table), and a Durable
+// node:sqlite in the Node server (one file for every table), and a Durable
 // Object's own SQLite on Cloudflare (one database per table, cf/). Neither
 // adapter knows the schema; the Store does.
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
@@ -19,7 +19,7 @@ export interface Sql {
   close(): void;
 }
 
-/** node:sqlite in WAL mode: the homelab's one file. */
+/** node:sqlite in WAL mode: the Node server's one file. */
 export function nodeSql(path: string): Sql {
   const db = new DatabaseSync(path);
   db.exec('pragma journal_mode = wal; pragma synchronous = normal;');

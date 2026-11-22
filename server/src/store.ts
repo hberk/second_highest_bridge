@@ -10,7 +10,7 @@
 // reports, errors). A table that expires loses its seats and tokens, never
 // its boards or its log.
 //
-// The SQL goes through `Sql` (sql.ts): node:sqlite on the homelab, a Durable
+// The SQL goes through `Sql` (sql.ts): node:sqlite in the Node server, a Durable
 // Object's storage on Cloudflare. This file imports neither.
 import type { Row, Sql } from './sql';
 import type { Action, Board, TableState } from '../../frontend/src/lib/table/core';

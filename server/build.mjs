@@ -1,6 +1,6 @@
 // Bundles the server, the frontend's engine and table core included, into
-// one dist/server.js with no npm dependencies left to install: the homelab
-// container only needs Node 24. `node build.mjs bench` builds the robot
+// one dist/server.js with no npm dependencies left to install: it only
+// needs Node 24. `node build.mjs bench` builds the robot
 // benchmark instead.
 import { build } from 'esbuild';
 import { readFileSync } from 'node:fs';

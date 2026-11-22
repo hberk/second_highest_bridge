@@ -30,5 +30,5 @@ Thumbs.db
 #   it, and regenerating it costs hours of solver time, so it belongs in the
 #   repo even though it is generated.
 
-# Game logs pulled from the homelab (server/fetch-logs.sh)
+# Game logs (formerly pulled from the homelab)
 /logs/

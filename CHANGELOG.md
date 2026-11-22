@@ -12,7 +12,9 @@ The approved bidding changes from the Nov 22 boards and an always-on
 Next trick button.
 
 - The game has one site, https://bridge.second-highest.workers.dev: main no
-  longer deploys to GitHub Pages (hberk.github.io) or releases to the homelab.
+  longer deploys to GitHub Pages (hberk.github.io), and the homelab is
+  retired (its deploy, log-fetch and auto-update scripts are gone; the Node
+  server stays for local development and tests).
 
 - Play setting "Always show Next trick", on by default: the button shows
   after every trick, so everyone at a table sees the trick is over. Leading a

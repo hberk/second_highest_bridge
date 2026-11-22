@@ -7,9 +7,9 @@ import { fileURLToPath } from 'node:url';
 // too; table.css is now a ported copy.)
 const root = fileURLToPath(new URL('..', import.meta.url));
 
-/** The beta build (`--mode beta`, served by the table server at
- *  bridge.ettamei.com) may open a socket to that server, and only to it;
- *  it doesn't count page views. The Pages build is untouched. */
+/** The beta build (`--mode beta`, the deployed site, served by the Worker at
+ *  bridge.second-highest.workers.dev) may open a socket to that server, and
+ *  only to it; it doesn't count page views. The plain build is untouched. */
 function betaPage(socketOrigin: string): Plugin {
   return {
     name: 'beta-page',
@@ -30,10 +30,9 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
   const beta = env.VITE_TABLES === '1';
   return {
-    // Relative asset paths: GitHub Pages serves the site from a sub-path
-    // (/second_highest_bridge/), and the same build works at any other address.
+    // Relative asset paths: the same build works at any address or sub-path.
     base: './',
-    plugins: [svelte(), ...(beta ? [betaPage(env.VITE_TABLE_SOCKET_ORIGIN || 'wss://bridge.ettamei.com')] : [])],
+    plugins: [svelte(), ...(beta ? [betaPage(env.VITE_TABLE_SOCKET_ORIGIN || 'wss://bridge.second-highest.workers.dev')] : [])],
     // The double dummy solver: a plain asset (fetched by the worker, inlined
     // for dd.test.ts), never Vite's own WebAssembly import.
     assetsInclude: ['**/*.wasm'],
