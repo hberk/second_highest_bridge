@@ -518,15 +518,6 @@ def one_suit(ctx: Ctx) -> tuple:
         decision = opener_third(ctx, x)
         if decision:
             return decision
-    if (n == 5 and seq[3] == '2H' and seq[4] == '3H' and SPADES_FIRST_55_RAISE
-            and _five_five_shown(seq[:4])):
-        # Opener's invitation shows a fit worth GAME_MAJOR minus the top and
-        # the bottom of the 2♥ range: accept on the middle of that.
-        fit = ctx.h.judge + _fit_bonus(ctx.h, 'H', 4)
-        shown = GAME_MAJOR - (FIVE_FIVE_WEAK[0] + FIVE_FIVE_WEAK[1]) // 2
-        if fit + shown >= GAME_MAJOR and ctx.ok('4H'):
-            return '4H', TO_PLAY
-        return 'Pass', "Declining the invitation."
     if (n == 5 and seq[2] == '2NT' and seq[3] == '3C' and level_of(seq[1]) == 1
             and strain_of(seq[1]) in MAJORS):
         ans = seq[4]
@@ -644,16 +635,15 @@ def _one_level_response_alert(m: str, x: str) -> str:
 #: 1♠ then 3♥ reaches 4♥). Over opener's rebid, responder bids 3♥ (game
 #: forcing: opener picks 4♥ or 4♠ on three cards, else 3NT) with major-game
 #: values, and over 1NT or opener's minor 2♥ with less (to play: opener
-#: passes or gives preference to 2♠). Off: 1♥ with 5-5.
-SPADES_FIRST_55 = False
+#: passes or gives preference to 2♠). Uncontested only. Filtered fresh deals
+#: (a 5-5 major hand in each, 2.5% of deals), 3 x 1,000: +1.33, +1.05, +1.51
+#: points a board, t = +2.5, +1.9, +3.0; at 3NT values for the 3♥ (32) and
+#: with opener raising 2♥ on four hearts both measured no better. On by the
+#: user's pick, 2026-11-22. Off: 1♥ with 5-5.
+SPADES_FIRST_55 = True
 #: The 3♥ game force needs responder's judgement points plus opener's minimum
 #: to reach this; the major-suit game bar, as a six-card suit uses it.
 SPADES_FIRST_55_GF = GAME_MAJOR
-#: Opener raises the 2♥ (5-5, to play) on four hearts: 4♥ when the fit and
-#: responder's minimum make game, 3♥ invites when his maximum would.
-SPADES_FIRST_55_RAISE = False
-#: Responder's 2♥ shows this many judgement points at least and at most.
-FIVE_FIVE_WEAK = (6, 14)
 
 
 def _five_five_shown(seq: list[str]) -> bool:
@@ -671,7 +661,7 @@ def _five_five_shown(seq: list[str]) -> bool:
         strain_of(o) in MINORS and level_of(o) == 2 and SUITS.index(strain_of(o)) < SUITS.index(x))
 
 
-def _five_five_rebid(ctx: Ctx, x: str, o: str, lo: int, hi: int) -> tuple | None:
+def _five_five_rebid(ctx: Ctx, x: str, o: str, lo: int) -> tuple | None:
     """Responder's second call after 1m 1♠ (rebid) with 5-5 majors."""
     h = ctx.h
     if not (SPADES_FIRST_55 and h.len['S'] >= 5 and h.len['H'] == h.len['S']):
@@ -692,12 +682,6 @@ def _five_five_answer(ctx: Ctx) -> tuple:
     h = ctx.h
     s, hh = h.len['S'], h.len['H']
     if ctx.seq[3] == '2H':
-        if SPADES_FIRST_55_RAISE and hh >= 4:
-            fit = h.judge + _fit_bonus(h, 'H', 5)
-            if fit + FIVE_FIVE_WEAK[0] >= GAME_MAJOR and ctx.ok('4H'):
-                return '4H', TO_PLAY
-            if fit + FIVE_FIVE_WEAK[1] >= GAME_MAJOR and ctx.ok('3H'):
-                return '3H', f"4+ {SYM['H']}, invitational."
         if s >= 3 and s > hh and ctx.ok('2S'):
             return '2S', f"Preference to {SYM['S']}."
         return 'Pass', "Happy in hearts."
@@ -1143,7 +1127,7 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
     if r == '1NT':
         return _after_1nt_response(ctx, x, o, lo, hi)
     if x in MINORS and r == '1S' and not (os_ == 'S' or os_ == 'H'):
-        decision = _five_five_rebid(ctx, x, o, lo, hi)
+        decision = _five_five_rebid(ctx, x, o, lo)
         if decision:
             return decision
 

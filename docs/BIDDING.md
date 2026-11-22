@@ -1027,6 +1027,19 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   ♣KQ6). With 5-6 HCP and a singleton or void in partner's minor, a 4-card
   suit is bid at the one level; the alert says so. 10,000 fresh deals:
   **+0.19, t = +3.4, 241 auctions changed** (103 better, 67 worse).
+- **1♠ first with 5-5 in the majors** (`gib.SPADES_FIRST_55`, `_five_five_rebid`,
+  `_five_five_answer`; the user's board, 2026-11-22: 1♦ 1♥ 3♦ 3NT down one on
+  ♠QT732 ♥KT832 ♦J ♣A6 opposite ♠A ♥A74 ♦AKQ974 ♣T97). Responder to 1♣/1♦
+  with equal length 5+ in both majors bids 1♠ (the cause: 1♠ needed MORE
+  spades). Next round, uncontested: 3♥ game forcing over a jump rebid in the
+  minor, or with judge + opener's minimum >= `SPADES_FIRST_55_GF`
+  (GAME_MAJOR) over 1NT, 2NT, 2m or a lower minor; opener bids 4♥/4♠ with
+  three, else 3NT. Otherwise 2♥ to play over 1NT or 2m; opener passes or
+  prefers 2♠ with more spades. Fresh deals filtered to a 5-5 major hand
+  (2.5% of deals), 3 x 1,000: **+1.33, +1.05, +1.51 points a filtered board,
+  t = +2.5, +1.9, +3.0**; the 3♥ at 3NT values, and opener raising 2♥ on four
+  hearts, measured no better (`/mnt/project-files/spades-first-55/REPORT.md`).
+  In competition responder's second call is unchanged.
 - **A pre-emptor does not bid again unless partner asks** (`ai.PREEMPTOR_PASSES`,
   `_preemptor_passes`; the user's rule, 2026-10-28, training deal 270:
   P 2♦ (2♥) 2♠ (3♦) 3NT, then a double of 4♥). After a weak two or any

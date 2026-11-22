@@ -555,6 +555,50 @@ function oneLevelResponseAlert(m: Suit, x: Suit): string {
   return `4+ ${SYM[m]}, ${RESPONSE_MIN}+ HCP, or ${SHORT_RESPONSE_MIN}+ short in ${SYM[x]}.`;
 }
 
+// Responder to 1♣/1♦ with five or more in both majors, equal length, bids
+// 1♠ first and shows hearts next time (the user's call, 2026-11-22). 3♥ is
+// game forcing (opener: 4♥ or 4♠ on three, else 3NT), 2♥ over 1NT or
+// opener's minor is to play. Uncontested only. See gib.py.
+export const SPADES_FIRST_55 = true;
+export const SPADES_FIRST_55_GF = GAME_MAJOR;
+
+function fiveFiveShown(seq: string[]): boolean {
+  if (!SPADES_FIRST_55 || seq.length < 4) return false;
+  const x = strainOf(seq[0]);
+  const [r, o, last] = [seq[1], seq[2], seq[3]];
+  if (!isMinor(x) || levelOf(seq[0]) !== 1 || r !== '1S' || (last !== '2H' && last !== '3H')) return false;
+  if (last === '2H') return o === '1NT' || o === `2${x}`;
+  const os = strainOf(o);
+  return ['1NT', '2NT', `2${x}`, `3${x}`].includes(o)
+    || (isMinor(os) && levelOf(o) === 2 && idx(os as Suit) < idx(x as Suit));
+}
+
+function fiveFiveRebid(ctx: Ctx, x: Suit, o: string, lo: number): Decision | null {
+  const h = ctx.h;
+  if (!(SPADES_FIRST_55 && h.len.S >= 5 && h.len.H === h.len.S)) return null;
+  const hcp = h.judge;
+  if (o === `3${x}` || (hcp + lo >= SPADES_FIRST_55_GF && fiveFiveShown([...ctx.seq.slice(0, 3), '3H']))) {
+    if (ctx.ok('3H')) return ['3H', `5+ ${SYM.H}, 5+ ${SYM.S}. Game forcing.`];
+    return null;
+  }
+  if ((o === '1NT' || o === `2${x}`) && ctx.ok('2H')) return ['2H', `5+ ${SYM.H}, 5+ ${SYM.S}, to play.`];
+  return null;
+}
+
+function fiveFiveAnswer(ctx: Ctx): Decision {
+  const h = ctx.h;
+  const s = h.len.S;
+  const hh = h.len.H;
+  if (ctx.seq[3] === '2H') {
+    if (s >= 3 && s > hh && ctx.ok('2S')) return ['2S', `Preference to ${SYM.S}.`];
+    return ['Pass', 'Happy in hearts.'];
+  }
+  if (hh >= 3 && hh >= s && ctx.ok('4H')) return ['4H', TO_PLAY];
+  if (s >= 3 && ctx.ok('4S')) return ['4S', TO_PLAY];
+  if (hh >= 3 && ctx.ok('4H')) return ['4H', TO_PLAY];
+  return ['3NT', TO_PLAY];
+}
+
 function respondMinor(ctx: Ctx, x: Suit): Decision {
   const h = ctx.h;
   const hcp = h.hcp;
@@ -562,7 +606,8 @@ function respondMinor(ctx: Ctx, x: Suit): Decision {
   const passed = ctx.passedHand(ctx.me);
   if (hcp < RESPONSE_MIN) {
     if (hcp >= SHORT_RESPONSE_MIN && sup <= 1) {
-      const order: Suit[] = h.len.H >= h.len.S ? ['H', 'S', 'D'] : ['S', 'H', 'D'];
+      const heartsFirst = h.len.H > h.len.S || (h.len.H === h.len.S && !(SPADES_FIRST_55 && h.len.S >= 5));
+      const order: Suit[] = heartsFirst ? ['H', 'S', 'D'] : ['S', 'H', 'D'];
       for (const m of order) {
         if (h.len[m] >= 4 && idx(m) > idx(x) && ctx.ok(`1${m}`)) return [`1${m}`, oneLevelResponseAlert(m, x)];
       }
@@ -577,7 +622,8 @@ function respondMinor(ctx: Ctx, x: Suit): Decision {
     return ['2C', `4+ ${SYM.C}, 12+ HCP. Game forcing.`];
   }
   if (majors.length) {
-    const m = majors.length === 2 && h.len.S > h.len.H ? 'S' : majors[0];
+    const m = majors.length === 2 && (h.len.S > h.len.H || (SPADES_FIRST_55 && h.len.S === h.len.H && h.len.H >= 5))
+      ? 'S' : majors[0];
     return [`1${m}`, oneLevelResponseAlert(m, x)];
   }
   if (x === 'C' && h.len.D >= 4) return ['1D', oneLevelResponseAlert('D', x)];
@@ -940,6 +986,10 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
 
   const [lo, hi] = openerRange(seq);
   if (r === '1NT') return after1ntResponse(ctx, x, o, lo, hi);
+  if (isMinor(x) && r === '1S' && os !== 'S' && os !== 'H') {
+    const decision = fiveFiveRebid(ctx, x, o, lo);
+    if (decision) return decision;
+  }
 
   if (os === y && isSuit(y)) {
     if (isMajor(y)) {
@@ -1152,6 +1202,7 @@ function openerThird(ctx: Ctx, x: Suit): Decision | null {
   const last = seq[3];
   const y = strainOf(r);
   if (last === '3NT' || last === '6NT') return ['Pass', 'Partner placed the contract.'];
+  if (fiveFiveShown(seq)) return fiveFiveAnswer(ctx);
   if (o === '2NT' && last === '3C' && isMajor(y) && levelOf(r) === 1) {
     const ys = y as Suit;
     const other: Suit = ys === 'S' ? 'H' : 'S';
