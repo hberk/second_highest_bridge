@@ -2271,6 +2271,8 @@ def _two_suiter_game_alert(s: str) -> str:
 TWO_SUITER_ALONE: int | None = None
 TWO_SUITER_ALONE_MAJOR_MAX = 3
 TWO_SUITER_ALONE_MINOR_MAX = 4
+#: ...and advancer bids game over the rebid with a real fit. Off passes.
+TWO_SUITER_ALONE_FIT = False
 
 
 def _two_suiter_alone_suits(ctx: Ctx) -> tuple | None:
@@ -2327,9 +2329,21 @@ def _after_two_suiter_alone(ctx: Ctx) -> tuple | None:
     two = _two_suits_shown(ctx, partners[0], opening)
     if not two or _overcall_over(ctx) is None or strain_of(partners[1]) not in SUITS:
         return None
-    if strain_of(partners[1]) not in two and not (two[1] is None
-                                                   and strain_of(partners[1]) in MINORS):
+    s = strain_of(partners[1])
+    if s not in two and not (two[1] is None and s in MINORS):
         return None
+    if TWO_SUITER_ALONE_FIT:
+        # A real fit (the user, 2026-11-22: "North doesn't have to pass if
+        # they have a good fit"): game in partner's rebid suit or the other
+        # suit shown, by the first round's fit points (4+ trumps).
+        both = (two[0], s) if two[1] is None else two
+        other = next((x for x in both if x != s), None)
+        for t in (s, other) if s in MAJORS else (other, s):
+            if t is None:
+                continue
+            game = f"{4 if t in MAJORS else 5}{t}"
+            if _two_suiter_fit_game(ctx.h, t, both) and ctx.ok(game):
+                return game, f"4+ {SYM[t]}, a fit for partner's two suits. To play."
     return 'Pass', "Partner's rebid stands."
 
 
