@@ -5605,6 +5605,9 @@ function defend(ctx: Ctx): Decision | null {
     const xOk = hcp >= 15 && ctx.ok('X');
     if (xOk && (NT_X_SHAPE === null || h.balanced)) return ['X', '15+ HCP. Penalty.'];
     if (hcp >= 10) {
+      const sixFour = CAPPELLETTI_SIX_FOUR && Math.max(h.len.H, h.len.S) >= 6
+        && Math.min(h.len.H, h.len.S) === 4;
+      if (sixFour) return ['2C', 'One long suit, 6+. Artificial.'];
       if (h.len.H >= 4 && h.len.S >= 4 && h.len.H + h.len.S >= 9) {
         return ['2D', `4+ ${SYM.H} and 4+ ${SYM.S}. Artificial.`];
       }
@@ -5751,6 +5754,9 @@ export const TWO_SUITER_FREE = true;
 // The two-suiter and minor-ask readings of partner's 2H/2S apply only to an
 // overcall made over their 1NT with nobody having bid since (passes aside).
 export const CAPPELLETTI_DIRECT_ONLY = true;
+/** 6-4 in the majors over their 1NT bids 2♣ (one long suit), not 2♦; 2♦ is
+ * for 5-4, 5-5 and 6-5 (the user's pick, 2026-11-22). */
+export const CAPPELLETTI_SIX_FOUR = true;
 
 /** Is partner's first call the first bid after their opening? */
 function directOverOpening(ctx: Ctx): boolean {

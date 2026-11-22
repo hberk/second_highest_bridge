@@ -766,6 +766,22 @@ def test_cappelletti_over_their_1nt():
     assert call == '2D' and 'Artificial' in why
 
 
+def test_cappelletti_six_four_majors_bid_the_one_suiter():
+    """The deal 203 hand (2026-11-22): 6-4 in the majors bids 2♣, not 2♦,
+    over their 1NT, at any strength; 5-4 and 6-5 still bid 2♦."""
+    six_four = 'AS KS QS 8S 7S 3S AH KH 4H 2H 6D JC 8C'
+    call, why = bid(six_four, '1NT')
+    assert (call, why) == ('2C', "One long suit, 6+. Artificial."), (call, why)
+    assert bid('AS KS 9S 7S 3S KH 10H 8H 6H 4D 2D 9C 3C', '1NT')[0] == '2D'
+    assert bid('AS KS 9S 7S 3S 2S KH 10H 8H 6H 4H 2D 3C', '1NT')[0] == '2D'
+    saved = gib.CAPPELLETTI_SIX_FOUR
+    try:
+        gib.CAPPELLETTI_SIX_FOUR = False
+        assert bid(six_four, '1NT')[0] == '2D'
+    finally:
+        gib.CAPPELLETTI_SIX_FOUR = saved
+
+
 def test_penalty_double_of_1nt_is_for_balanced_hands():
     # The user's deal (2026-11-13): 1NT P P X with 5-1-3-4 15 HCP, partner
     # transferred to hearts on a void in spades, and 2H played on a 5-1 fit.

@@ -524,6 +524,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     (`LEBENSOHL_RELAYER_FIX`): 1NT X P 2♥ P 2♠ 2NT P 3♣ P, and the relayer
     passed 3♣ on two clubs ("Nothing to add" in `_nt_runout`). Same deals:
     +6.11, +2.69, +4.71 a board.
+  - **6-4 in the majors bids 2♣, not 2♦** (`CAPPELLETTI_SIX_FOUR`; the
+    user's call, 2026-11-22, PR #76's biggest loss: deal 203, ♠AKQ873
+    ♥AK42 bid 2♦, partner chose 2♥ on three and the invite to 3♥ went
+    -1,400 doubled). 2♦ is kept for 5-4 and 5-5 (and 6-5); the 6-4 hand
+    bids the one-suiter's 2♣ at any strength, then its six-card major over
+    the relay. Fresh deals filtered for a 6-4 major hand with 10+ HCP, 3 x
+    1,000: +1.73, +0.69, +0.97 a filtered board; doubling 1NT with 15+
+    instead measured the same.
   - **The Cappelletti relay is answered** (`RELAY_ANSWER`, `_answer_relay`;
     challenge board 79, 2026-11-07): (1NT) 2♣ (P) 2♦ (P) asks which suit.
     No branch answered it, so `continuation` read 2♦ as forcing and a

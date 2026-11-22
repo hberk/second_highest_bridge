@@ -6390,7 +6390,12 @@ def _defend(ctx: Ctx) -> tuple | None:
         if x_ok and (NT_X_SHAPE is None or h.balanced):
             return 'X', "15+ HCP. Penalty."
         if hcp >= 10:
-            if h.len['H'] >= 4 and h.len['S'] >= 4 and h.len['H'] + h.len['S'] >= 9:
+            six_four = (CAPPELLETTI_SIX_FOUR and max(h.len['H'], h.len['S']) >= 6
+                        and min(h.len['H'], h.len['S']) == 4)
+            if six_four:
+                return '2C', "One long suit, 6+. Artificial."
+            if h.len['H'] >= 4 and h.len['S'] >= 4 and h.len['H'] + h.len['S'] >= 9 \
+                    and not six_four:
                 return '2D', f"4+ {SYM['H']} and 4+ {SYM['S']}. Artificial."
             for m in MAJORS:
                 if h.len[m] >= 5 and any(h.len[x] >= 4 for x in MINORS):
@@ -6544,6 +6549,14 @@ TWO_SUITER_FREE = True
 #: The two-suiter and minor-ask readings of partner's 2H/2S apply only to an
 #: overcall made over their 1NT with nobody having bid since (passes aside).
 CAPPELLETTI_DIRECT_ONLY = True
+
+#: 6-4 in the majors over their 1NT bids the one-suiter's 2♣, not 2♦ (the
+#: user, 2026-11-22: deal 203, ♠AKQ873 ♥AK42 bid 2♦ and played 3♥ X on a
+#: 4-3 fit; 2♦ is for 5-4 and 5-5, and 6-5 keeps it). On 3 x 1,000 fresh
+#: deals filtered for a 6-4 major hand with 10+ HCP: +1.73, +0.69, +0.97 a
+#: filtered board (t 3.3, 2.1, 2.4); doubling 1NT instead with 15+ HCP
+#: measured the same (+1.76, +0.77, +0.64). On, the user's pick.
+CAPPELLETTI_SIX_FOUR = True
 
 
 def _direct_over_opening(ctx: Ctx) -> bool:

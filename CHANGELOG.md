@@ -32,13 +32,15 @@ Next trick button.
   partner's choice, the raise invites (15+ HCP or 6-5) and advancer accepts
   on 10+ HCP, or 8+ with four trumps. Alerts for a raise of a suit I showed
   first say "agreed", not "support".
+- Over their 1NT, 6-4 in the majors bids 2♣ (one long suit) and then the
+  six-card major; 2♦ for the majors is kept for 5-4 and 5-5.
 - Bidding my own suit again at the three level with partner silent needs a
   seventh card or 16+ HCP.
 - In a game force with no fit, raise partner's twice-bid suit with two cards
   or rebid my own six before 2NT/3NT.
 
 The bidding changes together, against all off on 1,000 fresh deals:
-+0.54, +0.79, +1.67 points a board (three seeds, t 0.9, 1.5, 3.1). Card play
++0.91, +0.65, +1.81 points a board (three seeds, t 1.6, 1.2, 3.2). Card play
 is unchanged; on the same 199 deals the changed contracts move tricks given
 away a board to 2.12 for the declaring side, 0.41 for the opening lead and
 1.79 for the defence (from 2.13, 0.41, 1.82).
