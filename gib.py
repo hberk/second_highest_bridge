@@ -527,6 +527,10 @@ def one_suit(ctx: Ctx) -> tuple:
         if ans == '3NT':
             return 'Pass', "Partner placed the contract."
         return '3NT', TO_PLAY
+    if n == 5:
+        decision = _after_preference_try(ctx, x)
+        if decision:
+            return decision
     if n in (5, 6):
         decision = _after_nmf(ctx, x)
         if decision:
@@ -1160,6 +1164,8 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
                 return f"3{z}", "Invitational."
             if h.len[x] >= 3 and ctx.ok(f"3{x}"):
                 return f"3{x}", "Invitational."
+            if _prefer_over_2nt(ctx, x, y, z):
+                return f"2{x}", f"Preference to {SYM[x]}."
             if ctx.ok('2NT'):
                 return '2NT', "Invitational."
         if z in MAJORS and h.len[z] >= 4 and ctx.ok(f"2{z}"):
@@ -1175,6 +1181,44 @@ def responder_rebid(ctx: Ctx, x: str) -> tuple | None:
             return '1NT', "Minimum."
         return 'Pass', "No game."
     return None
+
+
+#: 1M-1y-2m: an invitational responder with a doubleton in opener's major
+#: and no fit for the minor gives simple preference to 2M, not 2NT (the
+#: user's call, 2026-11-22, on a board: 1♥ 1♠ 2♦ 2NT, down one, on
+#: ♠K9652 ♥Q4 ♦KT5 ♣K42 opposite ♠AT4 ♥AKJ97 ♦AJ96 ♣7; "with NT being
+#: harder to make I like a simple preference to 2♥ better than 2NT. If
+#: opener has more they can always continue"). 2NT was the invitation for
+#: any hand that could reach GAME opposite opener's maximum, whatever its
+#: fit: here 14 judgement points + 18. A 5-2 major plays as well as 4-3
+#: (FIVE_TWO_PREFERENCE) and a trick lower than 2NT. Off, 2NT.
+PREFER_OVER_2NT = False
+#: Opener's judgement points to try again over the preference: the top of
+#: the 2m rebid's range (18), so the try needs no more of responder than
+#: the old 2NT did. Responder accepts with the hands that bid 2NT before.
+PREFER_CONTINUE = 18
+
+
+def _prefer_over_2nt(ctx: Ctx, x: str, y: str, z: str) -> bool:
+    """Opener's major x, responder's suit y, opener's minor z at the two level:
+    exactly two of x, no 6-card y, and x is the bigger fit than z."""
+    h = ctx.h
+    return (PREFER_OVER_2NT and x in MAJORS and h.len[x] == 2 and ctx.ok(f"2{x}")
+            and not (y in SUITS and h.len[y] >= 6) and _prefers_first(h, x, z, True))
+
+
+def _after_preference_try(ctx: Ctx, x: str) -> tuple | None:
+    """1M-1y-2m-2M-2NT/3M: opener's maximum try over the preference. Accept
+    with an invitational preference, the hands that bid 2NT before."""
+    seq = ctx.seq
+    o, pref, last = seq[2], seq[3], seq[4]
+    if not (PREFER_OVER_2NT and x in MAJORS and pref == f"2{x}" and level_of(seq[1]) == 1
+            and level_of(o) == 2 and strain_of(o) in MINORS and last in ('2NT', f"3{x}")):
+        return None
+    accept = ctx.h.judge + opener_range(seq[:3])[1] >= GAME
+    if last == f"3{x}":
+        return (f"4{x}", TO_PLAY) if accept else ('Pass', "Declining the invitation.")
+    return ('3NT', TO_PLAY) if accept else ('Pass', "Declining the invitation.")
 
 
 #: Partner's first suit promised five, the second four: the first is the
@@ -1327,6 +1371,14 @@ def opener_third(ctx: Ctx, x: str) -> tuple | None:
                 return f"4{s}", TO_PLAY
             return '3NT', TO_PLAY
         return 'Pass', "Declining the invitation."
+    if (PREFER_OVER_2NT and x in MAJORS and last == f"2{x}" and level_of(r) == 1
+            and level_of(o) == 2 and strain_of(o) in MINORS and hcp >= PREFER_CONTINUE):
+        # 1M-1y-2m-2M: the preference now holds the invitational hands too
+        # (PREFER_OVER_2NT), so a maximum makes the try itself.
+        if h.len[x] >= 6 and ctx.ok(f"3{x}"):
+            return f"3{x}", f"6+ {SYM[x]}, maximum. Invitational."
+        if ctx.ok('2NT'):
+            return '2NT', "Maximum. Invitational."
     if last == '4NT' and o in ('1NT', '2NT'):
         lo, hi = opener_range(seq[:3])
         return ('6NT', TO_PLAY) if hcp >= hi - 1 else ('Pass', "Minimum, declining.")

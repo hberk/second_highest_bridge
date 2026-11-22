@@ -464,6 +464,10 @@ function oneSuit(ctx: Ctx): Decision {
     if (ans === '3NT') return ['Pass', 'Partner placed the contract.'];
     return ['3NT', TO_PLAY];
   }
+  if (n === 5) {
+    const decision = afterPreferenceTry(ctx, x);
+    if (decision) return decision;
+  }
   if (n === 5 || n === 6) {
     const decision = afterNmf(ctx, x);
     if (decision) return decision;
@@ -1031,6 +1035,7 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
     if (hcp + hi >= GAME) {
       if (isMajor(z) && h.len[z] >= 4 && ctx.ok(`3${z}`)) return [`3${z}`, 'Invitational.'];
       if (h.len[x] >= 3 && ctx.ok(`3${x}`)) return [`3${x}`, 'Invitational.'];
+      if (preferOver2nt(ctx, x, y, z)) return [`2${x}`, `Preference to ${SYM[x]}.`];
       if (ctx.ok('2NT')) return ['2NT', 'Invitational.'];
     }
     if (isMajor(z) && h.len[z] >= 4 && ctx.ok(`2${z}`)) return [`2${z}`, `4+ ${SYM[z]}, minimum.`];
@@ -1052,6 +1057,35 @@ function responderRebid(ctx: Ctx, x: Suit): Decision | null {
 /** 1m-1y-1z: responder's 2m preference needs four cards, or three with a side
  *  singleton or void; a flatter minimum bids 1NT (the user's call, 2026-11-17). */
 export const MINOR_PREF_FOUR = true;
+
+// 1M-1y-2m: an invitational responder with a doubleton in opener's major
+// and no fit for the minor gives simple preference to 2M, not 2NT (the
+// user's call, 2026-11-22, on a board: 1♥ 1♠ 2♦ 2NT, down one, on
+// ♠K9652 ♥Q4 ♦KT5 ♣K42 opposite ♠AT4 ♥AKJ97 ♦AJ96 ♣7). Off, 2NT.
+export const PREFER_OVER_2NT = false;
+/** Opener's judgement points to try again over the preference. */
+export const PREFER_CONTINUE = 18;
+
+/** Opener's major x, responder's suit y, opener's minor z at the two level:
+ *  exactly two of x, no 6-card y, and x is the bigger fit than z. */
+function preferOver2nt(ctx: Ctx, x: Suit, y: string, z: Suit): boolean {
+  const h = ctx.h;
+  return PREFER_OVER_2NT && isMajor(x) && h.len[x] === 2 && ctx.ok(`2${x}`)
+    && !(isSuit(y) && h.len[y as Suit] >= 6) && prefersFirst(h, x, z, true);
+}
+
+/** 1M-1y-2m-2M-2NT/3M: opener's maximum try over the preference. Accept
+ *  with an invitational preference, the hands that bid 2NT before. */
+function afterPreferenceTry(ctx: Ctx, x: Suit): Decision | null {
+  const seq = ctx.seq;
+  const o = seq[2];
+  const last = seq[4];
+  if (!(PREFER_OVER_2NT && isMajor(x) && seq[3] === `2${x}` && levelOf(seq[1]) === 1
+    && levelOf(o) === 2 && isMinor(strainOf(o)) && (last === '2NT' || last === `3${x}`))) return null;
+  const accept = ctx.h.judge + openerRange(seq.slice(0, 3))[1] >= GAME;
+  if (last === `3${x}`) return accept ? [`4${x}`, TO_PLAY] : ['Pass', 'Declining the invitation.'];
+  return accept ? ['3NT', TO_PLAY] : ['Pass', 'Declining the invitation.'];
+}
 
 // Partner's first suit promised five, the second four: the first is the
 // bigger fit whenever my length in it is at most one short of the second
@@ -1184,6 +1218,13 @@ function openerThird(ctx: Ctx, x: Suit): Decision | null {
       return ['3NT', TO_PLAY];
     }
     return ['Pass', 'Declining the invitation.'];
+  }
+  if (PREFER_OVER_2NT && isMajor(x) && last === `2${x}` && levelOf(r) === 1
+    && levelOf(o) === 2 && isMinor(strainOf(o)) && hcp >= PREFER_CONTINUE) {
+    // 1M-1y-2m-2M: the preference now holds the invitational hands too
+    // (PREFER_OVER_2NT), so a maximum makes the try itself.
+    if (h.len[x] >= 6 && ctx.ok(`3${x}`)) return [`3${x}`, `6+ ${SYM[x]}, maximum. Invitational.`];
+    if (ctx.ok('2NT')) return ['2NT', 'Maximum. Invitational.'];
   }
   if (last === '4NT' && (o === '1NT' || o === '2NT')) {
     const [, hi] = openerRange(seq.slice(0, 3));

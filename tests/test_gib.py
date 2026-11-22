@@ -462,6 +462,33 @@ def test_five_two_preference_over_four_three():
     assert bid('QS JS 9S 7S 6S 8H 7H 6H JD 2D 5C 4C 2C', *calls)[0] != '2D'
 
 
+def test_invitational_preference_over_2nt():
+    """The user's board (2026-11-22): 1H 1S 2D 2NT, down one, on K9652 Q4
+    KT5 K42 opposite AT4 AKJ97 AJ96 7. With PREFER_OVER_2NT, an invitational
+    responder with a doubleton in opener's major gives preference instead,
+    and opener's maximum makes the try."""
+    calls = ('1H', 'Pass', '1S', 'Pass', '2D', 'Pass')
+    south = 'KS 9S 6S 5S 2S QH 4H KD 10D 5D KC 4C 2C'
+    assert bid(south, *calls) == ('2NT', 'Invitational.')
+    old = gib.PREFER_OVER_2NT
+    gib.PREFER_OVER_2NT = True
+    try:
+        assert bid(south, *calls) == ('2H', 'Preference to \u2665.')
+        # Four diamonds: no preference, 2NT as before.
+        assert bid('KS 9S 6S 5S 2S QH 4H KD 10D 5D 3D KC 2C', *calls)[0] == '2NT'
+        # A minimum opener passes the preference; a maximum tries 2NT.
+        pref = calls + ('2H', 'Pass')
+        assert bid('AS 10S 4S AH KH JH 9H 7H AD JD 9D 6D 7C', *pref)[0] == 'Pass'
+        top = 'QS 4S AH KH QH JH 7H KD QD JD 6D 7C 2C'
+        assert bid(top, *pref) == ('2NT', 'Maximum. Invitational.')
+        # Responder accepts with the old 2NT hand, declines with less.
+        tried = pref + ('2NT', 'Pass')
+        assert bid(south, *tried)[0] == '3NT'
+        assert bid('KS 9S 6S 5S 2S QH 4H JD 7D 5D QC 4C 2C', *tried)[0] == 'Pass'
+    finally:
+        gib.PREFER_OVER_2NT = old
+
+
 def test_negative_doubler_and_opener_raise_the_longest_fit():
     """The user's call (2026-11-09): after 1x (y) X (P) 2z (P) the doubler
     with 11+ and an eight-card fit in opener's suits invites at 3 (game on
