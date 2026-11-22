@@ -296,7 +296,8 @@ def _reads_as(calls: list, i: int) -> str | None:
     # A bid of a suit they showed first: a cuebid, showing support for
     # partner's suit, or no suit of its own.
     named = next((k for k in theirs if _reads_as(calls, k) == s
-                  or s in _call_shows(calls, k)), None)
+                  or (s in _call_shows(calls, k)
+                      and not (gib.DOUBLE_SHOWN_NATURAL and calls[k][1] == 'X'))), None)
     if named is not None and not any(_reads_as(calls, k) == s or s in _call_shows(calls, k)
                                      for k, (w, c) in enumerate(calls[:named])
                                      if w in side and c != 'Pass'):

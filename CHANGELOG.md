@@ -21,6 +21,8 @@ Next trick button.
 - A double of the opponents' constructive game (both of them bid, game not
   a pre-emptive jump) is for penalty, never takeout, and counts our length in
   their suit.
+- A bid of a suit the opponents showed only by a double (1♦ 1♥ X 2♠) is
+  natural, not a cue for partner's suit.
 - After a game try, count the trumps: responder accepts with four, opener
   passes the 3M sign-off with five and bids on with six.
 - Robot opener answers the shortness ask after a short-suit game try (the

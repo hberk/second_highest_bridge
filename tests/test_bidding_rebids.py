@@ -394,3 +394,16 @@ def test_artificial_bids_are_read_for_what_they_show():
     a = auction_after('1C', '2S', 'Pass', 'Pass', '3C', 'Pass', '3S', 'Pass', dealer='West')
     west = hand('9S 5S AH 4H 2H KD 6D AC KC QC 10C 8C 3C')
     assert ai.ai_bid('West', west, a) != 'Pass'
+
+
+def test_a_suit_shown_only_by_their_double_is_bid_naturally():
+    """gib.DOUBLE_SHOWN_NATURAL (the user, 2026-11-22): 1♦ 1♥ X 2♠ is the
+    pre-emptive spade bid it was alerted as, not a cue showing hearts (fresh
+    deal 98, seed 8M: partner's 4♥ claimed a fit, 2♠ passed it on seven)."""
+    cs = [('East', '1D'), ('South', '1H'), ('West', 'X'), ('North', '2S')]
+    assert ai._reads_as(cs, 3) == 'S'
+    # A bid of their bid suit is still a cue.
+    assert ai._reads_as([('East', '1D'), ('South', '1H'), ('West', '1S'), ('North', '2S')], 3) == 'H'
+    a = auction_after('1D', '1H', 'X', '2S', '3D', '4H', 'Pass', dealer='East')
+    north = hand('KS JS 8S 6S 5S 4S 3S QH 9D 8D 9C 6C 5C')
+    assert ai.ai_bid('North', north, a) == '4S'

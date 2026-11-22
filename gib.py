@@ -4081,6 +4081,13 @@ def _answer_reopening(ctx: Ctx) -> tuple | None:
 #: Covers `ai._bids_by`/`_first_namer` (`ai._reads_as`), the two-suiter's
 #: choice after Cappelletti, and Drury here. Off keeps the old reading.
 ARTIFICIAL_READ = True
+#: ...but a bid of a suit THEY showed only by a double stays natural: after
+#: 1♦ 1♥ X (4+ ♠), our 2♠ is the pre-emptive "7+ ♠" it was alerted as, and
+#: was read as a cue showing hearts (partner's 4♥ "our fit", the 2♠ bidder
+#: then passed it with seven spades; fresh deal 98, seed 8M). Only bids name
+#: their suit for a cue. 3 x 3,000 fresh deals: -0.03/+0.01/+0.03 a board,
+#: 23 auctions changed, noise; on for honest alerts (the user, 2026-11-22).
+DOUBLE_SHOWN_NATURAL = True
 
 
 def _our_drury(ctx: Ctx) -> bool:
