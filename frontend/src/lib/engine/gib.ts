@@ -33,10 +33,10 @@ export const SELF_SPLINTER_MIN = 18;
 /** Opener makes that splinter (measurement switch); responder answers it either way. */
 export const SELF_SPLINTER = true;
 /** The robots answer responder's ask after a short-suit game try, but never
- *  ask (gib.py). Trump length after a game try: measurement switches. */
-export const TRY_FOUR_ACCEPT = false;
-export const TRY_FOUR_ACCEPT_ALL = false;
-export const TRY_FIVE_PASS = false;
+ *  ask (gib.py). After a game try, 9 trumps bid game and 8 stop (gib.py). */
+export const TRY_FOUR_ACCEPT = true;
+export const TRY_FOUR_ACCEPT_ALL = true;
+export const TRY_FIVE_PASS = true;
 export const TWO_OVER_ONE = 12;
 export const JUMP_SHIFT_POINTS = 17;
 export const DRURY: [number, number] = [10, 12];
@@ -4654,7 +4654,7 @@ function ntInterference(ctx: Ctx): Decision | null {
   const competed = negXCompeted(ctx);
   if (competed) return competed;
   if (ctx.iAmOpener() && seq.length === 2 && seq[0] === '1NT' && seq[1] === 'X' && lastCall[1] === 'Pass'
-      && negXSpot(ctx, true)) {
+      && isMajor(their) && negXSpot(ctx, true)) {   // not after they ran to 2NT
     return answerNegX(ctx, their as Suit);
   }
   if (!ctx.iAmOpener() && seq.length === 3 && seq[1] === 'X' && negXSpot(ctx, true)) {

@@ -1310,6 +1310,24 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     responder passing opener's decline after 1NT, a transfer and 2NT lost
     1,620 points over 42 auctions. Bidding the game after a decline is right
     here more often than it looks.
+  - **Count the trumps after a game try** (2026-11-22, the user's board
+    1♠ 2♠ 2NT 4♠ -50 and the question "do we need to account for trump length
+    more?"). On ~850 short-suit tries, 4M made 34% with 3 trumps opposite 5,
+    58% with 4 opposite 5, 64% with 3 opposite 6; where responder's honours
+    sat opposite the shortness barely mattered (51% none, 43% with 4+ JP).
+    So responder accepts any game try with four trumps (`TRY_FOUR_ACCEPT`,
+    `TRY_FOUR_ACCEPT_ALL` for help-suit tries) and opener passes the 3M
+    sign-off with five trumps, bidding on with six (`TRY_FIVE_PASS`). Fresh
+    deals filtered for a 5-card major opposite 3+, 3 × 40,000: **+0.03,
+    -0.01, +0.06 a board** (t +2.6, -0.7, +4.2); either half alone is flat
+    or worse. About twice as many auctions stop in 3M as reach game.
+  - **The shortness ask** (same day): after 1♠ 2♠ 2NT or 1♥ 2♥ 2♠, 3♣ / 2NT
+    asks where the shortness is and opener names it (3♣/3♦/3♥, three of the
+    major for the suit with no call of its own). Robot opener answers it; no
+    robot asks: asking and stopping when honours sit opposite the shortness
+    measured -0.02 to -0.05 a board. `understood_alert` gives the ask its
+    meaning for the bidding box (`meanings.gib_alert` / `callMeaning` fall
+    back to it). `/mnt/project-files/short-ask/REPORT.md`.
 - **Takeout double with both majors** (2026-11-03, the user's board: 1♦ by
   West, North passed ♠AKQ7 ♥QJ92 ♦T98 ♣J4): over a 1♣/1♦ opening, four cards
   in each major and three or fewer of their suit is takeout shape even with a

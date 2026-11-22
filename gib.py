@@ -73,10 +73,11 @@ SELF_SPLINTER = True
 #: the ninth trump decides, not the honours. TRY_FOUR_ACCEPT: responder
 #: accepts the short-suit try with four trumps; TRY_FOUR_ACCEPT_ALL also the
 #: help-suit tries. TRY_FIVE_PASS: opener passes responder's 3M with five
-#: trumps (an 8-card fit), and still bids on with six.
-TRY_FOUR_ACCEPT = False
-TRY_FOUR_ACCEPT_ALL = False
-TRY_FIVE_PASS = False
+#: trumps (an 8-card fit), and still bids on with six. Together, on 3 x 40,000
+#: fresh deals: +0.03, -0.01, +0.06 a board (on, the user's call 2026-11-22).
+TRY_FOUR_ACCEPT = True
+TRY_FOUR_ACCEPT_ALL = True
+TRY_FIVE_PASS = True
 TWO_OVER_ONE = 12
 JUMP_SHIFT_POINTS = 17        # Soloway: 17+ total points, 4+ controls
 DRURY = (10, 12)
@@ -5215,7 +5216,7 @@ def _nt_interference(ctx: Ctx) -> tuple | None:
     if competed:
         return competed
     if ctx.i_am_opener() and seq == ['1NT', 'X'] and ctx.calls[-1][1] == 'Pass' \
-            and _neg_x_spot(ctx, doubled=True):
+            and their in MAJORS and _neg_x_spot(ctx, doubled=True):    # not after they ran to 2NT
         return _answer_neg_x(ctx, their)
     if not ctx.i_am_opener() and len(seq) == 3 and seq[1] == 'X' \
             and _neg_x_spot(ctx, doubled=True):
