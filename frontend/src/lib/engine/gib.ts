@@ -304,6 +304,10 @@ export function gibBid(player: Seat, cards: Card[], auction: AuctionState): Deci
   if (!ctx.legal.length) return null;
   const runout = ntRunout(ctx);
   if (runout) return [runout[0], nameTheSuit(runout[0], runout[1])];
+  if (TWO_SUITER_ALONE || ARTIFICIAL_READ) {
+    const alone = (TWO_SUITER_ALONE ? twoSuiterAlone(ctx) : null) ?? afterTwoSuiterAlone(ctx);
+    if (alone) return [alone[0], nameTheSuit(alone[0], alone[1])];
+  }
   let decision = decide(ctx);
   if (decision) {
     // Systems on over our double of their 1NT: the transfer's suit is
@@ -2188,6 +2192,85 @@ function twoSuiterGameAlert(s: Suit): string {
   if (TWO_SUITER_BLAST) return `3+ ${SYM[s]}: game values or a long fit. To play.`;
   return `3+ ${SYM[s]}, game values. To play.`;
 }
+/** The two-suiter comes alive with extra shape (the user's board,
+ *  2026-11-22: (1♥) 2♥ (3♥) P (P) passed on ♠AJ632 ♥T ♦- ♣AQT8653). Partner
+ *  has only passed and they have outbid us: with TWO_SUITER_ALONE cards in
+ *  the two suits (11 = 6-5), bid the longer, the higher on a tie, cheapest,
+ *  never past 3 of a major or 4 of a minor. null is off. See gib.py. */
+export const TWO_SUITER_ALONE: number | null = 11;
+export const TWO_SUITER_ALONE_MAJOR_MAX = 3;
+export const TWO_SUITER_ALONE_MINOR_MAX = 4;
+/** ...and advancer bids game over the rebid with a real fit. Off passes. */
+export const TWO_SUITER_ALONE_FIT = true;
+
+function twoSuiterAloneSuits(ctx: Ctx): [Suit, Suit | null] | null {
+  const mine = ctx.mine();
+  if (!ctx.seq.length || ctx.weOpened || mine.length !== 1 || mine[0] !== ctx.seq[0]) return null;
+  if (ctx.partners().length) return null;
+  const hb = ctx.auction.highestBid;
+  if (!hb || hb[2] === ctx.me || hb[2] === ctx.pd) return null;
+  const opening = ctx.calls.find(([, c]) => c !== 'Pass')?.[1] ?? null;
+  const two = twoSuitsShown(ctx, ctx.seq[0], opening);
+  if (!two || overcallOver(ctx) === null) return null;
+  return two;
+}
+
+function twoSuiterAloneMin(tieWinner: boolean): number {
+  const t = TWO_SUITER_ALONE!;
+  return tieWinner ? Math.max(6, Math.floor((t + 1) / 2)) : Math.max(6, Math.floor((t + 2) / 2));
+}
+
+function twoSuiterAlone(ctx: Ctx): Decision | null {
+  const two = twoSuiterAloneSuits(ctx);
+  if (!two) return null;
+  const h = ctx.h;
+  const a = two[0];
+  const b = two[1] ?? maxBy(MINORS, (s) => [h.len[s], SUITS.indexOf(s)]);
+  if (h.len[a] + h.len[b] < TWO_SUITER_ALONE!) return null;
+  const s = maxBy([a, b], (x) => [h.len[x], SUITS.indexOf(x)]);
+  const call = ctx.cheapest(s, 2);
+  const cap = isMajor(s) ? TWO_SUITER_ALONE_MAJOR_MAX : TWO_SUITER_ALONE_MINOR_MAX;
+  if (!call || levelOf(call) > cap) return null;
+  const other = s === b ? a : b;
+  const n = twoSuiterAloneMin(SUITS.indexOf(s) > SUITS.indexOf(other));
+  return [call, `${n}+ ${SYM[s]}, extra shape. Competing.`];
+}
+
+function afterTwoSuiterAlone(ctx: Ctx): Decision | null {
+  const partners = ctx.partners();
+  if (ctx.weOpened || ctx.mine().length || partners.length !== 2) return null;
+  const opening = ctx.calls.find(([, c]) => c !== 'Pass')?.[1] ?? null;
+  const two = twoSuitsShown(ctx, partners[0], opening);
+  const s = strainOf(partners[1]);
+  if (!two || overcallOver(ctx) === null || !isSuit(s)) return null;
+  if (s !== two[0] && s !== two[1] && !(two[1] === null && MINORS.includes(s))) return null;
+  if (TWO_SUITER_ALONE_FIT) {
+    const both: [Suit, Suit] = two[1] === null ? [two[0], s] : [two[0], two[1]];
+    const other = both.find((x) => x !== s) ?? null;
+    const order = isMajor(s) ? [s, other] : [other, s];
+    for (const t of order) {
+      if (t === null) continue;
+      const game = `${isMajor(t) ? 4 : 5}${t}`;
+      if (twoSuiterFitGame(ctx.h, t, both[0], both[1]) && ctx.ok(game)) {
+        return [game, `4+ ${SYM[t]}, a fit for partner's two suits. To play.`];
+      }
+    }
+  }
+  return ['Pass', "Partner's rebid stands."];
+}
+
+/** Our side's artificial calls are read for what they show, never as the
+ *  suit they name (the user, 2026-11-22). See gib.py and ai.ts readsAs. */
+export const ARTIFICIAL_READ = true;
+
+/** P P 1M P 2♣ by a passed hand: Drury, support for the major. */
+function ourDrury(ctx: Ctx): boolean {
+  const seq = ctx.seq;
+  if (seq.length < 2 || (seq[0] !== '1H' && seq[0] !== '1S') || seq[1] !== '2C' || !ctx.weOpened) return false;
+  const k = ctx.calls.findIndex(([w, c]) => c === '2C' && (w === ctx.me || w === ctx.pd));
+  return ctx.passedHand(ctx.calls[k][0]);
+}
+
 /** ...and the later rounds read it as two suits, not as a 2NT opening
  *  whose next bids are Stayman and transfers. */
 export const TWO_SUITER_READ = true;
@@ -3507,6 +3590,7 @@ function answerReopening(ctx: Ctx): Decision | null {
 function openerOverForcingResponse(ctx: Ctx): Decision | null {
   const seq = ctx.seq;
   if (!ctx.iAmOpener() || seq.length !== 2 || ctx.ours[1][0] !== ctx.pd) return null;
+  if (ARTIFICIAL_READ && ourDrury(ctx)) return null;
   const y = strainOf(seq[1]);
   const x = strainOf(seq[0]) as Suit;
   if (!isSuit(y) || y === x || levelOf(seq[1]) !== 2) return null;
@@ -5668,6 +5752,14 @@ function weakTwoXTrap(ctx: Ctx): boolean {
     && ctx.calls[i + 1][0] === ctx.me;
 }
 
+/** The advancer's answer to Cappelletti's 2♦ (majors) or 2NT (minors) is a
+ *  choice between partner's suits, not a suit of its own. Alert only. See gib.py. */
+export const CAPPELLETTI_CHOICE_ALERT = true;
+
+function cappellettiChoice(pair: string, s: Suit): string {
+  return CAPPELLETTI_CHOICE_ALERT ? `Choosing between partner's ${pair}.` : natural(s);
+}
+
 function advance(ctx: Ctx): Decision | null {
   const h = ctx.h;
   const hcp = h.hcp;
@@ -5695,7 +5787,7 @@ function advance(ctx: Ctx): Decision | null {
     if (p === '2D') {
       const s: Suit = h.len.H >= h.len.S ? 'H' : 'S';
       const call = ctx.cheapest(s, 2);
-      return call && levelOf(call) <= 3 ? [call, natural(s)] : ['Pass', 'No room.'];
+      return call && levelOf(call) <= 3 ? [call, cappellettiChoice('majors', s)] : ['Pass', 'No room.'];
     }
     if (p === '2H' || p === '2S') {
       const s = strainOf(p) as Suit;
@@ -5705,7 +5797,7 @@ function advance(ctx: Ctx): Decision | null {
     if (p === '2NT') {
       const m: Suit = h.len.C >= h.len.D ? 'C' : 'D';
       const call = ctx.cheapest(m, 3);
-      return call && levelOf(call) <= 4 ? [call, natural(m)] : ['Pass', 'No room.'];
+      return call && levelOf(call) <= 4 ? [call, cappellettiChoice('minors', m)] : ['Pass', 'No room.'];
     }
     return null;
   }
