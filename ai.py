@@ -233,10 +233,78 @@ JUMP_RAISE_TRICKS = 6.2
 # so nothing that only wants the decision has to care.
 
 
-def _bids_by(seat: str, auction: AuctionState) -> list:
-    """(level, strain) for each real bid `seat` has made, in order."""
-    return [parse_bid(call) for who, call in auction.calls
-            if who == seat and parse_bid(call)]
+def _bids_by(seat: str, auction: AuctionState, raw: bool = False) -> list:
+    """(level, strain) for each real bid `seat` has made, in order. With
+    gib.ARTIFICIAL_READ (and not `raw`), an artificial bid counts as the one suit
+    it shows (a transfer, Drury, a cuebid raise) or not at all (Michaels,
+    Cappelletti's 2♣/2♦, a relay): `_reads_as`."""
+    if raw or not gib.ARTIFICIAL_READ:
+        return [parse_bid(call) for who, call in auction.calls
+                if who == seat and parse_bid(call)]
+    out = []
+    for i, (who, call) in enumerate(auction.calls):
+        bid = parse_bid(call)
+        if who == seat and bid:
+            s = _reads_as(auction.calls, i)
+            if s:
+                out.append((bid[0], s))
+    return out
+
+
+def _reads_as(calls: list, i: int) -> str | None:
+    """The strain bid i shows: its own, the one suit an artificial bid shows,
+    or None for an artificial bid showing no single suit. Read from the
+    auction alone, the same for either side."""
+    who, call = calls[i]
+    bid = parse_bid(call)
+    if not bid:
+        return None
+    s = bid[1]
+    if not gib.ARTIFICIAL_READ:
+        return s
+    side = (who, PARTNERS[who])
+    shows = _call_shows(calls, i)
+    if shows:
+        if s in shows:
+            return s
+        opening = next((c for w, c in calls[:i] if c != 'Pass'), None)
+        if len(shows) == 1 and opening and opening[0] == '1' and call == f"2{opening[1:]}":
+            return None                     # Michaels over a major: and a minor
+        return next(iter(shows)) if len(shows) == 1 else None
+    ours = [(w, c) for w, c in calls[:i] if w in side and c != 'Pass']
+    theirs = [k for k, (w, c) in enumerate(calls[:i]) if w not in side and c != 'Pass']
+    seq = [c for _, c in ours] + [call]
+    if not theirs:
+        # Uncontested so far: the system's own reading (transfers, Stayman,
+        # Jacoby 2NT, splinters, the strong 2♣ and its 2♦, fourth suit).
+        shown = gib.shown_suit(seq, len(seq) - 1)
+        return shown or ('NT' if s == 'NT' else None)
+    if s == 'NT':
+        return s
+    our_first = next((k for k, (w, c) in enumerate(calls[:i]) if w in side and c != 'Pass'), i)
+    first = calls[theirs[0]] if theirs[0] < our_first else None
+    if first and first[1] == '1NT':
+        # Their 1NT opening: Cappelletti's 2♣ and the 2♦ relay show no
+        # suit; over our penalty double, systems are on.
+        if not ours and call == '2C' and gib.OVER_1NT_2C:
+            return None
+        if ours == [(PARTNERS[who], '2C')] and call == '2D':
+            return None
+        if ours and ours[0][1] == 'X' and len(theirs) == 1 and gib.NT_X_SYSTEMS:
+            shown = gib.shown_suit(['1NT'] + seq[1:], len(seq) - 1)
+            return shown
+    # A bid of a suit they showed first: a cuebid, showing support for
+    # partner's suit, or no suit of its own.
+    named = next((k for k in theirs if _reads_as(calls, k) == s
+                  or s in _call_shows(calls, k)), None)
+    if named is not None and not any(_reads_as(calls, k) == s
+                                     for k, (w, c) in enumerate(calls[:named])
+                                     if w in side and parse_bid(c)):
+        p_suits = [_reads_as(calls, k) for k, (w, c) in enumerate(calls[:i])
+                   if w == PARTNERS[who] and parse_bid(c)]
+        p_suits = [x for x in p_suits if x in SUITS and x != s]
+        return p_suits[0] if p_suits else None
+    return s
 
 
 def _doubled_by(seat: str, auction: AuctionState) -> bool:
@@ -260,9 +328,9 @@ def _first_namer(auction: AuctionState, strain: str) -> str | None:
     whole auction, not by each seat's own list: partner's FIRST bid can be a raise
     of a suit this hand opened, and reading that as a two-over-one both overstates
     what they hold and mislabels it in the alert."""
-    for who, call in auction.calls:
+    for k, (who, call) in enumerate(auction.calls):
         parsed = parse_bid(call)
-        if parsed and parsed[1] == strain:
+        if parsed and _reads_as(auction.calls, k) == strain:
             return who
     return None
 
@@ -510,7 +578,7 @@ def _contest_alert(player: str, auction: AuctionState, call: str, why: str) -> s
     if (not gib.LOTT or hb is None or s not in SUITS or auction.doubled != 'None'
             or PARTNERSHIP[hb[2]] == PARTNERSHIP[player]):
         return why
-    mine = any(strain == s for _, strain in _bids_by(player, auction))
+    mine = any(strain == s for _, strain in _bids_by(player, auction, raw=True))
     if not mine and gib.support_x_raise(auction.calls, player, s):
         return gib.support_x_raise_alert(s)
     alert = gib.LOTT_ALERT if mine else gib._raise_alert(s, gib.LOTT_ALERT)
@@ -707,6 +775,8 @@ def _advance_game(theirs: str | None, groups: dict, pts: int,
                      f"{SUIT_SYM[m]}. Game over the double.")
 
 
+
+
 def _rebid_alone(player: str, auction: AuctionState, ev: dict, groups: dict,
                  best_suit: str, best_len: int, legal: list[str]) -> tuple:
     """I have bid, partner has not. Repeat a long suit, or pass -- honestly.
@@ -718,6 +788,11 @@ def _rebid_alone(player: str, auction: AuctionState, ev: dict, groups: dict,
     compete.
     """
     mine = _bids_by(player, auction)
+    if gib.ARTIFICIAL_READ and (not mine or mine[0][1] not in SUITS):
+        # My bids showed no suit of their own (Michaels, Cappelletti): read
+        # as natural, 2♥ Michaels was a heart suit. Coming alive again is
+        # gib.TWO_SUITER_ALONE's.
+        return 'Pass', "Already described."
     my_first = mine[0][1]
     pts = _points(groups)
     held = len(groups[my_first])
@@ -758,7 +833,7 @@ def _response(player: str, partner: str, auction: AuctionState, ev: dict,
               groups: dict, best_suit: str, best_len: int, legal: list[str]) -> tuple:
     """Partner has bid. Raise with support, else show a suit -- at the two level
     with real values (the 2/1), at the one level without."""
-    theirs = _bids_by(partner, auction)
+    theirs = _bids_by(partner, auction) or _bids_by(partner, auction, raw=True)
     p_level, p_strain = theirs[-1]
 
     if p_strain not in SUITS:
@@ -893,6 +968,12 @@ def _rebid(player: str, partner: str, auction: AuctionState, ev: dict,
     """
     mine = _bids_by(player, auction)
     theirs = _bids_by(partner, auction)
+    if gib.ARTIFICIAL_READ and theirs and not mine and TWO_SUITER_CHOICE:
+        # My only bids showed two suits (Michaels, Cappelletti): partner's
+        # bid is a choice between them, never a suit of partner's own.
+        choice = _two_suiter_choice(player, partner, auction, groups, theirs[-1][1], legal)
+        if choice:
+            return choice
     if not mine or not theirs:
         return 'Pass', "Pass."
     p_level, p_strain = theirs[-1]
@@ -1129,6 +1210,18 @@ def _two_suiter_choice(player: str, partner: str, auction: AuctionState, groups:
                        strain: str, legal: list[str]) -> tuple | None:
     cards = [c for g in groups.values() for c in g]
     two = gib._our_two_suiter(gib.Ctx(player, cards, auction))
+    if not two and gib.ARTIFICIAL_READ:
+        # Cappelletti over their 1NT: 2♦ the majors, 2♥/2♠ that major and a
+        # minor, 2NT the minors.
+        k = next((k for k, (w, c) in enumerate(auction.calls) if w == player and c != 'Pass'), None)
+        shows = sorted(_call_shows(auction.calls, k)) if k is not None else []
+        if len(shows) == 2:
+            two = (shows[0], shows[1])
+        elif len(shows) == 1 and auction.calls[k][1] in ('2H', '2S'):
+            two = (shows[0], None)
+    if two and two[1] is None and gib.ARTIFICIAL_READ:
+        # Michaels over a major: the minor is unknown until partner names one.
+        two = (two[0], strain if strain in ('C', 'D') else None)
     if not two or strain not in two or _first_namer(auction, strain) != partner:
         return None
     hb = auction.highest_bid
@@ -1686,8 +1779,8 @@ def _previous_system(player: str, hand: list[Card], auction: AuctionState,
     best_len = len(groups[best_suit])
 
     partner = PARTNERS[player]
-    my_bids = _bids_by(player, auction)
-    partner_bids = _bids_by(partner, auction)
+    my_bids = _bids_by(player, auction, raw=True)
+    partner_bids = _bids_by(partner, auction, raw=True)
     opponents_bid = any(who not in (player, partner)
                         and (parse_bid(call) or call in ('X', 'XX'))
                         for who, call in auction.calls)

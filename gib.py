@@ -336,8 +336,8 @@ def gib_bid(player: str, cards: list[Card], auction: AuctionState) -> tuple | No
     runout = _nt_runout(ctx)
     if runout:
         return runout[0], _name_the_suit(*runout)
-    if TWO_SUITER_ALONE:
-        alone = _two_suiter_alone(ctx) or _after_two_suiter_alone(ctx)
+    if TWO_SUITER_ALONE or ARTIFICIAL_READ:
+        alone = (TWO_SUITER_ALONE and _two_suiter_alone(ctx)) or _after_two_suiter_alone(ctx)
         if alone:
             return alone[0], _name_the_suit(*alone)
     decision = _decide(ctx)
@@ -2314,7 +2314,7 @@ def _two_suiter_alone(ctx: Ctx) -> tuple | None:
     if not call or level_of(call) > cap:
         return None
     n = _two_suiter_alone_min(SUITS.index(s) > SUITS.index(a if s == b else b))
-    return call, f"{n}+ {SYM[s]}, extra shape in the two suits shown. Competing."
+    return call, f"{n}+ {SYM[s]}, extra shape. Competing."
 
 
 def _after_two_suiter_alone(ctx: Ctx) -> tuple | None:
@@ -3836,12 +3836,33 @@ def _answer_reopening(ctx: Ctx) -> tuple | None:
     return None
 
 
+#: Our side's artificial calls are read for what they show, never as the
+#: suit they name (the user, 2026-11-22: "I don't want to see artificial
+#: bids read as natural anymore"; (1♥) 2♥ Michaels (3♥) P (P) passed on
+#: ♠AJ632 ♥T ♦- ♣AQT8653 because `ai._rebid_alone` read 2♥ as hearts).
+#: Covers `ai._bids_by`/`_first_namer` (`ai._reads_as`), the two-suiter's
+#: choice after Cappelletti, and Drury here. Off keeps the old reading.
+ARTIFICIAL_READ = False
+
+
+def _our_drury(ctx: Ctx) -> bool:
+    """P P 1M P 2♣ (or 1M by a third/fourth-seat opener after our passes):
+    partner's 2♣ is Drury, support for the major, not clubs."""
+    seq = ctx.seq
+    if len(seq) < 2 or seq[0] not in ('1H', '1S') or seq[1] != '2C' or not ctx.we_opened:
+        return False
+    k = next(k for k, (w, c) in enumerate(ctx.calls) if c == '2C' and w in (ctx.me, ctx.pd))
+    return ctx.passed_hand(ctx.calls[k][0])
+
+
 def _opener_over_forcing_response(ctx: Ctx) -> tuple | None:
     """In competition, responder's new suit is forcing for one round
     ("Forcing." in its alert): opener must bid. Raise with support, else
     rebid a long suit, show a stopper in notrump, or name a new suit."""
     seq = ctx.seq
     if not ctx.i_am_opener() or len(seq) != 2 or ctx.ours[1][0] != ctx.pd:
+        return None
+    if ARTIFICIAL_READ and _our_drury(ctx):
         return None
     y = strain_of(seq[1])
     x = strain_of(seq[0])
