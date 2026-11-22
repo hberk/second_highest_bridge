@@ -2113,6 +2113,9 @@ export const GF_NO_PASS = true;
 /** ...and responder, game forced with no fit and no long suit to show, bids
  *  2NT where it would have jumped to 3NT. */
 export const GF_2NT = true;
+/** In a game force with no fit, before the generic 2NT or 3NT: raise
+ *  partner's twice-bid suit with two cards, or rebid my own six-card suit. */
+export const GF_NO_FIT_SUITS = true;
 export const GF_2NT_ALERT = 'No fit yet. Game forcing.';
 /** ...but a minor both of us have bid may still be passed below game (1♦ 2♣ 2♦ 3♦). */
 export const GF_MINOR_STOP = true;
@@ -3068,6 +3071,24 @@ function continuation(ctx: Ctx): Decision {
       if (h.len[s] >= 6 && !mylen[s]) {
         const call = ctx.cheapest(s, 2);
         if (call && rankOf(call) < rankOf('3NT')) return [call, natural(s)];
+      }
+    }
+    if (GF_NO_FIT_SUITS && gf && !majorOverNotrump(ctx, ['3NT', TO_PLAY])) {
+      for (const s of SUITS) {   // partner bid it twice, so 6+, and I have two
+        if (ctx.partners().filter((c) => strainOf(c) === s).length >= 2 && h.len[s] >= 2
+            && !mylen[s]) {
+          const major = MAJORS.includes(s);
+          const call = ctx.cheapest(s, major ? 4 : 3);
+          if (call && levelOf(call) <= (major ? 4 : 3)) {
+            return [call, major ? TO_PLAY : `Support for partner's rebid ${SYM[s]}. Game forcing.`];
+          }
+        }
+      }
+      for (const s of SUITS) {   // my own suit, six cards: rebid it
+        if (h.len[s] >= 6 && mylen[s]) {
+          const call = ctx.cheapest(s, 2);
+          if (call && rankOf(call) < rankOf('3NT')) return [call, `6+ ${SYM[s]}. Game forcing.`];
+        }
       }
     }
     if (GF_2NT && gf && ctx.ok('2NT') && forcedToGame(ctx)

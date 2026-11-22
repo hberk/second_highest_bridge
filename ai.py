@@ -508,6 +508,12 @@ REBID_LENGTH = 6               # extra length is its own reason to bid again
 #: rebid at any level. 2 (the user's rule, 2026-11-04): every lone rebid of my
 #: own suit shows six. 20,000 fresh deals: +0.50 a board, t = +5.1 (BIDDING.md).
 REBID_ALONE_SIX_FROM = 2
+#: From the three level up a lone rebid also needs a seventh card or 16+ HCP
+#: (2026-11-22, the gap survey: the six-card three-level rebid was a call
+#: the system made with nothing more to say, 1S (2C) P (2S) 3S went for
+#: 4S doubled). Fresh deals, head to head (3 x 3,000): +0.53 / +0.20 /
+#: +0.37 a board. None: six cards rebid at any level, as before.
+REBID_ALONE_THREE: tuple | None = (7, 16)
 
 # The cuebid -- advancer bidding the OPPONENTS' suit to show a good raise of
 # partner's overcall -- has no threshold constant because the AI does not make the
@@ -818,6 +824,10 @@ def _rebid_alone(player: str, auction: AuctionState, ev: dict, groups: dict,
         level = parse_bid(call)[0] if call else 0
         long_only = REBID_ALONE_SIX_FROM and level >= REBID_ALONE_SIX_FROM
         if call and long_only and held < REBID_LENGTH:
+            return 'Pass', "Partner has passed; not enough to bid again alone."
+        if call and long_only and REBID_ALONE_THREE and level >= 3 \
+                and held < REBID_ALONE_THREE[0] \
+                and sum(_HCP.get(c.rank, 0) for g in groups.values() for c in g) < REBID_ALONE_THREE[1]:
             return 'Pass', "Partner has passed; not enough to bid again alone."
         if call and long_only and level <= ceiling:
             return call, (f"{REBID_LENGTH}+ {SUIT_SYM[my_first]}. "

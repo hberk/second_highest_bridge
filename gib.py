@@ -2364,6 +2364,12 @@ GF_NO_PASS = True
 #: MAJOR_OVER_3NT knows a major fit and bids 4M), so opener can
 #: still show a six-card major, and 2NT has a meaning there.
 GF_2NT = True
+#: In a game force with no fit, before the generic 2NT or 3NT: raise
+#: partner's twice-bid suit (6+) with two cards, game in a major, or rebid my
+#: own six-card suit (2026-11-22, the gap survey: 1D 2C 2S 2NT 3NT on
+#: misfits, below the 28 HCP notrump game needs here). Fresh deals, head to
+#: head (3 x 3,000): +0.14 / +0.08 / +0.13 a board.
+GF_NO_FIT_SUITS = True
 GF_2NT_ALERT = "No fit yet. Game forcing."
 #: ...but a minor both of us have bid may still be passed below game
 #: (1♦ 2♣ 2♦ 3♦): forcing those on to 3NT or 5m lost on fresh deals.
@@ -3440,6 +3446,19 @@ def continuation(ctx: Ctx) -> tuple:
                 call = ctx.cheapest(s, 2)
                 if call and rank_of(call) < rank_of('3NT'):
                     return call, natural(s)
+        if GF_NO_FIT_SUITS and gf and not _major_over_notrump(ctx, ('3NT', TO_PLAY)):
+            for s in SUITS:     # partner bid it twice, so 6+, and I have two
+                if sum(1 for c in ctx.partners() if strain_of(c) == s) >= 2 and h.len[s] >= 2 \
+                        and not mylen[s]:
+                    call = ctx.cheapest(s, 4 if s in MAJORS else 3)
+                    if call and level_of(call) <= (4 if s in MAJORS else 3):
+                        return call, (TO_PLAY if s in MAJORS else
+                                      f"Support for partner's rebid {SYM[s]}. Game forcing.")
+            for s in SUITS:     # my own suit, six cards: rebid it
+                if h.len[s] >= 6 and mylen[s]:
+                    call = ctx.cheapest(s, 2)
+                    if call and rank_of(call) < rank_of('3NT'):
+                        return call, f"6+ {SYM[s]}. Game forcing."
         if GF_2NT and gf and ctx.ok('2NT') and _forced_to_game(ctx) \
                 and not _major_over_notrump(ctx, ('3NT', TO_PLAY)):
             return '2NT', GF_2NT_ALERT
