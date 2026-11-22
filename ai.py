@@ -1643,7 +1643,11 @@ def _agreed_not_support(player: str, auction: AuctionState, call: str, why: str)
         return why
     rest = why[m.end():]
     if m.group(2) or rest in ('', '.'):
-        return f"{m.group(1)} agreed: partner bid the suit I showed."
+        # Bidding on over partner's choice or answer shows extras (the user,
+        # 2026-11-22): game is game values, below it an invitation.
+        if gib._is_game_bid(call):
+            return f"{m.group(1)} agreed, game values."
+        return f"{m.group(1)} agreed, extra values. Invites."
     return f"{m.group(1)} agreed{rest}"
 
 

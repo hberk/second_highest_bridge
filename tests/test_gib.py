@@ -2681,7 +2681,7 @@ def test_a_raise_of_a_suit_i_showed_first_is_not_support():
     # The negative double over Michaels showed spades; so did a natural 1♥.
     assert _alert('South', '1H', '2H', 'X', '3D', '3S', 'Pass', call='4S') == "♠ agreed, game values."
     assert _alert('South', '1C', 'Pass', '1D', 'Pass', '1H', 'X', '2H', 'Pass',
-                  call='4H') == "♥ agreed: partner bid the suit I showed."
+                  call='4H') == "♥ agreed, game values."
 
 
 def test_which_calls_show_a_suit_without_naming_it():
