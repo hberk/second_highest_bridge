@@ -1247,6 +1247,15 @@ PENALTY_STRONG = 20
 #: down). Each trump past the length the double needs (5 at the two level,
 #: 4 higher) adds this many judgement points. None leaves the count alone.
 PENALTY_TRUMP_JP: float | None = 4
+#: Their agreed suit counts toward PENALTY_JUDGE (the user's training deal
+#: 374, 2026-11-22: 1H P 2H P 3S P 4H, North K86 Q974 T2 T862 passed 4H on
+#: 9 JP plus 10.3 for a partner who never bid; 4H went four down). When both
+#: opponents bid the suit and their constructive auction reached game
+#: (`gib.game_values_shown`), their fit is breaking badly into my length:
+#: add this many judgement points (4, the user's pick, 2026-11-22). None
+#: leaves the count alone. Counting it
+#: in part scores too measured worse on one seed in three (BIDDING.md).
+PENALTY_FIT_JP: float | None = 4
 
 
 def _partner_middle(partner: str, auction: AuctionState, alerts: dict, mine: int) -> float:
@@ -1269,6 +1278,16 @@ def _partner_middle(partner: str, auction: AuctionState, alerts: dict, mine: int
     if hi == 40 - mine and lo > 0:
         hi = min(hi, lo + 7)
     return (lo + max(lo, hi)) / 2
+
+
+def _their_game_fit(player: str, auction: AuctionState, last: str) -> bool:
+    """Both opponents bid the suit of `last`, their game, reached
+    constructively (`gib.game_values_shown`)."""
+    theirs = [(w, c) for w, c in auction.calls
+              if w not in (player, PARTNERS[player]) and c != 'Pass']
+    suit = parse_bid(last)[1]
+    bidders = {w for w, c in theirs if parse_bid(c) and parse_bid(c)[1] == suit}
+    return len(bidders) == 2 and gib.game_values_shown(theirs, last)
 
 
 def _opp_shown_strong(player: str, auction: AuctionState, alerts: dict) -> bool:
@@ -1303,6 +1322,8 @@ def _penalty_double(player: str, hand: list[Card], auction: AuctionState,
         return None
     mine = gib.Hand(hand).judge
     extra = PENALTY_TRUMP_JP * (n - need) if PENALTY_TRUMP_JP else 0
+    if PENALTY_FIT_JP and _their_game_fit(player, auction, f"{level}{suit}"):
+        extra += PENALTY_FIT_JP
     if mine + extra + _partner_middle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE:
         return None
     if not _double_is_free(auction):

@@ -491,6 +491,18 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     (4♥) 4♠ on 6 JP + 13.5 for the 10-17 overcall, half a point short; 4♠
     took seven tricks. Seeds 7M-9M (5,000 deals): +0.83, +0.63, +1.09 a
     board (t 5.2-7.8). +2 measured +0.56, +6 +0.97; the user picked +4.
+  - **A double of their constructive game is for penalty** (`gib.GAME_PENALTY_X`
+    with `ai.PENALTY_FIT_JP = 4`, on: the user's pick, 2026-11-22; the user's
+    training deal 374, 2026-11-22): 1♥ P 2♥ P 3♠ P 4♥ P P, North ♠K86 ♥Q974
+    passed because X there was a takeout double (13+), and 4♥ went four down.
+    Once both opponents bid to game (a one-level, 1NT, 2♣ or 2NT opening,
+    the game bid not a jump: `game_values_shown`), there is no takeout
+    double, and an agreed suit adds `PENALTY_FIT_JP` judgement points. Part
+    scores keep the takeout double (1♥ P 2♥ P P X). Seeds 7M-9M (5,000
+    deals), JP 4: +0.25, +0.29, +0.18 a board (t 2.6-3.2); JP 2 +0.12. The
+    takeout ban alone over any game lost on pre-emptive raises (2♥ P 4♥ X,
+    then 4♠), -0.05; the fit points in part scores too lost on seed 8
+    (`/mnt/project-files/fit-penalty-x/REPORT.md`).
   - **The penalty double of 1NT is for balanced hands** (`NT_X_SHAPE = 'two'`;
     the user's deal, 2026-11-13): 1NT P P X with ♠AT865 ♥J ♦AK5 ♣QJT4, partner
     transferred to hearts on 0-5-4-4 (systems on) and 2♥ played on a 5-1 fit.
