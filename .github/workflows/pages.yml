@@ -1,4 +1,5 @@
-# Builds the Svelte app in frontend/ and deploys it to GitHub Pages.
+# Checks every change and deploys the game to Cloudflare, its one site:
+# https://bridge.second-highest.workers.dev (solo play and tables with friends).
 #
 # The deploy is gated on the TypeScript engine still matching the Python one:
 # fixtures are regenerated from the Python engine on every run, so a change to
@@ -8,15 +9,17 @@
 # solver-rs binary isn't built here. Its WebAssembly build is: the History
 # replayer runs it, and dd.test.ts checks it against the Python solver.
 #
+# GitHub Pages and the homelab release were retired on 2026-11-22: nothing here
+# deploys to either any more. The file keeps its old name so links to it hold.
+#
 # Nothing runs while the repository is private: Actions minutes on a private
 # repo are metered, so every job is skipped (a skipped job starts no runner and
 # uses no minutes). A manual "Run workflow" still checks it on demand. Once the
 # repo is public, every push and pull request is checked (free on public repos)
-# and a push to main deploys. Setup then: Settings → Pages → Source: "GitHub
-# Actions", then push or use "Run workflow". Not "Re-run": a re-run replays
-# the original event, visibility included, so a run from while the repo was
-# private skips again.
-name: Build and deploy (GitHub Pages)
+# and a push to main deploys. Use "Run workflow", not "Re-run": a re-run
+# replays the original event, visibility included, so a run from while the
+# repo was private skips again.
+name: Build, test and deploy (Cloudflare)
 
 on:
   push:
@@ -52,9 +55,8 @@ jobs:
         run: python tests/run_all.py
 
   # The multiplayer table server (server/): its own tests over real sockets,
-  # and its bundle. Nothing here can reach the homelab and no homelab key is
-  # in GitHub: the release job below publishes a build, and the homelab pulls
-  # it (server/pull/).
+  # and its bundle. The Cloudflare Worker (server/cf) shares its table code,
+  # so both are checked here.
   server:
     if: github.event.repository.visibility == 'public' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -131,86 +133,9 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      - name: Upload the site
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.visibility == 'public'
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: frontend/dist
-
-  deploy:
-    needs: [build, python-tests, server]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.visibility == 'public'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v5
-
-  # The multiplayer beta for the homelab, once everything above passes on main:
-  # the beta site and the server bundle as one tarball, attested (signed
-  # provenance: this workflow, this commit, a GitHub-hosted runner) and
-  # published as a release. LXC 213 checks for one every five minutes and
-  # installs it only if the attestation verifies (server/pull/bridge-pull.mjs).
-  # The last five bridge-* releases are kept.
-  release-server:
-    needs: [build, python-tests, server]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.visibility == 'public'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-      - name: Rust for WebAssembly
-        run: rustup target add wasm32-unknown-unknown
-      - name: Build the beta site
-        working-directory: frontend
-        # The commit, for the game log: a report says which build drew it.
-        env:
-          VITE_BUILD: ${{ github.sha }}
-        run: npm ci && npm run build:beta
-      - name: Build the server
-        working-directory: server
-        run: npm ci && npm run build
-      - name: Package
-        run: |
-          mkdir stage
-          cp server/dist/server.js server/dist/server.js.map stage/
-          cp -r frontend/dist-beta stage/public
-          echo "$GITHUB_SHA" > stage/VERSION
-          tar -C stage -czf bridge.tar.gz .
-      - id: attest
-        uses: actions/attest-build-provenance@v4
-        with:
-          subject-path: bridge.tar.gz
-      - name: Publish the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          cp "${{ steps.attest.outputs.bundle-path }}" bridge.sigstore.jsonl
-          tag="bridge-${GITHUB_SHA::12}"
-          gh release create "$tag" bridge.tar.gz bridge.sigstore.jsonl \
-            --target "$GITHUB_SHA" --prerelease --latest=false \
-            --title "Multiplayer beta ${GITHUB_SHA::12}" \
-            --notes "The multiplayer beta server and site, built from $GITHUB_SHA. The homelab installs it automatically; nothing to do here."
-          gh release list --limit 100 --json tagName,createdAt \
-            --jq '[.[] | select(.tagName | startswith("bridge-"))] | sort_by(.createdAt) | reverse | .[5:] | .[].tagName' |
-            while read -r old; do gh release delete "$old" --yes --cleanup-tag; done
-
-  # The multiplayer beta on Cloudflare (server/cf, MULTIPLAYER_PLAN.md M7):
-  # the Worker, its Durable Objects and the beta site, deployed with wrangler
-  # once everything above passes on main. Served at
+  # The game on Cloudflare (server/cf, MULTIPLAYER_PLAN.md M7): the Worker,
+  # its Durable Objects and the site, deployed with wrangler once everything
+  # above passes on main. Served at
   # https://bridge.second-highest.workers.dev. The token is an environment
   # secret of `cloudflare`, which only main may use (Settings, Environments).
   cloudflare:

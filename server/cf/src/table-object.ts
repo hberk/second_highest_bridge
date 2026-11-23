@@ -156,8 +156,7 @@ export class TableObject extends DurableObject<Env> {
 
   /** The robots' moves and the other timers, and a week-old table's close:
    *  once nobody has played at a table for a week, its object's storage is
-   *  deleted, boards and log with it. Nothing can read them out (the
-   *  homelab's fetch-logs.sh reads the homelab), and players keep their
+   *  deleted, boards and log with it. Nothing reads them out, and players keep their
    *  finished boards in their own History. */
   async alarm(): Promise<void> {
     this.clock.ring();

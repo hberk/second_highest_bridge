@@ -14,6 +14,7 @@
 import { RANKS, STRAIN_SYMBOLS, SUITS, card, parseBid, sortHand, type Card, type Suit } from './engine/card';
 import { AuctionState } from './engine/auction';
 import { aiBidExplained } from './engine/ai';
+import { understoodAlert } from './engine/gib';
 
 /** Hands asked per auction: about 100 ms on a laptop. */
 export const SAMPLE_HANDS = 4000;
@@ -85,7 +86,7 @@ export const ENOUGH = 12;
 export function callMeaning(auction: AuctionState, call: string): string | null {
   if (call === 'Pass') return null;
   const done = MEMO.get(keyOf(auction, SAMPLE_HANDS));
-  if (done) return commonest(done.first.get(call) ?? []);
+  if (done) return commonest(done.first.get(call) ?? []) ?? understoodAlert(auction, call);
   const here = copyOf(auction);
   const who = here.currentPlayer();
   const rnd = prng(seedOf(here));
@@ -94,7 +95,7 @@ export function callMeaning(auction: AuctionState, call: string): string | null 
     const [made, why] = aiBidExplained(who, sampleHand(rnd), here);
     if (made === call) whys.push(why);
   }
-  return commonest(whys);
+  return commonest(whys) ?? understoodAlert(here, call);
 }
 
 interface Sample {
@@ -157,6 +158,11 @@ function sampled(auction: AuctionState, hands: number): Sample {
   const meanings = new Map<string, string>();
   for (const [call, whys] of tally) {
     meanings.set(call, [...whys].sort((a, b) => b[1] - a[1])[0][0]);
+  }
+  for (const call of here.legalCalls()) {
+    if (meanings.has(call)) continue;
+    const why = understoodAlert(here, call);     // a call the robots answer but never make
+    if (why) meanings.set(call, why);
   }
   const out = { meanings, first };
   MEMO.set(key, out);
@@ -226,6 +232,8 @@ const PHRASES: [RegExp, string][] = [
   [/Pre-emptive/i, 'Pre-empt'],
   [/Help-suit game try/, 'Help-suit game try'],
   [/Short-suit game try/, 'Short-suit game try'],
+  [/^Asks where the short suit is/, 'Shortness ask'],
+  [/^Short .: a singleton or void/, 'Shortness'],
   [/Fourth suit forcing/, 'Fourth suit forcing'],
   [/Super-accept/, 'Super-accept'],
   [/Inverted/, 'Inverted minor raise'],
@@ -287,7 +295,9 @@ const PLAIN: Record<string, string> = {
   'Pre-emptive raise': 'A jump raise on a weak hand with good support, to take bidding room away.',
   'Pre-empt': 'A weak hand with a long suit, bid high to take bidding room away from the opponents.',
   'Help-suit game try': 'Asks partner to bid game if they can help in this suit.',
-  'Short-suit game try': 'Shows a short suit here and asks partner to bid game if their cards there are not wasted.',
+  'Short-suit game try': 'Shows a singleton or void somewhere, without saying where. Partner can ask where with the next bid up, or choose between three and four of the major.',
+  'Shortness ask': "Asks opener where the singleton or void is. Then you choose three or four of the major.",
+  Shortness: 'Answers the ask: the singleton or void is in the suit named, which three of the major names when that suit has no bid of its own.',
   'Fourth suit forcing': 'Bidding the last unbid suit asks partner to describe their hand further. It says nothing about that suit.',
   'Super-accept': 'Accepts the transfer with a jump, showing a maximum and four-card support.',
   'Inverted minor raise': "A raise of partner's minor that is stronger than it looks. Partner must bid again.",

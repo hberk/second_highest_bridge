@@ -1,8 +1,9 @@
-// Starts the table server from the environment (bridge.service sets it):
+// Starts the Node table server from the environment, for local development
+// (the homelab that ran it was retired on 2026-11-22; Cloudflare hosts tables):
 //   PORT             8787
 //   BRIDGE_DB        /var/lib/bridge/bridge.db
 //   PUBLIC_DIR       the beta build, /opt/bridge/public
-//   ALLOWED_ORIGINS  https://bridge.ettamei.com (comma-separated)
+//   ALLOWED_ORIGINS  http://localhost:5173 (comma-separated)
 //   TRUSTED_PROXY    Caddy's address, 192.168.169.211
 //   BRIDGE_DEV=1     on a development machine only: allows the two above unset
 //
@@ -15,7 +16,7 @@ const env = process.env;
 function exportAndExit(): void {
   let text: string;
   try {
-    // --db: under sudo the service's BRIDGE_DB isn't set (fetch-logs.sh).
+    // --db: read a database other than BRIDGE_DB's.
     const o = parseArgs(process.argv.slice(3), Date.now());
     text = exportLogs(o.db ?? env.BRIDGE_DB ?? './bridge.db', o).text;
   } catch (e) {
@@ -48,7 +49,7 @@ async function serve(): Promise<void> {
     host: env.HOST ?? '0.0.0.0',
     dbPath: env.BRIDGE_DB ?? './bridge.db',
     publicDir: env.PUBLIC_DIR,
-    allowedOrigins: (env.ALLOWED_ORIGINS ?? 'https://bridge.ettamei.com').split(',').map((s) => s.trim()).filter(Boolean),
+    allowedOrigins: (env.ALLOWED_ORIGINS ?? 'http://localhost:5173').split(',').map((s) => s.trim()).filter(Boolean),
     trustedProxy: env.TRUSTED_PROXY,
   });
   console.log(`bridge table server on :${server.port}`);

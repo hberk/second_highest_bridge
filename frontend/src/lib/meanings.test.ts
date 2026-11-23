@@ -39,6 +39,13 @@ describe('callMeanings', () => {
     expect(describeCall('2H', m.get('2H')).title).toBe('Weak two');
   });
 
+  it('explains the shortness ask the robots answer but never make', () => {
+    const m = callMeanings(auctionOf('North', ['1S', 'Pass', '2S', 'Pass', '2NT', 'Pass']));
+    expect(m.get('3C')).toBe('Asks where the short suit is. Artificial.');
+    const h = callMeanings(auctionOf('North', ['1H', 'Pass', '2H', 'Pass', '2S', 'Pass']));
+    expect(h.get('2NT')).toBe('Asks where the short suit is. Artificial.');
+  });
+
   it('reads the same auction the same way every time', () => {
     const a = auctionOf('North', ['1NT', 'Pass']);
     expect([...callMeanings(a)]).toEqual([...callMeanings(a)]);

@@ -16,6 +16,7 @@ lives here, not in ai.py, because ai.py imports no randomness at all.
 from __future__ import annotations
 
 from ai import ai_bid_explained
+from gib import understood_alert
 from card import Card, RANKS, SUITS
 from game import AuctionState
 
@@ -102,6 +103,6 @@ def gib_alert(auction: AuctionState, call: str) -> str | None:
             if sum(whys.values()) >= ENOUGH:
                 break
     if not whys:
-        return None
+        return understood_alert(here, call)
     # Each call should read one way; if an odd auction splits it, the commonest.
     return max(whys.items(), key=lambda kv: kv[1])[0]

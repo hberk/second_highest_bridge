@@ -39,6 +39,10 @@
       <input type="checkbox" bind:checked={settings.fastPlay} />
       <span>Fast play<small>The next trick starts by itself.</small></span>
     </label>
+    <label class="setting">
+      <input type="checkbox" bind:checked={settings.alwaysNext} />
+      <span>Always show Next trick<small>Also after a trick you won.</small></span>
+    </label>
   </fieldset>
   <fieldset>
     <legend>Saved on this device</legend>

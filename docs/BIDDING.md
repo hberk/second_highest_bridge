@@ -324,6 +324,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     for each trump past three + 3 for a side singleton (5 for a void), and
     bids game at 21 in a minor, 15 in a major. Board 12 is 25. Filtered fresh
     deals, head to head: +1.7 to +3.6 a filtered board (`ROBOT_PROGRESS.md`).
+  - `TWO_SUITER_ALONE` (`gib_bid`, the user's call, 2026-11-22): partner
+    has only passed and they outbid us. With 6-5 or better in the two suits
+    the two-suiter bids the longer (the higher on a tie) cheapest, at most
+    3 of a major or 4 of a minor: (1♥) 2♥ (3♥) P (P) 4♣ on ♠AJ632 ♥T ♦-
+    ♣AQT8653, "6+ ♣, extra shape". Before, `ai._rebid_alone` read 2♥ as
+    hearts and passed. Advancer passes the rebid ("Partner's rebid
+    stands"), or with `TWO_SUITER_ALONE_FIT` bids game in either suit on
+    the `TWO_SUITER_FIT_GAME` count. +0.6 a filtered board (ROBOT_PROGRESS).
   - `TWO_SUITER_BLAST` (`_advance`, the user's call, 2026-11-13): with six
     or more of a major partner showed, advancer bids 4M at once, whatever
     the strength: (1♣) 2♣ (2♠) on ♠- ♥KQJ963 ♦AJT73 ♣65 bid 3♥ (no game
@@ -491,6 +499,18 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     (4♥) 4♠ on 6 JP + 13.5 for the 10-17 overcall, half a point short; 4♠
     took seven tricks. Seeds 7M-9M (5,000 deals): +0.83, +0.63, +1.09 a
     board (t 5.2-7.8). +2 measured +0.56, +6 +0.97; the user picked +4.
+  - **A double of their constructive game is for penalty** (`gib.GAME_PENALTY_X`
+    with `ai.PENALTY_FIT_JP = 4`, on: the user's pick, 2026-11-22; the user's
+    training deal 374, 2026-11-22): 1♥ P 2♥ P 3♠ P 4♥ P P, North ♠K86 ♥Q974
+    passed because X there was a takeout double (13+), and 4♥ went four down.
+    Once both opponents bid to game (a one-level, 1NT, 2♣ or 2NT opening,
+    the game bid not a jump: `game_values_shown`), there is no takeout
+    double, and an agreed suit adds `PENALTY_FIT_JP` judgement points. Part
+    scores keep the takeout double (1♥ P 2♥ P P X). Seeds 7M-9M (5,000
+    deals), JP 4: +0.25, +0.29, +0.18 a board (t 2.6-3.2); JP 2 +0.12. The
+    takeout ban alone over any game lost on pre-emptive raises (2♥ P 4♥ X,
+    then 4♠), -0.05; the fit points in part scores too lost on seed 8
+    (`/mnt/project-files/fit-penalty-x/REPORT.md`).
   - **The penalty double of 1NT is for balanced hands** (`NT_X_SHAPE = 'two'`;
     the user's deal, 2026-11-13): 1NT P P X with ♠AT865 ♥J ♦AK5 ♣QJT4, partner
     transferred to hearts on 0-5-4-4 (systems on) and 2♥ played on a 5-1 fit.
@@ -504,6 +524,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     (`LEBENSOHL_RELAYER_FIX`): 1NT X P 2♥ P 2♠ 2NT P 3♣ P, and the relayer
     passed 3♣ on two clubs ("Nothing to add" in `_nt_runout`). Same deals:
     +6.11, +2.69, +4.71 a board.
+  - **6-4 in the majors bids 2♣, not 2♦** (`CAPPELLETTI_SIX_FOUR`; the
+    user's call, 2026-11-22, PR #76's biggest loss: deal 203, ♠AKQ873
+    ♥AK42 bid 2♦, partner chose 2♥ on three and the invite to 3♥ went
+    -1,400 doubled). 2♦ is kept for 5-4 and 5-5 (and 6-5); the 6-4 hand
+    bids the one-suiter's 2♣ at any strength, then its six-card major over
+    the relay. Fresh deals filtered for a 6-4 major hand with 10+ HCP, 3 x
+    1,000: +1.73, +0.69, +0.97 a filtered board; doubling 1NT with 15+
+    instead measured the same.
   - **The Cappelletti relay is answered** (`RELAY_ANSWER`, `_answer_relay`;
     challenge board 79, 2026-11-07): (1NT) 2♣ (P) 2♦ (P) asks which suit.
     No branch answered it, so `continuation` read 2♦ as forcing and a
@@ -712,6 +740,12 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   nothing to show bids 2NT ("No fit yet. Game forcing.") instead of 3NT,
   unless `MAJOR_OVER_3NT` knows a major fit (1♥ 2♣ 2♥ on a doubleton is 4♥).
   Measured in ROBOT_PROGRESS.md, 11-21: neutral to slightly positive.
+  Before that 2NT (`GF_NO_FIT_SUITS`, 2026-11-22) a hand with a six-card suit
+  of its own rebids it (1♦ 2♣ 2♠ 3♣), and two cards in partner's twice-bid
+  suit raise it, game in a major (not when `MAJOR_OVER_3NT` already knows
+  a major game): the generic 2NT then 3NT reached notrump
+  games on misfits below the 28 HCP they need here. +0.12 / +0.08 / +0.14 a
+  board, 3 x 3,000 fresh deals.
 - **Game by points** (`GAME`, `GAME_MAJOR`, `NT_GAME`, `MAJOR_OVER_3NT`,
   `RESPONSE_MIN`, `LOTT_MAX`; the user's calls, 2026-10-23). Measured with
   `research/gib_fresh_h2h.py` on 3,000 fresh random deals (12,000 boards),
@@ -1027,6 +1061,19 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   ♣KQ6). With 5-6 HCP and a singleton or void in partner's minor, a 4-card
   suit is bid at the one level; the alert says so. 10,000 fresh deals:
   **+0.19, t = +3.4, 241 auctions changed** (103 better, 67 worse).
+- **1♠ first with 5-5 in the majors** (`gib.SPADES_FIRST_55`, `_five_five_rebid`,
+  `_five_five_answer`; the user's board, 2026-11-22: 1♦ 1♥ 3♦ 3NT down one on
+  ♠QT732 ♥KT832 ♦J ♣A6 opposite ♠A ♥A74 ♦AKQ974 ♣T97). Responder to 1♣/1♦
+  with equal length 5+ in both majors bids 1♠ (the cause: 1♠ needed MORE
+  spades). Next round, uncontested: 3♥ game forcing over a jump rebid in the
+  minor, or with judge + opener's minimum >= `SPADES_FIRST_55_GF`
+  (GAME_MAJOR) over 1NT, 2NT, 2m or a lower minor; opener bids 4♥/4♠ with
+  three, else 3NT. Otherwise 2♥ to play over 1NT or 2m; opener passes or
+  prefers 2♠ with more spades. Fresh deals filtered to a 5-5 major hand
+  (2.5% of deals), 3 x 1,000: **+1.33, +1.05, +1.51 points a filtered board,
+  t = +2.5, +1.9, +3.0**; the 3♥ at 3NT values, and opener raising 2♥ on four
+  hearts, measured no better (`/mnt/project-files/spades-first-55/REPORT.md`).
+  In competition responder's second call is unchanged.
 - **A pre-emptor does not bid again unless partner asks** (`ai.PREEMPTOR_PASSES`,
   `_preemptor_passes`; the user's rule, 2026-10-28, training deal 270:
   P 2♦ (2♥) 2♠ (3♦) 3NT, then a double of 4♥). After a weak two or any
@@ -1192,6 +1239,16 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   points, and alerts "6+ ♠"; below it, five cards and 12+ points still
   rebid ("5+"). **+0.27 a board, t = +3.8, 237 auctions**. Partner raising it
   on two cards as well: +0.28, so left out.
+- **A three-level lone rebid needs a seventh card or 16+ HCP**
+  (`ai.REBID_ALONE_THREE = (7, 16)`, 2026-11-22, from the survey of calls no
+  rule defines, `/mnt/project-files/undefined-followups/`): the six-card
+  rebid at the three level with partner silent lost the most of the old
+  system's own-suit rebids against par (1♠ (2♣) P (2♠) 3♠ on six spades and
+  10 HCP, 4♠ doubled). Fresh deals, 3 x 3,000: **+0.48 / +0.29 / +0.39 a
+  board**. Adding a takeout double on shortness instead measured -0.28.
+  The same survey's other suggestions are in ROBOT_PROGRESS (11-22); a game
+  force with no fit now rebids a six-card suit or raises partner's twice-bid
+  suit before the generic 2NT (`gib.GF_NO_FIT_SUITS`, +0.12).
 - **Every lone rebid shows six; a suit doubled and left in is passed**
   (2026-11-04, the user's board 1♦ P P 1♠ X P P 2♠ on ♠AQT82, and the user's
   rules). `REBID_ALONE_SIX_FROM = 2`: with partner silent, repeating my own
@@ -1310,6 +1367,24 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     responder passing opener's decline after 1NT, a transfer and 2NT lost
     1,620 points over 42 auctions. Bidding the game after a decline is right
     here more often than it looks.
+  - **Count the trumps after a game try** (2026-11-22, the user's board
+    1♠ 2♠ 2NT 4♠ -50 and the question "do we need to account for trump length
+    more?"). On ~850 short-suit tries, 4M made 34% with 3 trumps opposite 5,
+    58% with 4 opposite 5, 64% with 3 opposite 6; where responder's honours
+    sat opposite the shortness barely mattered (51% none, 43% with 4+ JP).
+    So responder accepts any game try with four trumps (`TRY_FOUR_ACCEPT`,
+    `TRY_FOUR_ACCEPT_ALL` for help-suit tries) and opener passes the 3M
+    sign-off with five trumps, bidding on with six (`TRY_FIVE_PASS`). Fresh
+    deals filtered for a 5-card major opposite 3+, 3 × 40,000: **+0.03,
+    -0.01, +0.06 a board** (t +2.6, -0.7, +4.2); either half alone is flat
+    or worse. About twice as many auctions stop in 3M as reach game.
+  - **The shortness ask** (same day): after 1♠ 2♠ 2NT or 1♥ 2♥ 2♠, 3♣ / 2NT
+    asks where the shortness is and opener names it (3♣/3♦/3♥, three of the
+    major for the suit with no call of its own). Robot opener answers it; no
+    robot asks: asking and stopping when honours sit opposite the shortness
+    measured -0.02 to -0.05 a board. `understood_alert` gives the ask its
+    meaning for the bidding box (`meanings.gib_alert` / `callMeaning` fall
+    back to it). `/mnt/project-files/short-ask/REPORT.md`.
 - **Takeout double with both majors** (2026-11-03, the user's board: 1♦ by
   West, North passed ♠AKQ7 ♥QJ92 ♦T98 ♣J4): over a 1♣/1♦ opening, four cards
   in each major and three or fewer of their suit is takeout shape even with a
@@ -1410,6 +1485,28 @@ cards, advancer names the suit at the cheapest level, three at most. Fresh deals
 -0.00, +0.04 (noise); both **+0.53, +0.35, +0.22** (t = +5.6, +4.6, +3.0). On deal 51 itself
 hearts by North take 9 tricks double dummy, so 4♥ is down one where 2♥ made an overtrick: the rule wins on
 average, not on that board.
+
+- **Artificial calls are read for what they show** (`gib.ARTIFICIAL_READ`,
+  the user, 2026-11-22: "I don't want to see artificial bids read as natural
+  anymore"). `ai._reads_as` reads each bid from the auction alone: the
+  system's uncontested `shown_suit`, `ai._call_shows` (Cappelletti,
+  Michaels, the unusual 2NT, Drury, the negative X), Cappelletti's 2♣ and
+  its 2♦ relay, transfers over our X of 1NT, and a cue of their suit as
+  partner's suit (not of their 1♣/1♦ opening, often short). `ai._bids_by`
+  and `_first_namer` use it; the flow in `_previous_system` stays on raw
+  calls. Fixed with it: opener raising Drury 2♣ as clubs
+  (`_opener_over_forcing_response`), the Cappelletti bidder raising
+  partner's choice as partner's own suit (now `_two_suiter_choice`: pass, or
+  invite with 15+ HCP or 6-5, `ai.CAPPELLETTI_INVITE_HCP`; never game
+  alone, 4♥ X was -1,300; advancer accepts with 10+, 8+ with four trumps),
+  a transfer after (1NT) X raised as hearts, a cue over the unusual 2NT
+  raised as clubs, and passing partner's cue (`_not_partners_artificial`).
+  Fresh deals: -0.05 a board, in the noise; kept as a correctness fix.
+  A bid of a suit they showed only by a **double** stays natural
+  (`gib.DOUBLE_SHOWN_NATURAL`, the PR #76 review): 1♦ 1♥ X (4+ ♠) 2♠ is the
+  pre-emptive spade bid it was alerted as, not a cue showing hearts. Fresh
+  deals 3 x 3,000: -0.03, +0.01, +0.03 a board (t -1.85, +0.29, +1.87), 23
+  auctions changed (8 better, 14 worse), noise; on so the alerts stay true.
 
 ## The previous system (`ai.USE_GIB = False`)
 

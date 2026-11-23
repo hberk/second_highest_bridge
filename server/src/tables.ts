@@ -93,7 +93,7 @@ export class Tables {
 
   /** `robotDelayMs`: the robots' pace; the tests shorten it. The options are
    *  for a host that bills by the day (Cloudflare's Free plan, cf/); the
-   *  homelab uses neither. `isResting`: whether an error is that day's
+   *  Node server uses neither. `isResting`: whether an error is that day's
    *  allowance running out. `idleCloseMs`: close a table's sockets once nobody
    *  there has done anything for this long (IDLE_CLOSE), since an open socket
    *  keeps the table awake and billed; 0 never. */

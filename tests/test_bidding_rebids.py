@@ -350,3 +350,60 @@ if __name__ == '__main__':
             fn()
             print(f"PASS {name}")
     print("\nLevel discipline verified.")
+
+
+def test_two_suiter_comes_alive_with_extra_shape():
+    """The user's board, 2026-11-22: (1♥) 2♥ Michaels (3♥) P (P) passed on
+    ♠AJ632 ♥T ♦- ♣AQT8653; the cue was read as natural hearts. With 6-5 or
+    better the two-suiter bids its longer suit, and partner places it."""
+    south = hand('AS JS 6S 3S 2S 10H AC QC 10C 8C 6C 5C 3C')
+    a = auction_after('1H', '2H', '3H', 'Pass', 'Pass', dealer='East')
+    assert ai.ai_bid_explained('South', south, a) == ('4C', "6+ ♣, extra shape. Competing.")
+    five_five = hand('AS JS 6S 3S 2S 10H 9H 4H AC QC 10C 8C 6C')
+    assert ai.ai_bid('South', five_five, a) == 'Pass'
+    north = hand('QS 10S QH 9H 3H QD 10D 9D 8D 2D JC 9C 4C')
+    b = auction_after('1H', '2H', '3H', 'Pass', 'Pass', '4C', 'Pass', dealer='East')
+    assert ai.ai_bid_explained('North', north, b) == ('Pass', "Partner's rebid stands.")
+    fit = hand('KS QS 5S 4S 9H 3H 2H QD 9D 8D 2D JC 9C')
+    assert ai.ai_bid('North', fit, b) == '4S'
+
+
+def test_artificial_bids_are_read_for_what_they_show():
+    """gib.ARTIFICIAL_READ (the user, 2026-11-22): Drury is not clubs, a
+    Cappelletti choice is not partner's own suit, a cue shows partner's suit."""
+    def reads(dealer, *calls):
+        seats = PLAYERS[PLAYERS.index(dealer):] + PLAYERS[:PLAYERS.index(dealer)]
+        cs = [(seats[k % 4], c) for k, c in enumerate(calls)]
+        return [ai._reads_as(cs, k) for k in range(len(cs))]
+    assert reads('North', 'Pass', 'Pass', '1H', 'Pass', '2C')[4] == 'H'        # Drury
+    assert reads('East', '1H', '2H')[1] is None                              # Michaels
+    assert reads('North', '1NT', 'X', 'Pass', '2H')[3] == 'S'                # transfer
+    assert reads('North', '1NT', '2C', 'Pass', '2D')[3] is None              # relay
+    assert reads('North', '1H', '2NT', '3C')[2] == 'H'                       # cue over 2NT
+    assert reads('North', 'Pass', '1D', 'Pass', '1H', 'Pass', '1S', '2D')[6] == 'D'
+    # Opener doesn't raise Drury as clubs.
+    opener = hand('QS 6S AH KH JH 9H 2H 10D 8D AC JC 5C 2C')
+    a = auction_after('Pass', 'Pass', '1H', 'Pass', '2C', '2S')
+    assert ai.ai_bid('South', opener, a) != '3C'
+    # The Cappelletti bidder lets a minimum stand and invites with extras.
+    a = auction_after('1NT', '2D', 'Pass', '2H', 'Pass', dealer='West')
+    assert ai.ai_bid_explained('North', hand('AS JS 5S 4S KH JH 9H 5H 3H 8D 6D KC 7C'), a) \
+        == ('Pass', ai.CHOICE_STANDS)
+    assert ai.ai_bid('North', hand('AS QS 5S 4S KH QH JH 5H 3H KD 6D AC 7C'), a) == '3H'
+    # Partner's cue is never passed.
+    a = auction_after('1C', '2S', 'Pass', 'Pass', '3C', 'Pass', '3S', 'Pass', dealer='West')
+    west = hand('9S 5S AH 4H 2H KD 6D AC KC QC 10C 8C 3C')
+    assert ai.ai_bid('West', west, a) != 'Pass'
+
+
+def test_a_suit_shown_only_by_their_double_is_bid_naturally():
+    """gib.DOUBLE_SHOWN_NATURAL (the user, 2026-11-22): 1♦ 1♥ X 2♠ is the
+    pre-emptive spade bid it was alerted as, not a cue showing hearts (fresh
+    deal 98, seed 8M: partner's 4♥ claimed a fit, 2♠ passed it on seven)."""
+    cs = [('East', '1D'), ('South', '1H'), ('West', 'X'), ('North', '2S')]
+    assert ai._reads_as(cs, 3) == 'S'
+    # A bid of their bid suit is still a cue.
+    assert ai._reads_as([('East', '1D'), ('South', '1H'), ('West', '1S'), ('North', '2S')], 3) == 'H'
+    a = auction_after('1D', '1H', 'X', '2S', '3D', '4H', 'Pass', dealer='East')
+    north = hand('KS JS 8S 6S 5S 4S 3S QH 9D 8D 9C 6C 5C')
+    assert ai.ai_bid('North', north, a) == '4S'

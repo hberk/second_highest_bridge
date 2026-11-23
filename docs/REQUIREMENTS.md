@@ -70,6 +70,7 @@ first part of **B7** (the penalty double where X is free).
 | P5 | The last trick can be looked at again from trick 2 on | P1 | Met | `qol.test.ts` |
 | P6 | Forced cards (only one legal) are **not** played for you unless you turn it on; off by default | P1 | Met (2026-10-15) | `settings.autoPlay`, `qol.test.ts` |
 | P7 | Fast play: next trick after a short pause, opt-in | P2 | Met | `settings.fastPlay`, `qol.test.ts` |
+| P7a | Next trick button after every trick, also one you won (a setting, on by default) | P2 | Met (2026-11-22) | `settings.alwaysNext`, `game.test.ts` |
 | P8 | A passed-out board is recorded and counted | P1 | Met | `Game.passedOutCount` |
 | P9 | A session scoreboard: N/S total, made and set, running total, margin against the robots on challenge boards | P2 | Met | `SessionScore.svelte` |
 | P10 | Claim the rest of the tricks | Later | Open | not built; LIN imports claims already |
@@ -157,7 +158,7 @@ in this game. Approved from the phone mockups the same day.
 
 | id | requirement | pri | status | how we know |
 |---|---|---|---|---|
-| E1 | A static site on GitHub Pages; no server | P0 | Met | `pages.yml` |
+| E1 | Solo play is a static site that needs no server (hosted on Cloudflare since 2026-11-22, GitHub Pages before) | P0 | Met | `pages.yml`, `cloudflare` job |
 | E2 | Small: ~105 KB gzipped plus 21 KB of solver | P1 | Met | `npm run build` |
 | E3 | The solver's memory capped for phones (102 MB) | P0 | Met | `TABLE_LIMIT` |
 | E4 | Every string the app shows is escaped; no `{@html}` | P0 | Met | `lin.test.ts` |

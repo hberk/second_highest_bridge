@@ -6,6 +6,52 @@ Releases are tagged on main, and the tag matches the version in
 what it was measured to be worth is in
 [docs/ROBOT_PROGRESS.md](docs/ROBOT_PROGRESS.md).
 
+## v0.1.9-alpha (unreleased)
+
+The approved bidding changes from the Nov 22 boards and an always-on
+Next trick button.
+
+- The game has one site, https://bridge.second-highest.workers.dev: main no
+  longer deploys to GitHub Pages (hberk.github.io), and the homelab is
+  retired (its deploy, log-fetch and auto-update scripts are gone; the Node
+  server stays for local development and tests).
+
+- Play setting "Always show Next trick", on by default: the button shows
+  after every trick, so everyone at a table sees the trick is over. Leading a
+  card straight away still works.
+- After 1M 1y 2m, an invitational responder with a doubleton in opener's
+  major gives preference to 2M instead of bidding 2NT; opener passes it.
+- Responder to 1♣ or 1♦ with 5-5 in the majors bids 1♠ first, then 3♥
+  (game forcing) or 2♥ (to play) next round.
+- A double of the opponents' constructive game (both of them bid, game not
+  a pre-emptive jump) is for penalty, never takeout, and counts our length in
+  their suit.
+- A bid of a suit the opponents showed only by a double (1♦ 1♥ X 2♠) is
+  natural, not a cue for partner's suit.
+- After a game try, count the trumps: responder accepts with four, opener
+  passes the 3M sign-off with five and bids on with six.
+- Robot opener answers the shortness ask after a short-suit game try (the
+  robots never ask it themselves).
+- A two-suiter (Michaels, Unusual 2NT, Cappelletti) with 6-5 or better comes
+  back in after partner passes; advancer passes it or bids game on a real fit.
+- Our artificial calls are read for what they show, never as the suit they
+  name, and partner's artificial bid is never passed. After Cappelletti and
+  partner's choice, the raise invites (15+ HCP or 6-5) and advancer accepts
+  on 10+ HCP, or 8+ with four trumps. Alerts for a raise of a suit I showed
+  first say "agreed", not "support".
+- Over their 1NT, 6-4 in the majors bids 2♣ (one long suit) and then the
+  six-card major; 2♦ for the majors is kept for 5-4 and 5-5.
+- Bidding my own suit again at the three level with partner silent needs a
+  seventh card or 16+ HCP.
+- In a game force with no fit, raise partner's twice-bid suit with two cards
+  or rebid my own six before 2NT/3NT.
+
+The bidding changes together, against all off on 1,000 fresh deals:
++0.91, +0.65, +1.81 points a board (three seeds, t 1.6, 1.2, 3.2). Card play
+is unchanged; on the same 199 deals the changed contracts move tricks given
+away a board to 2.12 for the declaring side, 0.41 for the opening lead and
+1.78 for the defence (from 2.13, 0.41, 1.82).
+
 ## v0.1.8-alpha (unreleased)
 
 Thirteen approved bidding changes from the Nov 19-21 boards, one bidding fix,

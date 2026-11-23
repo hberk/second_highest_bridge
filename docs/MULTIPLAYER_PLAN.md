@@ -1,5 +1,13 @@
 # Multiplayer: the build plan
 
+Status, 2026-11-22: **the homelab is retired.** Cloudflare
+(`https://bridge.second-highest.workers.dev`, M7) is the only host, for solo
+play and tables alike. main no longer publishes `bridge-*` releases, and
+`server/deploy.sh`, `server/fetch-logs.sh` and `server/pull/` are deleted.
+`server/` stays: Cloudflare runs its `Tables` and `Store`, and its Node server
+is the local dev server (`npm run dev:beta`), the socket tests and the bench.
+The homelab sections below are history.
+
 Status, 2026-11-18: **M7 built** (`server/cf/`, [below](#m7-built-2026-11-18)):
 the same tables on Cloudflare at `https://bridge.second-highest.workers.dev`,
 deployed from main by the `cloudflare` job. The homelab keeps serving
@@ -386,7 +394,7 @@ the reset, so the table must show a clear "the table server is resting until
 The 7-day expiry already keeps storage bounded. The table creation rate limit
 is what keeps a leaked link or a script from spending the day's rows.
 
-## Hosting the beta (homelab)
+## Hosting the beta (homelab, retired 2026-11-22)
 
 Built and run by the homelab session; its record is `configs/bridge/` and
 `docs/services.md` in the homelab repo (`e:\Claude\Personal\homelab`). Agreed
