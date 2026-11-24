@@ -1901,11 +1901,14 @@ HANDOFF_B_X_HCP = 14
 #: The passed responder answers that double, passing only with this many of
 #: their suit (None: the fallback decides, which leaves it in on weak hands).
 HANDOFF_B_LEAVE: int | None = None
+#: ...and raises opener's suit first with 3+ (a major) or 4+ (a minor), the
+#: user's idea (2026-11-24), before naming its own longest suit.
+HANDOFF_B_SUPPORT = False
 
 
 def _reopening_rules(player: str, hand: list[Card], auction: AuctionState,
                      legal: list[str], base: tuple) -> tuple | None:
-    if not HANDOFF_B or base[0] != 'Pass':
+    if not HANDOFF_B:
         return None
     v = _seat_view(player, auction)
     calls = [c for _, c in v]
@@ -1920,12 +1923,25 @@ def _reopening_rules(player: str, hand: list[Card], auction: AuctionState,
             and calls[5] == 'Pass' and parse_bid(calls[0]) and parse_bid(calls[3])
             and parse_bid(calls[0])[0] == 1 and parse_bid(calls[3])[0] <= 2
             and auction.calls[-4][0] == player):
-        y = parse_bid(calls[3])[1]
-        if y in SUITS:
+        x, y = parse_bid(calls[0])[1], parse_bid(calls[3])[1]
+        raise_alert = f"3+ {sym.get(x, x)} support, answering the double."
+        if HANDOFF_B_SUPPORT and x in SUITS and parse_bid(base[0]) and parse_bid(base[0])[1] == x:
+            return base[0], raise_alert          # one text for the raise in this auction
+        if base[0] != 'Pass':
+            return None
+        if y in SUITS and x in SUITS:
+            need = 3 if x in gib.MAJORS else 4
+            if HANDOFF_B_SUPPORT and h.len[x] >= need and h.len[y] < HANDOFF_B_LEAVE:
+                call = _cheapest(x, 1, legal)
+                if call:
+                    return call, raise_alert
             if h.len[y] >= HANDOFF_B_LEAVE:
                 return 'Pass', f"Penalty: {HANDOFF_B_LEAVE}+ {sym[y]}."
             ev = eval_hand_sh(hand)
             return _advance_double(player, PARTNERS[player], auction, ev, ev['groups'], legal)
+
+    if base[0] != 'Pass':
+        return None
 
     # B: 1x (P) P (1y/2y) ?
     if (HANDOFF_B and len(v) == 4 and v[0][0] and calls[1] == 'Pass' and calls[2] == 'Pass'
