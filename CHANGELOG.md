@@ -57,6 +57,11 @@ away a board to 2.12 for the declaring side, 0.41 for the opening lead and
 Thirteen approved bidding changes from the Nov 19-21 boards, one bidding fix,
 and the tricks table split by declarer.
 
+- Multiplayer tables moved to Cloudflare (PR #74, merged 2026-11-18): a
+  Worker and a Durable Object per table at
+  https://bridge.second-highest.workers.dev, deployed from main. When the
+  free plan's daily allowance runs out, a table says it is resting and when
+  it is back, in your time.
 - Bidding training's recap and History show double dummy tricks a row per
   declarer, with your contract's cell boxed, so 5♣ by South reads South's
   tricks, not North's.
@@ -315,7 +320,8 @@ The first tagged release: everything up to and including PR #62.
 - Hand history with a card-by-card replayer, double dummy marks on every card
   (the Rust solver as WebAssembly), and LIN export and import.
 - Multiplayer beta at bridge.ettamei.com: two to four people, robots in the
-  other seats.
+  other seats (both addresses since retired: the game is at
+  https://bridge.second-highest.workers.dev from v0.1.9-alpha).
 
 **The robots**
 - GIB 2/1 bidding, with the competitive rules from the championship study

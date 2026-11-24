@@ -174,6 +174,13 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   that promised five (a major opening, any overcall) against a second that
   promised four: a doubleton or more one short of the second goes back to
   the first. Seeds 7M-9M, 3,000 each: +0.08, +0.14, +0.10 (ROBOT_PROGRESS).
+- **Preference to 2M over 2NT** (`gib.PREFER_OVER_2NT`, `PREFER_CONTINUE`;
+  the user's board, 2026-11-22: 1♥ 1♠ 2♦ 2NT down one on ♠K9652 ♥Q4 ♦KT5
+  ♣K42). After 1M 1y 2m, an invitational responder with a doubleton in
+  opener's major, no six-card suit and no fit for the minor bids 2M, not
+  2NT; opener passes it (`PREFER_CONTINUE = None`: an 18-point opener's try
+  over the preference reached no game). Seeds 7M-9M, 30,000 each: +0.01,
+  +0.02, +0.01 (ROBOT_PROGRESS).
 - **Preference after a negative double** (`NEG_PREFERENCE`,
   `_negative_doubler_preference`, `_preference_stands`; the user's board,
   2026-11-09: P 1♦ (1♠) X (P) 2♣ passed out on ♠AQ875 ♥9432 ♦AK4 ♣J).

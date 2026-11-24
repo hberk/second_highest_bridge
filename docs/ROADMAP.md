@@ -13,6 +13,14 @@ bid, and get a yes on the bridge before writing code. Don't open a PR for a
 robot change or a UI change until the user has seen the results (or a phone
 screenshot) and said so.
 
+**Out of date (noted 2026-11-24).** This list stopped at 2026-10-28. Since
+then the work has followed the boards the user plays (v0.1.1 to v0.1.9-alpha,
+CHANGELOG), and 0.2 and 0.3 below are done: the challenge losses were rerun
+(ROBOT_PROGRESS) and B7's doubles shipped. The open items are re-ranked in
+[REQUIREMENTS.md](REQUIREMENTS.md#the-order-to-build); rewrite this file from
+there when the user confirms that order. "Online play" below is built
+(MULTIPLAYER_PLAN).
+
 ## Now (2026-10-26)
 
 The robots lose 240.8 points a board in the auction and 20.7 in the play
