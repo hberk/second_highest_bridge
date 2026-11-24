@@ -2026,10 +2026,10 @@ def _overcall_rebid_rules(player: str, hand: list[Card], auction: AuctionState,
     if len(v) != 4 or base[0] != 'Pass':
         return None
     if h.balanced and h.stopper(z):
-        if OPENER_OVERCALL_REBID == 'all':
+        if OPENER_OVERCALL_REBID in ('all', 'no2nt'):
             if 12 <= h.hcp <= 14 and '1NT' in legal:
                 return '1NT', "12-14 HCP, balanced, a stopper in their suit."
-            if 18 <= h.hcp <= 19 and '2NT' in legal:
+            if OPENER_OVERCALL_REBID == 'all' and 18 <= h.hcp <= 19 and '2NT' in legal:
                 return '2NT', "18-19 HCP, balanced, a stopper in their suit."
         return None
     if h.balanced or h.hcp < 16:
