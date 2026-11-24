@@ -9,8 +9,11 @@ Nothing to install, no account. Solo play runs entirely in the page, and your
 finished boards are saved in your browser.
 
 **Play with friends (beta):** on the same site, two to four people at one
-table, robots in the empty seats, by invite link. The tables run on
-Cloudflare's free plan, so on a very busy day they can rest until midnight UTC.
+table, robots in the empty seats, by invite link and a name, no account.
+Everyone sees the table from their own seat at the bottom, a dropped
+connection picks up where it left off, and finished boards land in each
+player's history. The tables run on Cloudflare's free plan, so on a very busy
+day they can rest until midnight UTC.
 
 ## The rules
 
@@ -29,12 +32,17 @@ and many of bridge's instincts point the wrong way.
 
 - **Play South against three robots.** They bid **GIB 2/1**, the system BBO's
   robots play, with alerts on every robot call: hover a call to see what it
-  shows. Alert your own calls too.
+  shows, and tap a call in the bidding box to see what it would show before
+  you make it. Alert your own calls too.
+- **Bidding training.** Bid South with a robot partner on deals of its own;
+  the board ends with the auction and is scored against par, with partner's
+  hand, the robots' auction on the same deal and what every contract makes.
 - **Challenge the robots.** Deals come from a library of 400 deals solved
   exactly (double dummy) in every strain. You play a board, an all-robot table
   plays the same cards, and the difference is split into what the **auction**
   cost and what the **card play** cost.
-- **Hand history.** Replay any board card by card, and export or import it as
+- **Hand history.** Replay any board card by card, see how many tricks each
+  declarer makes in every strain and the par score, and export or import it as
   LIN, BBO's hand-record format. LINs are replayed under second-highest rules,
   so a board played under ordinary rules will usually be refused.
 - **A double dummy solver** for the variant, which is how the library was
@@ -44,21 +52,22 @@ and many of bridge's instincts point the wrong way.
 
 ## How good the robots are
 
-On the 400 library deals at all 16 board positions (v0.1.0-alpha, measured
-2026-11-03 by `research/challenge_losses.py`):
+Measured on the library deals with v0.1.9-alpha's robots:
 
 - **Card play still gives away tricks on both sides.** Scored card by card
-  against double dummy (v0.1.4-alpha, 2026-11-10, 199 library deals), the declaring
-  side gives away 2.2 tricks a board and the defence 2.3 (0.4 of it on the opening lead); 93%
-  of boards have at least one costly card. The endings are close to perfect
-  (2% of cards in the last four tricks cost one), the middle of the hand is
-  not. Because robots sit on both sides, those mistakes mostly cancel in the
-  final score, which is why the older net figures (5 points a board, 0.025
-  tricks) looked close to perfect.
-- **The auction is where the points go:** 233 points a board below par, the
-  double dummy best result for both sides. Par assumes perfect bidding by
-  everyone, so no table reaches it, but it is the figure each bidding change
-  is measured against.
+  against double dummy (2026-11-22, 199 library deals), the declaring side
+  gives away 2.1 tricks a board and the defence 2.2 (0.4 of it on the opening
+  lead), down from 2.8 and 2.9 at v0.1.1-alpha; 94% of boards still have at
+  least one costly card. The endings are close to perfect, the middle of the
+  hand is not. Because robots sit on both sides, those mistakes mostly cancel
+  in the final score, which is why net figures look close to perfect.
+- **The auction is where the points go:** 237 points a board below par
+  (2026-11-24, all 400 library deals at all 16 board positions,
+  `research/challenge_losses.py`), par here being the best result the side
+  could reach double dummy. No table reaches it, and the figure hardly moves
+  between releases (233 at v0.1.0-alpha) because robots sit in every seat:
+  what one pair gains, the other gives back. So each bidding change is
+  measured head to head instead, robots with it against robots without.
 
 Every rule the robots use, and what it was worth, is in
 [`docs/ROBOT_PROGRESS.md`](docs/ROBOT_PROGRESS.md); changes by release are in
@@ -80,16 +89,24 @@ The Python code at the top level is the reference engine the web app is ported
 from: rules, scoring, robot bidding and play, the solver and the research
 tooling. It needs Python 3.12 and nothing else to install.
 
+The tables have a local server (Node 24) for development: run it with
+`cd server && npm install && npm run dev`, then `npm run dev:beta` in
+`frontend/`. `server/cf/` is the same tables as a Cloudflare Worker, the one
+that is deployed.
+
 Tests:
 
 ```bash
 python tests/run_all.py     # the Python engine and solver
 cd frontend && npm test     # the web app, held to the Python engine call for call
+cd server && npm test       # the tables over real sockets
+cd server/cf && npm test    # the tables on Cloudflare's runtime
 ```
 
 The web app's engine is a line-for-line TypeScript port of the Python one. Its
 tests check that it reproduces the Python engine exactly: every call, alert
-and card over 1,200 full games, and all 400 library deals.
+and card over 800 full games, and the robot table, grade and par of two in
+three of the library deals.
 
 Design notes and measurements live in [`docs/`](docs/), with
 [`CLAUDE.md`](CLAUDE.md) as the overview. Every improvement to the robots and

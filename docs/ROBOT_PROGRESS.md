@@ -18,6 +18,7 @@ graded from N/S as the app grades):
 
 | measured | robots | lost in the auction | lost in the card play |
 |---|---|---|---|
+| 2026-11-24 | v0.1.9-alpha (main after PR #76; run on 4 processes with the same loop and grading, Python 3.12; from the declaring side 206.3 / 5.4; 33 of 6,400 boards passed out). Robots sit in all four seats, so a bidding gain for one side is mostly given back by the other | **236.6** | **-3.7** |
 | 2026-11-03 | v0.1.0-alpha (PR #62): the Nov 3 bidding fixes, the 6-5 Michaels invite, the opening-suit cuebid fix | **233.1** | **5.0** |
 | 2026-11-03 | main before PR #62 (PR #61's robots, every bidding change through 11-02) | 233.6 | 5.3 |
 | 2026-10-28 | fourth hand wins with a dead card first (`DEAD_WINNER_FIRST`; from the declaring side the play went from -11.8 to -21.0, see CHALLENGE.md; bidding before PR #40's jam rule) | **240.8** | **20.7** |
