@@ -2008,6 +2008,14 @@ def _overcall_rebid_rules(player: str, hand: list[Card], auction: AuctionState,
             call = _cheapest(y, 1, legal)
             if call:
                 return call, f"6+ {sym[y]}. Rebidding my own suit."
+        if r[1] == 'NT' and r[0] == 1 and h.len[y] >= 5:
+            # A second four-card suit, below mine, at the two level (the user's rule).
+            for s in sorted((s for s in SUITS if s not in (y, z) and h.len[s] >= 4
+                             and SUITS.index(s) < SUITS.index(y)),
+                            key=lambda s: (-h.len[s], -SUITS.index(s))):
+                call = _cheapest(s, 2, legal)
+                if call and parse_bid(call)[0] == 2:
+                    return call, f"5+ {sym[y]}, 4+ {sym[s]}."
         if r[1] in SUITS and r[1] not in (x, y, z) and h.len[x] > h.len[r[1]]:
             call = _cheapest(x, 1, legal)
             if call and parse_bid(call)[0] <= 3:
