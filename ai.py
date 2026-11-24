@@ -1855,6 +1855,9 @@ HANDOFF_A: int | None = None          # judge needed for game (e.g. 16)
 #: B: 1x (P) P (1y/2y) ?  opener reopens: takeout X short in theirs, or 5-5.
 HANDOFF_B = False
 HANDOFF_B_X_HCP = 14
+#: The passed responder answers that double, passing only with this many of
+#: their suit (None: the fallback decides, which leaves it in on weak hands).
+HANDOFF_B_LEAVE: int | None = None
 #: C: 1x (P) 1y (1z) ?  opener's rebid: NT with their suit stopped, or a jump
 #:    rebid / new suit with extras. 'strong' leaves out the 12-14 1NT.
 HANDOFF_C: str | None = None          # 'all' or 'strong'
@@ -1901,6 +1904,21 @@ def _handoff_rules(player: str, hand: list[Card], auction: AuctionState,
 
     if base[0] != 'Pass':
         return None
+
+    # B, partner's answer: 1x (P) P (1y/2y) X (P) ?  the passed responder treats
+    # opener's reopening double as takeout, and leaves it in only with
+    # HANDOFF_B_LEAVE+ cards in their suit.
+    if (HANDOFF_B and HANDOFF_B_LEAVE is not None and len(v) == 6 and v[0][0]
+            and calls[1] == 'Pass' and calls[2] == 'Pass' and calls[4] == 'X'
+            and calls[5] == 'Pass' and parse_bid(calls[0]) and parse_bid(calls[3])
+            and parse_bid(calls[0])[0] == 1 and parse_bid(calls[3])[0] <= 2
+            and auction.calls[-4][0] == player):
+        y = parse_bid(calls[3])[1]
+        if y in SUITS:
+            if h.len[y] >= HANDOFF_B_LEAVE:
+                return 'Pass', f"Penalty: {HANDOFF_B_LEAVE}+ {sym[y]}."
+            ev = eval_hand_sh(hand)
+            return _advance_double(player, PARTNERS[player], auction, ev, ev['groups'], legal)
 
     # B: 1x (P) P (1y/2y) ?
     if (HANDOFF_B and len(v) == 4 and v[0][0] and calls[1] == 'Pass' and calls[2] == 'Pass'
