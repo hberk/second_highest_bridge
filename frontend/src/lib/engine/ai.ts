@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { advanceRaiseGuard, ARTIFICIAL_READ, Ctx, DOUBLE_SHOWN_NATURAL, NT_X_SYSTEMS, OVER_1NT_2C, shownSuit, doublerGuard, FIVE_TWO_PREFERENCE, gibBid, Hand, ourTwoSuiter, isGameBid, gameValuesShown, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
+import { advanceRaiseGuard, ARTIFICIAL_READ, Ctx, DOUBLE_SHOWN_NATURAL, NT_X_SYSTEMS, OVER_1NT_2C, shownSuit, doublerGuard, FIVE_TWO_PREFERENCE, gibBid, Hand, ourTwoSuiter, isGameBid, gameValuesShown, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, rankOf, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -1321,7 +1321,8 @@ function systemBidExplained(player: Seat, hand: Card[], auction: AuctionState): 
     if (decision) return decision;
   }
   let decision = previousSystem(player, hand, auction, legal);
-  decision = preemptRaiseGame(player, hand, auction, legal, decision) ?? decision;
+  decision = preemptRaiseGame(player, hand, auction, legal, decision)
+    ?? reopeningRules(player, hand, auction, legal, decision) ?? decision;
   if (ARTIFICIAL_READ) {
     const placed = notPartnersArtificial(player, auction, legal);
     if (placed && (decision[0] === 'Pass' || decision[0] === placed[0])) decision = placed;
@@ -1368,6 +1369,74 @@ function preemptRaiseGame(player: Seat, hand: Card[], auction: AuctionState,
   } else if (base[0] === 'Pass' && h.judge >= PREEMPT_RAISE_GAME_JUDGE && h.stopper(y)
              && !h.short().length && legal.includes('3NT')) {
     return ['3NT', 'To play.'];
+  }
+  return null;
+}
+
+/** Opener reopens 1x (P) P (1y/2y) ?: takeout double short in theirs, or a
+ *  second five-card suit; the passed responder always answers it, raising
+ *  opener's suit first. See ai.py. */
+export const REOPENING_DOUBLE = true;
+export const REOPENING_X_HCP = 14;
+
+function reopeningRules(player: Seat, hand: Card[], auction: AuctionState,
+                        legal: string[], base: Decision): Decision | null {
+  if (!REOPENING_DOUBLE) return null;
+  const v = seatView(player, auction);
+  const calls = v.map(([, c]) => c);
+  const h = new Hand(hand);
+  const isSuit = (s: string) => (SUITS as readonly string[]).includes(s);
+
+  // Partner's answer: 1x (P) P (1y/2y) X (P) ?, I am the passed responder.
+  const p0 = calls.length ? parseBid(calls[0]) : null;
+  const p3 = calls.length > 3 ? parseBid(calls[3]) : null;
+  if (v.length === 6 && v[0][0] && calls[1] === 'Pass' && calls[2] === 'Pass'
+      && calls[4] === 'X' && calls[5] === 'Pass' && p0 && p3 && p0[0] === 1 && p3[0] <= 2
+      && auction.calls[auction.calls.length - 4][0] === player) {
+    const x = p0[1], y = p3[1];
+    if (!isSuit(x) || !isSuit(y)) return null;
+    const raiseAlert = `3+ ${SUIT_SYM[x]} support, answering the double.`;
+    const b = parseBid(base[0]);
+    if (b && b[1] === x) return [base[0], raiseAlert];
+    if (base[0] !== 'Pass') return null;
+    if (h.len[x as Suit] >= (x === 'H' || x === 'S' ? 3 : 4)) {
+      const call = cheapest(x, 1, legal);
+      if (call) return [call, raiseAlert];
+    }
+    const own = SUITS.filter((s) => s !== x && s !== y);
+    const n = Math.max(...own.map((s) => h.len[s]));
+    const tied = own.filter((s) => h.len[s] === n);
+    const best = n <= 4 ? tied[0] : tied[tied.length - 1];
+    const cheap = cheapest(best, 1, legal);
+    if (!cheap) return null;
+    let call = cheap;
+    if (points(evalHandSh(hand).groups) >= ADVANCE_JUMP_POINTS) {
+      call = cheapest(best, parseBid(cheap)![0] + 1, legal) ?? cheap;
+    }
+    if (call !== cheap) return [call, `${ADVANCE_JUMP_POINTS}+ points, longest suit, ${SUIT_SYM[best]}. Answering the double.`];
+    return [call, `Longest suit other than theirs, ${SUIT_SYM[best]}. Answering the double.`];
+  }
+
+  if (base[0] !== 'Pass') return null;
+
+  // Opener: 1x (P) P (1y/2y) ?
+  if (v.length === 4 && v[0][0] && calls[1] === 'Pass' && calls[2] === 'Pass'
+      && p0 && p3 && p0[0] === 1 && p3[0] <= 2) {
+    const x = p0[1], y = p3[1];
+    if (!isSuit(x) || !isSuit(y)) return null;
+    if (h.len[y as Suit] <= 1 && h.hcp >= REOPENING_X_HCP && legal.includes('X')) {
+      return ['X', `Reopening: short in ${SUIT_SYM[y]}, ${REOPENING_X_HCP}+ HCP.`];
+    }
+    if (h.len[x as Suit] >= 5) {
+      const fives = SUITS.filter((s) => s !== x && s !== y && h.len[s] >= 5).reverse();
+      for (const s of fives) {
+        const call = cheapest(s, 1, legal);
+        if (!call || parseBid(call)![0] > 2) continue;
+        const reverse = parseBid(call)![0] === 2 && rankOf(`1${s}`) > rankOf(`1${x}`);
+        const need = reverse ? 16 : 14;
+        if (h.hcp >= need) return [call, `5+ ${SUIT_SYM[x]}, 5+ ${SUIT_SYM[s]}, ${need}+ HCP.`];
+      }
+    }
   }
   return null;
 }

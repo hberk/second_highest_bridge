@@ -457,7 +457,8 @@ from the variant's side; t as above.
 | 11-24 | ...the same without the 12-14 1NT | -0.04, -0.06, -0.02 | -0.39, -1.20, -1.00 | 11, 9, 1 | off |
 | 11-24 | ...the overcaller's second call, partner silent and their bid at the two level: bid a second five-card suit on 10+ HCP | 0.00, +0.01, 0.00 | 0, +1.37, +0.66 | 0, 2, 3 | off (almost never fires) |
 | 11-24 | ...opener reopens 1x (P) P (1y/2y): takeout double on a singleton or void in theirs and 14+ HCP, or a 5-5 second suit (14+, a reverse 16+) (`HANDOFF_B`); the passed responder's fallback leaves the double in on weak hands (1♥ P P 2♣ X P P P, -450) | 0.00, -0.12, +0.01 | +0.16, -2.65, +0.20 | 20, 44, 44 | off |
-| 11-24 | ...with the passed responder answering that double as takeout (`_advance_double`) and leaving it in only with 5+ of their suit (`HANDOFF_B_LEAVE` 5); seeds 7M-12M (`/mnt/project-files/handoff-rules/b2/`). With 4+: -0.07 on 8M; always answering: +0.02 | +0.01, +0.05, +0.08, -0.01, 0.00, +0.01 | +1.33, +1.55, +1.49, -0.70, 0, +1.46 | 20, 44, 44, 26, 41, 48 | off (pending your pick) |
+| 11-24 | ...with the passed responder answering that double as takeout (`_advance_double`) and leaving it in only with 5+ of their suit (`HANDOFF_B_LEAVE` 5); seeds 7M-12M (`/mnt/project-files/handoff-rules/b2/`). With 4+: -0.07 on 8M; always answering: +0.02 | +0.01, +0.05, +0.08, -0.01, 0.00, +0.01 | +1.33, +1.55, +1.49, -0.70, 0, +1.46 | 20, 44, 44, 26, 41, 48 | off |
+| 11-24 | ...and partner raising opener's suit first with 3+ (a major) or 4+ (a minor), else its own longest suit, four-card suits up the line (`HANDOFF_B_SUPPORT`, the user's rule), never leaving the double in (`HANDOFF_B_LEAVE` 14); leaving it in with 5+ of theirs: +0.03 | +0.05, +0.07, +0.08, 0.00, 0.00, +0.09 | +2.13, +1.54, +1.35, +1.00, +0.07, +2.21 | 20, 44, 44, 26, 41, 48 | on (your pick; `REOPENING_DOUBLE`) |
 
 ### The previous system (`ai_bid`)
 

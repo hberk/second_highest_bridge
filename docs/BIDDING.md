@@ -1261,6 +1261,16 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   +0.03). Opener's rebid over a one-level overcall (NT with a stopper, strong
   rebids) lost -0.05, the overcaller's second five-card suit almost never
   fires; both are in ROBOT_PROGRESS (11-24).
+- **Opener reopens, and the passed responder answers** (`ai.REOPENING_DOUBLE`,
+  2026-11-24, the handoff survey's biggest family). In 1x (P) P (1y/2y) the
+  fallback always passed. Opener now doubles for takeout on a singleton or
+  void in their suit and 14+ HCP (`REOPENING_X_HCP`), or bids a second
+  five-card suit (14+, a reverse 16+). Partner never leaves the double in:
+  the fallback had passed weak hands ("Fewer than 6 points."), reading only
+  opener's 1x, and that lost -0.04 a board. It raises opener's suit with 3+
+  (a major) or 4+ (a minor), else bids its longest suit, four-card suits up
+  the line (the user's rules). Six sets of 3,000 fresh deals: **+0.05 a
+  board**, no set negative; leaving it in with 5+ of theirs scored +0.03.
 - **Every lone rebid shows six; a suit doubled and left in is passed**
   (2026-11-04, the user's board 1♦ P P 1♠ X P P 2♠ on ♠AQT82, and the user's
   rules). `REBID_ALONE_SIX_FROM = 2`: with partner silent, repeating my own

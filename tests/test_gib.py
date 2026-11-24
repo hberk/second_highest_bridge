@@ -2866,3 +2866,17 @@ def test_opener_bids_game_over_a_preemptive_raise_with_judgement_points():
     assert bid(aces, '1H', '2D', '3H', 'Pass')[0] == 'Pass'
     minor = 'KS 9S KH 10H 5H 2H QD 4D 3D AC QC 9C 7C'
     assert bid(minor, '1C', '2S', '3C', 'Pass') == ('3NT', 'To play.')
+
+
+def test_opener_reopens_and_the_passed_responder_answers():
+    # The handoff survey (2026-11-24): 1x (P) P (1y) ? never reopened, and once
+    # it did the passed responder left the double in on weak hands.
+    assert bid('JS AH KH 10H 5H AD JD 7D 2D QC 9C 8C 6C', '1D', 'Pass', 'Pass', '1S') == (
+        'X', 'Reopening: short in ♠, 14+ HCP.')
+    assert bid('KS QS KH JH 4H 3H 2H JD AC KC 8C 7C 3C', '1H', 'Pass', 'Pass', '1S') == (
+        '2C', '5+ ♥, 5+ ♣, 14+ HCP.')
+    # Partner raises opener's suit first, else bids four-card suits up the line.
+    assert bid('KS 6S 5S JH 10H 9H 4H QD 9D 6D 8C 6C 5C', '1S', 'Pass', 'Pass', '2D', 'X', 'Pass') == (
+        '2S', '3+ ♠ support, answering the double.')
+    assert bid('QS 9S 8S 2S 5H 4H 3H 2H QD 8D 3D 8C 6C', '1D', 'Pass', 'Pass', '2C', 'X', 'Pass') == (
+        '2H', 'Longest suit other than theirs, ♥. Answering the double.')

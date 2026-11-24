@@ -1892,83 +1892,71 @@ def _preempt_raise_game(player: str, hand: list[Card], auction: AuctionState,
     return None
 
 
-#: Research only (2026-11-24, off): opener reopens 1x (P) P (1y/2y) ? with a
-#: takeout double short in their suit (HANDOFF_B_X_HCP+) or a 5-5 second suit.
-#: As first measured it lost (-0.04 a board): the passed responder's fallback
-#: left the double in on weak hands. HANDOFF_B_LEAVE makes it answer.
-HANDOFF_B = False
-HANDOFF_B_X_HCP = 14
-#: The passed responder answers that double, passing only with this many of
-#: their suit (None: the fallback decides, which leaves it in on weak hands).
-HANDOFF_B_LEAVE: int | None = None
-#: ...and raises opener's suit first with 3+ (a major) or 4+ (a minor), the
-#: user's idea (2026-11-24), before naming its own longest suit. 'first': the
-#: raise comes before leaving the double in, too.
-HANDOFF_B_SUPPORT: bool | str = False
+#: Opener reopens 1x (P) P (1y/2y) ?, where GIB hands off and the fallback
+#: always passed (the 2026-11-24 handoff survey, the user's pick): a takeout
+#: double on a singleton or void in their suit and REOPENING_X_HCP+, or a
+#: second five-card suit with five of mine (14+, a reverse 16+). The passed
+#: responder always answers the double, never leaving it in: it raises
+#: opener's suit with 3+ (a major) or 4+ (a minor), else bids its longest
+#: suit, four-card suits up the line (the user's rules). As first built,
+#: partner's fallback left the double in on weak hands and it lost -0.04 a
+#: board; answered this way, six sets of 3,000 fresh deals: +0.05.
+REOPENING_DOUBLE = True
+REOPENING_X_HCP = 14
 
 
 def _reopening_rules(player: str, hand: list[Card], auction: AuctionState,
                      legal: list[str], base: tuple) -> tuple | None:
-    if not HANDOFF_B:
+    if not REOPENING_DOUBLE:
         return None
     v = _seat_view(player, auction)
     calls = [c for _, c in v]
     h = gib.Hand(hand)
     sym = SUIT_SYM
 
-    # B, partner's answer: 1x (P) P (1y/2y) X (P) ?  the passed responder treats
-    # opener's reopening double as takeout, and leaves it in only with
-    # HANDOFF_B_LEAVE+ cards in their suit.
-    if (HANDOFF_B and HANDOFF_B_LEAVE is not None and len(v) == 6 and v[0][0]
-            and calls[1] == 'Pass' and calls[2] == 'Pass' and calls[4] == 'X'
-            and calls[5] == 'Pass' and parse_bid(calls[0]) and parse_bid(calls[3])
-            and parse_bid(calls[0])[0] == 1 and parse_bid(calls[3])[0] <= 2
-            and auction.calls[-4][0] == player):
+    # Partner's answer: 1x (P) P (1y/2y) X (P) ?, I am the passed responder.
+    if (len(v) == 6 and v[0][0] and calls[1] == 'Pass' and calls[2] == 'Pass'
+            and calls[4] == 'X' and calls[5] == 'Pass' and parse_bid(calls[0])
+            and parse_bid(calls[3]) and parse_bid(calls[0])[0] == 1
+            and parse_bid(calls[3])[0] <= 2 and auction.calls[-4][0] == player):
         x, y = parse_bid(calls[0])[1], parse_bid(calls[3])[1]
-        raise_alert = f"3+ {sym.get(x, x)} support, answering the double."
-        if HANDOFF_B_SUPPORT and x in SUITS and parse_bid(base[0]) and parse_bid(base[0])[1] == x:
+        if x not in SUITS or y not in SUITS:
+            return None
+        raise_alert = f"3+ {sym[x]} support, answering the double."
+        if parse_bid(base[0]) and parse_bid(base[0])[1] == x:
             return base[0], raise_alert          # one text for the raise in this auction
         if base[0] != 'Pass':
             return None
-        if y in SUITS and x in SUITS:
-            need = 3 if x in gib.MAJORS else 4
-            if (HANDOFF_B_SUPPORT and h.len[x] >= need
-                    and (HANDOFF_B_SUPPORT == 'first' or h.len[y] < HANDOFF_B_LEAVE)):
-                call = _cheapest(x, 1, legal)
-                if call:
-                    return call, raise_alert
-            if h.len[y] >= HANDOFF_B_LEAVE:
-                return 'Pass', f"Penalty: {HANDOFF_B_LEAVE}+ {sym[y]}."
-            ev = eval_hand_sh(hand)
-            if HANDOFF_B_SUPPORT:
-                # My own longest suit; four-card suits up the line, longer ones
-                # from the top (the user's rule, 2026-11-24).
-                own = [s for s in SUITS if s not in (x, y)]
-                n = max(h.len[s] for s in own)
-                tied = [s for s in own if h.len[s] == n]
-                best = min(tied, key=SUITS.index) if n <= 4 else max(tied, key=SUITS.index)
-                cheapest = _cheapest(best, 1, legal)
-                jump = _points(ev['groups']) >= ADVANCE_JUMP_POINTS and cheapest
-                call = _cheapest(best, parse_bid(cheapest)[0] + 1, legal) if jump else cheapest
-                if call and call != cheapest:
-                    return call, f"{ADVANCE_JUMP_POINTS}+ points, longest suit, {sym[best]}. Answering the double."
-                if call:
-                    return call, f"Longest suit other than theirs, {sym[best]}. Answering the double."
-            return _advance_double(player, PARTNERS[player], auction, ev, ev['groups'], legal)
+        if h.len[x] >= (3 if x in gib.MAJORS else 4):
+            call = _cheapest(x, 1, legal)
+            if call:
+                return call, raise_alert
+        own = [s for s in SUITS if s not in (x, y)]
+        n = max(h.len[s] for s in own)
+        tied = [s for s in own if h.len[s] == n]
+        best = min(tied, key=SUITS.index) if n <= 4 else max(tied, key=SUITS.index)
+        cheapest = _cheapest(best, 1, legal)
+        if not cheapest:
+            return None
+        call = cheapest
+        if _points(eval_hand_sh(hand)['groups']) >= ADVANCE_JUMP_POINTS:
+            call = _cheapest(best, parse_bid(cheapest)[0] + 1, legal) or cheapest
+        if call != cheapest:
+            return call, f"{ADVANCE_JUMP_POINTS}+ points, longest suit, {sym[best]}. Answering the double."
+        return call, f"Longest suit other than theirs, {sym[best]}. Answering the double."
 
     if base[0] != 'Pass':
         return None
 
-    # B: 1x (P) P (1y/2y) ?
-    if (HANDOFF_B and len(v) == 4 and v[0][0] and calls[1] == 'Pass' and calls[2] == 'Pass'
+    # Opener: 1x (P) P (1y/2y) ?
+    if (len(v) == 4 and v[0][0] and calls[1] == 'Pass' and calls[2] == 'Pass'
             and parse_bid(calls[0]) and parse_bid(calls[3])
             and parse_bid(calls[0])[0] == 1 and parse_bid(calls[3])[0] <= 2):
-        x = parse_bid(calls[0])[1]
-        y = parse_bid(calls[3])[1]
+        x, y = parse_bid(calls[0])[1], parse_bid(calls[3])[1]
         if x not in SUITS or y not in SUITS:
             return None
-        if h.len[y] <= 1 and h.hcp >= HANDOFF_B_X_HCP and 'X' in legal:
-            return 'X', f"Takeout: short in {sym[y]}, {HANDOFF_B_X_HCP}+ HCP."
+        if h.len[y] <= 1 and h.hcp >= REOPENING_X_HCP and 'X' in legal:
+            return 'X', f"Reopening: short in {sym[y]}, {REOPENING_X_HCP}+ HCP."
         if h.len[x] >= 5:
             for s in sorted((s for s in SUITS if s not in (x, y) and h.len[s] >= 5),
                             key=lambda s: -SUITS.index(s)):
@@ -1979,7 +1967,7 @@ def _reopening_rules(player: str, hand: list[Card], auction: AuctionState,
                 need = 16 if reverse else 14
                 if h.hcp >= need:
                     return call, f"5+ {sym[x]}, 5+ {sym[s]}, {need}+ HCP."
-        return None
+    return None
 
 
 def _not_partners_artificial(player: str, auction: AuctionState, legal: list[str]) -> tuple | None:
