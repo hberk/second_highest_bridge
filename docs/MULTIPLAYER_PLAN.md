@@ -857,7 +857,7 @@ GitHub environment `cloudflare` that only main may use.
 | MP7 | A departed player's seat can go to a robot and come back | P1 | `core.test.ts`, Playwright |
 | MP8 | Finished table boards appear in each player's History and LIN export | P1 | `core.test.ts` LIN round trip |
 | MP9 | Joining needs only a link and a name | P1 | Playwright |
-| MP10 | Solo and Challenge make no network calls | P0 | CSP; a test that a solo board opens no socket |
+| MP10 | Solo and Challenge make no network calls | P0 | CSP; `frontend/src/lib/offline.test.ts`: free, challenge and training boards with every network API trapped, and a list of every call site in `src/` (the only one a solo screen reaches is Review the deal loading the solver's own `.wasm` from the site) |
 
 ## Security checklist
 
