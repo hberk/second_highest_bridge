@@ -1938,6 +1938,20 @@ def _reopening_rules(player: str, hand: list[Card], auction: AuctionState,
             if h.len[y] >= HANDOFF_B_LEAVE:
                 return 'Pass', f"Penalty: {HANDOFF_B_LEAVE}+ {sym[y]}."
             ev = eval_hand_sh(hand)
+            if HANDOFF_B_SUPPORT:
+                # My own longest suit; four-card suits up the line, longer ones
+                # from the top (the user's rule, 2026-11-24).
+                own = [s for s in SUITS if s not in (x, y)]
+                n = max(h.len[s] for s in own)
+                tied = [s for s in own if h.len[s] == n]
+                best = min(tied, key=SUITS.index) if n <= 4 else max(tied, key=SUITS.index)
+                cheapest = _cheapest(best, 1, legal)
+                jump = _points(ev['groups']) >= ADVANCE_JUMP_POINTS and cheapest
+                call = _cheapest(best, parse_bid(cheapest)[0] + 1, legal) if jump else cheapest
+                if call and call != cheapest:
+                    return call, f"{ADVANCE_JUMP_POINTS}+ points, longest suit, {sym[best]}. Answering the double."
+                if call:
+                    return call, f"Longest suit other than theirs, {sym[best]}. Answering the double."
             return _advance_double(player, PARTNERS[player], auction, ev, ev['groups'], legal)
 
     if base[0] != 'Pass':
