@@ -1321,6 +1321,7 @@ function systemBidExplained(player: Seat, hand: Card[], auction: AuctionState): 
     if (decision) return decision;
   }
   let decision = previousSystem(player, hand, auction, legal);
+  decision = preemptRaiseGame(player, hand, auction, legal, decision) ?? decision;
   if (ARTIFICIAL_READ) {
     const placed = notPartnersArtificial(player, auction, legal);
     if (placed && (decision[0] === 'Pass' || decision[0] === placed[0])) decision = placed;
@@ -1332,6 +1333,43 @@ function systemBidExplained(player: Seat, hand: Card[], auction: AuctionState): 
     return ['Pass', "Partner's game stands."];
   }
   return decision;
+}
+
+/** Opener's game over partner's pre-emptive jump raise in competition,
+ *  1x (1y/2y) 3x (P) ?, on PREEMPT_RAISE_GAME_JUDGE+ judgement points. See ai.py. */
+export const PREEMPT_RAISE_GAME_JUDGE: number | null = 16;
+
+function seatView(player: Seat, auction: AuctionState): [boolean, string][] {
+  const out: [boolean, string][] = [];
+  let started = false;
+  for (const [w, c] of auction.calls) {
+    if (!started && c === 'Pass') continue;
+    started = true;
+    out.push([w === player || w === PARTNERS[player], c]);
+  }
+  return out;
+}
+
+function preemptRaiseGame(player: Seat, hand: Card[], auction: AuctionState,
+                          legal: string[], base: Decision): Decision | null {
+  if (PREEMPT_RAISE_GAME_JUDGE === null) return null;
+  const v = seatView(player, auction);
+  const calls = v.map(([, c]) => c);
+  if (!(v.length === 4 && v[0][0] && !v[1][0] && calls[3] === 'Pass')) return null;
+  const opening = parseBid(calls[0]), over = parseBid(calls[1]);
+  if (!(opening && over && opening[0] === 1 && (SUITS as readonly string[]).includes(opening[1])
+        && (SUITS as readonly string[]).includes(over[1]) && calls[2] === `3${opening[1]}`)) return null;
+  const x = opening[1] as Suit, y = over[1] as Suit;
+  const h = new Hand(hand);
+  if (x === 'H' || x === 'S') {
+    const game = `4${x}`;
+    if (base[0] === game || (base[0] === 'Pass' && h.judge >= PREEMPT_RAISE_GAME_JUDGE
+                             && legal.includes(game))) return [game, nameTheSuit(game, 'To play.')];
+  } else if (base[0] === 'Pass' && h.judge >= PREEMPT_RAISE_GAME_JUDGE && h.stopper(y)
+             && !h.short().length && legal.includes('3NT')) {
+    return ['3NT', 'To play.'];
+  }
+  return null;
 }
 
 /** Partner's artificial bid is the highest: passing would play it. Bid the

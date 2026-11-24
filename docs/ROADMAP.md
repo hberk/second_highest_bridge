@@ -106,10 +106,11 @@ worked example to copy):
   above responder's suit** (64; fallback bids 42 times, passes 22). Check
   support doubles here: GIB plays them through 2♥, so a support double may
   already apply to some of these.
-- [ ] **1.3 `1x (2y) 3x (P) ?` and `1x (1y) 3x (P) ?`: opener after
-  partner's raise over interference** (97 + 53, nearly all passes). Probably
-  fine if GIB's jump raise in competition is pre-emptive. Confirm against
-  the notes, and if so record it as covered instead of adding a branch.
+- [x] **1.3 `1x (2y) 3x (P) ?` and `1x (1y) 3x (P) ?`: opener after
+  partner's raise over interference.** GIB's jump raise here is pre-emptive,
+  but the fallback passed every hand, 19-counts included. Opener now bids
+  game on 16+ judgement points (`PREEMPT_RAISE_GAME_JUDGE`, 2026-11-24,
+  +0.11 a board over six sets of 3,000 fresh deals).
 - [ ] **1.4 The overcaller's second call** (14% of handoffs), e.g.
   `(1x) 1y (X) 2y (P) ?` and `(1x) 1y (X) P (2z) ?`. Survey `hands` first;
   no bug is known yet.
@@ -117,8 +118,10 @@ worked example to copy):
   `(1♦) 1NT (2♠) ?`. Today that falls back to `ai.py`. **User decides**
   whether they play anything here (a double for Stayman, Lebensohl as over a
   1NT opening, or nothing).
-- [ ] **1.6 Re-run the survey** after 1.1-1.4 and update the numbers in
-  BIDDING.md.
+- [x] **1.6 Re-run the survey.** 2026-11-24 on v0.1.9-alpha: 14.5% of
+  calls, on 49% of boards (BIDDING.md). The gap map of calls no rule defines
+  (2026-11-21, `/mnt/project-files/undefined-followups/`) ranks the same
+  handoffs by IMPs lost, and is the better tool for choosing the next fix.
 
 Out of scope: do **not** "fix" GIB toward the old measured system. The user
 chose GIB knowing it scores worse here (see BIDDING.md).

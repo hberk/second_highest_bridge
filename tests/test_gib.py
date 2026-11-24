@@ -2855,3 +2855,14 @@ def test_game_force_without_a_fit_rebids_a_six_card_suit():
     # 1♦ P 2♣ P 2♠ P: six clubs rebid before the generic 2NT (GF_NO_FIT_SUITS).
     call, why = bid('9S AH KH 9H 2H KD 7D KC QC JC 9C 4C 2C', '1D', 'Pass', '2C', 'Pass', '2S', 'Pass')
     assert (call, why) == ('3C', '6+ ♣. Game forcing.'), (call, why)
+
+
+def test_opener_bids_game_over_a_preemptive_raise_with_judgement_points():
+    # The handoff survey (2026-11-24): 1x (2y) 3x (P) passed every hand as
+    # "No extra values." PREEMPT_RAISE_GAME_JUDGE: game on 16+ judgement points.
+    rich = 'QS JS 9S KH QH 10H 8H 6H 10D 8D KC QC 2C'
+    assert bid(rich, '1H', '2D', '3H', 'Pass') == ('4H', 'To play, ♥.')
+    aces = 'AS 10S 8S KH QH JH 8H 5H AD 10D 10C 6C 2C'
+    assert bid(aces, '1H', '2D', '3H', 'Pass')[0] == 'Pass'
+    minor = 'KS 9S KH 10H 5H 2H QD 4D 3D AC QC 9C 7C'
+    assert bid(minor, '1C', '2S', '3C', 'Pass') == ('3NT', 'To play.')

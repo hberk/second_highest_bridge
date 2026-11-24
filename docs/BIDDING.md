@@ -37,8 +37,10 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   "Artificial" and is exempt from naming its own suit; `_name_the_suit`
   appends the suit to any other suit bid's alert, so the text still depends on
   the call alone.
-- **Where GIB hands off** (surveyed 2026-10-14, 4,000 random boards, all four
-  seats robots): **14.9% of calls, on 48% of boards**, are made by `ai.py`'s
+- **Where GIB hands off** (surveyed 2026-10-14, rerun 2026-10-26 at 16.2% and
+  2026-11-24 on v0.1.9-alpha at **14.5% of calls, on 49% of boards**; the
+  first run below, 4,000 random boards, all four seats robots): **14.9% of
+  calls, on 48% of boards**, are made by `ai.py`'s
   fallback. 97% of those are second-round-or-later calls in contested
   auctions -- opener's 2nd (22%), responder's 2nd (22%), opener's 3rd+ (17%),
   overcaller's 2nd (14%) -- where the fallback passes 63-96% of the time and
@@ -1249,6 +1251,16 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   The same survey's other suggestions are in ROBOT_PROGRESS (11-22); a game
   force with no fit now rebids a six-card suit or raises partner's twice-bid
   suit before the generic 2NT (`gib.GF_NO_FIT_SUITS`, +0.12).
+- **Opener bids game over a pre-emptive raise on judgement points**
+  (`ai.PREEMPT_RAISE_GAME_JUDGE = 16`, 2026-11-24, from the handoff survey
+  rerun; ROADMAP 1.3). In 1x (1y/2y) 3x (P) GIB hands off, and the fallback
+  passed every hand as "No extra values.", a 19-count included. Opener now
+  bids 4M, or 3NT over a minor with their suit stopped and no shortness, on
+  16+ judgement points ("To play, ♠."); the fallback's own 4M there alerts the same.
+  Six sets of 3,000 fresh deals: **+0.11 a board**, ahead on five (judge 18:
+  +0.03). Opener's rebid over a one-level overcall (NT with a stopper, strong
+  rebids) lost -0.05, the overcaller's second five-card suit almost never
+  fires; both are in ROBOT_PROGRESS (11-24).
 - **Every lone rebid shows six; a suit doubled and left in is passed**
   (2026-11-04, the user's board 1♦ P P 1♠ X P P 2♠ on ♠AQT82, and the user's
   rules). `REBID_ALONE_SIX_FROM = 2`: with partner silent, repeating my own

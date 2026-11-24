@@ -1832,8 +1832,8 @@ def _base_bid_explained(player: str, hand: list[Card], auction: AuctionState) ->
         if decision:
             return decision
     decision = _previous_system(player, hand, auction, legal)
-    if HANDOFF_A or HANDOFF_B or HANDOFF_C or HANDOFF_D:
-        decision = _handoff_rules(player, hand, auction, legal, decision) or decision
+    decision = (_preempt_raise_game(player, hand, auction, legal, decision)
+                or _reopening_rules(player, hand, auction, legal, decision) or decision)
     if gib.ARTIFICIAL_READ:
         placed = _not_partners_artificial(player, auction, legal)
         if placed and decision[0] in ('Pass', placed[0]):
@@ -1846,24 +1846,14 @@ def _base_bid_explained(player: str, hand: list[Card], auction: AuctionState) ->
     return decision
 
 
-#: Four auctions GIB hands off, from the 2026-11-24 survey (research only, all
-#: off). Each fires only where the fallback passes, so it adds a call and never
-#: replaces one the fallback makes.
-#: A: 1x (1y/2y) 3x (P) ?  opener's game over partner's pre-emptive jump raise
-#:    (judgement points), and the fallback's own 4M there gets the same alert.
-HANDOFF_A: int | None = None          # judge needed for game (e.g. 16)
-#: B: 1x (P) P (1y/2y) ?  opener reopens: takeout X short in theirs, or 5-5.
-HANDOFF_B = False
-HANDOFF_B_X_HCP = 14
-#: The passed responder answers that double, passing only with this many of
-#: their suit (None: the fallback decides, which leaves it in on weak hands).
-HANDOFF_B_LEAVE: int | None = None
-#: C: 1x (P) 1y (1z) ?  opener's rebid: NT with their suit stopped, or a jump
-#:    rebid / new suit with extras. 'strong' leaves out the 12-14 1NT.
-HANDOFF_C: str | None = None          # 'all' or 'strong'
-#: D: (1x) 1y ... P (2z) ?  overcaller, partner silent: bid a second 5-card suit.
-HANDOFF_D = False
-HANDOFF_D_HCP = 10
+#: Opener's game over partner's pre-emptive jump raise in competition,
+#: 1x (1y/2y) 3x (P) ?, where GIB hands off and the fallback passed a 19-count
+#: as "No extra values." (the 2026-11-24 handoff survey, the user's pick):
+#: 4M, or 3NT over a minor with their suit stopped and no shortness, on
+#: PREEMPT_RAISE_GAME_JUDGE+ judgement points. The fallback's own 4M there
+#: gets the same alert, so 4M says one thing in this auction. Six sets of
+#: 3,000 fresh deals: +0.11 a board, ahead on five (judge 18: +0.03).
+PREEMPT_RAISE_GAME_JUDGE: int | None = 16
 
 
 def _seat_view(player: str, auction: AuctionState) -> list:
@@ -1877,33 +1867,50 @@ def _seat_view(player: str, auction: AuctionState) -> list:
     return out
 
 
-def _handoff_rules(player: str, hand: list[Card], auction: AuctionState,
-                   legal: list[str], base: tuple) -> tuple | None:
+def _preempt_raise_game(player: str, hand: list[Card], auction: AuctionState,
+                        legal: list[str], base: tuple) -> tuple | None:
+    if PREEMPT_RAISE_GAME_JUDGE is None:
+        return None
+    v = _seat_view(player, auction)
+    calls = [c for _, c in v]
+    if not (len(v) == 4 and v[0][0] and not v[1][0] and calls[3] == 'Pass'):
+        return None
+    opening, over = parse_bid(calls[0]), parse_bid(calls[1])
+    if not (opening and over and opening[0] == 1 and opening[1] in SUITS
+            and over[1] in SUITS and calls[2] == f"3{opening[1]}"):
+        return None
+    x, y = opening[1], over[1]
+    h = gib.Hand(hand)
+    if x in gib.MAJORS:
+        game = f"4{x}"
+        if base[0] == game or (base[0] == 'Pass' and h.judge >= PREEMPT_RAISE_GAME_JUDGE
+                               and game in legal):
+            return game, gib._name_the_suit(game, gib.TO_PLAY)
+    elif (base[0] == 'Pass' and h.judge >= PREEMPT_RAISE_GAME_JUDGE and h.stopper(y)
+          and not h.short() and '3NT' in legal):
+        return '3NT', gib.TO_PLAY
+    return None
+
+
+#: Research only (2026-11-24, off): opener reopens 1x (P) P (1y/2y) ? with a
+#: takeout double short in their suit (HANDOFF_B_X_HCP+) or a 5-5 second suit.
+#: As first measured it lost (-0.04 a board): the passed responder's fallback
+#: left the double in on weak hands. HANDOFF_B_LEAVE makes it answer.
+HANDOFF_B = False
+HANDOFF_B_X_HCP = 14
+#: The passed responder answers that double, passing only with this many of
+#: their suit (None: the fallback decides, which leaves it in on weak hands).
+HANDOFF_B_LEAVE: int | None = None
+
+
+def _reopening_rules(player: str, hand: list[Card], auction: AuctionState,
+                     legal: list[str], base: tuple) -> tuple | None:
+    if not HANDOFF_B or base[0] != 'Pass':
+        return None
     v = _seat_view(player, auction)
     calls = [c for _, c in v]
     h = gib.Hand(hand)
     sym = SUIT_SYM
-
-    # A: 1x (1y/2y) 3x (P) ?
-    if (HANDOFF_A is not None and len(v) == 4 and v[0][0] and not v[1][0]
-            and calls[3] == 'Pass' and parse_bid(calls[0]) and parse_bid(calls[1])
-            and parse_bid(calls[0])[0] == 1 and parse_bid(calls[0])[1] in SUITS
-            and calls[2] == f"3{parse_bid(calls[0])[1]}"):
-        x = parse_bid(calls[0])[1]
-        y = parse_bid(calls[1])[1]
-        if x in gib.MAJORS:
-            game = f"4{x}"
-            if base[0] == game:
-                return game, gib.TO_PLAY
-            if base[0] == 'Pass' and h.judge >= HANDOFF_A and game in legal:
-                return game, gib.TO_PLAY
-        elif (base[0] == 'Pass' and h.judge >= HANDOFF_A and y in SUITS
-              and h.stopper(y) and not h.short() and '3NT' in legal):
-            return '3NT', gib.TO_PLAY
-        return None
-
-    if base[0] != 'Pass':
-        return None
 
     # B, partner's answer: 1x (P) P (1y/2y) X (P) ?  the passed responder treats
     # opener's reopening double as takeout, and leaves it in only with
@@ -1941,48 +1948,6 @@ def _handoff_rules(player: str, hand: list[Card], auction: AuctionState,
                 if h.hcp >= need:
                     return call, f"5+ {sym[x]}, 5+ {sym[s]}, {need}+ HCP."
         return None
-
-    # C: 1x (P) 1y (1z) ?
-    if (HANDOFF_C and len(v) == 4 and v[0][0] and calls[1] == 'Pass'
-            and all(parse_bid(calls[i]) and parse_bid(calls[i])[0] == 1 for i in (0, 2, 3))):
-        x, y, z = (parse_bid(calls[i])[1] for i in (0, 2, 3))
-        if not (x in SUITS and y in SUITS and z in SUITS):
-            return None
-        if h.balanced and h.stopper(z):
-            if HANDOFF_C == 'all' and 12 <= h.hcp <= 14 and '1NT' in legal:
-                return '1NT', "12-14 HCP, balanced, a stopper in their suit."
-            if 18 <= h.hcp <= 19 and '2NT' in legal:
-                return '2NT', "18-19 HCP, balanced, a stopper in their suit."
-            return None
-        if h.balanced or h.hcp < 16:
-            return None
-        if h.len[x] >= 6 and f"3{x}" in legal:
-            return f"3{x}", f"6+ {sym[x]}, 16+ HCP."
-        for s in sorted((s for s in SUITS if s not in (x, y, z) and h.len[s] >= 4),
-                        key=lambda s: (-h.len[s], SUITS.index(s))):
-            call = _cheapest(s, 2, legal)
-            if call and parse_bid(call)[0] == 2:
-                return call, f"4+ {sym[s]}, 16+ HCP."
-        return None
-
-    # D: (1x) 1y ... P (2z) ?  my one overcall, partner only passed
-    mine = [c for w, c in auction.calls if w == player and c != 'Pass']
-    pd = [c for w, c in auction.calls if w == PARTNERS[player] and c != 'Pass']
-    if (HANDOFF_D and v and not v[0][0] and len(mine) == 1 and not pd
-            and calls[0] != 'Pass' and parse_bid(calls[0]) and parse_bid(calls[0])[0] == 1
-            and parse_bid(mine[0]) and parse_bid(mine[0])[0] == 1
-            and len(v) >= 5 and calls[-1] != 'Pass' and not v[-1][0]
-            and parse_bid(calls[-1]) and parse_bid(calls[-1])[0] == 2):
-        y = parse_bid(mine[0])[1]
-        if y not in SUITS or h.len[y] < 5 or h.hcp < HANDOFF_D_HCP:
-            return None
-        bid_suits = {parse_bid(c)[1] for _, c in v if parse_bid(c)}
-        for s in sorted((s for s in SUITS if s not in bid_suits and h.len[s] >= 5),
-                        key=lambda s: -SUITS.index(s)):
-            call = _cheapest(s, 2, legal)
-            if call and parse_bid(call)[0] == 2:
-                return call, f"5+ {sym[y]}, 5+ {sym[s]}."
-    return None
 
 
 def _not_partners_artificial(player: str, auction: AuctionState, legal: list[str]) -> tuple | None:
