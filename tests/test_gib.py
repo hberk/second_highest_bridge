@@ -2880,3 +2880,18 @@ def test_opener_reopens_and_the_passed_responder_answers():
         '2S', '3+ ♠ support, answering the double.')
     assert bid('QS 9S 8S 2S 5H 4H 3H 2H QD 8D 3D 8C 6C', '1D', 'Pass', 'Pass', '2C', 'X', 'Pass') == (
         '2H', 'Longest suit other than theirs, ♥. Answering the double.')
+
+
+def test_opener_rebids_over_a_one_level_overcall_and_responder_follows():
+    # The handoff survey (2026-11-24): 1x (P) 1y (1z) ? always passed.
+    assert bid('AS 4S 3S JH 4H AD KD 7D 5D 3D JC 3C 2C', '1D', 'Pass', '1H', '1S') == (
+        '1NT', '12-14 HCP, balanced, a stopper in their suit.')
+    assert bid('KS 9S 3S AH AD QD 10D 5D 3D KC 10C 7C 6C', '1D', 'Pass', '1H', '1S') == (
+        '2C', '4+ ♣, 16+ HCP.')
+    # No reverse on 16 with 5-4: 1♣ P 1♥ (1♠) 2♦ went for 2,110.
+    assert bid('7S 4S AH 4H AD KD 9D 8D KC QC 9C 4C 2C', '1C', 'Pass', '1H', '1S')[0] == 'Pass'
+    # Responder over the 1NT: a six-card suit, or a second four-card suit.
+    assert bid('KS QS 3S 8H 4H 2H QD JD 6D 5D 3D 2D JC', '1C', 'Pass', '1D', '1H', '1NT', 'Pass') == (
+        '2D', '6+ ♦. Rebidding my own suit.')
+    assert bid('2S KH JH 10H 9H 5H AD QD 10D 3D JC 10C 4C', '1D', 'Pass', '1H', '1S', '1NT', 'Pass') == (
+        '2D', '5+ ♥, 4+ ♦.')

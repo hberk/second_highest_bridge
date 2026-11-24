@@ -1973,14 +1973,16 @@ def _reopening_rules(player: str, hand: list[Card], auction: AuctionState,
     return None
 
 
-#: Research (2026-11-24, off): opener's rebid over a one-level overcall,
-#: 1x (P) 1y (1z) ?, where the fallback passed. 'all': 1NT on 12-14 / 2NT on
-#: 18-19 balanced with their suit stopped, plus the suit rebids; 'suits': the
-#: suit rebids only. Suit rebids on 16+: a jump in my own six-card suit, or a
-#: new four-card suit, a reverse only on 18+ or 16+ with 5-5. Responder then
-#: rebids a six-card suit over the notrump, and gives preference to my first
-#: suit when it holds more of it than of the second (the user's rules).
-OPENER_OVERCALL_REBID: str | None = None
+#: Opener's rebid over a one-level overcall, 1x (P) 1y (1z) ?, where GIB hands
+#: off and the fallback passed (the 2026-11-24 handoff survey, the user's
+#: rules): 1NT on 12-14 balanced with their suit stopped; on 16+ unbalanced a
+#: jump in my own six-card suit or a new four-card suit, a reverse only on 18+
+#: or 16+ with 5-5. Responder then rebids a six-card suit over the 1NT, or
+#: shows a second four-card suit below a five-card one, and gives preference
+#: to my first suit when it holds more of it than of the second. Nine sets of
+#: 3,000 fresh deals: +0.004 a board (break-even; the user's pick). The 18-19
+#: 2NT lost (2NT P 3m one level too high) and is left out.
+OPENER_OVERCALL_REBID = True
 
 
 def _overcall_rebid_rules(player: str, hand: list[Card], auction: AuctionState,
@@ -2026,11 +2028,8 @@ def _overcall_rebid_rules(player: str, hand: list[Card], auction: AuctionState,
     if len(v) != 4 or base[0] != 'Pass':
         return None
     if h.balanced and h.stopper(z):
-        if OPENER_OVERCALL_REBID in ('all', 'no2nt'):
-            if 12 <= h.hcp <= 14 and '1NT' in legal:
-                return '1NT', "12-14 HCP, balanced, a stopper in their suit."
-            if OPENER_OVERCALL_REBID == 'all' and 18 <= h.hcp <= 19 and '2NT' in legal:
-                return '2NT', "18-19 HCP, balanced, a stopper in their suit."
+        if 12 <= h.hcp <= 14 and '1NT' in legal:
+            return '1NT', "12-14 HCP, balanced, a stopper in their suit."
         return None
     if h.balanced or h.hcp < 16:
         return None

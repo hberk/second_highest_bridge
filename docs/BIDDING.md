@@ -1271,6 +1271,17 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   (a major) or 4+ (a minor), else bids its longest suit, four-card suits up
   the line (the user's rules). Six sets of 3,000 fresh deals: **+0.05 a
   board**, no set negative; leaving it in with 5+ of theirs scored +0.03.
+- **Opener's rebid over a one-level overcall** (`ai.OPENER_OVERCALL_REBID`,
+  2026-11-24). In 1x (P) 1y (1z) GIB hands off and the fallback passed every
+  hand. Opener now bids 1NT on 12-14 balanced with their suit stopped, and on
+  16+ unbalanced jumps in a six-card suit or names a new four-card suit (a
+  reverse only on 18+, or 16+ with 5-5; a 16-count's 2♦ reverse over 1♣ was
+  doubled for 2,110). Responder rebids a six-card suit over the 1NT, or shows
+  a second four-card suit below a five-card one, and gives preference to
+  opener's first suit (the user's rules; responder's call is otherwise GIB's
+  "No game." pass, so the rule also runs after that). Break-even: +0.004 a
+  board over nine sets of 3,000 fresh deals; the 18-19 2NT lost (2NT P 3♦ a
+  level too high) and is left out. Kept for the bridge, at the user's pick.
 - **Every lone rebid shows six; a suit doubled and left in is passed**
   (2026-11-04, the user's board 1♦ P P 1♠ X P P 2♠ on ♠AQT82, and the user's
   rules). `REBID_ALONE_SIX_FROM = 2`: with partner silent, repeating my own

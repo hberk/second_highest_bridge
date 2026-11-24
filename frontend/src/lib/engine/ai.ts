@@ -1318,11 +1318,17 @@ function systemBidExplained(player: Seat, hand: Card[], auction: AuctionState): 
   // situations GIB's notes leave to judgment.
   if (settingsAi.useGib) {
     const decision = gibBid(player, hand, auction);
-    if (decision) return decision;
+    if (decision) {
+      if (OPENER_OVERCALL_REBID && decision[0] === 'Pass') {
+        return overcallRebidRules(player, hand, auction, legal, decision) ?? decision;
+      }
+      return decision;
+    }
   }
   let decision = previousSystem(player, hand, auction, legal);
   decision = preemptRaiseGame(player, hand, auction, legal, decision)
-    ?? reopeningRules(player, hand, auction, legal, decision) ?? decision;
+    ?? reopeningRules(player, hand, auction, legal, decision)
+    ?? overcallRebidRules(player, hand, auction, legal, decision) ?? decision;
   if (ARTIFICIAL_READ) {
     const placed = notPartnersArtificial(player, auction, legal);
     if (placed && (decision[0] === 'Pass' || decision[0] === placed[0])) decision = placed;
@@ -1437,6 +1443,72 @@ function reopeningRules(player: Seat, hand: Card[], auction: AuctionState,
         if (h.hcp >= need) return [call, `5+ ${SUIT_SYM[x]}, 5+ ${SUIT_SYM[s]}, ${need}+ HCP.`];
       }
     }
+  }
+  return null;
+}
+
+/** Opener's rebid over a one-level overcall, 1x (P) 1y (1z) ?, and responder's
+ *  next call. See ai.py. */
+export const OPENER_OVERCALL_REBID = true;
+
+function overcallRebidRules(player: Seat, hand: Card[], auction: AuctionState,
+                            legal: string[], base: Decision): Decision | null {
+  if (!OPENER_OVERCALL_REBID) return null;
+  const v = seatView(player, auction);
+  const calls = v.map(([, c]) => c);
+  if (v.length < 4 || !v[0][0] || calls[1] !== 'Pass') return null;
+  const bids = calls.slice(0, 4).map((c) => parseBid(c));
+  const isSuit = (s: string) => (SUITS as readonly string[]).includes(s);
+  for (const i of [0, 2, 3]) {
+    const b = bids[i];
+    if (!b || b[0] !== 1 || !isSuit(b[1])) return null;
+  }
+  const x = bids[0]![1] as Suit, y = bids[2]![1] as Suit, z = bids[3]![1] as Suit;
+  const h = new Hand(hand);
+
+  // Responder after opener's rebid: 1x (P) 1y (1z) R (P/X) ?
+  if (v.length === 6 && auction.calls[auction.calls.length - 4][0] === player
+      && (calls[5] === 'Pass' || calls[5] === 'X') && base[0] === 'Pass') {
+    const r = parseBid(calls[4]);
+    if (!r) return null;
+    if (r[1] === 'NT' && h.len[y] >= 6) {
+      const call = cheapest(y, 1, legal);
+      if (call) return [call, `6+ ${SUIT_SYM[y]}. Rebidding my own suit.`];
+    }
+    if (r[1] === 'NT' && r[0] === 1 && h.len[y] >= 5) {
+      const fours = SUITS.filter((s) => s !== y && s !== z && h.len[s] >= 4
+                                 && SUITS.indexOf(s) < SUITS.indexOf(y))
+        .sort((a, b) => (h.len[b] - h.len[a]) || (SUITS.indexOf(b) - SUITS.indexOf(a)));
+      for (const s of fours) {
+        const call = cheapest(s, 2, legal);
+        if (call && parseBid(call)![0] === 2) return [call, `5+ ${SUIT_SYM[y]}, 4+ ${SUIT_SYM[s]}.`];
+      }
+    }
+    if (isSuit(r[1]) && r[1] !== x && r[1] !== y && r[1] !== z && h.len[x] > h.len[r[1] as Suit]) {
+      const call = cheapest(x, 1, legal);
+      if (call && parseBid(call)![0] <= 3) return [call, `Preference for ${SUIT_SYM[x]}.`];
+    }
+    return null;
+  }
+
+  // Opener: 1x (P) 1y (1z) ?
+  if (v.length !== 4 || base[0] !== 'Pass') return null;
+  if (h.balanced && h.stopper(z)) {
+    if (h.hcp >= 12 && h.hcp <= 14 && legal.includes('1NT')) {
+      return ['1NT', '12-14 HCP, balanced, a stopper in their suit.'];
+    }
+    return null;
+  }
+  if (h.balanced || h.hcp < 16) return null;
+  if (h.len[x] >= 6 && legal.includes(`3${x}`)) return [`3${x}`, `6+ ${SUIT_SYM[x]}, 16+ HCP.`];
+  const news = SUITS.filter((s) => s !== x && s !== y && s !== z && h.len[s] >= 4)
+    .sort((a, b) => (h.len[b] - h.len[a]) || (SUITS.indexOf(a) - SUITS.indexOf(b)));
+  for (const s of news) {
+    const call = cheapest(s, 2, legal);
+    if (!call || parseBid(call)![0] !== 2) continue;
+    if (SUITS.indexOf(s) > SUITS.indexOf(x)
+        && !(h.hcp >= 18 || (h.hcp >= 16 && h.len[x] >= 5 && h.len[s] >= 5))) continue;
+    return [call, `4+ ${SUIT_SYM[s]}, 16+ HCP.`];
   }
   return null;
 }
