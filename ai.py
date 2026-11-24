@@ -1902,8 +1902,9 @@ HANDOFF_B_X_HCP = 14
 #: their suit (None: the fallback decides, which leaves it in on weak hands).
 HANDOFF_B_LEAVE: int | None = None
 #: ...and raises opener's suit first with 3+ (a major) or 4+ (a minor), the
-#: user's idea (2026-11-24), before naming its own longest suit.
-HANDOFF_B_SUPPORT = False
+#: user's idea (2026-11-24), before naming its own longest suit. 'first': the
+#: raise comes before leaving the double in, too.
+HANDOFF_B_SUPPORT: bool | str = False
 
 
 def _reopening_rules(player: str, hand: list[Card], auction: AuctionState,
@@ -1931,7 +1932,8 @@ def _reopening_rules(player: str, hand: list[Card], auction: AuctionState,
             return None
         if y in SUITS and x in SUITS:
             need = 3 if x in gib.MAJORS else 4
-            if HANDOFF_B_SUPPORT and h.len[x] >= need and h.len[y] < HANDOFF_B_LEAVE:
+            if (HANDOFF_B_SUPPORT and h.len[x] >= need
+                    and (HANDOFF_B_SUPPORT == 'first' or h.len[y] < HANDOFF_B_LEAVE)):
                 call = _cheapest(x, 1, legal)
                 if call:
                     return call, raise_alert
