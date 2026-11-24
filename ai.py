@@ -1830,13 +1830,10 @@ def _base_bid_explained(player: str, hand: list[Card], auction: AuctionState) ->
     if USE_GIB:
         decision = gib.gib_bid(player, hand, auction)
         if decision:
-            if OPENER_OVERCALL_REBID and decision[0] == 'Pass':
-                return _overcall_rebid_rules(player, hand, auction, legal, decision) or decision
             return decision
     decision = _previous_system(player, hand, auction, legal)
     decision = (_preempt_raise_game(player, hand, auction, legal, decision)
-                or _reopening_rules(player, hand, auction, legal, decision)
-                or _overcall_rebid_rules(player, hand, auction, legal, decision) or decision)
+                or _reopening_rules(player, hand, auction, legal, decision) or decision)
     if gib.ARTIFICIAL_READ:
         placed = _not_partners_artificial(player, auction, legal)
         if placed and decision[0] in ('Pass', placed[0]):
@@ -1970,73 +1967,6 @@ def _reopening_rules(player: str, hand: list[Card], auction: AuctionState,
                 need = 16 if reverse else 14
                 if h.hcp >= need:
                     return call, f"5+ {sym[x]}, 5+ {sym[s]}, {need}+ HCP."
-    return None
-
-
-#: Research (2026-11-24, off): opener's rebid over a one-level overcall,
-#: 1x (P) 1y (1z) ?, where the fallback passed. 'all': 1NT on 12-14 / 2NT on
-#: 18-19 balanced with their suit stopped, plus the suit rebids; 'suits': the
-#: suit rebids only. Suit rebids on 16+: a jump in my own six-card suit, or a
-#: new four-card suit, a reverse only on 18+ or 16+ with 5-5. Responder then
-#: rebids a six-card suit over the notrump, and gives preference to my first
-#: suit when it holds more of it than of the second (the user's rules).
-OPENER_OVERCALL_REBID: str | None = None
-
-
-def _overcall_rebid_rules(player: str, hand: list[Card], auction: AuctionState,
-                          legal: list[str], base: tuple) -> tuple | None:
-    if not OPENER_OVERCALL_REBID:
-        return None
-    v = _seat_view(player, auction)
-    calls = [c for _, c in v]
-    if len(v) < 4 or not v[0][0] or calls[1] != 'Pass':
-        return None
-    bids = [parse_bid(c) for c in calls[:4]]
-    if not all(bids[i] and bids[i][0] == 1 and bids[i][1] in SUITS for i in (0, 2, 3)):
-        return None
-    x, y, z = bids[0][1], bids[2][1], bids[3][1]
-    h = gib.Hand(hand)
-    sym = SUIT_SYM
-
-    # Responder after opener's rebid: 1x (P) 1y (1z) R (P/X) ?
-    if (len(v) == 6 and auction.calls[-4][0] == player and calls[5] in ('Pass', 'X')
-            and base[0] == 'Pass'):
-        r = parse_bid(calls[4])
-        if not r:
-            return None
-        if r[1] == 'NT' and h.len[y] >= 6:
-            call = _cheapest(y, 1, legal)
-            if call:
-                return call, f"6+ {sym[y]}. Rebidding my own suit."
-        if r[1] in SUITS and r[1] not in (x, y, z) and h.len[x] > h.len[r[1]]:
-            call = _cheapest(x, 1, legal)
-            if call and parse_bid(call)[0] <= 3:
-                return call, f"Preference for {sym[x]}."
-        return None
-
-    # Opener: 1x (P) 1y (1z) ?
-    if len(v) != 4 or base[0] != 'Pass':
-        return None
-    if h.balanced and h.stopper(z):
-        if OPENER_OVERCALL_REBID == 'all':
-            if 12 <= h.hcp <= 14 and '1NT' in legal:
-                return '1NT', "12-14 HCP, balanced, a stopper in their suit."
-            if 18 <= h.hcp <= 19 and '2NT' in legal:
-                return '2NT', "18-19 HCP, balanced, a stopper in their suit."
-        return None
-    if h.balanced or h.hcp < 16:
-        return None
-    if h.len[x] >= 6 and f"3{x}" in legal:
-        return f"3{x}", f"6+ {sym[x]}, 16+ HCP."
-    for s in sorted((s for s in SUITS if s not in (x, y, z) and h.len[s] >= 4),
-                    key=lambda s: (-h.len[s], SUITS.index(s))):
-        call = _cheapest(s, 2, legal)
-        if not call or parse_bid(call)[0] != 2:
-            continue
-        if SUITS.index(s) > SUITS.index(x):           # a reverse
-            if not (h.hcp >= 18 or (h.hcp >= 16 and h.len[x] >= 5 and h.len[s] >= 5)):
-                continue
-        return call, f"4+ {sym[s]}, 16+ HCP."
     return None
 
 
