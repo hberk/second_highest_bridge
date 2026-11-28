@@ -3296,6 +3296,15 @@ MINOR_NO_3NT = True
 MINOR_NO_3NT_PASS = True
 MINOR_NO_3NT_LEVEL = 5
 MINOR_SHORT = 1
+#: The pass above turns down a game the rule had just accepted: opener's 14+
+#: judgement points said "game" and the shortness only said "not in notrump".
+#: With MINOR_NO_3NT_PASS_FIT or more trumps between the hands, the minor
+#: game is bid instead (the user's deal again, 2026-11-28: 1♦ 1♥ 1♠ 3♦ P on
+#: a nine-card fit, 31 judgement points, 5♦ +420 against 3♦ +170). None:
+#: always pass, as before. MINOR_NO_3NT_PASS_JUDGE does the same on my own
+#: judgement points.
+MINOR_NO_3NT_PASS_FIT: int | None = None
+MINOR_NO_3NT_PASS_JUDGE: int | None = None
 
 
 def _minor_not_notrump(ctx: Ctx, decision: tuple | None) -> tuple | None:
@@ -3322,7 +3331,9 @@ def _minor_not_notrump(ctx: Ctx, decision: tuple | None) -> tuple | None:
         return None
     hb = ctx.auction.highest_bid
     if (MINOR_NO_3NT_PASS and hb is not None and (hb[0], hb[1], hb[2]) == (3, m, ctx.pd)
-            and not _game_forced(ctx.seq, ctx)):
+            and not _game_forced(ctx.seq, ctx)
+            and (MINOR_NO_3NT_PASS_FIT is None or best[0] < MINOR_NO_3NT_PASS_FIT)
+            and (MINOR_NO_3NT_PASS_JUDGE is None or ctx.h.judge < MINOR_NO_3NT_PASS_JUDGE)):
         return 'Pass', "Declining the invitation."
     call = ctx.cheapest(m, MINOR_NO_3NT_LEVEL)
     if call and level_of(call) <= 5:
