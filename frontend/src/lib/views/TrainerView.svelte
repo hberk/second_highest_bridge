@@ -256,7 +256,7 @@
 
       <section class="bt-card">
         <DdTricks tricks={recap.dd} seats={['North', 'South', 'East', 'West']} par={recap.par} contract={recap.contract} />
-        <p class="bt-note">Tricks double dummy by declarer{#if recap.contract}; your contract is boxed{/if}.</p>
+        <p class="bt-note">Tricks double dummy by declarer{#if recap.par.strain}; par is bold{/if}{#if recap.contract}{recap.par.strain ? ',' : ';'} your contract is boxed{/if}.</p>
       </section>
 
       <button class="btn primary full big bt-next" onclick={() => { showEW = false; resetAsk = false; trainer.newBoard(); }}>Next board</button>

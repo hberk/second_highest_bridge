@@ -226,7 +226,7 @@
       {:else if !table.done}
         <button class="chip-btn" onclick={solveTable}>Show tricks and par · 1–3 min</button>
       {:else}
-        <p class="caption">Tricks double dummy by declarer{#if hb?.contract && !hb.passed_out}; the contract played is boxed{/if}.</p>
+        <p class="caption">Tricks double dummy by declarer{#if par?.strain}; par is bold{/if}{#if hb?.contract && !hb.passed_out}{par?.strain ? ',' : ';'} the contract played is boxed{/if}.</p>
       {/if}
     </section>
   {/if}

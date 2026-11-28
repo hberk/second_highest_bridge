@@ -209,6 +209,7 @@ describe('Bidding training', () => {
     const html = render(TrainerView, { props: { trainer: t } }).body;
     expect(html).toMatch(/class="[^"]*bt-dd-mine[^"]*">10</);
     expect(html).toContain('your contract is boxed');
+    expect(html).toContain('par is bold');
   });
 
   it("shows E/W's own tricks, so par reads right (deal 86, 4♥ E/W -650)", () => {
