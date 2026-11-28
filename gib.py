@@ -376,6 +376,7 @@ def gib_bid(player: str, cards: list[Card], auction: AuctionState) -> tuple | No
     decision = _major_over_notrump(ctx, decision) or decision
     decision = _fit_over_notrump(ctx, decision) or decision
     decision = _minor_not_notrump(ctx, decision) or decision
+    decision = _minor_game_bar(ctx, decision) or decision
     if decision is None:
         return None
     if GF_NO_PASS and decision[0] == 'Pass' and _forced_to_game(ctx):
@@ -3328,6 +3329,98 @@ def _minor_not_notrump(ctx: Ctx, decision: tuple | None) -> tuple | None:
     if call and level_of(call) <= 5:
         return call, TO_PLAY
     return None
+
+
+#: The minor-suit game bar by fit length (study, 2026-11-28; all off). Today
+#: a minor game has no bar of its own: the rules bid 3NT on GAME and
+#: `_minor_not_notrump` turns some of those into 5m. GAME_MINOR_8/9/10 give
+#: an eight-, nine- and ten-plus-card known fit (my length plus what partner's
+#: bids have shown, `_partner_length`) its own bar on judgement points plus
+#: partner's shown minimum (`_partner_min`), no fit bonus. Where a rule stops
+#: below game in our minor (Pass of our partscore, or a non-forcing bid of the
+#: minor below five) with that many, bid five of it. GAME_MINOR_DOWN also
+#: takes a 3NT or 5m "To play" back to a partscore below the bar, where the
+#: auction is not game forcing. GAME_MINOR_NT_FIT: with a known fit of this
+#: many, a 3NT "To play" becomes 5m (5m beats 3NT double dummy on 9+ fits).
+GAME_MINOR_8: int | None = None
+GAME_MINOR_9: int | None = None
+GAME_MINOR_10: int | None = None
+GAME_MINOR_DOWN = False
+GAME_MINOR_NT_FIT: int | None = None
+
+
+def _our_minor_fit(ctx: Ctx) -> tuple | None:
+    """(fit length, minor) of our longest known 8+ minor fit, None if there
+    is none, or if a major fit of 8+ is known."""
+    theirs = _their_suits(ctx)
+    lens = {s: ctx.h.len[s] + _partner_length(ctx, s) for s in SUITS}
+    if any(lens[s] >= 8 and _partner_length(ctx, s) for s in MAJORS):
+        return None
+    best = None
+    for m in MINORS:
+        if m in theirs or not _partner_length(ctx, m) or lens[m] < 8:
+            continue
+        if best is None or lens[m] > best[0]:
+            best = (lens[m], m)
+    return best
+
+
+def _my_parity(ctx: Ctx) -> int:
+    if ctx.we_opened:
+        return 0 if ctx.i_am_opener() else 1
+    return 0 if ctx.ours and ctx.ours[0][0] == ctx.me else 1
+
+
+def _minor_game_bar(ctx: Ctx, decision: tuple | None) -> tuple | None:
+    bars = {8: GAME_MINOR_8, 9: GAME_MINOR_9, 10: GAME_MINOR_10}
+    if decision is None or (all(b is None for b in bars.values()) and GAME_MINOR_NT_FIT is None):
+        return None
+    if ctx.auction.doubled != 'None' or _in_notrump_system(ctx) or _owns_artificial(ctx):
+        return None
+    fit = _our_minor_fit(ctx)
+    if fit is None:
+        return None
+    n, m = fit
+    call, alert = decision
+    five = f"5{m}"
+    hb = ctx.auction.highest_bid
+    ours_high = hb is None or hb[2] in (ctx.me, ctx.pd)
+    if GAME_MINOR_NT_FIT is not None and n >= GAME_MINOR_NT_FIT and call == '3NT' \
+            and alert == TO_PLAY and ctx.ok(five):
+        return five, TO_PLAY
+    bar = bars[min(n, 10)]
+    if bar is None:
+        return None
+    est = ctx.h.judge + _partner_min(ctx.seq, 1 - _my_parity(ctx), ctx.natural)
+    cur = ctx.current()
+    below = cur is None or rank_of(cur) < rank_of('3NT') or (strain_of(cur) == m and level_of(cur) < 5)
+    if est >= bar and ours_high and below and ctx.ok(five):
+        low = 'forcing' in alert.lower() or 'artificial' in alert.lower()
+        if not low and (call == 'Pass' or (strain_of(call) == m and level_of(call) < 5)):
+            return five, TO_PLAY
+    if GAME_MINOR_DOWN and est < bar and alert == TO_PLAY and call in ('3NT', five) \
+            and not _game_forced(ctx.seq, ctx):
+        last = ctx.partners()[-1] if ctx.partners() else None
+        if last and strain_of(last) == m and hb is not None and hb[2] == ctx.pd:
+            return 'Pass', "No game."
+        low = ctx.cheapest(m)
+        if low and level_of(low) <= 4:
+            return low, natural(m)
+    return None
+
+
+def _owns_artificial(ctx: Ctx) -> bool:
+    """Has our side made a suit bid that does not show its suit (a cuebid,
+    a transfer, an artificial 2C, new minor forcing)? Then the fit reading is
+    not trusted. `shown_suit` reads new minor forcing (1x 1y 1NT 2m) as clubs
+    or diamonds, so it is checked here."""
+    seq = ctx.seq
+    if (len(seq) >= 4 and level_of(seq[0]) == 1 and strain_of(seq[0]) in SUITS
+            and level_of(seq[1]) == 1 and strain_of(seq[1]) in SUITS and seq[2] == '1NT'
+            and seq[3] == ('2D' if seq[0] == '1C' else '2C')):
+        return True
+    return any(strain_of(c) in SUITS and shown_suit(ctx.seq, i, ctx.natural) != strain_of(c)
+               for i, c in enumerate(ctx.seq))
 
 
 def _agreed(ctx: Ctx, s: str) -> bool:

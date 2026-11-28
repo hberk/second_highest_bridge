@@ -476,6 +476,35 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     +4.0, +4.2; 104 of 115 changed auctions better). A doubleton as short
     (`MINOR_SHORT = 2`): +0.27, +0.36, +0.23 with a third of 331 worse.
     `/mnt/project-files/minor-no-stopper/`.
+  - **The minor-suit game bar by fit length** (study, 2026-11-28; the
+    user asked how 5♣/5♦ came to need 32). It was never measured on its own:
+    `GAME` 32 came from the 2026-10-23 sweep, driven by 3NT. In constructive
+    auctions the rules bid 3NT, not 5m, at `GAME` and `_minor_not_notrump`
+    moves some to 5m; in `continuation` the fit bonus (`FIT_BASE` 10) makes
+    the bar 38, 35 and 32 on judgement points plus partner's minimum for a
+    known 8-, 9- and 10-card fit. Double dummy (the 800 solved deals plus
+    360 fresh sides with 24+ JP and a minor fit, `dd_study.txt`,
+    `dd_extra_study.txt`): over 3m, 5m pays on a 9-card fit from about 27
+    combined JP (24 with a side singleton or void), on 10+ from about 26, and
+    on an 8-card fit not up to 33 (5m makes 33% at 30-33 JP). With a side
+    singleton 5m beats 3NT on every fit length; without one 3NT beats 5m on
+    8- and 9-card fits. Switches, all off: `GAME_MINOR_8/9/10` (raise a
+    non-forcing stop in our minor to 5m at the bar), `GAME_MINOR_DOWN` (a 3NT
+    or 5m "To play" below the bar becomes a partscore when not game forced),
+    `GAME_MINOR_NT_FIT` (3NT becomes 5m on a long known fit). Seeds 7M-9M,
+    5,000 deals: every lower bar loses (9-card 24/27/30: -0.53 to -0.28 a
+    board; 10-card 22/25/28: -0.24 to -0.00; 8-card 24/27/30: -0.88 to
+    -0.25), nearly all of it in contested auctions, half the 8-card losses
+    doubled; 3NT to 5m on 8/9/10 known cards -0.89 to +0.09. Uncontested
+    auctions barely move: the rules there already reach 3NT or stop on what
+    partner's bids showed. Kept looking at: a higher bar on an 8-card fit
+    (`GAME_MINOR_8` 38 with `GAME_MINOR_DOWN`, in effect "no 3NT or 5m on a
+    known 8-card minor fit outside a game force"), 10,000 deals: +0.03,
+    +0.11, +0.19 (t +0.7, +2.8, +4.0; 223 better, 86 worse); 35 +0.01,
+    +0.09, +0.18. Its biggest gain, 1♦ (2♣) 2♦ 5♣ now 3♣; its losses, 3NT
+    after our three-level overcall ((2♦) 3♣ (3♦) 3NT). `shown_suit` reads new
+    minor forcing as natural, so the filter skips 1x 1y 1NT 2m.
+    `/mnt/project-files/minor-game-bar/`.
   - **Five logic bugs from the Fable review** (finding 7, 2026-11-12), each
     behind its own switch: a 2♥/2♠ after our Stayman or transfer is the
     natural overcall it was alerted as, Cappelletti only directly over 1NT
