@@ -511,6 +511,13 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     takeout ban alone over any game lost on pre-emptive raises (2♥ P 4♥ X,
     then 4♠), -0.05; the fit points in part scores too lost on seed 8
     (`/mnt/project-files/fit-penalty-x/REPORT.md`).
+  - Measured, off for the user's pick: **separate bars for part scores and
+    games** (`PENALTY_JUDGE_PART`, `PENALTY_JUDGE_GAME`, None = `PENALTY_JUDGE`;
+    the user's study, 2026-11-28). Seeds 7M-9M (3,000 deals): a game bar of 16
+    +0.80, +0.68, +0.63 a board (t 3.8-5.8), 14 +0.78 mean, 18 +0.44; almost all
+    of it 4♥/4♠ doubled on exactly four trumps. Raising the part-score bar
+    loses: 22 -0.08 mean, 24 -0.46, no part-score double -1.45. Every slice of
+    the part-score doubles pays (`/mnt/project-files/penalty-part-vs-game/REPORT.md`).
   - **The penalty double of 1NT is for balanced hands** (`NT_X_SHAPE = 'two'`;
     the user's deal, 2026-11-13): 1NT P P X with ♠AT865 ♥J ♦AK5 ♣QJT4, partner
     transferred to hearts on 0-5-4-4 (systems on) and 2♥ played on a 5-1 fit.

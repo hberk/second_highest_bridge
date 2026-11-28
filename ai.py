@@ -1394,6 +1394,12 @@ PENALTY_TRUMP_JP: float | None = 4
 #: leaves the count alone. Counting it
 #: in part scores too measured worse on one seed in three (BIDDING.md).
 PENALTY_FIT_JP: float | None = 4
+#: Separate bars for part scores and for games (the user's study, 2026-11-28:
+#: double their part scores less, their games more). A double of a part score
+#: (below 4H/4S/5C/5D) needs PENALTY_JUDGE_PART judgement points, one of game
+#: or higher PENALTY_JUDGE_GAME. None uses PENALTY_JUDGE for both.
+PENALTY_JUDGE_PART: float | None = None
+PENALTY_JUDGE_GAME: float | None = None
 
 
 def _partner_middle(partner: str, auction: AuctionState, alerts: dict, mine: int) -> float:
@@ -1462,7 +1468,10 @@ def _penalty_double(player: str, hand: list[Card], auction: AuctionState,
     extra = PENALTY_TRUMP_JP * (n - need) if PENALTY_TRUMP_JP else 0
     if PENALTY_FIT_JP and _their_game_fit(player, auction, f"{level}{suit}"):
         extra += PENALTY_FIT_JP
-    if mine + extra + _partner_middle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE:
+    game = level >= (4 if suit in ('H', 'S') else 5)
+    bar = PENALTY_JUDGE_GAME if game else PENALTY_JUDGE_PART
+    if mine + extra + _partner_middle(PARTNERS[player], auction, alerts, mine) < (
+            PENALTY_JUDGE if bar is None else bar):
         return None
     if not _double_is_free(auction):
         return None

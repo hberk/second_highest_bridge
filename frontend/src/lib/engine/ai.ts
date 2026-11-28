@@ -923,6 +923,10 @@ export const PENALTY_TRUMP_JP: number | null = 4;
  *  and their constructive auction reached game (`gameValuesShown`), add this
  *  many judgement points; null leaves the count alone. See ai.py. */
 export const PENALTY_FIT_JP: number | null = 4;
+/** Separate bars for part scores (below 4H/4S/5C/5D) and for games and
+ *  higher; null uses PENALTY_JUDGE for both. See ai.py. */
+export const PENALTY_JUDGE_PART: number | null = null;
+export const PENALTY_JUDGE_GAME: number | null = null;
 
 /** Both opponents bid the suit of `last`, their game, reached
  *  constructively. See `_their_game_fit` in ai.py. */
@@ -985,7 +989,9 @@ function penaltyDouble(player: Seat, hand: Card[], auction: AuctionState,
   const mine = new Hand(hand).judge;
   let extra = PENALTY_TRUMP_JP ? PENALTY_TRUMP_JP * (n - need) : 0;
   if (PENALTY_FIT_JP && theirGameFit(player, auction, `${level}${suit}`)) extra += PENALTY_FIT_JP;
-  if (mine + extra + partnerMiddle(PARTNERS[player], auction, alerts, mine) < PENALTY_JUDGE) return null;
+  const game = level >= (suit === 'H' || suit === 'S' ? 4 : 5);
+  const bar = game ? PENALTY_JUDGE_GAME : PENALTY_JUDGE_PART;
+  if (mine + extra + partnerMiddle(PARTNERS[player], auction, alerts, mine) < (bar ?? PENALTY_JUDGE)) return null;
   if (!doubleIsFree(auction)) return null;
   return ['X', `Penalty: ${need}+ ${SUIT_SYM[suit]}.`];
 }

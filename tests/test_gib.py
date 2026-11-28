@@ -2214,6 +2214,27 @@ def test_long_trumps_count_toward_the_penalty_double():
         ai.PENALTY_TRUMP_JP = saved
 
 
+def test_penalty_bars_split_part_score_and_game():
+    """The study of 2026-11-28: PENALTY_JUDGE_PART and PENALTY_JUDGE_GAME set
+    separate bars. Deal 30 without the trump-length points is West's 19.5
+    against their 4♠ game: only the game bar moves it."""
+    hands = {s: hand(t) for s, t in _D30.items()}
+    saved = ai.PENALTY_TRUMP_JP, ai.PENALTY_JUDGE_PART, ai.PENALTY_JUDGE_GAME
+    try:
+        for part, game, want in ((None, None, 'Pass'), (19, None, 'Pass'),
+                                 (None, 19, 'X'), (99, 19, 'X')):
+            ai.PENALTY_TRUMP_JP, ai.PENALTY_JUDGE_PART, ai.PENALTY_JUDGE_GAME = None, part, game
+            auction = AuctionState(dealer='South', vulnerability='Both')
+            for call in ('Pass', 'Pass', '1S', '2H', '2S', '4H', '4S', 'Pass', 'Pass'):
+                p = auction.current_player()
+                ai.ai_bid_explained(p, hands[p], auction)
+                auction.apply_call(p, call)
+            call, why = ai.ai_bid_explained('West', hands['West'], auction)
+            assert call == want, (part, game, call, why)
+    finally:
+        ai.PENALTY_TRUMP_JP, ai.PENALTY_JUDGE_PART, ai.PENALTY_JUDGE_GAME = saved
+
+
 def test_no_competing_past_the_six_level():
     """Without the jam the deal ran P P 1♠ 2♥ 2♠ 3♥ 3♠ 4♥ 4♠ 5♥ 5♠ 6♥ 6♠ 7♥:
     each side void in the other's suit counted 13 tricks. Over their bid
