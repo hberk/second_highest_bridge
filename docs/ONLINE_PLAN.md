@@ -11,8 +11,9 @@ Python engine stays as the reference and gets no accounts.
 > **Changes since this plan (2026-10-13), see
 > [HOSTING_AND_LOCAL_SAVES.md](HOSTING_AND_LOCAL_SAVES.md):**
 > - **Host (done):** GitHub Pages replaced Azure Static Web Apps, which was
->   never deployed. The CSP is a `<meta>` in `frontend/index.html`; it also
->   admits Cloudflare Web Analytics (cookieless page views), added 2026-10-14.
+>   never deployed. The CSP is a `<meta>` in `frontend/index.html`; it
+>   admitted Cloudflare Web Analytics from 2026-10-14 until the solo-only build
+>   was removed on 2026-11-28.
 > - **Saved games:** they live in the browser already, so Phase 1's guest
 >   boards are saved on the device and can be uploaded at sign-in.
 > - **Live tables (Phase 2):** proposed to run on **Cloudflare Durable Objects**

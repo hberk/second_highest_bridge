@@ -14,9 +14,9 @@
   "workers_dev": true,
   "preview_urls": false,
   "assets": {
-    // The beta build: `npm run site` builds it, with the socket address in
+    // The site: `npm run site` builds it, with the socket address in
     // its Content-Security-Policy, and copies _headers in.
-    "directory": "../../frontend/dist-beta",
+    "directory": "../../frontend/dist",
     "binding": "ASSETS",
     "run_worker_first": ["/tables", "/tables/*", "/healthz", "/visit", "/dev/*"],
     "not_found_handling": "none"

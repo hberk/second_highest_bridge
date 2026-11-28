@@ -43,10 +43,8 @@ npm run wasm       # build it (dev, test and build run this first, and fail with
 npm run fixtures   # export the Python engine's behaviour (needs Python 3.12+)
 npm test           # TS engine parity with Python + headless table flow + WASM solver
 npm run check      # svelte-check
-npm run dev        # local dev server
-npm run build      # the solo-only static site in frontend/dist (a build check; not deployed)
-npm run dev:beta   # the multiplayer beta: tables proxied to a local server/
-npm run build:beta # the beta site in frontend/dist-beta, served by server/
+npm run dev        # local dev server; tables proxied to a local server/ (npm run dev there)
+npm run build      # the site in frontend/dist (server/cf's `npm run site` builds the deployed one)
 ```
 
 On this Windows machine Rust is the **GNU** toolchain (`stable-x86_64-pc-windows-gnu`,
@@ -67,7 +65,7 @@ cd server/cf       # the same tables on Cloudflare (Worker + Durable Objects): M
 npm install
 npm test           # the Worker in workerd on a random port: a whole board, restart, limits, rows a board
 npm run check      # tsc
-npm run site       # the beta site for Cloudflare, into frontend/dist-beta
+npm run site       # the site for Cloudflare (visit count on), into frontend/dist
 npm run dev        # wrangler dev on :8787 (needs `npm run site` first)
 ```
 

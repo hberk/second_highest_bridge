@@ -1,11 +1,16 @@
 # Multiplayer: the build plan
 
+Status, 2026-11-28: **one build.** The solo-only build (no tables, Cloudflare
+Web Analytics) is gone; `npm run build` is the site, with Play with friends,
+and `--mode beta`, `.env.beta`, `build:beta`, `dev:beta` and `dist-beta/` are
+removed. Mentions of the beta and Pages builds below are history.
+
 Status, 2026-11-22: **the homelab is retired.** Cloudflare
 (`https://bridge.second-highest.workers.dev`, M7) is the only host, for solo
 play and tables alike. main no longer publishes `bridge-*` releases, and
 `server/deploy.sh`, `server/fetch-logs.sh` and `server/pull/` are deleted.
 `server/` stays: Cloudflare runs its `Tables` and `Store`, and its Node server
-is the local dev server (`npm run dev:beta`), the socket tests and the bench.
+is the local dev server (`npm run dev` in both), the socket tests and the bench.
 The homelab sections below are history.
 
 Status, 2026-11-18: **M7 built** (`server/cf/`, [below](#m7-built-2026-11-18)):
@@ -870,7 +875,7 @@ GitHub environment `cloudflare` that only main may use.
 | MP7 | A departed player's seat can go to a robot and come back | P1 | `core.test.ts`, Playwright |
 | MP8 | Finished table boards appear in each player's History and LIN export | P1 | `core.test.ts` LIN round trip |
 | MP9 | Joining needs only a link and a name | P1 | Playwright |
-| MP10 | Solo and Challenge make no network calls | P0 | CSP; `frontend/src/lib/offline.test.ts`: free, challenge and training boards with every network API trapped, and a list of every call site in `src/` (the only one a solo screen reaches is Review the deal loading the solver's own `.wasm` from the site) |
+| MP10 | Solo and Challenge send nothing during play: one anonymous visit beacon per page load on Cloudflare (user, 2026-11-28), nothing else | P0 | CSP; `frontend/src/lib/offline.test.ts`: free, challenge and training boards with every network API trapped, and a list of every call site in `src/` (besides the beacon, the only one a solo screen reaches is Review the deal loading the solver's own `.wasm` from the site) |
 
 ## Security checklist
 

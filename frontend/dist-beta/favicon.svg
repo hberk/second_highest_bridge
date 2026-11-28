@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- The second spade: an ivory spade on the felt, with a gold 2 in it. The
+       PNG and .ico icons are drawn from these three shapes by
+       frontend/scripts/make_icons.py, so change them here and rerun it. -->
+  <rect width="100" height="100" rx="22" fill="#133026"/>
+  <path d="M50 12 C50 12 18 39 18 57 C18 70 28 77 38 77 C43 77 47 74.5 49 71 C48 79 45 85 39 89 L61 89 C55 85 52 79 51 71 C53 74.5 57 77 62 77 C72 77 82 70 82 57 C82 39 50 12 50 12 Z" fill="#fbfaf6"/>
+  <path d="M40.5 45 C40.5 39 45 35.5 50 35.5 C55.5 35.5 59.5 39.5 59.5 44.5 C59.5 51 53 55 40.5 66.5 L60 66.5" fill="none" stroke="#c9952e" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

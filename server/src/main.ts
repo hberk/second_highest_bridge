@@ -2,7 +2,7 @@
 // (the homelab that ran it was retired on 2026-11-22; Cloudflare hosts tables):
 //   PORT             8787
 //   BRIDGE_DB        /var/lib/bridge/bridge.db
-//   PUBLIC_DIR       the beta build, /opt/bridge/public
+//   PUBLIC_DIR       the built site (frontend/dist), /opt/bridge/public
 //   ALLOWED_ORIGINS  http://localhost:5173 (comma-separated)
 //   TRUSTED_PROXY    Caddy's address, 192.168.169.211
 //   BRIDGE_DEV=1     on a development machine only: allows the two above unset

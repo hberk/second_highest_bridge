@@ -1,5 +1,6 @@
 // MP10 (docs/MULTIPLAYER_PLAN.md): solo play, Challenge and Bidding training
-// make no network calls. Two checks, because neither alone is proof:
+// send nothing during play; the one call is the anonymous visit beacon at
+// page load on Cloudflare. Two checks, because neither alone is proof:
 //
 // 1. Behaviour: every way out of the page (fetch, WebSocket, XMLHttpRequest,
 //    EventSource, sendBeacon, Worker) is replaced by a trap, and free boards,
@@ -27,6 +28,7 @@ import HomeView from './views/HomeView.svelte';
 import HowToPlayView from './views/HowToPlayView.svelte';
 import TrainerView from './views/TrainerView.svelte';
 import indexHtml from '../../index.html?raw';
+import pkg from '../../package.json';
 
 const NETWORK = ['fetch', 'WebSocket', 'XMLHttpRequest', 'EventSource', 'Worker', 'SharedWorker'] as const;
 const calls: string[] = [];
@@ -73,8 +75,8 @@ function renderSolo(game: Game): void {
   render(DesktopTableView, { props: { game } });
   render(HistoryView, { props: { records: game.history } });
   render(ChallengeView, { props: { game, ondealt: noop } });
-  // The solo build's home screen: no Play with friends.
-  render(HomeView, { props: { game, onplay: noop, ontraining: noop, onchallenge: noop, onhowto: noop, onhistory: noop, onsettings: noop } });
+  // Play with friends is on the home screen, but nothing runs until it's tapped.
+  render(HomeView, { props: { game, onplay: noop, ontraining: noop, onchallenge: noop, onhowto: noop, onhistory: noop, onsettings: noop, onfriends: noop } });
 }
 
 /** South makes the odd bid and plays its first legal card, through every
@@ -101,7 +103,7 @@ function playBoard(game: Game): void {
   throw new Error('board did not finish');
 }
 
-describe('MP10: solo play makes no network calls', () => {
+describe('MP10: solo play sends nothing during play', () => {
   it('plays free boards and challenge boards with the network trapped', () => {
     const game = new Game(null, prng(10));
     let played = 0;
@@ -158,7 +160,7 @@ const FILES: Record<string, string> = Object.fromEntries(
  *  scripts). The challenge's Review the deal starts the solver, so a solo
  *  screen may reach an `asset` file, never a `server` one. */
 const ALLOWED: Record<string, { count: number; kind: 'server' | 'asset'; why: string }> = {
-  'App.svelte': { count: 1, kind: 'server', why: "fetch('tables'): the Play with friends button, beta build only" },
+  'App.svelte': { count: 2, kind: 'server', why: "fetch('tables') behind Play with friends, and the page-load visit ping (VITE_VISITS, the Cloudflare deploy only)" },
   'lib/table/remote.svelte.ts': { count: 2, kind: 'server', why: 'healthz and the WebSocket: only at a table link (#/t/...)' },
   'lib/dd/worker.ts': { count: 1, kind: 'asset', why: "the solver's own .wasm file: History and Review the deal" },
   'lib/dd/tableWorker.ts': { count: 1, kind: 'asset', why: "the solver's own .wasm file: the tricks table, on a tap" },
@@ -221,11 +223,22 @@ describe('MP10: where the app can reach the network', () => {
     expect(reached, 'a solo screen now imports code that can reach the table server').toEqual([]);
   });
 
-  it("the page's CSP lets the solo build connect only to itself and its analytics", () => {
+  it('the page connects only to itself and the table server, and loads nothing from elsewhere', () => {
     const csp = indexHtml.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)![1];
-    const connect = csp.split(';').map((d: string) => d.trim()).find((d: string) => d.startsWith('connect-src'));
-    // vite.config.ts's beta build swaps the analytics origin for the table
-    // server's socket, and fails the build if this line changes shape.
-    expect(connect).toBe("connect-src 'self' https://cloudflareinsights.com");
+    const directives = csp.split(';').map((d: string) => d.trim());
+    // vite.config.ts adds the table server's socket to connect-src at build
+    // time, and nothing else.
+    expect(directives.find((d: string) => d.startsWith('connect-src'))).toBe("connect-src 'self'");
+    expect(directives.find((d: string) => d.startsWith('script-src'))).toBe("script-src 'self' 'wasm-unsafe-eval'");
+    expect(indexHtml, 'a script or stylesheet from another site').not.toMatch(/(?:src|href)="(?:https?:)?\/\//);
+    expect(indexHtml).not.toContain('cloudflareinsights');
+  });
+
+  it('only the live site sends the visit ping', () => {
+    // App.svelte sends it when VITE_VISITS is 1, set only by server/cf's
+    // `npm run site` (the Cloudflare deploy); local dev and the tests never set it.
+    expect(import.meta.env.VITE_VISITS).not.toBe('1');
+    expect(pkg.scripts.build).not.toContain('VITE_VISITS');
+    expect(FILES['App.svelte']).toMatch(/if \(import\.meta\.env\.VITE_VISITS === '1'\) \{\s*try \{ navigator\.sendBeacon\('\/visit'/);
   });
 });

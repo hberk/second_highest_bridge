@@ -25,12 +25,10 @@
   const TITLES: Record<string, string> = {
     challenge: 'Challenge the robots', history: 'Hand history', howto: 'How to play',
   };
-  /** Multiplayer tables: only the beta build (`vite --mode beta`) has a
-   *  table server behind it. The Pages build never opens a socket. */
-  const TABLES = import.meta.env.VITE_TABLES === '1';
-  /** The Cloudflare beta's visitor count (server/cf/src/visits.ts): one
-   *  beacon per page load, with where the visitor came from. No cookies, and
-   *  the Pages build and the homelab build never send it. */
+  /** The visitor count on Cloudflare (server/cf/src/visits.ts): one beacon
+   *  per page load, with where the visitor came from. No cookies, and nothing
+   *  is sent during play. `npm run site` sets VITE_VISITS; local dev and the
+   *  tests never send it. */
   if (import.meta.env.VITE_VISITS === '1') {
     try { navigator.sendBeacon('/visit', document.referrer); } catch { /* never in the way */ }
   }
@@ -43,7 +41,7 @@
   // #/t/<id>: the link friends are sent.
   const tableFromHash = (): string | null => {
     const m = /^#\/t\/(.+)$/.exec(location.hash);
-    return TABLES && m && TABLE_ID_RE.test(m[1]) ? m[1] : null;
+    return m && TABLE_ID_RE.test(m[1]) ? m[1] : null;
   };
   const fromHash = (): Screen => {
     if (tableFromHash()) return 'remote';
@@ -147,7 +145,7 @@
 {#if screen === 'home'}
   <HomeView {game} onplay={() => go('table')} ontraining={() => go('training')} onchallenge={() => go('challenge')}
     onhowto={() => go('howto')} onhistory={() => go('history')} onsettings={() => (settingsOpen = true)}
-    onfriends={TABLES ? playWithFriends : undefined} />
+    onfriends={playWithFriends} />
   {#if createError}<div class="notice error rt-create-error" role="alert">{createError}</div>{/if}
 {:else if screen === 'remote'}
   {#if remote}<RemoteView table={remote} onhome={() => go('home')} onsettings={() => (settingsOpen = true)} />{/if}

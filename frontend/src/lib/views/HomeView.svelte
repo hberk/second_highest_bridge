@@ -13,8 +13,8 @@
     onhowto: () => void;
     onhistory: () => void;
     onsettings: () => void;
-    /** Multiplayer tables: only in the beta build, which has a table server. */
-    onfriends?: () => void;
+    /** Multiplayer tables, on the table server. */
+    onfriends: () => void;
   } = $props();
 
   /** A board you've started is waiting for you on the table. */
@@ -45,7 +45,7 @@
     <button class="btn primary full huge" onclick={onplay}>{live ? `Resume board ${game.boardNum}` : 'Play'}</button>
     <button class="btn ghost full big" onclick={ontraining}>Bidding training</button>
     <button class="btn ghost full big" onclick={onchallenge}>Challenge the robots</button>
-    {#if onfriends}<button class="btn ghost full big" onclick={onfriends}>Play with friends</button>{/if}
+    <button class="btn ghost full big" onclick={onfriends}>Play with friends</button>
     <div class="home-links">
       <button class="link-btn" onclick={onhowto}>How to play</button>
       <button class="link-btn" onclick={onhistory}>Hand history</button>

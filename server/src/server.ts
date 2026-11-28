@@ -1,5 +1,5 @@
 // The table server's HTTP and WebSocket front end, for Node: static files
-// for the beta build, POST /tables, the table sockets, and /healthz. Caddy
+// for the built site, POST /tables, the table sockets, and /healthz. Caddy
 // sits in front (TLS, a path allow-list); this checks again what matters:
 // the Origin, message sizes and rates, sockets and tables per address.
 //
@@ -23,7 +23,7 @@ export interface Options {
   port: number;
   host?: string;
   dbPath: string;
-  /** The beta build's files; none served when unset. */
+  /** The built site's files; none served when unset. */
   publicDir?: string;
   /** Origins allowed to open a table, e.g. `http://localhost:5173`. */
   allowedOrigins: string[];

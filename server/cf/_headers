@@ -1,4 +1,4 @@
-# Copied into the beta build by `npm run site` (Workers static assets read it).
+# Copied into the site by `npm run site` (Workers static assets read it).
 # The same headers the Node server sends (../src/server.ts).
 /*
   X-Content-Type-Options: nosniff

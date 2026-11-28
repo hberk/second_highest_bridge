@@ -155,7 +155,7 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
       - name: Install
         run: (cd frontend && npm ci) && (cd server/cf && npm ci)
-      - name: Build the beta site (socket address and headers for Cloudflare)
+      - name: Build the site (socket address, visit count and headers for Cloudflare)
         working-directory: server/cf
         env:
           VITE_BUILD: ${{ github.sha }}

@@ -1,10 +1,10 @@
 # Hosting, saved games, and the road to multiplayer
 
 Status: **proposed 2026-10-13. Browser saves are built. GitHub Pages hosting
-was built, then retired on 2026-11-22**: the game's one site is now Cloudflare,
+was built, then retired on 2026-11-22, and the solo-only build removed on
+2026-11-28**: the game's one site is now Cloudflare,
 https://bridge.second-highest.workers.dev, deployed by the `cloudflare` job in
 `.github/workflows/pages.yml` (see [MULTIPLAYER_PLAN.md](MULTIPLAYER_PLAN.md#m7-built-2026-11-18)).
-The Pages section below is history.
 
 | stage | what | where | state |
 |---|---|---|---|
@@ -17,45 +17,15 @@ The Pages section below is history.
 means: the rules, trust, alerts, the data model and the phases. This doc changes
 *where* it runs.
 
-## GitHub Pages (retired 2026-11-22)
+## The site
 
-The Svelte app is fully static. `npm run build` writes HTML, CSS and JS to
-`frontend/dist`, and rules, robots, scoring and the challenge library all run in
-the browser.
-
-- **Workflow** (`.github/workflows/pages.yml`):
-  - **while the repository is private, nothing runs.** Actions minutes on
-    private repos are metered, so every job is skipped (a skipped job starts no
-    runner). A manual "Run workflow" still runs the checks on demand;
-  - once public, every push and pull request runs the gate: fixtures from
-    Python 3.12, `npm ci`, `npm run check`, `npm test`, `npm run build`, and
-    beside them the Python suite (`tests/run_all.py`). Public repos' Actions
-    are free;
-  - only a push to `main` uploads and deploys, and only when both jobs pass.
-- **To turn it on:**
-  1. make the repo public. Pages from a private personal repo needs GitHub Pro,
-     and the site is public either way;
-  2. go to Settings → Pages → Source: **GitHub Actions**;
-  3. push, or start a new run with **Run workflow**. Not "Re-run jobs": a
-     re-run replays the original event, including the visibility it saw, so
-     a run from while the repo was private skips again.
-
-  The site is then at `https://hberk.github.io/second_highest_bridge/`.
-- **Base path:** `vite.config.ts` sets `base: './'`, so the same build works
-  from Pages' sub-path or any other address. Tested on 2026-10-13: the built
-  site served from `/second_highest_bridge/` played a board, reloaded with the
-  board still in its history, and logged no CSP violations.
-- **Hash routes only:** the screen follows the URL hash (`#table`,
-  `#history`; `App.svelte`), so every URL is the one page and Pages' lack of
-  a single-page-app fallback doesn't matter.
-- **Headers:** Pages can't send custom headers.
-  - The CSP is a `<meta>` in `frontend/index.html`, and the referrer policy is
-    `<meta name="referrer">`.
-  - `frame-ancestors`, `X-Content-Type-Options` and `Permissions-Policy` can't
-    be set this way. That's acceptable for a game with no sign-in; revisit when
-    accounts arrive.
-  - Any new `connect-src` (an accounts API, a Cloudflare WebSocket) goes in that
-    meta tag.
+One build, `npm run build` into `frontend/dist`, deployed to Cloudflare by
+`server/cf`'s `npm run site` ([MULTIPLAYER_PLAN.md](MULTIPLAYER_PLAN.md#m7-built-2026-11-18)).
+Solo play, the challenge and training run entirely in the browser. The
+separate solo-only build (once GitHub Pages, with Cloudflare Web Analytics) was
+removed on 2026-11-28. The screen follows the URL hash (`#table`, `#history`),
+so every URL is the one page. The CSP is a `<meta>` in `frontend/index.html`
+plus `server/cf/_headers`; any new `connect-src` goes in both.
 
 ## Saved games in the browser
 

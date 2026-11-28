@@ -22,8 +22,8 @@ rustup target add wasm32-unknown-unknown   # once, for the double dummy solver
 npm run fixtures   # export the Python engine's behaviour (needs Python 3.12+)
 npm test           # TS engine parity with Python + headless table flow + WASM solver
 npm run check      # svelte-check
-npm run dev        # local dev server
-npm run build      # the solo-only static site in frontend/dist (a build check; not deployed)
+npm run dev        # local dev server; tables proxied to localhost:8787 (server/)
+npm run build      # the site in frontend/dist (server/cf's `npm run site` builds the deployed one)
 ```
 
 The game, hosted on Cloudflare (https://bridge.second-highest.workers.dev, the
@@ -296,28 +296,25 @@ remains the reference.
   `mySeat = 'South'` and renders as it always did. `RemoteView.svelte` is the
   table's own screen: join with a name, the seats, the share link, lock, and a
   strip of who sits where above the ordinary table. The route is `#/t/<id>`.
-  Only the **beta build** (`npm run build:beta`, `--mode beta`, `.env.beta`,
-  out to `dist-beta/`) shows Play with friends: its CSP allows one socket
-  origin, `wss://bridge.second-highest.workers.dev`, and it drops page-view counting; the
-  Pages build is unchanged and opens no socket. `npm run dev:beta` proxies
+  There is one build (`npm run build`, out to `dist/`; the separate solo-only
+  build was removed on 2026-11-28). Its CSP allows one socket origin,
+  `wss://bridge.second-highest.workers.dev`, added by `vite.config.ts`.
+  Cloudflare's build (`npm run site`) also sets `VITE_VISITS=1`: one
+  anonymous visit beacon per page load, nothing during play (MP10,
+  `src/lib/offline.test.ts`). `npm run dev` proxies
   `/tables` to a table server on `localhost:8787` (`server/`, `npm run dev`
   with `ALLOWED_ORIGINS=http://localhost:5173`). Boards finished at a table
   go into Hand history with `table_id` and `my_seat`, outside the solo
   session score.
 - Deployment: `.github/workflows/pages.yml` exports fixtures, type-checks,
-  tests and builds, and its `cloudflare` job deploys the beta build (solo and
-  tables) with the Worker from `main`. Until 2026-11-22 it also deployed
-  `frontend/dist` to GitHub Pages; that was retired, and `npm run build` is
-  now only a check. The Pages notes below are kept for the record.
+  tests and builds, and its `cloudflare` job deploys the site (solo and
+  tables) with the Worker from `main` (GitHub Pages was retired on 2026-11-22).
   **Nothing runs while the repo is private** (metered Actions minutes; every
   job is skipped, except a manual "Run workflow"). Once public, every push and
-  pull request is checked (Pages on a private personal repo would need GitHub
-  Pro anyway). `vite.config.ts` sets `base: './'`
-  because Pages serves the site from `/second_highest_bridge/`. Pages can't send
-  headers, so the CSP is a `<meta>` in `frontend/index.html`: scripts from
-  `'self'` only, plus exactly two outside origins for Cloudflare Web Analytics
-  (cookieless page views, added 2026-10-14): the beacon script and its
-  endpoint. Styles need `'unsafe-inline'` for inline style attributes,
-  measured; `frame-ancestors` can't be set this way. See
+  pull request is checked. `vite.config.ts` sets `base: './'`, so the build
+  works at any address. The CSP is a `<meta>` in `frontend/index.html` and
+  `server/cf/_headers`: scripts from `'self'` only, no outside origin (the
+  Cloudflare Web Analytics beacon went with the solo-only build). Styles need
+  `'unsafe-inline'` for inline style attributes, measured. See
   `docs/HOSTING_AND_LOCAL_SAVES.md`. TypeScript is pinned to 6 because
   svelte-check does not yet support 7 on its own.

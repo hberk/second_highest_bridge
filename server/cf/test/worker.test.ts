@@ -30,7 +30,7 @@ function tempDir(): string {
   return d;
 }
 
-/** A small site in place of the beta build, with the real _headers. */
+/** A small site in place of the built site, with the real _headers. */
 function assets(): string {
   const d = tempDir();
   writeFileSync(join(d, 'index.html'), '<!doctype html><title>beta</title>');
