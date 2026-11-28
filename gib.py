@@ -4468,11 +4468,11 @@ def _unusual_cue_reply(ctx: Ctx) -> tuple | None:
 #: and the fourth suit are natural and non-forcing; four of our suit is
 #: pre-emptive. Before, the only call with values and no fit was a 3NT that
 #: needed a stopper in OUR suit (1♥ (2♥) 3NT "13+ HCP, ♥ stopper").
-MICHAELS_DEFENSE = False
+MICHAELS_DEFENSE = True
 #: ...the same over their Unusual 2NT, where the cheaper cuebid used to be
 #: the limit raise and the dearer one the fourth suit; bridgebum has them the
 #: other way round, and the double too.
-UNUSUAL_DEFENSE = False
+UNUSUAL_DEFENSE = True
 #: The double's values, in judgement points.
 TWO_SUITER_X_JUDGE = 10
 TWO_SUITER_X_ALERT = "Values, penalty interest in their suits."
@@ -4546,10 +4546,12 @@ def _two_suiter_response(ctx: Ctx) -> tuple | None:
         if h.len[s] >= 5 and 6 <= hcp <= 9 and call and level_of(call) <= 3:
             return call, f"5+ {SYM[s]}, 6-9 HCP. Not forcing."
     # The double: values, no fit for our major, and four or more in a suit
-    # they may hold (their known suits, and over 1M (2M) either minor).
+    # they may hold (their known suits, and over 1M (2M) either minor). Over
+    # our minor it is any hand with values and no other call: a 15 HCP hand
+    # with 3-3 majors passed 1♣ (2♣) (the whole-auction audit, 2026-11-28).
     maybe = known + ([s for s in MINORS] if not fourth and not unusual else [])
     if (h.judge >= TWO_SUITER_X_JUDGE and ctx.ok('X')
-            and (x in MINORS or sup <= 2) and any(h.len[s] >= 4 for s in maybe)):
+            and (x in MINORS or sup <= 2 and any(h.len[s] >= 4 for s in maybe))):
         return 'X', (f"{TWO_SUITER_X_ALERT[:-1]}, 2 or fewer {SYM[x]}."
                      if x in MAJORS else TWO_SUITER_X_ALERT)
     return 'Pass', "Nothing to show."

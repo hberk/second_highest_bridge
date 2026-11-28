@@ -3907,9 +3907,9 @@ function unusualCueReply(ctx: Ctx): Decision | null {
  * double shows values and the wish to penalize at least one of their suits;
  * the cuebid of their higher known suit is a limit raise or better; of the
  * lower one, five of the fourth suit, forcing. gib.py has the full story. */
-export const MICHAELS_DEFENSE = false;
+export const MICHAELS_DEFENSE = true;
 /** ...the same over their Unusual 2NT. */
-export const UNUSUAL_DEFENSE = false;
+export const UNUSUAL_DEFENSE = true;
 /** The double's values, in judgement points. */
 export const TWO_SUITER_X_JUDGE = 10;
 const TWO_SUITER_X_ALERT = 'Values, penalty interest in their suits.';
@@ -3980,8 +3980,8 @@ function twoSuiterResponse(ctx: Ctx): Decision | null {
     }
   }
   const maybe = [...known, ...(!fourth && !unusual ? MINORS : [])];
-  if (h.judge >= TWO_SUITER_X_JUDGE && ctx.ok('X') && (isMinor(x) || sup <= 2)
-    && maybe.some((s) => h.len[s] >= 4)) {
+  if (h.judge >= TWO_SUITER_X_JUDGE && ctx.ok('X')
+    && (isMinor(x) || (sup <= 2 && maybe.some((s) => h.len[s] >= 4)))) {
     return ['X', isMajor(x) ? `${TWO_SUITER_X_ALERT.slice(0, -1)}, 2 or fewer ${SYM[x]}.` : TWO_SUITER_X_ALERT];
   }
   return ['Pass', 'Nothing to show.'];

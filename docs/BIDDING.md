@@ -16,10 +16,29 @@ Texas transfers, Smolen, minor-suit Stayman, minor transfers, shortness bids, Ge
 quantitative 4NT over notrump; RKCB 0314 with queen and king asks, DOPI;
 negative (through 3♠), support (through 2♥), responsive and takeout (through
 4♥) doubles, weak jump overcalls, 1NT overcall, Michaels, Unusual 2NT,
-unusual-vs-unusual, leaping minors over weak twos, Cappelletti, Lebensohl,
+unusual-vs-unusual and the defense to Michaels (bridgebum, below), leaping minors over weak twos, Cappelletti, Lebensohl,
 Jordan 2NT. `ai.ai_bid_explained` asks `gib.gib_bid` first; it returns None only
 for contested auctions the notes leave to judgment, where `ai.py`'s previous
 logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
+- **Defense to their two-suiter** (`MICHAELS_DEFENSE`, `UNUSUAL_DEFENSE`, from
+  2026-11-28). Sources: bridgebum's
+  [Defense to Michaels](https://www.bridgebum.com/defense_to_michaels.php) and
+  [Unusual vs. Unusual](https://www.bridgebum.com/unusual_vs_unusual.php), at the
+  user's request. Over 1x (2x Michaels) or 1x (2NT), straight over the opening:
+  the **double shows values** (10+ judgement points) and interest in penalizing
+  one of their suits, never a negative double (over a major it denies three-card
+  support and needs four in a suit they may hold); the cuebid of their **higher**
+  known suit (the only one after Michaels over a major) is a limit raise or
+  better; of the **lower** one, five of the fourth suit (forcing over Michaels,
+  game forcing over 2NT, 12+); raises and new suits at 6-9 HCP are natural and
+  not forcing; four of our major is pre-emptive (4+ trumps, under 12 HCP). The
+  pages say nothing about later rounds, so ours: after the double and their
+  runout opener doubles it with four, rebids six of its own, else passes;
+  responder, when that comes round, doubles with four (three and 12+ HCP) or
+  bids a five-card suit; the double then stands. Before, `_negative_double`
+  read the Michaels cuebid as natural, so P 1♠ (2♠) X was alerted "Negative: 4+
+  ♥" -- the suit the cuebid showed -- and a good hand with no fit passed or bid
+  3NT on a stopper in our own suit. Measured in ROBOT_PROGRESS (11-28).
 - **Measured against the previous system and adopted anyway, by choice.** Over
   400 deals x 4 dealers, head to head: **-6.6 per board, t = -2.99**. Self-play
   declaring-side +33.3 against +65.5; contracts made 45% against 67%; 32%

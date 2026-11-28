@@ -2251,15 +2251,17 @@ def test_advancer_bids_game_over_a_three_level_takeout_double():
 def test_cuebids_over_their_unusual_2nt_are_answered():
     """The user's board, 2026-11-04: Pass 1♠ (2NT) 3♣ (Pass), and North
     passed the artificial limit raise, -200 in 3♣. Opener now signs off in
-    the major with a minimum, and answers the game-forcing cuebid with game."""
+    the major with a minimum, and answers the game-forcing cuebid with game.
+    Since 2026-11-28 (bridgebum's unusual vs unusual, `UNUSUAL_DEFENSE`) the
+    dearer cuebid, 3♦, is the limit raise and 3♣ the game force."""
     north = 'AS JS 5S 4S 3S JH 4H 2H AD 7D 4D KC 10C'
-    call, why = bid(north, 'Pass', '1S', '2NT', '3C', 'Pass', dealer='West')
-    assert call == '3S', (call, why)
     call, why = bid(north, 'Pass', '1S', '2NT', '3D', 'Pass', dealer='West')
+    assert call == '3S', (call, why)
+    call, why = bid(north, 'Pass', '1S', '2NT', '3C', 'Pass', dealer='West')
     assert call == '4H', (call, why)       # 5+ hearts opposite three
     # Responder, after opener's sign-off: game with 13+.
     south = 'KS 10S 8S AH QH 10H 9H 8H AD JD 5D 9C 2C'
-    call, why = bid(south, 'Pass', '1S', '2NT', '3C', 'Pass', '3S', 'Pass', dealer='West')
+    call, why = bid(south, 'Pass', '1S', '2NT', '3D', 'Pass', '3S', 'Pass', dealer='West')
     assert call == '4S', (call, why)
 
 
@@ -2815,8 +2817,9 @@ def test_a_raise_of_a_suit_i_showed_first_is_not_support():
     # Michaels: 1♠ (2♠) P (3♥) P 4♥ by the Michaels bidder.
     why = _alert('East', '1S', '2S', 'Pass', '3H', 'Pass', call='4H')
     assert why and 'support' not in why and why.startswith('♥ agreed'), why
-    # The negative double over Michaels showed spades; so did a natural 1♥.
-    assert _alert('South', '1H', '2H', 'X', '3D', '3S', 'Pass', call='4S') == "♠ agreed, game values."
+    # The double of Michaels shows values, no suit (MICHAELS_DEFENSE), so 4♠
+    # raises opener's spades; a natural 1♥ showed its suit.
+    assert _alert('South', '1H', '2H', 'X', '3D', '3S', 'Pass', call='4S') == "3+ ♠ support, game values."
     assert _alert('South', '1C', 'Pass', '1D', 'Pass', '1H', 'X', '2H', 'Pass',
                   call='4H') == "♥ agreed, game values."
 
@@ -2832,7 +2835,7 @@ def test_which_calls_show_a_suit_without_naming_it():
     assert ai._call_shows(calls('North', '1H', '2NT'), 1) == {'C', 'D'}
     assert ai._call_shows(calls('North', '1C', '1H', 'X'), 2) == {'S'}
     assert ai._call_shows(calls('North', '1C', '1D', 'X'), 2) == {'H', 'S'}
-    assert ai._call_shows(calls('North', '1H', '2H', 'X'), 2) == {'S'}
+    assert ai._call_shows(calls('North', '1H', '2H', 'X'), 2) == set()     # values over Michaels
     assert ai._call_shows(calls('North', 'Pass', 'Pass', '1H', 'Pass', '2C'), 4) == {'H'}
     # Natural calls show nothing hidden: an overcall, a response, an
     # unpassed 2♣, and a double after our side has bid twice.
@@ -2872,6 +2875,12 @@ def test_defense_to_michaels_and_unusual_2nt_follows_bridgebum():
         assert call == 'X' and why.startswith('Values') and '♥' not in why, why
         # 13 HCP, two spades, three hearts: it used to pass ("Nothing to show").
         assert bid('2S 3S KH JH 9H AD QD 6D 3D KC 8C 5C 2C', 'Pass', '1S', '2S', dealer='West')[0] == 'X'
+        # A strong hand always has a call (the whole-auction audit,
+        # 2026-11-28: 15 HCP passed 1♥ (2♥)): the double without a fit...
+        assert bid('AS QS KH JH AD QD 6D 3D KC 8C 5C 2C 3C', 'Pass', '1H', '2H', dealer='West')[0] == 'X'
+        assert bid('AS QS 3S KH JH 2H AD QD 6D KC 8C 5C 2C', 'Pass', '1C', '2C', dealer='West')[0] == 'X'
+        # ...the cuebid with one.
+        assert bid('AS QS 3S KH JH 2H AD QD 6D KC 8C 5C 2C', 'Pass', '1H', '2H', dealer='West')[0] == '2S'
         # Limit raise: the cuebid of their known suit (hearts over 1♠).
         assert bid('2S 3S QS KH JH AD QD 6D 3D KC 8C 5C 2C', 'Pass', '1S', '2S', dealer='West')[0] == '3H'
         # Over 1♦ (2♦ both majors) the higher major is the raise.

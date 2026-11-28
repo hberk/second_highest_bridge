@@ -12,11 +12,12 @@ function bid(h: string, calls: string[], dealer = 'North') {
 // their weak two (2026-11-04), call and alert as the Python engine gives them.
 test('cuebids over their Unusual 2NT are answered as in the Python engine', () => {
   const north = 'AS JS 5S 4S 3S JH 4H 2H AD 7D 4D KC 10C';
-  expect(bid(north, ['Pass', '1S', '2NT', '3C', 'Pass'], 'West')).toEqual(['3S', 'Minimum, ♠.']);
-  expect(bid(north, ['Pass', '1S', '2NT', '3D', 'Pass'], 'West')).toEqual(['4H', '3+ ♥. To play.']);
+  // UNUSUAL_DEFENSE (bridgebum, 2026-11-28): 3♦ the limit raise, 3♣ the game force.
+  expect(bid(north, ['Pass', '1S', '2NT', '3D', 'Pass'], 'West')).toEqual(['3S', 'Minimum, ♠.']);
+  expect(bid(north, ['Pass', '1S', '2NT', '3C', 'Pass'], 'West')).toEqual(['4H', '3+ ♥. To play.']);
   expect(bid('KS 10S 8S AH QH 10H 9H 8H AD JD 5D 9C 2C',
-    ['Pass', '1S', '2NT', '3C', 'Pass', '3S', 'Pass'], 'West')).toEqual(['4S', 'To play, ♠.']);
-  expect(bid('AS KH 7H 6H 2H JD 6D QC JC 10C 9C 6C 5C', ['1C', '2NT', '3H', 'Pass'], 'East')).toEqual(['3NT', 'To play.']);
+    ['Pass', '1S', '2NT', '3D', 'Pass', '3S', 'Pass'], 'West')).toEqual(['4S', 'To play, ♠.']);
+  expect(bid('AS KH 7H 6H 2H JD 6D QC JC 10C 9C 6C 5C', ['1C', '2NT', '3D', 'Pass'], 'East')).toEqual(['3NT', 'To play.']);
 });
 
 test('advancer picks a minor after our minors over a weak two, as in the Python engine', () => {
