@@ -1772,10 +1772,17 @@ def _compete_cap(player: str, auction: AuctionState, decision: tuple) -> tuple:
 #:   'pass'  - pass, or double (a double here is for penalty);
 #:   'raise' - also a raise of a suit our side has shown, cheapest, to the
 #:             three level (competing on the fit);
-#:   'two'   - also any natural suit bid at the two level.
+#:   'two'   - also any natural suit bid at the two level;
+#:   'fit'   - only a new suit or notrump is blocked: any bid of a suit our
+#:             side has shown, or a cuebid of theirs, still stands.
 #: STOOD_FREE_ONLY: only when my pass came over their bid (a free pass);
 #: a pass over partner's uncontested call (1NT P P) said less.
-#: None is the old behaviour.
+#: None is the old behaviour. Fresh deals, seeds 7M, 8M, 9M x 4,000
+#: (2026-11-28): 'pass' -1.90, -3.11 a board and 'raise' -1.33, -1.90 (7M,
+#: 8M), as they stop "Competing to the level of our fit"; 'fit' -0.11,
+#: +0.17, +0.44 (t -1.1, +1.4, +2.5), with STOOD_FREE_ONLY -0.11, +0.17,
+#: +0.35 (t -1.3, +1.7, +2.3). Its steadiest part is the stale takeout
+#: double (_advance_double): +0.08, +0.23, +0.13.
 STOOD_PASS: str | None = None
 STOOD_FREE_ONLY = False
 STOOD_ALERT = "My pass over partner's call stands."
@@ -1816,6 +1823,15 @@ def _stood_pass(player: str, auction: AuctionState, decision: tuple) -> tuple | 
         shown = {_reads_as(auction.calls, i) for i, (w, c) in enumerate(auction.calls)
                  if w in side and parse_bid(c)}
         if bid[1] in shown and _cheapest(bid[1], 1, legal) == decision[0]:
+            return None
+    if STOOD_PASS == 'fit':
+        # Only a new suit or notrump is blocked: a raise, a competitive
+        # rebid of our suit or a cuebid of theirs still shows the fit.
+        side = (player, PARTNERS[player])
+        named = {_reads_as(auction.calls, i) for i, (w, c) in enumerate(auction.calls)
+                 if w in side and parse_bid(c)}
+        named |= {parse_bid(c)[1] for w, c in auction.calls if w not in side and parse_bid(c)}
+        if bid[1] in SUITS and bid[1] in named:
             return None
     if STOOD_PASS == 'two' and bid[1] in SUITS and bid[0] == 2 \
             and _cheapest(bid[1], 1, legal) == decision[0] and 'rtificial' not in decision[1]:
