@@ -1,5 +1,8 @@
   - **Tricks per strain and par (2026-11-17).** Under each History board's
-    result, the trainer's table (N/S and E/W rows, the better declarer) and
+    result, a row per declarer (`components/DdTricks.svelte`, shared with
+    Bidding training's recap, which shows North and South; since 2026-11-21,
+    as the better declarer's count could sit beside a score of down one, and
+    the contract played is boxed) and
     par from `parFromTricks` (`dd/table.svelte.ts`). Challenge deals use the
     stored table at once; any other deal is solved on a tap in
     `dd/tableWorker.ts` (the wasm `value` export: one load per strain, its
@@ -20,10 +23,11 @@ npm run fixtures   # export the Python engine's behaviour (needs Python 3.12+)
 npm test           # TS engine parity with Python + headless table flow + WASM solver
 npm run check      # svelte-check
 npm run dev        # local dev server
-npm run build      # static site in frontend/dist, deployed to GitHub Pages
+npm run build      # the solo-only static site in frontend/dist (a build check; not deployed)
 ```
 
-The game, hosted on GitHub Pages: no server, everything runs in the browser,
+The game, hosted on Cloudflare (https://bridge.second-highest.workers.dev, the
+`cloudflare` job): solo play needs no server and runs entirely in the browser,
 ~105 KB gzipped including the deal library, plus 21 KB for the double dummy
 solver. It began as a port of a Streamlit app (`app.py`, `web/`), retired on
 2026-10-21 once this one did everything it did; the Python engine stays and
@@ -204,7 +208,10 @@ remains the reference.
   (2026-11-02): a finished trick moves on with a tap anywhere on the felt
   (`TrickFelt`'s `onadvance`) or the Next trick button, and when you won it
   you just play your next card (`TableModel.leadNext` / `play`: the trick
-  clears and the card leads, no button); **undo** (2026-11-02):
+  clears and the card leads); **always show Next trick** (2026-11-22,
+  `settings.alwaysNext`, on by default): the button and the felt's hint show
+  after a trick you won too (`TableModel.showNext`), because multiplayer
+  players couldn't tell the trick was over; off, that trick has no button; **undo** (2026-11-02):
   `Game.undoBid` takes back your last call and the robots' after it until
   "Start play", solo only: not in Challenge or Training (both scored
   against the robots, and undo would show their replies first), not once
@@ -291,14 +298,17 @@ remains the reference.
   strip of who sits where above the ordinary table. The route is `#/t/<id>`.
   Only the **beta build** (`npm run build:beta`, `--mode beta`, `.env.beta`,
   out to `dist-beta/`) shows Play with friends: its CSP allows one socket
-  origin, `wss://bridge.ettamei.com`, and it drops page-view counting; the
+  origin, `wss://bridge.second-highest.workers.dev`, and it drops page-view counting; the
   Pages build is unchanged and opens no socket. `npm run dev:beta` proxies
   `/tables` to a table server on `localhost:8787` (`server/`, `npm run dev`
   with `ALLOWED_ORIGINS=http://localhost:5173`). Boards finished at a table
   go into Hand history with `table_id` and `my_seat`, outside the solo
   session score.
 - Deployment: `.github/workflows/pages.yml` exports fixtures, type-checks,
-  tests and builds, and deploys `frontend/dist` to GitHub Pages from `main`.
+  tests and builds, and its `cloudflare` job deploys the beta build (solo and
+  tables) with the Worker from `main`. Until 2026-11-22 it also deployed
+  `frontend/dist` to GitHub Pages; that was retired, and `npm run build` is
+  now only a check. The Pages notes below are kept for the record.
   **Nothing runs while the repo is private** (metered Actions minutes; every
   job is skipped, except a manual "Run workflow"). Once public, every push and
   pull request is checked (Pages on a private personal repo would need GitHub

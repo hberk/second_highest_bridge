@@ -1,11 +1,14 @@
 # Hosting, saved games, and the road to multiplayer
 
-Status: **proposed 2026-10-13. Pages hosting and browser saves are built.**
-Pages deploys once the repo is public.
+Status: **proposed 2026-10-13. Browser saves are built. GitHub Pages hosting
+was built, then retired on 2026-11-22**: the game's one site is now Cloudflare,
+https://bridge.second-highest.workers.dev, deployed by the `cloudflare` job in
+`.github/workflows/pages.yml` (see [MULTIPLAYER_PLAN.md](MULTIPLAYER_PLAN.md#m7-built-2026-11-18)).
+The Pages section below is history.
 
 | stage | what | where | state |
 |---|---|---|---|
-| Now | Host the Svelte app | **GitHub Pages** (replaces Azure Static Web Apps, which was never deployed) | built: `.github/workflows/pages.yml` |
+| Now | Host the Svelte app | **Cloudflare** Workers (GitHub Pages until 2026-11-22) | built: the `cloudflare` job in `.github/workflows/pages.yml` |
 | Now | Saved games, no accounts | **The browser** (`localStorage`) | built: `frontend/src/lib/saves.ts` |
 | Later | Live tables with friends | **Cloudflare** Workers + Durable Objects | proposed; see below |
 | Open | Accounts, history across devices | Supabase Auth + Postgres (as in [ONLINE_PLAN.md](ONLINE_PLAN.md)), or Cloudflare-native | undecided |
@@ -14,7 +17,7 @@ Pages deploys once the repo is public.
 means: the rules, trust, alerts, the data model and the phases. This doc changes
 *where* it runs.
 
-## GitHub Pages
+## GitHub Pages (retired 2026-11-22)
 
 The Svelte app is fully static. `npm run build` writes HTML, CSS and JS to
 `frontend/dist`, and rules, robots, scoring and the challenge library all run in
@@ -121,7 +124,7 @@ ONLINE_PLAN's principles carry over unchanged:
 | Engine bundled for Deno | Engine bundled for Workers (plain ES modules; the same esbuild step) |
 
 **Hosting:** Workers can also serve the static site, so the game and its tables
-could live on one platform. Pages can stay as the host until then.
+could live on one platform. They do since 2026-11-22, and Pages is retired.
 
 **Cost:** the Workers Free plan includes SQLite-backed Durable Objects:
 - 100,000 requests a day;

@@ -405,6 +405,18 @@ def test_a_free_bid_over_partners_preempt_needs_more_than_six():
     assert ai.ai_bid('West', _cards('K AKQ7653 K85 T'), a) == '4H'
 
 
+def test_rebidding_my_suit_over_partners_weak_two_stays_low():
+    """The user's board (2026-11-21): P 2D (2H) 2S (3D) P (3H) and South bid
+    4S on KQJT743 Q 2 8652, -400. The rebid read the weak two as a one-level
+    response; it is now worth `REBID_PROMISE_PREEMPT`, so South passes."""
+    import ai
+    a = AuctionState('West', 'None')
+    for who, call in [('West', 'Pass'), ('North', '2D'), ('East', '2H'), ('South', '2S'),
+                      ('West', '3D'), ('North', 'Pass'), ('East', '3H')]:
+        a.apply_call(who, call)
+    assert ai.ai_bid('South', _cards('KQJT743 Q 2 8652'), a) == 'Pass'
+
+
 def test_a_suit_doubled_and_left_in_is_not_rebid():
     """The user's board (2026-11-04): 1D P P 1S X P P, and West bid 2S on
     AQT82. South's pass left the double in, so it is for penalty whatever it

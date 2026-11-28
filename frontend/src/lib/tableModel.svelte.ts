@@ -152,6 +152,11 @@ export class TableModel {
     return null;
   });
 
+  /** The "Next trick" button: after every finished trick, except one you
+   *  won when "Always show Next trick" is off (you just lead). Leading a
+   *  card works either way. */
+  showNext = $derived(this.game.phase === 'trick_done' && (!this.leadNext || settings.alwaysNext));
+
   /** Whether a seat's cards can be tapped now. */
   canPlay(p: Seat): boolean {
     return this.who === p || this.leadNext === p;

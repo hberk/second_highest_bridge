@@ -42,15 +42,15 @@ const PROBE_AFTER = 3;
 
 /** Is the host resting? Cloudflare answers a spent Worker allowance itself,
  *  with HTTP 429 and its own page, so the socket only sees a failed
- *  handshake; /healthz shows the 429. The homelab never rests. */
+ *  handshake; /healthz shows the 429. The Node server never rests. */
 export async function hostResting(): Promise<boolean> {
   try {
     const res = await fetch('healthz', { cache: 'no-store' });
     const json = (res.headers.get('content-type') ?? '').includes('application/json');
     // The Worker's own answer when a Durable Object call fails.
     if (res.status === 503) return json && (await res.json().catch(() => ({})) as { error?: string }).error === 'resting';
-    // Cloudflare's 1027 page, not JSON. A proxy's 503 page in front of the
-    // homelab is neither, so it reads as down, not resting.
+    // Cloudflare's 1027 page, not JSON. A proxy's 503 page in front of a
+    // Node server is neither, so it reads as down, not resting.
     return res.status === 429 && !json;
   } catch {
     return false;

@@ -1,7 +1,7 @@
 {
   "name": "second-highest-bridge-cf",
   "private": true,
-  "version": "0.1.7-alpha",
+  "version": "0.1.9-alpha",
   "type": "module",
   "description": "The multiplayer table server on Cloudflare: a Worker and one Durable Object per table, around the same Tables and Store as server/.",
   "scripts": {

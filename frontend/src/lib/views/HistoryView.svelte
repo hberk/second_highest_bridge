@@ -13,7 +13,8 @@
   import { MAX_LIN_BYTES, fromLinFile, toLin, toLinFile } from '../lin';
   import { MAX_SAVED_BOARDS } from '../saves';
   import { AUTO_CARDS, DdAnalysis } from '../dd/analysis.svelte';
-  import { DdTable, dealKey, parOf, sideTricks } from '../dd/table.svelte';
+  import { DdTable, dealKey, parOf } from '../dd/table.svelte';
+  import DdTricks from '../components/DdTricks.svelte';
   import { trickTaken, winningSoFar } from '../trickText';
   import { signed, rankText } from '../components/format';
 
@@ -215,16 +216,8 @@
         <div class="hv-par">Par {#if par.strain}<Strain level={par.level} strain={par.strain} />{par.doubled === 'X' ? 'X' : ''} {par.side}{:else}pass{/if} <b>{signed(par.score)}</b></div>
       {/if}
       {#if Object.keys(table.tricks).length}
-        <div class="bt-dd">
-          <span></span>
-          {#each STRAINS as s (s)}<span><Strain level="" strain={s} /></span>{/each}
-          {#each ['N/S', 'E/W'] as const as side (side)}
-            <span class="bt-dd-l">{side}</span>
-            {#each STRAINS as s (s)}
-              <span class:best={par?.side === side && par.strain === s}>{sideTricks(table.tricks, s, side) ?? '…'}</span>
-            {/each}
-          {/each}
-        </div>
+        <DdTricks tricks={table.tricks} seats={['North', 'South', 'East', 'West']} {par}
+          contract={hb && !hb.passed_out ? hb.contract : null} />
       {/if}
       {#if table.error}
         <p class="caption"><span class="dd-error">Double dummy: {table.error}</span> <button class="chip-btn" onclick={solveTable}>Try again</button></p>
@@ -233,7 +226,7 @@
       {:else if !table.done}
         <button class="chip-btn" onclick={solveTable}>Show tricks and par · 1–3 min</button>
       {:else}
-        <p class="caption">Tricks double dummy, the better declarer.</p>
+        <p class="caption">Tricks double dummy by declarer{#if hb?.contract && !hb.passed_out}; the contract played is boxed{/if}.</p>
       {/if}
     </section>
   {/if}

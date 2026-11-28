@@ -37,6 +37,7 @@ interface Stored {
   showStrength: boolean;
   autoPlay: boolean;
   fastPlay: boolean;
+  alwaysNext: boolean;
 }
 
 function load(): Partial<Stored> {
@@ -57,6 +58,9 @@ class Settings {
   autoPlay = $state(false);
   /** Move on to the next trick by itself after a short pause. */
   fastPlay = $state(false);
+  /** Show "Next trick" after every trick, also one you won and lead to:
+   *  everyone at the table sees the trick is over. */
+  alwaysNext = $state(true);
 
   constructor() {
     const s = load();
@@ -65,6 +69,7 @@ class Settings {
     if (typeof s.showStrength === 'boolean') this.showStrength = s.showStrength;
     if (typeof s.autoPlay === 'boolean') this.autoPlay = s.autoPlay;
     if (typeof s.fastPlay === 'boolean') this.fastPlay = s.fastPlay;
+    if (typeof s.alwaysNext === 'boolean') this.alwaysNext = s.alwaysNext;
   }
 
   save(): void {
@@ -73,6 +78,7 @@ class Settings {
         deck: this.deck, trumpFirst: this.trumpFirst,
         showStrength: this.showStrength,
         autoPlay: this.autoPlay, fastPlay: this.fastPlay,
+        alwaysNext: this.alwaysNext,
       }));
     } catch {
       // Not remembered; the page still works.

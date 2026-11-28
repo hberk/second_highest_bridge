@@ -3,17 +3,14 @@
 Contract bridge with one rule changed: **the second-highest card of the winning
 suit takes the trick**, not the highest.
 
-**Play it in your browser: https://hberk.github.io/second_highest_bridge/**
+**Play it in your browser: https://bridge.second-highest.workers.dev/**
 
-Nothing to install, no account. It runs entirely in the page, and your
-finished boards are saved in your browser. Visits are counted with Cloudflare
-Web Analytics, which uses no cookies and doesn't track you between sites.
+Nothing to install, no account. Solo play runs entirely in the page, and your
+finished boards are saved in your browser.
 
-**Play with friends (beta): https://bridge.second-highest.workers.dev/**
-
-Two to four people at one table, robots in the empty seats, by invite link.
-It's the same game with a table server behind it, on Cloudflare's free plan,
-so on a very busy day it can rest until midnight UTC.
+**Play with friends (beta):** on the same site, two to four people at one
+table, robots in the empty seats, by invite link. The tables run on
+Cloudflare's free plan, so on a very busy day they can rest until midnight UTC.
 
 ## The rules
 

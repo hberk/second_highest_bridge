@@ -69,3 +69,10 @@ test('an inverted raiser competes to 3D in the pass-out seat', () => {
   expect(r.why).toContain('fit');
   expect(bid('KS JS 4H 3H 2H QD 10D 7D 6D 4D 9C 8C 2C', 'West', ['1D', 'Pass', '2D', '2S', 'Pass', 'Pass']).call).toBe('Pass');
 });
+// tests/test_gib.py test_cappelletti_six_four_majors_bid_the_one_suiter.
+test('6-4 in the majors over their 1NT bids 2C, not 2D', () => {
+  const r = bid('AS KS QS 8S 7S 3S AH KH 4H 2H 6D JC 8C', 'North', ['1NT']);
+  expect([r.call, r.why]).toEqual(['2C', 'One long suit, 6+. Artificial.']);
+  expect(bid('AS KS 9S 7S 3S KH 10H 8H 6H 4D 2D 9C 3C', 'North', ['1NT']).call).toBe('2D');
+  expect(bid('AS KS 9S 7S 3S 2S KH 10H 8H 6H 4H 2D 3C', 'North', ['1NT']).call).toBe('2D');
+});
