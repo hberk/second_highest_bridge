@@ -1,8 +1,10 @@
 # Changelog
 
-Releases are tagged on main, and the tag matches the version in
-`frontend/package.json` and `server/package.json` (`v0.1.0-alpha` is
-0.1.0-alpha). Until 1.0 the robots' bidding and play change from release to release; every change and
+Each version is the one in `frontend/package.json` and `server/package.json`
+(`v0.1.0-alpha` is 0.1.0-alpha), and a date is the day it merged to main.
+There are no GitHub releases: the early ones pointed at the retired homelab
+and were deleted in November 2026, so main itself, deployed to
+https://bridge.second-highest.workers.dev, is the current version. Until 1.0 the robots' bidding and play change from release to release; every change and
 what it was measured to be worth is in
 [docs/ROBOT_PROGRESS.md](docs/ROBOT_PROGRESS.md).
 
