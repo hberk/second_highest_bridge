@@ -18,7 +18,7 @@
     // its Content-Security-Policy, and copies _headers in.
     "directory": "../../frontend/dist",
     "binding": "ASSETS",
-    "run_worker_first": ["/tables", "/tables/*", "/healthz", "/visit", "/dev/*"],
+    "run_worker_first": ["/tables", "/tables/*", "/healthz", "/visit", "/boards", "/dev/*"],
     "not_found_handling": "none"
   },
   "durable_objects": {
@@ -31,6 +31,11 @@
   // Visitor counts (src/visits.ts, visitors.mjs). Free on Workers Free; the
   // dataset is created by the first write.
   "analytics_engine_datasets": [{ "binding": "VISITS", "dataset": "bridge_visits" }],
+  // Shared finished boards (src/boards.ts, docs/SHARED_BOARDS.md). The first
+  // deploy creates the database (Wrangler provisions a binding with no id),
+  // which needs the deploy token to hold D1 Edit; src/boards.ts makes the
+  // table on first use.
+  "d1_databases": [{ "binding": "BOARDS", "database_name": "bridge_boards" }],
   "vars": { "ALLOWED_ORIGINS": "https://bridge.second-highest.workers.dev" },
   "observability": { "enabled": true }
 }

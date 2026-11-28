@@ -1,0 +1,41 @@
+# The shared finished boards (server/cf/src/boards.ts), on demand:
+# Actions > Shared boards > Run workflow. The tables appear on the run's page,
+# and every row in the window is attached to the run as boards.jsonl.
+# Needs CLOUDFLARE_D1_TOKEN (Account > D1 > Read) beside the deploy secrets in
+# the `cloudflare` environment.
+name: Shared boards
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Days to show
+        default: '30'
+
+permissions:
+  contents: read
+
+jobs:
+  boards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: cloudflare
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: server/cf/boards.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Report
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_TOKEN: ${{ secrets.CLOUDFLARE_D1_TOKEN }}
+          DAYS: ${{ inputs.days }}
+        run: node server/cf/boards.mjs "$DAYS" --out boards.jsonl | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: boards
+          path: boards.jsonl
+          if-no-files-found: ignore

@@ -1,16 +1,21 @@
 // MP10 (docs/MULTIPLAYER_PLAN.md): solo play, Challenge and Bidding training
-// send nothing during play; the one call is the anonymous visit beacon at
-// page load on Cloudflare. Two checks, because neither alone is proof:
+// send nothing during play. The live site sends two things, neither while a
+// board is being played: the anonymous visit beacon at page load, and, once a
+// board is over and only with Share results on, that board's anonymous record
+// (share.ts, docs/SHARED_BOARDS.md). Three checks, because no one alone is proof:
 //
 // 1. Behaviour: every way out of the page (fetch, WebSocket, XMLHttpRequest,
 //    EventSource, sendBeacon, Worker) is replaced by a trap, and free boards,
 //    challenge boards and training boards are played start to finish with
 //    every view rendered at every step. One touch of a trap fails the test.
+//    With the app's sharing hook attached, it fires once per board, only
+//    after the board is over, and the record holds no name or typed text.
 // 2. Source: every place in src/ that can reach the network is listed below
 //    with what opens it. None on a solo path talks to a server; the only
 //    one a solo screen reaches is the solver loading its own .wasm file from
 //    the site. A new one fails here until someone decides it belongs, and
 //    says why.
+// 3. Wiring: App.svelte shares only on the live site and with the setting on.
 //
 // The render is server-side, so a $effect (where the solver starts) doesn't
 // run in (1); (2) is what covers it.
@@ -20,6 +25,9 @@ import { Game } from './game.svelte';
 import { Trainer } from './trainer.svelte';
 import { prng } from './meanings';
 import { legalPlays } from './engine/auction';
+import { playedShare, trainingShare, type SharedBoard } from './shareRecord';
+import { shareBoard } from './share';
+import type { ChallengeLogEntry, HistoryRecord } from './saves';
 import TableView from './views/TableView.svelte';
 import DesktopTableView from './views/DesktopTableView.svelte';
 import HistoryView from './views/HistoryView.svelte';
@@ -146,6 +154,85 @@ describe('MP10: solo play sends nothing during play', () => {
   });
 });
 
+describe('MP10: the only thing a board sends is its own record, once it is over', () => {
+  it('hands each finished board over once, after it ends, never during play', () => {
+    const game = new Game(null, prng(11));
+    const seen: { over: boolean; record: HistoryRecord; graded: ChallengeLogEntry | null }[] = [];
+    game.onBoardDone = (record, graded) => seen.push({ over: game.boardOver, record, graded });
+    let ended = 0;
+    for (let i = 0; i < 8; i++) {
+      game.newBoard();
+      playBoard(game);
+      if (game.boardOver) ended++;
+    }
+    for (let i = 0; i < 4; i++) {
+      expect(game.dealChallenge()).toBe(true);
+      playBoard(game);
+      if (game.boardOver) ended++;
+    }
+    expect(ended).toBeGreaterThan(8);
+    expect(seen.length).toBe(ended);
+    expect(seen.every((s) => s.over), 'a board was handed over before it was over').toBe(true);
+    expect(seen.slice(-4).every((s) => s.graded !== null)).toBe(true);
+    expect(seen.slice(0, -4).every((s) => s.graded === null)).toBe(true);
+    for (const { record, graded } of seen) {
+      const shared = playedShare({ ...record, bid_alerts: { 0: 'my own words' }, label: 'my label' }, graded);
+      const text = JSON.stringify(shared);
+      expect(text).not.toMatch(/my own words|my label|\|an\|/);
+      expect(shared.lin).toMatch(/^pn\|South,West,North,East\|/);
+      expect(Object.keys(shared).sort()).toEqual(graded ? ['app', 'challenge', 'deal_id', 'lin', 'mode', 'v'] : ['app', 'lin', 'mode', 'v']);
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('hands each training recap over once, after the auction ends', () => {
+    const trainer = new Trainer(null, prng(11));
+    const seen: SharedBoard[] = [];
+    trainer.onRecap = (recap, b) => {
+      expect(trainer.auction.isComplete).toBe(true);
+      seen.push(trainingShare(b.dealId, b.boardNum, b.calls, { score: recap.score, par: recap.par.score, robotScore: recap.robotScore }));
+    };
+    for (let i = 0; i < 4; i++) {
+      trainer.newBoard();
+      for (let step = 0; step < 60 && !trainer.recap; step++) trainer.humanBids('Pass');
+    }
+    expect(seen.length).toBe(4);
+    expect(Object.keys(seen[0]).sort()).toEqual(['app', 'board_num', 'calls', 'deal_id', 'mode', 'training', 'v']);
+    expect(calls).toEqual([]);
+  });
+
+  it('sends a shared board to /boards and nowhere else, keeping it when the send fails', () => {
+    const nav = globalThis.navigator as unknown as Record<string, unknown>;
+    const sent: [string, string][] = [];
+    let accept = false;
+    Object.defineProperty(nav, 'sendBeacon', { value: (u: string, b: string) => (sent.push([u, b]), accept), configurable: true });
+    const store = new Map<string, string>();
+    const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v), removeItem: (k: string) => store.delete(k) } as unknown as Storage;
+    const board = trainingShare(1, 1, [], { score: 0, par: 0, robotScore: 0 });
+    try {
+      shareBoard(storage, board);
+      accept = true;
+      shareBoard(storage, board);
+    } finally {
+      Object.defineProperty(nav, 'sendBeacon', { value: trap('sendBeacon'), configurable: true });
+    }
+    expect(sent.map(([u]) => u)).toEqual(['/boards', '/boards']);
+    expect(JSON.parse(sent[1][1]).boards.length).toBe(2);
+    expect(store.size).toBe(0);
+  });
+
+  it('the app shares only on the live site, and only with Share results on', () => {
+    const app = FILES['App.svelte'];
+    expect(import.meta.env.VITE_SHARE).not.toBe('1');
+    expect(pkg.scripts.build).not.toContain('VITE_SHARE');
+    expect(app).toMatch(/const SHARING = import\.meta\.env\.VITE_SHARE === '1';/);
+    expect(app).toMatch(/if \(SHARING\) \{\s*game\.onBoardDone = /);
+    expect(code(app).match(/shareBoard\(/g)?.length).toBe(2);
+    // Each send sits right under the setting's check.
+    expect(code(app).match(/if \(settings\.shareResults[^)]*\)\s*\{?\s*shareBoard\(/g)?.length).toBe(2);
+  });
+});
+
 // ---------------------------------------------------------------------------
 
 /** Every source file under src/, by its path from src/, tests left out. */
@@ -161,6 +248,7 @@ const FILES: Record<string, string> = Object.fromEntries(
  *  screen may reach an `asset` file, never a `server` one. */
 const ALLOWED: Record<string, { count: number; kind: 'server' | 'asset'; why: string }> = {
   'App.svelte': { count: 2, kind: 'server', why: "fetch('tables') behind Play with friends, and the page-load visit ping (VITE_VISITS, the Cloudflare deploy only)" },
+  'lib/share.ts': { count: 1, kind: 'server', why: "a finished board's anonymous record (/boards): App.svelte calls it once a board is over, with Share results on, on the live site only" },
   'lib/table/remote.svelte.ts': { count: 2, kind: 'server', why: 'healthz and the WebSocket: only at a table link (#/t/...)' },
   'lib/dd/worker.ts': { count: 1, kind: 'asset', why: "the solver's own .wasm file: History and Review the deal" },
   'lib/dd/tableWorker.ts': { count: 1, kind: 'asset', why: "the solver's own .wasm file: the tricks table, on a tap" },

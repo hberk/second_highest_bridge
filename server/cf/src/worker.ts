@@ -1,7 +1,7 @@
 // The table server on Cloudflare (MULTIPLAYER_PLAN.md, M7): this Worker
 // routes, and each table is a Durable Object (table-object.ts). The beta
 // site is the Worker's static assets, served without running this code;
-// only /tables, /healthz and /visit come here (wrangler.jsonc, `run_worker_first`).
+// only /tables, /healthz, /visit and /boards come here (wrangler.jsonc, `run_worker_first`).
 //
 // It checks what the Node server checks (server.ts): the Origin, the table id,
 // and how many tables one address creates in an hour.
@@ -12,6 +12,7 @@ import type { Env } from './env';
 import { isResting, logUnrecognised } from './resting';
 import { restingSocket } from './table-object';
 import { recordVisit, type VisitEvent } from './visits';
+import { storeBoards } from './boards';
 
 export { TableObject } from './table-object';
 export { Limiter } from './limiter';
@@ -85,6 +86,26 @@ async function route(req: Request, env: Env, ctx: ExecutionContext): Promise<Res
       return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
     }
 
+    if (path === '/boards' && req.method === 'POST') {
+      // A finished board or a few, from the app once each board is over
+      // (frontend/src/lib/share.ts), anonymous: boards.ts stores what the
+      // board itself says, never who sent it. A beacon reads no answer.
+      const text = (await req.text()).slice(0, 64_000);
+      if (!originOk || !env.BOARDS) return new Response(null, { status: 204 });
+      const limiter = env.LIMITER.get(env.LIMITER.idFromName('limiter'));
+      if (!await limiter.allow(`boards:${ip}`, Number(env.BOARDS_PER_HOUR ?? 60))) return json(429, { error: 'later' });
+      try {
+        return json(200, await storeBoards(env.BOARDS, text));
+      } catch (e) {
+        console.error('boards not stored:', e);
+        return json(500, { error: 'server' });
+      }
+    }
+
+    if (path === '/dev/boards' && req.method === 'GET' && env.BRIDGE_DEV === '1' && env.BOARDS) {
+      return json(200, (await env.BOARDS.prepare('SELECT * FROM boards ORDER BY id').all()).results);
+    }
+
     const ws = WS_PATH.exec(path);
     if (ws && req.method === 'GET') {
       if (!TABLE_ID_RE.test(ws[1])) return json(404, { error: 'not found' });
@@ -105,6 +126,6 @@ async function route(req: Request, env: Env, ctx: ExecutionContext): Promise<Res
       return json(200, { ok: true });
     }
 
-    if (path.startsWith('/tables') || path === '/healthz' || path === '/visit') return json(404, { error: 'not found' });
+    if (path.startsWith('/tables') || path === '/healthz' || path === '/visit' || path === '/boards') return json(404, { error: 'not found' });
     return env.ASSETS.fetch(req);
 }

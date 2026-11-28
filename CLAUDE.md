@@ -65,7 +65,8 @@ cd server/cf       # the same tables on Cloudflare (Worker + Durable Objects): M
 npm install
 npm test           # the Worker in workerd on a random port: a whole board, restart, limits, rows a board
 npm run check      # tsc
-npm run site       # the site for Cloudflare (visit count on), into frontend/dist
+npm run site       # the site for Cloudflare (visit count and shared boards on), into frontend/dist
+npm run boards     # the shared boards report from D1 (needs CLOUDFLARE_D1_TOKEN): docs/SHARED_BOARDS.md
 npm run dev        # wrangler dev on :8787 (needs `npm run site` first)
 ```
 
@@ -185,5 +186,6 @@ it before going against one.
 | [HOSTING_AND_LOCAL_SAVES.md](docs/HOSTING_AND_LOCAL_SAVES.md) | changing where the site is hosted or browser-saved games |
 | [ONLINE_PLAN.md](docs/ONLINE_PLAN.md) | planning accounts, saved hands or live tables |
 | [MULTIPLAYER_PLAN.md](docs/MULTIPLAYER_PLAN.md) | building live tables: milestones, protocol, tests |
+| [SHARED_BOARDS.md](docs/SHARED_BOARDS.md) | changing what finished boards the app shares, or reading them in Cloudflare |
 
 When state changes, update the doc that owns it rather than growing this file.

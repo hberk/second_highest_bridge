@@ -7,6 +7,10 @@ export interface Env {
   ASSETS: Fetcher;
   /** Visitor counts (visits.ts); absent in the tests and `wrangler dev`. */
   VISITS?: AnalyticsEngineDataset;
+  /** Shared finished boards (boards.ts); absent only if unbound. */
+  BOARDS?: D1Database;
+  /** Shared-board requests one address may send in an hour (60 by default). */
+  BOARDS_PER_HOUR?: string;
   /** Origins allowed to open a table, comma-separated. */
   ALLOWED_ORIGINS: string;
   /** The robots' pace in ms (600 by default); the tests shorten it. */

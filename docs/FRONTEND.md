@@ -300,8 +300,11 @@ remains the reference.
   build was removed on 2026-11-28). Its CSP allows one socket origin,
   `wss://bridge.second-highest.workers.dev`, added by `vite.config.ts`.
   Cloudflare's build (`npm run site`) also sets `VITE_VISITS=1`: one
-  anonymous visit beacon per page load, nothing during play (MP10,
-  `src/lib/offline.test.ts`). `npm run dev` proxies
+  anonymous visit beacon per page load, and `VITE_SHARE=1`: each finished
+  board's anonymous record once it is over, while Settings > Share finished
+  boards is on (on by default; a one-line notice on the home screen until
+  closed). Nothing during play (MP10, `src/lib/offline.test.ts`;
+  [SHARED_BOARDS.md](SHARED_BOARDS.md)). `npm run dev` proxies
   `/tables` to a table server on `localhost:8787` (`server/`, `npm run dev`
   with `ALLOWED_ORIGINS=http://localhost:5173`). Boards finished at a table
   go into Hand history with `table_id` and `my_seat`, outside the solo

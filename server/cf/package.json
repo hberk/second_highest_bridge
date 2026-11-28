@@ -7,10 +7,11 @@
   "scripts": {
     "check": "tsc --noEmit -p .",
     "test": "vitest run",
-    "site": "cd ../../frontend && VITE_TABLE_SOCKET_ORIGIN=wss://bridge.second-highest.workers.dev VITE_VISITS=1 npm run build && cp ../server/cf/_headers dist/_headers",
+    "site": "cd ../../frontend && VITE_TABLE_SOCKET_ORIGIN=wss://bridge.second-highest.workers.dev VITE_VISITS=1 VITE_SHARE=1 npm run build && cp ../server/cf/_headers dist/_headers",
     "dev": "wrangler dev --var BRIDGE_DEV:1 --var ALLOWED_ORIGINS:http://localhost:8787",
     "deploy": "wrangler deploy",
-    "visitors": "node visitors.mjs"
+    "visitors": "node visitors.mjs",
+    "boards": "node boards.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261118.1",

@@ -19,6 +19,8 @@
   import RemoteView from './lib/views/RemoteView.svelte';
   import { RemoteTable } from './lib/table/remote.svelte';
   import { TABLE_ID_RE, restingAt } from './lib/table/protocol';
+  import { shareBoard } from './lib/share';
+  import { playedShare, trainingShare } from './lib/shareRecord';
 
   type Screen = 'home' | 'table' | 'training' | 'challenge' | 'history' | 'howto' | 'remote';
   const SCREENS: Screen[] = ['home', 'table', 'training', 'challenge', 'history', 'howto'];
@@ -35,6 +37,23 @@
 
   const game = new Game();
   const trainer = new Trainer();
+
+  /** Finished boards, shared anonymously once each is over (share.ts,
+   *  docs/SHARED_BOARDS.md): only on the live site (`npm run site` sets
+   *  VITE_SHARE), and only while Share results is on. Never during play. */
+  const SHARING = import.meta.env.VITE_SHARE === '1';
+  const shareStorage = (() => { try { return localStorage; } catch { return null; } })();
+  if (SHARING) {
+    game.onBoardDone = (record, graded) => {
+      if (settings.shareResults && !record.imported) shareBoard(shareStorage, playedShare(record, graded));
+    };
+    trainer.onRecap = (recap, board) => {
+      if (settings.shareResults) {
+        shareBoard(shareStorage, trainingShare(board.dealId, board.boardNum, board.calls,
+          { score: recap.score, par: recap.par.score, robotScore: recap.robotScore }));
+      }
+    };
+  }
 
   // The screen follows the address (#table, #history, ...), so the browser's
   // back button and the phone's back swipe move between screens. A table is
@@ -145,7 +164,8 @@
 {#if screen === 'home'}
   <HomeView {game} onplay={() => go('table')} ontraining={() => go('training')} onchallenge={() => go('challenge')}
     onhowto={() => go('howto')} onhistory={() => go('history')} onsettings={() => (settingsOpen = true)}
-    onfriends={playWithFriends} />
+    onfriends={playWithFriends} shareNotice={SHARING && settings.shareResults && !settings.shareNoticeSeen}
+    onsharenoticed={() => (settings.shareNoticeSeen = true)} />
   {#if createError}<div class="notice error rt-create-error" role="alert">{createError}</div>{/if}
 {:else if screen === 'remote'}
   {#if remote}<RemoteView table={remote} onhome={() => go('home')} onsettings={() => (settingsOpen = true)} />{/if}

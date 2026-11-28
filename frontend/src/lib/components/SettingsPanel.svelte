@@ -45,6 +45,13 @@
     </label>
   </fieldset>
   <fieldset>
+    <legend>Help the robots</legend>
+    <label class="setting">
+      <input type="checkbox" bind:checked={settings.shareResults} />
+      <span>Share finished boards<small>Anonymous: the cards, calls, play and scores. No name or id.</small></span>
+    </label>
+  </fieldset>
+  <fieldset>
     <legend>Saved on this device</legend>
     <p class="caption">
       {n} board{n === 1 ? '' : 's'}{game.challengeLog.length ? `, ${game.challengeLog.length} challenge${game.challengeLog.length === 1 ? '' : 's'}` : ''}.

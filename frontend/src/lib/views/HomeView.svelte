@@ -5,7 +5,7 @@
   import type { Game } from '../game.svelte';
   import SessionScore from '../components/SessionScore.svelte';
 
-  let { game, onplay, ontraining, onchallenge, onhowto, onhistory, onsettings, onfriends }: {
+  let { game, onplay, ontraining, onchallenge, onhowto, onhistory, onsettings, onfriends, shareNotice = false, onsharenoticed }: {
     game: Game;
     onplay: () => void;
     ontraining: () => void;
@@ -15,6 +15,9 @@
     onsettings: () => void;
     /** Multiplayer tables, on the table server. */
     onfriends: () => void;
+    /** The one-time line that finished boards are shared (Settings turns it off). */
+    shareNotice?: boolean;
+    onsharenoticed?: () => void;
   } = $props();
 
   /** A board you've started is waiting for you on the table. */
@@ -29,6 +32,15 @@
     </button>
   </div>
 
+  {#if shareNotice}
+    <div class="notice info share-notice" role="status">
+      <span>Finished boards are shared anonymously to help improve the robots.</span>
+      <span class="share-notice-actions">
+        <button class="link-btn" onclick={onsettings}>Settings</button>
+        <button class="link-btn" onclick={onsharenoticed}>OK</button>
+      </span>
+    </div>
+  {/if}
   <div class="home-hero">
     <!-- A heart trick: A K 9 4, and the king takes it. -->
     <div class="home-felt" aria-hidden="true">
@@ -53,3 +65,10 @@
     <SessionScore history={game.history} challengeLog={game.challengeLog} passedOut={game.passedOutCount} />
   </nav>
 </div>
+
+<style>
+  .share-notice { display: flex; align-items: center; gap: 2px 12px; flex-wrap: wrap; margin: 0 0 8px; }
+  .share-notice > span:first-child { flex: 1 1 200px; }
+  .share-notice-actions { display: flex; gap: 8px; margin-left: auto; }
+  .share-notice .link-btn { padding: 4px; }
+</style>

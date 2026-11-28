@@ -38,6 +38,8 @@ interface Stored {
   autoPlay: boolean;
   fastPlay: boolean;
   alwaysNext: boolean;
+  shareResults: boolean;
+  shareNoticeSeen: boolean;
 }
 
 function load(): Partial<Stored> {
@@ -61,6 +63,11 @@ class Settings {
   /** Show "Next trick" after every trick, also one you won and lead to:
    *  everyone at the table sees the trick is over. */
   alwaysNext = $state(true);
+  /** Send each finished board, anonymously, to help improve the robots
+   *  (share.ts, docs/SHARED_BOARDS.md). On unless turned off. */
+  shareResults = $state(true);
+  /** The home screen's one-line notice about sharing has been closed. */
+  shareNoticeSeen = $state(false);
 
   constructor() {
     const s = load();
@@ -70,6 +77,8 @@ class Settings {
     if (typeof s.autoPlay === 'boolean') this.autoPlay = s.autoPlay;
     if (typeof s.fastPlay === 'boolean') this.fastPlay = s.fastPlay;
     if (typeof s.alwaysNext === 'boolean') this.alwaysNext = s.alwaysNext;
+    if (typeof s.shareResults === 'boolean') this.shareResults = s.shareResults;
+    if (typeof s.shareNoticeSeen === 'boolean') this.shareNoticeSeen = s.shareNoticeSeen;
   }
 
   save(): void {
@@ -79,6 +88,7 @@ class Settings {
         showStrength: this.showStrength,
         autoPlay: this.autoPlay, fastPlay: this.fastPlay,
         alwaysNext: this.alwaysNext,
+        shareResults: this.shareResults, shareNoticeSeen: this.shareNoticeSeen,
       }));
     } catch {
       // Not remembered; the page still works.

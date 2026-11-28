@@ -226,6 +226,9 @@ export class Trainer {
   log = $state<TrainingLogEntry[]>([]);
   /** Where the score starts in the log (see SavedTraining.scoreFrom). */
   scoreFrom = $state(0);
+  /** Called once a board's recap is ready. App.svelte shares it from here
+   *  (share.ts) when Share results is on; nothing here reaches the network. */
+  onRecap: ((recap: Recap, board: { dealId: number; boardNum: number; calls: CallRecord[] }) => void) | null = null;
 
   auction = $derived.by(() => {
     const a = new AuctionState(this.dealer, this.vulnerability);
@@ -448,5 +451,10 @@ export class Trainer {
     robotScores.set(`${id}:${this.boardNum}`, this.recap.robotScore);
     this.log.push({ deal_id: id, board_num: this.boardNum, score: mine.score, par: par.score, diff: mine.score - par.score });
     this.save();
+    try {
+      this.onRecap?.(this.recap, { dealId: id, boardNum: this.boardNum, calls: $state.snapshot(this.calls) as CallRecord[] });
+    } catch {
+      // Sharing never stops the training.
+    }
   }
 }

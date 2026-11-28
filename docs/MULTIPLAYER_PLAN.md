@@ -855,6 +855,9 @@ GitHub environment `cloudflare` that only main may use.
   with Actions > **Visitor counts** > Run workflow, or `npm run visitors` in
   `server/cf`; both need `CLOUDFLARE_ANALYTICS_TOKEN` (Account Analytics
   Read) beside the deploy secrets.
+- **Shared boards** (2026-11-28, `server/cf/src/boards.ts`): finished solo,
+  challenge and training boards, anonymous, into the D1 database
+  `bridge_boards`; see [SHARED_BOARDS.md](SHARED_BOARDS.md).
 - **Not done yet:** reading the
   game log out (each table's log stays in its own object, so
   `fetch-logs.sh` doesn't reach it; Workers Logs has the console output);
@@ -875,7 +878,7 @@ GitHub environment `cloudflare` that only main may use.
 | MP7 | A departed player's seat can go to a robot and come back | P1 | `core.test.ts`, Playwright |
 | MP8 | Finished table boards appear in each player's History and LIN export | P1 | `core.test.ts` LIN round trip |
 | MP9 | Joining needs only a link and a name | P1 | Playwright |
-| MP10 | Solo and Challenge send nothing during play: one anonymous visit beacon per page load on Cloudflare (user, 2026-11-28), nothing else | P0 | CSP; `frontend/src/lib/offline.test.ts`: free, challenge and training boards with every network API trapped, and a list of every call site in `src/` (besides the beacon, the only one a solo screen reaches is Review the deal loading the solver's own `.wasm` from the site) |
+| MP10 | Solo, Challenge and Bidding training send nothing during play. On Cloudflare the page sends one anonymous visit beacon when it loads, and, once a board is over and only with Share results on, that board's anonymous record ([SHARED_BOARDS.md](SHARED_BOARDS.md)); nothing else (user, 2026-11-28) | P0 | CSP; `frontend/src/lib/offline.test.ts`: free, challenge and training boards with every network API trapped; the sharing hooks fire once per board, only after it is over, with no name or typed text; `App.svelte` shares only on the live site and with the setting on; and a list of every call site in `src/` (besides the two beacons, the only one a solo screen reaches is Review the deal loading the solver's own `.wasm` from the site) |
 
 ## Security checklist
 

@@ -110,6 +110,10 @@ export class Game {
    *  preference, set from settings by the app; off by default so tests and
    *  the Python port's behaviour are unchanged unless asked. */
   autoPlayForced = false;
+  /** Called once a board is over, played out or passed out, with its record
+   *  and, on a challenge board, its grade. App.svelte shares it from here
+   *  (share.ts) when Share results is on; nothing here reaches the network. */
+  onBoardDone: ((record: HistoryRecord, challenge: ChallengeLogEntry | null) => void) | null = null;
 
   /** The alerts the table may see while the board is live: robot passes say
    *  WHY they passed, which reads the robot's cards out, and a real table never
@@ -269,6 +273,19 @@ export class Game {
       // whatever the robots made of the same cards.
       this.gradeChallenge();
       this.persist();
+      this.boardDone({
+        board_num: this.boardNum,
+        dealer: this.dealer,
+        vulnerability: this.vulnerability,
+        initial_hands: this.initialHands,
+        auction_calls: $state.snapshot(this.calls) as CallRecord[],
+        bid_alerts: {},
+        contract: null,
+        passed_out: true,
+        tricks_log: [],
+        tricks_taken: { 'N/S': 0, 'E/W': 0 },
+        result: null,
+      });
       return;
     }
     const contract = auction.getContract()!;
@@ -449,6 +466,16 @@ export class Game {
       result: this.result,
     });
     this.persist();
+    this.boardDone($state.snapshot(this.history[this.history.length - 1]) as HistoryRecord);
+  }
+
+  private boardDone(record: HistoryRecord): void {
+    const graded = this.challengeId !== null ? this.challengeLog[this.challengeLog.length - 1] ?? null : null;
+    try {
+      this.onBoardDone?.(record, graded && ($state.snapshot(graded) as ChallengeLogEntry));
+    } catch {
+      // Sharing never stops the game.
+    }
   }
 
   /** Replay this deal with robots in all four seats and compare. Only South's

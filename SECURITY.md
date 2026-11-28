@@ -12,7 +12,9 @@ reply as soon as I can, and credit you in the fix if you'd like.
   https://bridge.second-highest.workers.dev with the table server for play
   with friends (`server/cf`, a Worker and a Durable Object per table). Solo
   play sends nothing during play, only one anonymous visit beacon (no
-  cookies) when the page loads; the page's only other connection is the table
+  cookies) when the page loads and, once a board is over, that board's
+  anonymous record (cards, calls, play and scores, no name or id; Settings
+  turns it off; docs/SHARED_BOARDS.md); the page's only other connection is the table
   socket on its own origin, and the Content Security Policy (sent as a header,
   `server/cf/_headers`) allows that and nothing else. There are no accounts,
   and saved games stay in your browser's `localStorage`. The likeliest problem
