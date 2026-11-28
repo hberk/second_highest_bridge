@@ -318,6 +318,15 @@ describe('the Cloudflare table server', () => {
     expect((await fetch(`${s.url}/tables`)).status).toBe(404);
   });
 
+  it('takes the page\'s visit beacon, from the site or not, and never fails it', async () => {
+    const s = await serve();
+    const ours = await fetch(`${s.url}/visit`, { method: 'POST', headers: { origin: ORIGIN }, body: 'https://example.com/' });
+    expect(ours.status).toBe(204);
+    const other = await fetch(`${s.url}/visit`, { method: 'POST', headers: { origin: 'https://evil.example' } });
+    expect(other.status).toBe(204);
+    expect((await fetch(`${s.url}/visit`)).status).toBe(404);
+  });
+
   it('keeps the measurements endpoint off outside development', async () => {
     const s = await serve({ BRIDGE_DEV: '0' });
     const { body } = await createTable(s.url);

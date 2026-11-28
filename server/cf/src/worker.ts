@@ -1,7 +1,7 @@
 // The table server on Cloudflare (MULTIPLAYER_PLAN.md, M7): this Worker
 // routes, and each table is a Durable Object (table-object.ts). The beta
 // site is the Worker's static assets, served without running this code;
-// only /tables and /healthz come here (wrangler.jsonc, `run_worker_first`).
+// only /tables, /healthz and /visit come here (wrangler.jsonc, `run_worker_first`).
 //
 // It checks what the Node server checks (server.ts): the Origin, the table id,
 // and how many tables one address creates in an hour.
@@ -11,6 +11,7 @@ import { newTableId } from '../../src/tables';
 import type { Env } from './env';
 import { isResting, logUnrecognised } from './resting';
 import { restingSocket } from './table-object';
+import { recordVisit, type VisitEvent } from './visits';
 
 export { TableObject } from './table-object';
 export { Limiter } from './limiter';
@@ -23,9 +24,9 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 });
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     try {
-      return await route(req, env);
+      return await route(req, env, ctx);
     } catch (e) {
       // A call into a Durable Object past the day's allowance throws.
       const path = new URL(req.url).pathname;
@@ -39,7 +40,8 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-async function route(req: Request, env: Env): Promise<Response> {
+async function route(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const count = (event: VisitEvent, referrer = '') => ctx.waitUntil(recordVisit(env.VISITS, event, req, referrer));
     const path = new URL(req.url).pathname;
     const origins = env.ALLOWED_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean);
     const originOk = origins.includes(req.headers.get('origin') ?? '');
@@ -68,7 +70,19 @@ async function route(req: Request, env: Env): Promise<Response> {
       }
       const id = newTableId();
       if (!await table(id).create(id)) return json(500, { error: 'server' });
+      count('create');
       return json(201, { id });
+    }
+
+    if (path === '/visit' && req.method === 'POST') {
+      // The beta page's beacon on load (App.svelte): a page view by a browser
+      // that ran the app, so link previews and crawlers aren't counted, and
+      // the page itself stays a static asset (it loads even when the day's
+      // Worker requests are spent, to say "resting").
+      // Its body is document.referrer, read now: not after the response.
+      const referrer = (await req.text()).slice(0, 500);
+      if (originOk) count('view', referrer);
+      return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
     }
 
     const ws = WS_PATH.exec(path);
@@ -79,6 +93,7 @@ async function route(req: Request, env: Env): Promise<Response> {
       const headers = new Headers(req.headers);
       headers.set('x-table-id', ws[1]);
       headers.set('x-ip', ip);
+      count('join');
       return table(ws[1]).fetch('https://table/ws', { headers });
     }
 
@@ -90,6 +105,6 @@ async function route(req: Request, env: Env): Promise<Response> {
       return json(200, { ok: true });
     }
 
-    if (path.startsWith('/tables') || path === '/healthz') return json(404, { error: 'not found' });
+    if (path.startsWith('/tables') || path === '/healthz' || path === '/visit') return json(404, { error: 'not found' });
     return env.ASSETS.fetch(req);
 }

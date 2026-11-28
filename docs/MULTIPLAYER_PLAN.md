@@ -837,6 +837,19 @@ GitHub environment `cloudflare` that only main may use.
   even when its wording isn't recognised (the first unrecognised error is
   marked in the log). A proxy's 503 page in front of the homelab doesn't read
   as resting.
+- **Visitor counts** (2026-11-19, `server/cf/src/visits.ts`): Cloudflare Web
+  Analytics needs a domain on the account, which workers.dev isn't, so the
+  Worker writes to Workers Analytics Engine (dataset `bridge_visits`, free on
+  Workers Free: 100,000 points written and 10,000 queries a day, kept three
+  months). One point per page load (the Cloudflare build's `sendBeacon` to
+  `POST /visit`, `VITE_VISITS=1`, so crawlers and link previews don't count
+  and the page stays a static asset that loads while resting), per table
+  created and per socket opened to a table. A point holds the event, the
+  country, an outside referrer's host and a day's visitor mark (16 bits of
+  SHA-256 of day, address and browser): no cookies, no address. Read them
+  with Actions > **Visitor counts** > Run workflow, or `npm run visitors` in
+  `server/cf`; both need `CLOUDFLARE_ANALYTICS_TOKEN` (Account Analytics
+  Read) beside the deploy secrets.
 - **Not done yet:** reading the
   game log out (each table's log stays in its own object, so
   `fetch-logs.sh` doesn't reach it; Workers Logs has the console output);
