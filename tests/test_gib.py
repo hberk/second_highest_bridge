@@ -2876,3 +2876,19 @@ def test_six_count_raise():
         assert bid(two, *calls, dealer='West')[0] == 'Pass'
     finally:
         gib.SIX_COUNT_RAISE = saved
+
+
+def test_constructive_raises():
+    # The user's idea (2026-11-28): 1♥ 1NT 2♣ 2♥ is the weak raise, 1♥ 2♥ is 8-10.
+    west = 'KS QS 5S 10H 8H 3H JD 7D 4D 9C 4C 3C 2C'
+    saved = gib.CONSTRUCTIVE_RAISE
+    try:
+        gib.CONSTRUCTIVE_RAISE = True
+        assert bid(west, '1H', 'Pass', dealer='East') == ('1NT', '6-11 HCP. Forcing.')
+        assert bid(west, '1H', 'Pass', '1NT', 'Pass', '2C', 'Pass', dealer='East')[0] == '2H'
+        sound = 'KS QS 5S 10H 8H 3H QD 7D 4D 9C 4C 3C 2C'
+        assert bid(sound, '1H', 'Pass', dealer='East')[0] == '2H'
+        gib.CONSTRUCTIVE_RAISE = False
+        assert bid(west, '1H', 'Pass', dealer='East')[0] == 'Pass'
+    finally:
+        gib.CONSTRUCTIVE_RAISE = saved

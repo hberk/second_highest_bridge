@@ -962,6 +962,14 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   -0.06 / 0.00 / -0.04. No variant gains; the big swings both ways are
   opener's game over 2M and the opponents' balance after the old pass
   (/mnt/project-files/six-count-raise/REPORT.md).
+- **Constructive raises** (`CONSTRUCTIVE_RAISE`, off; the user's idea,
+  2026-11-28): 1M-2M on 8-10, a weak raise of 6-7 bids the forcing 1NT and
+  prefers 2M next, and opener tries for game `CONSTRUCTIVE_TRY_SHIFT` points
+  sooner over 2M. 3 x 5,000 fresh deals: with opener unchanged +0.02 / -0.04 /
+  -0.06 a board, one point sooner -0.04 / -0.08 / -0.14 (t = -2.4), two -0.03 /
+  -0.07 / -0.25, passed hands through 1NT too -0.12 / -0.07 / -0.20. The weak
+  raise loses its fit when they come in over 1NT
+  (/mnt/project-files/constructive-raise/REPORT.md).
 - **A passed responder raises to the two level over a balancing action**
   (`PASSED_RESPONDER_RAISE`, `_passed_responder_raise`; the user's board,
   2026-11-21: P P 1♠ P P X P 2♥ 3♠ on ♠T964 ♥97 ♦7642 ♣AJ8). "Responder's first

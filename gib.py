@@ -613,6 +613,44 @@ def _six_count_raise(ctx: Ctx, x: str) -> bool:
     return h.judge >= SIX_COUNT_RAISE
 
 
+#: Constructive raises (the user's call, 2026-11-28): 1M-2M promises 8-10,
+#: and a weak raise of 6-7 (three trumps, or 4 with a point for the fourth)
+#: bids a forcing 1NT and gives preference to 2M next. Opener, knowing the
+#: direct raise is sound, tries for game CONSTRUCTIVE_TRY_SHIFT points sooner.
+#: CONSTRUCTIVE_PASSED: a passed responder's 1NT is not forcing, so by
+#: default ('off') a passed hand keeps raising as before; 'nt' sends its weak
+#: raise through 1NT too.
+CONSTRUCTIVE_RAISE = False
+CONSTRUCTIVE_MIN = 8
+CONSTRUCTIVE_WEAK = 6
+CONSTRUCTIVE_TRY_SHIFT = 1
+CONSTRUCTIVE_PASSED = 'off'
+
+
+def _constructive(ctx: Ctx) -> bool:
+    """Do constructive raises apply to this responder?"""
+    if not CONSTRUCTIVE_RAISE:
+        return False
+    return CONSTRUCTIVE_PASSED == 'nt' or not ctx.passed_hand(ctx.me)
+
+
+def _weak_raise(ctx: Ctx, x: str) -> bool:
+    """A constructive-raise hand too weak for 2M: 1NT first."""
+    h = ctx.h
+    value = h.hcp + max(0, h.len[x] - 3)
+    return (_constructive(ctx) and h.len[x] >= 3 and h.hcp >= CONSTRUCTIVE_WEAK
+            and value < CONSTRUCTIVE_MIN)
+
+
+def _response_1nt(ctx: Ctx, passed: bool) -> tuple:
+    lo = CONSTRUCTIVE_WEAK if _constructive(ctx) else RESPONSE_MIN
+    if passed:
+        if CONSTRUCTIVE_RAISE and CONSTRUCTIVE_PASSED == 'nt':
+            return '1NT', f"{lo}-11 HCP."
+        return '1NT', f"{lo}-11 HCP, no fit."
+    return '1NT', f"{lo}-11 HCP. Forcing."
+
+
 def respond_major(ctx: Ctx, x: str) -> tuple:
     h = ctx.h
     hcp, sup = h.hcp, h.len[x]
@@ -620,6 +658,8 @@ def respond_major(ctx: Ctx, x: str) -> tuple:
     shortness = h.short(x)
     if sup >= 5 and hcp < 10 and shortness and ctx.ok(f"4{x}"):
         return f"4{x}", f"5+ {SYM[x]}, under 10 HCP. Pre-emptive raise."
+    if _weak_raise(ctx, x):
+        return _response_1nt(ctx, passed)
     if RAISE_TRUMP_POINTS and sup >= 4 and hcp < JACOBY_MIN:
         raise_ = _raise_on_trump_points(ctx, x)
         if raise_:
@@ -659,9 +699,7 @@ def respond_major(ctx: Ctx, x: str) -> tuple:
         if h.len['C'] >= 3:
             return '2C', f"3+ {SYM['C']}, 12+ HCP. Game forcing."
         return '2D', f"4+ {SYM['D']}, 12+ HCP. Game forcing."
-    if passed:
-        return '1NT', f"{RESPONSE_MIN}-11 HCP, no fit."
-    return '1NT', f"{RESPONSE_MIN}-11 HCP. Forcing."
+    return _response_1nt(ctx, passed)
 
 
 #: A light response opposite a minor opening (the user's call, 2026-10-28,
@@ -912,6 +950,9 @@ def _game_try(ctx: Ctx, x: str) -> tuple:
     hcp = h.hcp
     short = h.short(x)
     fit = hcp + _fit_bonus(h, x, 3)
+    if CONSTRUCTIVE_RAISE and not (CONSTRUCTIVE_PASSED == 'off' and ctx.passed_hand(ctx.pd)):
+        hcp += CONSTRUCTIVE_TRY_SHIFT        # partner's raise shows 8-10
+        fit += CONSTRUCTIVE_TRY_SHIFT
     if hcp <= 14 and fit < 18:
         return 'Pass', "Minimum."
     if SELF_SPLINTER and hcp >= SELF_SPLINTER_MIN and short:
@@ -927,8 +968,15 @@ def _game_try(ctx: Ctx, x: str) -> tuple:
         call = f"3{s}"
         if (s != x and h.len[s] >= 3 and h.top(s, ('A', 'K')) <= 1
                 and ctx.ok(call) and rank_of(call) < rank_of(f"3{x}")):
-            return call, f"3+ {SYM[s]}, 15-16 HCP. Help-suit game try."
-    return f"3{x}", "15-16 HCP, invitational."
+            return call, f"3+ {SYM[s]}, {_try_low(ctx)}-16 HCP. Help-suit game try."
+    return f"3{x}", f"{_try_low(ctx)}-16 HCP, invitational."
+
+
+def _try_low(ctx: Ctx) -> int:
+    """The fewest HCP a game try after 1M-2M holds."""
+    if CONSTRUCTIVE_RAISE and not (CONSTRUCTIVE_PASSED == 'off' and ctx.passed_hand(ctx.pd)):
+        return 15 - CONSTRUCTIVE_TRY_SHIFT
+    return 15
 
 
 def _inverted_rebid(ctx: Ctx, x: str) -> tuple:
