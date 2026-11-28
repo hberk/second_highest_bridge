@@ -19,6 +19,7 @@
   import AuctionGrid from '../components/AuctionGrid.svelte';
   import Sheet from '../components/Sheet.svelte';
   import DdTricks from '../components/DdTricks.svelte';
+  import { viewport } from '../viewport.svelte';
 
   let { trainer }: { trainer: Trainer } = $props();
 
@@ -104,17 +105,7 @@
 <div class="table-screen bt">
   {#if !recap}
     <!-- ── Bidding ─────────────────────────────────────────────────────────── -->
-    <header class="topbar bt-top">
-      <span></span>
-      <div class="topbar-center">
-        <div class="topbar-title">Bidding training · board {trainer.boardNum}</div>
-        <div class="topbar-sub">{trainer.dealer} deals · {VUL[trainer.vulnerability]} · bid only, no play</div>
-      </div>
-      <button class="icon-btn" aria-label="Show the whole auction" onclick={() => (auctionOpen = true)}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"></path></svg>
-      </button>
-    </header>
-    <div class="table-body">
+    {#snippet felt()}
       <AuctionFelt calls={trainer.calls} alerts={trainer.liveAlerts} dealer={trainer.dealer}
         turn={auction.isComplete ? null : auction.currentPlayer()} />
       <section class="hand-zone bt-hand-zone">
@@ -125,10 +116,55 @@
         <Fan cards={trainer.hands.South} size="md" label="Your hand" jp />
         <p class="bt-strip">Judgement points: <b>K, Q = 3 · A, J, 10, 9 = 1</b>. Bids show HCP; game is judged on JP.</p>
       </section>
-      {#if !auction.isComplete && auction.currentPlayer() === 'South'}
-        <BidPad {auction} oncall={(call, alert) => trainer.humanBids(call, alert)} />
-      {/if}
-    </div>
+    {/snippet}
+    {@const yourCall = !auction.isComplete && auction.currentPlayer() === 'South'}
+    {#if viewport.wide}
+      <!-- A wide screen: the whole auction and the bidding box down the right,
+           as at the desktop table, so a long auction needs no extra click. -->
+      <div class="dk-grid bt-desk">
+        <div class="dk-main">
+          <header class="topbar bt-top">
+            <div class="topbar-center">
+              <div class="topbar-title">Bidding training · board {trainer.boardNum}</div>
+              <div class="topbar-sub">bid only, no play</div>
+            </div>
+          </header>
+          <div class="table-body">{@render felt()}</div>
+        </div>
+        <aside class="dk-side">
+          <section class="dk-panel">
+            <div class="dk-panel-head">
+              <h2>Auction</h2>
+              <span class="dk-soft">{trainer.dealer} deals · {VUL[trainer.vulnerability]}</span>
+            </div>
+            <AuctionGrid dealer={trainer.dealer} calls={trainer.calls} alerts={trainer.liveAlerts} />
+          </section>
+          {#if yourCall}
+            <section class="dk-panel">
+              <div class="dk-panel-head"><h2>Your call</h2><span class="dk-soft">Click a call to see what it means</span></div>
+              <BidPad {auction} docked oncall={(call, alert) => trainer.humanBids(call, alert)} />
+            </section>
+          {/if}
+        </aside>
+      </div>
+    {:else}
+      <header class="topbar bt-top">
+        <span></span>
+        <div class="topbar-center">
+          <div class="topbar-title">Bidding training · board {trainer.boardNum}</div>
+          <div class="topbar-sub">{trainer.dealer} deals · {VUL[trainer.vulnerability]} · bid only, no play</div>
+        </div>
+        <button class="icon-btn" aria-label="Show the whole auction" onclick={() => (auctionOpen = true)}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"></path></svg>
+        </button>
+      </header>
+      <div class="table-body">
+        {@render felt()}
+        {#if yourCall}
+          <BidPad {auction} oncall={(call, alert) => trainer.humanBids(call, alert)} />
+        {/if}
+      </div>
+    {/if}
 
   {:else}
     <!-- ── Recap: the same screen, the auction over ────────────────────────── -->
@@ -264,7 +300,7 @@
   {/if}
 </div>
 
-<Sheet open={auctionOpen && !recap} title="Auction · board {trainer.boardNum}" onclose={() => (auctionOpen = false)}>
+<Sheet open={auctionOpen && !recap && !viewport.wide} title="Auction · board {trainer.boardNum}" onclose={() => (auctionOpen = false)}>
   <p class="caption">{trainer.dealer} dealt · {VUL[trainer.vulnerability]}. Calls marked ! were alerted: tap one to read it.</p>
   <AuctionGrid dealer={trainer.dealer} calls={trainer.calls} alerts={trainer.liveAlerts} />
 </Sheet>
