@@ -60,7 +60,7 @@ describe('Bidding training', () => {
         expect(Math.max(r.dd[s].North, r.dd[s].South)).toBe(nsTricks(r.dealId, s));
       }
       // The score counts the real declarer's tricks, which the table shows.
-      if (r.contract && (r.contract.declarer === 'North' || r.contract.declarer === 'South')) expect(r.tricks).toBe(r.dd[r.contract.strain][r.contract.declarer as 'North' | 'South']);
+      if (r.contract) expect(r.tricks).toBe(r.dd[r.contract.strain][r.contract.declarer]);
       // Every call South made is looked at.
       expect(r.checks.length).toBe(t.calls.filter(([p]) => p === 'South').length);
       // The robots' auction on the same board, and where the two part.
@@ -209,6 +209,22 @@ describe('Bidding training', () => {
     const html = render(TrainerView, { props: { trainer: t } }).body;
     expect(html).toMatch(/class="[^"]*bt-dd-mine[^"]*">10</);
     expect(html).toContain('your contract is boxed');
+  });
+
+  it("shows E/W's own tricks, so par reads right (deal 86, 4♥ E/W -650)", () => {
+    // Reported 2026-11-28: par 4♥ E/W -650 looked wrong beside a N/S-only table
+    // (N/S take 2 in hearts and in notrump, so 3NT+2 -660 looked better). E/W's
+    // notrump count isn't 13 less N/S's: the lead switches, East takes 10, West 9.
+    const t = new Trainer(null, prng(1));
+    t.newBoard(86);
+    while (t.vulnerability !== 'E/W') t.newBoard(86);
+    for (let guard = 0; guard < 10 && !t.recap; guard++) t.humanBids('Pass');
+    const r = t.recap!;
+    expect(r.par).toMatchObject({ level: 4, strain: 'H', side: 'E/W', score: -650 });
+    expect([r.dd.NT.North, r.dd.NT.East, r.dd.NT.West]).toEqual([2, 10, 9]);
+    expect([r.dd.H.East, r.dd.H.West]).toEqual([11, 11]);
+    const html = render(TrainerView, { props: { trainer: t } }).body;
+    for (const seat of ['North', 'South', 'East', 'West']) expect(html).toContain(`>${seat}</span>`);
   });
 
   it('says where a hand falls outside what a call showed', () => {

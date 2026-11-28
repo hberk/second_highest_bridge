@@ -97,9 +97,10 @@ export interface Recap {
    *  they are the same. */
   parting: number | null;
   checks: CallCheck[];
-  /** Strain -> North and South declaring -> N/S tricks double dummy: the
-   *  score uses the real declarer's count, which can be a trick short of partner's. */
-  dd: Record<Strain, Record<'North' | 'South', number>>;
+  /** Strain -> declarer -> the declaring side's tricks double dummy, all four
+   *  seats: the score uses the real declarer's count, which can be a trick short
+   *  of partner's, and E/W's notrump count isn't 13 less N/S's (the lead switches). */
+  dd: Record<Strain, Record<Seat, number>>;
   judge: { you: number; partner: number };
   hcp: { you: number; partner: number };
   /** The longest suit N/S hold together, and its length. */
@@ -440,7 +441,7 @@ export class Trainer {
       parting,
       checks,
       dd: Object.fromEntries(STRAINS.map((s) =>
-        [s, { North: nsTricks(id, s, 'North'), South: nsTricks(id, s, 'South') }])) as Record<Strain, Record<'North' | 'South', number>>,
+        [s, Object.fromEntries(PLAYERS.map((seat) => [seat, DEALS.get(id)!.tricks[`${s}:${seat}`]]))])) as Record<Strain, Record<Seat, number>>,
       judge: { you: you.judge, partner: partner.judge },
       hcp: { you: you.hcp, partner: partner.hcp },
       fit: { suit: fitSuit, length: you.len[fitSuit] + partner.len[fitSuit] },
