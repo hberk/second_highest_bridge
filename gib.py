@@ -6606,15 +6606,17 @@ def _cappelletti_choice(pair: str, s: str) -> str:
 #: true only while partner's X is the call on the table. The user's board
 #: (2026-11-28): 1♣ X 2♠ P 3♦ P P 3♥ on ♠JT6 ♥Q43 ♦AK3 ♣8532, a three-card
 #: suit at the three level after passing, -200.
-#: None keeps the old answer; 'pass' passes; 'five' still bids a five-card
-#: unbid suit (6+ HCP, at most the three level).
-PASSED_ADVANCER_STANDS: str | None = None
+#: Measured +0.11, +0.06, +0.02 a board (t +2.55, +1.51, +0.65; seeds
+#: 7M/8M/9M x 20,000 deals, 153-181 auctions changed each). Still bidding a
+#: five-card suit (6+ HCP) changed nothing: such a hand advanced the first
+#: time. False keeps the old answer.
+PASSED_ADVANCER_STANDS = True
 
 
 def _passed_advancer(ctx: Ctx) -> tuple | None:
     """I passed after partner's takeout double and their bid, and the double
     is no longer the call on the table."""
-    if PASSED_ADVANCER_STANDS is None or ctx.partners() != ['X']:
+    if not PASSED_ADVANCER_STANDS or ctx.partners() != ['X']:
         return None
     k = max(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.pd and c == 'X')
     if not any(w == ctx.me for w, _ in ctx.calls[k + 1:]):
@@ -6623,14 +6625,6 @@ def _passed_advancer(ctx: Ctx) -> tuple | None:
     if a.doubled == 'X' and a.highest_bid and a.highest_bid[2] not in (ctx.me, ctx.pd) \
             and not any(parse_bid(c) for _, c in ctx.calls[k + 1:]):
         return None                     # partner's double still stands
-    if PASSED_ADVANCER_STANDS == 'five':
-        h = ctx.h
-        theirs = _their_suits(ctx)
-        for s in sorted(SUITS, key=lambda s: (h.len[s], SUITS.index(s)), reverse=True):
-            if s not in theirs and h.len[s] >= 5 and h.hcp >= 6:
-                call = ctx.cheapest(s, 1)
-                if call and level_of(call) <= 3:
-                    return call, f"5+ {SYM[s]}, 6+ HCP. Free advance."
     return 'Pass', "Passed freely before; partner has passed since."
 
 

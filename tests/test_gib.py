@@ -2855,3 +2855,19 @@ def test_game_force_without_a_fit_rebids_a_six_card_suit():
     # 1♦ P 2♣ P 2♠ P: six clubs rebid before the generic 2NT (GF_NO_FIT_SUITS).
     call, why = bid('9S AH KH 9H 2H KD 7D KC QC JC 9C 4C 2C', '1D', 'Pass', '2C', 'Pass', '2S', 'Pass')
     assert (call, why) == ('3C', '6+ ♣. Game forcing.'), (call, why)
+
+
+def test_passed_advancer_does_not_answer_a_stale_double():
+    # The user's board (2026-11-28): 1♣ X 2♠ P 3♦ P P 3♥ on ♠JT6 ♥Q43 ♦AK3
+    # ♣8532, -200. North passed freely over 2♠ and South, the doubler, passed
+    # 3♦: the double of 1♣ asks nothing any more (PASSED_ADVANCER_STANDS).
+    north = 'JS 10S 6S QH 4H 3H AD KD 3D 8C 5C 3C 2C'
+    calls = ('1C', 'X', '2S', 'Pass', '3D', 'Pass', 'Pass')
+    assert bid(north, *calls, dealer='East')[0] == 'Pass'
+    assert bid(north, '1C', 'X', '2S', dealer='East')[0] == 'Pass'
+    saved = gib.PASSED_ADVANCER_STANDS
+    try:
+        gib.PASSED_ADVANCER_STANDS = False
+        assert bid(north, *calls, dealer='East')[0] == '3H'
+    finally:
+        gib.PASSED_ADVANCER_STANDS = saved

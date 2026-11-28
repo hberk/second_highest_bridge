@@ -5863,7 +5863,7 @@ function advance(ctx: Ctx): Decision | null {
     }
   }
   if (p === 'X') {
-    const stands = passedAdvancer(ctx, theirs);
+    const stands = passedAdvancer(ctx);
     if (stands) return stands;
     const lastCall = ctx.calls[ctx.calls.length - 1];
     if (parseBid(lastCall[1]) && lastCall[1] !== opening) {
@@ -5936,13 +5936,13 @@ function advance(ctx: Ctx): Decision | null {
 /** (1x) X (2y) P (3z) P (P): I passed freely over their bid and partner,
  *  the doubler, has passed since. Nothing asks me to answer a double of a bid
  *  long gone (the user's board, 2026-11-28: 1♣ X 2♠ P 3♦ P P 3♥ on a
- *  three-card suit, -200). null keeps the old answer; 'pass' passes; 'five'
- *  still bids a five-card unbid suit (6+ HCP, at most the three level). */
-export const PASSED_ADVANCER_STANDS: 'pass' | 'five' | null = null;
+ *  three-card suit, -200). Measured +0.11, +0.06, +0.02 a board (t +2.55,
+ *  +1.51, +0.65; seeds 7M/8M/9M x 20,000 deals). False keeps the old answer. */
+export const PASSED_ADVANCER_STANDS: boolean = true;
 
-function passedAdvancer(ctx: Ctx, theirs: string[]): Decision | null {
+function passedAdvancer(ctx: Ctx): Decision | null {
   const partners = ctx.partners();
-  if (PASSED_ADVANCER_STANDS === null || partners.length !== 1 || partners[0] !== 'X') return null;
+  if (!PASSED_ADVANCER_STANDS || partners.length !== 1 || partners[0] !== 'X') return null;
   let k = -1;
   ctx.calls.forEach(([w, c], i) => { if (w === ctx.pd && c === 'X') k = i; });
   const since = ctx.calls.slice(k + 1);
@@ -5950,15 +5950,6 @@ function passedAdvancer(ctx: Ctx, theirs: string[]): Decision | null {
   const hb = ctx.auction.highestBid;
   if (ctx.auction.doubled === 'X' && hb && hb[2] !== ctx.me && hb[2] !== ctx.pd
       && !since.some(([, c]) => parseBid(c))) return null;        // partner's double still stands
-  if (PASSED_ADVANCER_STANDS === 'five') {
-    const h = ctx.h;
-    for (const s of sortedBy(SUITS, (t) => [h.len[t], idx(t)], true)) {
-      if (!theirs.includes(s) && h.len[s] >= 5 && h.hcp >= 6) {
-        const call = ctx.cheapest(s, 1);
-        if (call && levelOf(call) <= 3) return [call, `5+ ${SYM[s]}, 6+ HCP. Free advance.`];
-      }
-    }
-  }
   return ['Pass', 'Passed freely before; partner has passed since.'];
 }
 
