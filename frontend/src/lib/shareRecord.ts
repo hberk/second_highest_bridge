@@ -15,6 +15,9 @@ export const MAX_SHARE_BYTES = 48_000;
 /** Boards kept waiting on the device when sending fails; the oldest go first. */
 export const MAX_SHARE_QUEUE = 40;
 export const QUEUE_KEY = 'shb-share-queue';
+/** The public report on everyone's shared boards, rebuilt every day by the
+ *  "Shared boards" workflow (.github/workflows/boards.yml). */
+export const STATS_URL = 'https://github.com/hberk/second_highest_bridge/blob/stats/STATS.md';
 
 export interface SharedBoard {
   v: 1;

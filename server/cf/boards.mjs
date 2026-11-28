@@ -2,7 +2,11 @@
 // Cloudflare's API and printed as Markdown tables; `--out file.jsonl` also
 // writes every row in the window, one JSON object a line, for research/.
 //
-//   CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_D1_TOKEN=... npm run boards [days] [--out boards.jsonl]
+//   CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_D1_TOKEN=... npm run boards [days|all] [--out boards.jsonl]
+//
+// The "Shared boards" workflow also runs it every day with `all` and
+// publishes the tables as STATS.md on the repository's `stats` branch, which
+// the app links to (shareRecord.ts, STATS_URL).
 //
 // The token needs only Account > D1 > Read. The "Shared boards" workflow
 // (.github/workflows/boards.yml) runs this with the `cloudflare` environment's
@@ -15,6 +19,7 @@ const token = process.env.CLOUDFLARE_D1_TOKEN;
 const args = process.argv.slice(2);
 const outAt = args.indexOf('--out');
 const out = outAt >= 0 ? args.splice(outAt, 2)[1] : null;
+const all = args[0] === 'all';
 const days = Math.max(1, Math.min(3650, Number(args[0] ?? 30) || 30));
 if (!account || !token) {
   console.error('Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_D1_TOKEN (Account > D1 > Read).');
@@ -39,7 +44,8 @@ async function sql(query, params = []) {
   return r.results;
 }
 
-const since = `day >= date('now', '-${days} days')`;
+const since = all ? '1 = 1' : `day >= date('now', '-${days} days')`;
+const span = all ? 'all time' : `last ${days} days`;
 const n = (v, d = 0) => (v === null || v === undefined ? '' : Number(v).toFixed(d));
 const table = (head, rows) => [`| ${head.join(' | ')} |`, `|${head.map((_, i) => (i ? '--:' : '---')).join('|')}|`,
   ...(rows.length ? rows.map((r) => `| ${r.join(' | ')} |`) : [`| (none yet) |${head.slice(1).map(() => ' |').join('')}`])];
@@ -75,8 +81,13 @@ for (const r of perDay) {
   d[r.mode] = r.n;
 }
 const c = challenge[0], t = training[0];
-const lines = [`## Shared boards, last ${days} days (UTC)`, ''];
-lines.push(...table(['day', 'solo', 'challenge', 'training'], [...byDay].map(([day, d]) => [day, d.solo, d.challenge, d.training])), '');
+const lines = [`## Shared boards, ${span} (UTC)`, '',
+  'Every finished board played at https://bridge.second-highest.workers.dev with sharing on, anonymously:',
+  'the cards, calls, play and scores, with no name or id. What is collected and why: docs/SHARED_BOARDS.md.', ''];
+const tot = { solo: 0, challenge: 0, training: 0 };
+for (const d of byDay.values()) for (const k of Object.keys(tot)) tot[k] += d[k];
+lines.push(`${tot.solo + tot.challenge + tot.training} boards: ${tot.solo} solo, ${tot.challenge} challenge, ${tot.training} bidding training.`, '');
+lines.push(...table(['day', 'solo', 'challenge', 'training'], [...byDay].slice(0, 31).map(([day, d]) => [day, d.solo, d.challenge, d.training])), '');
 lines.push('### Challenge: players against the robot', '',
   `${c.n} boards: players beat the robot on ${c.won ?? 0}, lost on ${c.lost ?? 0}; average margin ${n(c.margin, 1)} (positive: the player did better).`, '',
   ...table(['loss against par (average)', 'bidding', 'play'], c.n ? [['players', n(c.ybl, 1), n(c.ypl, 1)], ['robot', n(c.rbl, 1), n(c.rpl, 1)]] : []), '');

@@ -4,6 +4,7 @@
   import FeltTable from '../components/FeltTable.svelte';
   import { card, type Seat, type Card } from '../engine/card';
   import type { Play } from '../engine/auction';
+  import { STATS_URL } from '../shareRecord';
 
   type Example = {
     title: string;
@@ -106,7 +107,12 @@
   </div>
 {/each}
 
+<h2>Everyone's boards</h2>
+<p>Finished boards are shared anonymously (the cards, calls, play and scores, never a name) to help improve the robots. You can turn this off in Settings.
+  <a href={STATS_URL} class="stats-link" target="_blank" rel="noopener noreferrer">The results are public</a>, updated every day: how often players beat the robots, and where.</p>
+
 <style>
+  .stats-link { color: var(--accent); }
   .rule-list { margin: 6px 0 10px; padding-left: 22px; display: grid; gap: 4px; }
   .example { margin-bottom: 18px; align-items: start; }
 </style>

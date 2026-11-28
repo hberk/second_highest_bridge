@@ -1,15 +1,26 @@
-# The shared finished boards (server/cf/src/boards.ts), on demand:
-# Actions > Shared boards > Run workflow. The tables appear on the run's page,
-# and every row in the window is attached to the run as boards.jsonl.
+# The shared finished boards (server/cf/src/boards.ts, docs/SHARED_BOARDS.md).
+#
+# Every day: the all-time report is published as STATS.md on the `stats`
+# branch, the public page the app links to (shareRecord.ts, STATS_URL).
+# On demand (Actions > Shared boards > Run workflow): a report for the days
+# you choose on the run's page, with every row attached as boards.jsonl.
+#
+# Nothing older than 7 days is kept: the stats branch holds only the latest
+# report (one commit, replaced each day), attached rows expire after 7 days,
+# and each run deletes this workflow's runs older than 7 days. The boards
+# themselves stay in D1.
+#
 # Needs CLOUDFLARE_D1_TOKEN (Account > D1 > Read) beside the deploy secrets in
-# the `cloudflare` environment.
+# the `cloudflare` environment; until it is set, the run says so and stops.
 name: Shared boards
 
 on:
+  schedule:
+    - cron: '17 5 * * *'
   workflow_dispatch:
     inputs:
       days:
-        description: Days to show
+        description: Days to show (or all)
         default: '30'
 
 permissions:
@@ -20,6 +31,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment: cloudflare
+    permissions:
+      contents: write
+      actions: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -29,13 +43,44 @@ jobs:
         with:
           node-version: 24
       - name: Report
+        id: report
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_D1_TOKEN: ${{ secrets.CLOUDFLARE_D1_TOKEN }}
-          DAYS: ${{ inputs.days }}
-        run: node server/cf/boards.mjs "$DAYS" --out boards.jsonl | tee -a "$GITHUB_STEP_SUMMARY"
+          DAYS: ${{ github.event_name == 'schedule' && 'all' || inputs.days }}
+        run: |
+          if [ -z "$CLOUDFLARE_D1_TOKEN" ]; then
+            echo "CLOUDFLARE_D1_TOKEN isn't set in the cloudflare environment yet: nothing to report." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node server/cf/boards.mjs "$DAYS" --out boards.jsonl > STATS.md
+          cat STATS.md >> "$GITHUB_STEP_SUMMARY"
+          echo "made=1" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v6
+        if: github.event_name != 'schedule'
         with:
           name: boards
           path: boards.jsonl
           if-no-files-found: ignore
+          retention-days: 7
+      - name: Publish STATS.md on the stats branch
+        if: github.event_name == 'schedule' && steps.report.outputs.made == '1'
+        run: |
+          dir=$(mktemp -d)
+          cp STATS.md "$dir/STATS.md"
+          cd "$dir"
+          git init -q -b stats
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add STATS.md
+          git commit -q -m "Shared boards report, $(date -u +%F)"
+          git push -q --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" stats
+      - name: Delete this workflow's runs older than 7 days
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cutoff=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          gh api --paginate "repos/${{ github.repository }}/actions/workflows/boards.yml/runs?per_page=100" \
+            --jq ".workflow_runs[] | select(.created_at < \"$cutoff\") | .id" |
+            while read -r id; do gh api -X DELETE "repos/${{ github.repository }}/actions/runs/$id" >/dev/null || true; done

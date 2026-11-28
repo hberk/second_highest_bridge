@@ -2,6 +2,7 @@
 <script lang="ts">
   import type { Game } from '../game.svelte';
   import { settings, DECK_HELP, DECK_LABELS, type DeckName } from '../settings.svelte';
+  import { STATS_URL } from '../shareRecord';
 
   let { game }: { game: Game } = $props();
 
@@ -50,6 +51,7 @@
       <input type="checkbox" bind:checked={settings.shareResults} />
       <span>Share finished boards<small>Anonymous: the cards, calls, play and scores. No name or id.</small></span>
     </label>
+    <p class="caption"><a href={STATS_URL} class="stats-link" target="_blank" rel="noopener noreferrer">See what everyone's boards show</a>, updated daily.</p>
   </fieldset>
   <fieldset>
     <legend>Saved on this device</legend>
@@ -60,3 +62,7 @@
     <button class="btn" disabled={!n && !game.challengeLog.length && !game.passedOutCount} onclick={clearSaved}>Clear saved games</button>
   </fieldset>
 </div>
+
+<style>
+  .stats-link { color: var(--accent); }
+</style>
