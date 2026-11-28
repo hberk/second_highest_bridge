@@ -5863,6 +5863,8 @@ function advance(ctx: Ctx): Decision | null {
     }
   }
   if (p === 'X') {
+    const stands = passedAdvancer(ctx, theirs);
+    if (stands) return stands;
     const lastCall = ctx.calls[ctx.calls.length - 1];
     if (parseBid(lastCall[1]) && lastCall[1] !== opening) {
       const unbid = SUITS.filter((s) => !theirs.includes(s));
@@ -5931,6 +5933,35 @@ function advance(ctx: Ctx): Decision | null {
  *  2♠ doubled -300 on a 4-3 fit; 1NT makes. TAKEOUT_1NT_HCP high-card
  *  points, a stopper, no four-card unbid major, no five-card unbid suit and
  *  no four-card suit to name below 1NT. False keeps the suit answer. */
+/** (1x) X (2y) P (3z) P (P): I passed freely over their bid and partner,
+ *  the doubler, has passed since. Nothing asks me to answer a double of a bid
+ *  long gone (the user's board, 2026-11-28: 1♣ X 2♠ P 3♦ P P 3♥ on a
+ *  three-card suit, -200). null keeps the old answer; 'pass' passes; 'five'
+ *  still bids a five-card unbid suit (6+ HCP, at most the three level). */
+export const PASSED_ADVANCER_STANDS: 'pass' | 'five' | null = null;
+
+function passedAdvancer(ctx: Ctx, theirs: string[]): Decision | null {
+  const partners = ctx.partners();
+  if (PASSED_ADVANCER_STANDS === null || partners.length !== 1 || partners[0] !== 'X') return null;
+  let k = -1;
+  ctx.calls.forEach(([w, c], i) => { if (w === ctx.pd && c === 'X') k = i; });
+  const since = ctx.calls.slice(k + 1);
+  if (!since.some(([w]) => w === ctx.me)) return null;          // my first turn since the double
+  const hb = ctx.auction.highestBid;
+  if (ctx.auction.doubled === 'X' && hb && hb[2] !== ctx.me && hb[2] !== ctx.pd
+      && !since.some(([, c]) => parseBid(c))) return null;        // partner's double still stands
+  if (PASSED_ADVANCER_STANDS === 'five') {
+    const h = ctx.h;
+    for (const s of sortedBy(SUITS, (t) => [h.len[t], idx(t)], true)) {
+      if (!theirs.includes(s) && h.len[s] >= 5 && h.hcp >= 6) {
+        const call = ctx.cheapest(s, 1);
+        if (call && levelOf(call) <= 3) return [call, `5+ ${SYM[s]}, 6+ HCP. Free advance.`];
+      }
+    }
+  }
+  return ['Pass', 'Passed freely before; partner has passed since.'];
+}
+
 export const TAKEOUT_1NT_ADVANCE = true;
 export const TAKEOUT_1NT_HCP: [number, number] = [6, 10];
 /** Only when every unbid suit is three cards or fewer: the hand that would

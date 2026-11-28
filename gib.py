@@ -6597,6 +6597,43 @@ def _cappelletti_choice(pair: str, s: str) -> str:
     return f"Choosing between partner's {pair}." if CAPPELLETTI_CHOICE_ALERT else natural(s)
 
 
+#: (1x) X (2y) P (3z) P (P): I passed freely over their bid, and partner,
+#: the doubler, has passed since. The takeout double was of a bid long
+#: gone, so nothing asks me to answer it, and my pass already said I had no
+#: suit worth naming. `_advance` looked only at the call just made: a pass
+#: there sent the auction back to ai.py's `_advance_double`, which answers
+#: "whatever the level" because a pass "converts the double to penalty" --
+#: true only while partner's X is the call on the table. The user's board
+#: (2026-11-28): 1♣ X 2♠ P 3♦ P P 3♥ on ♠JT6 ♥Q43 ♦AK3 ♣8532, a three-card
+#: suit at the three level after passing, -200.
+#: None keeps the old answer; 'pass' passes; 'five' still bids a five-card
+#: unbid suit (6+ HCP, at most the three level).
+PASSED_ADVANCER_STANDS: str | None = None
+
+
+def _passed_advancer(ctx: Ctx) -> tuple | None:
+    """I passed after partner's takeout double and their bid, and the double
+    is no longer the call on the table."""
+    if PASSED_ADVANCER_STANDS is None or ctx.partners() != ['X']:
+        return None
+    k = max(i for i, (w, c) in enumerate(ctx.calls) if w == ctx.pd and c == 'X')
+    if not any(w == ctx.me for w, _ in ctx.calls[k + 1:]):
+        return None                     # my first turn since the double
+    a = ctx.auction
+    if a.doubled == 'X' and a.highest_bid and a.highest_bid[2] not in (ctx.me, ctx.pd) \
+            and not any(parse_bid(c) for _, c in ctx.calls[k + 1:]):
+        return None                     # partner's double still stands
+    if PASSED_ADVANCER_STANDS == 'five':
+        h = ctx.h
+        theirs = _their_suits(ctx)
+        for s in sorted(SUITS, key=lambda s: (h.len[s], SUITS.index(s)), reverse=True):
+            if s not in theirs and h.len[s] >= 5 and h.hcp >= 6:
+                call = ctx.cheapest(s, 1)
+                if call and level_of(call) <= 3:
+                    return call, f"5+ {SYM[s]}, 6+ HCP. Free advance."
+    return 'Pass', "Passed freely before; partner has passed since."
+
+
 def _advance(ctx: Ctx) -> tuple | None:
     """Partner acted over their opening; this is my first call."""
     h = ctx.h
@@ -6668,6 +6705,9 @@ def _advance(ctx: Ctx) -> tuple | None:
         if h.len[their] >= WEAK_TWO_X_PENALTY and h.top(their, ('A', 'K', 'Q', 'J', '10')) >= 2:
             return 'Pass', f"Penalty: converting partner's double, length in {SYM[their]}."
     if p == 'X':
+        stands = _passed_advancer(ctx)
+        if stands:
+            return stands
         if parse_bid(ctx.calls[-1][1]) and ctx.calls[-1][1] != opening:
             unbid = [s for s in SUITS if s not in theirs]
             if hcp >= 8 and len(unbid) >= 2 and all(h.len[s] >= 4 for s in unbid[-2:]) \
