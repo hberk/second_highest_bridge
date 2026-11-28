@@ -950,6 +950,18 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
   passes. Measured on fresh deals, 10,000 deals per seed: seed 7 -0.01 a board
   (t = -0.06), seed 8 -0.06 (t = -0.66). Not significant; kept because it is the
   user's rule.
+- **A single raise on six HCP** (`SIX_COUNT_RAISE`, off; the user's board,
+  2026-11-28: P P 1♥ P, West ♠KQ5 ♥T83 ♦J74 ♣9432, 6 HCP and 9 judgement
+  points, passed "Fewer than 7 HCP." and bid 2♥ a round later by
+  `PASSED_RESPONDER_RAISE`). `respond_major` passes under `RESPONSE_MIN` before
+  it looks at support; only four trumps get past it (`RAISE_TRUMP_POINTS`).
+  The switch raises 1M to 2M on exactly 6 HCP and 3+ trumps ('hcp'), or only
+  with that many judgement points (an int). Fresh deals, 3 x 5,000 (20,000
+  boards a seed): 'hcp' -0.06 / -0.11 / +0.01 a board (t = -1.4, -1.6, +0.2),
+  6 HCP with 7+ JP -0.08 / -0.04 / +0.02 (t = -2.6, -0.8, +0.4), with 9+ JP
+  -0.06 / 0.00 / -0.04. No variant gains; the big swings both ways are
+  opener's game over 2M and the opponents' balance after the old pass
+  (/mnt/project-files/six-count-raise/REPORT.md).
 - **A passed responder raises to the two level over a balancing action**
   (`PASSED_RESPONDER_RAISE`, `_passed_responder_raise`; the user's board,
   2026-11-21: P P 1♠ P P X P 2♥ 3♠ on ♠T964 ♥97 ♦7642 ♣AJ8). "Responder's first

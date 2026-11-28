@@ -2855,3 +2855,24 @@ def test_game_force_without_a_fit_rebids_a_six_card_suit():
     # 1♦ P 2♣ P 2♠ P: six clubs rebid before the generic 2NT (GF_NO_FIT_SUITS).
     call, why = bid('9S AH KH 9H 2H KD 7D KC QC JC 9C 4C 2C', '1D', 'Pass', '2C', 'Pass', '2S', 'Pass')
     assert (call, why) == ('3C', '6+ ♣. Game forcing.'), (call, why)
+
+
+def test_six_count_raise():
+    # The user's board (2026-11-28): P P 1♥ P, West ♠KQ5 ♥T83 ♦J74 ♣9432 passed
+    # "Fewer than 7 HCP." With SIX_COUNT_RAISE it raises to 2♥.
+    west = 'KS QS 5S 10H 8H 3H JD 7D 4D 9C 4C 3C 2C'
+    calls = ('Pass', 'Pass', '1H', 'Pass')
+    saved = gib.SIX_COUNT_RAISE
+    try:
+        gib.SIX_COUNT_RAISE = False
+        assert bid(west, *calls, dealer='West')[0] == 'Pass'
+        gib.SIX_COUNT_RAISE = 'hcp'
+        assert bid(west, *calls, dealer='West') == ('2H', '3+ ♥. Single raise.')
+        gib.SIX_COUNT_RAISE = 10        # 9 judgement points: below the bar
+        assert bid(west, *calls, dealer='West')[0] == 'Pass'
+        # Two trumps still pass.
+        two = 'KS QS 5S 3S 10H 8H JD 7D 4D 9C 4C 3C 2C'
+        gib.SIX_COUNT_RAISE = 'hcp'
+        assert bid(two, *calls, dealer='West')[0] == 'Pass'
+    finally:
+        gib.SIX_COUNT_RAISE = saved

@@ -594,6 +594,25 @@ def _raise_on_trump_points(ctx: Ctx, x: str) -> tuple | None:
     return None
 
 
+#: 1M P 2M on a six-count with three trumps (the user's board, 2026-11-28:
+#: P P 1♥ P, West ♠KQ5 ♥T83 ♦J74 ♣9432, 6 HCP and 9 judgement points, passed
+#: "Fewer than 7 HCP." and bid 2♥ a round later). A single raise is 6-9 in
+#: standard methods, and three trumps make partner's suit the fit the hand
+#: will compete in anyway. False: off. 'hcp': any 6 HCP with 3+ trumps.
+#: An int: 6 HCP and at least that many judgement points.
+SIX_COUNT_RAISE: bool | str | int = False
+
+
+def _six_count_raise(ctx: Ctx, x: str) -> bool:
+    """Single raise of partner's 1M on exactly six HCP and three or more trumps."""
+    h = ctx.h
+    if not SIX_COUNT_RAISE or h.hcp != RESPONSE_MIN - 1 or h.len[x] < 3:
+        return False
+    if SIX_COUNT_RAISE == 'hcp' or SIX_COUNT_RAISE is True:
+        return True
+    return h.judge >= SIX_COUNT_RAISE
+
+
 def respond_major(ctx: Ctx, x: str) -> tuple:
     h = ctx.h
     hcp, sup = h.hcp, h.len[x]
@@ -606,6 +625,8 @@ def respond_major(ctx: Ctx, x: str) -> tuple:
         if raise_:
             return raise_
     if hcp < RESPONSE_MIN:
+        if _six_count_raise(ctx, x):
+            return f"2{x}", f"3+ {SYM[x]}. Single raise."
         return 'Pass', f"Fewer than {RESPONSE_MIN} HCP."
     if sup >= 4 and not passed and hcp >= JACOBY_MIN:
         if shortness and hcp <= SPLINTER[1]:
