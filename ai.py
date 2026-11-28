@@ -1638,6 +1638,7 @@ def ai_bid_explained(player: str, hand: list[Card], auction: AuctionState,
                 or _lead_doubler_passes(player, hand, auction, alerts)
                 or _penalty_or_base(player, hand, auction, alerts))
     decision = _compete_cap(player, auction, decision)
+    decision = _stood_pass(player, auction, decision) or decision
     if SHOWN_FIRST_AGREED:
         decision = decision[0], _agreed_not_support(player, auction, decision[0], decision[1])
     auction.__dict__.setdefault('_robot_said', {})[len(auction.calls)] = decision
@@ -1756,6 +1757,70 @@ def _compete_cap(player: str, auction: AuctionState, decision: tuple) -> tuple:
     if bid[0] > COMPETE_MAX:
         return 'Pass', COMPETE_CAP_ALERT.format(COMPETE_MAX)
     return decision
+
+
+#: A pass over partner's call still stands (the user's rule, 2026-11-28:
+#: every bid reads the whole auction). The rules key "my first call" on
+#: our side's non-pass calls, so once I have passed over partner's latest
+#: call, and partner has passed since, the next round reaches the same
+#: first-call rule as if my pass had never happened: 1♣ X 2♠ P 3♦ P P 3♥
+#: on three hearts (ai._advance_double), 1♥ 2NT 3♦ P 4♥ P P 5♦ (gib's
+#: two-suiter choice), 2♥ P P 2♠ P 4♠ 5♣ (ai._response's new suit),
+#: 1NT P P 2♥ P P 2NT Lebensohl. My pass limited the hand and partner has
+#: added nothing, so while their bid is the contract the only calls left
+#: are those that say something new from the whole auction:
+#:   'pass'  - pass, or double (a double here is for penalty);
+#:   'raise' - also a raise of a suit our side has shown, cheapest, to the
+#:             three level (competing on the fit);
+#:   'two'   - also any natural suit bid at the two level.
+#: STOOD_FREE_ONLY: only when my pass came over their bid (a free pass);
+#: a pass over partner's uncontested call (1NT P P) said less.
+#: None is the old behaviour.
+STOOD_PASS: str | None = None
+STOOD_FREE_ONLY = False
+STOOD_ALERT = "My pass over partner's call stands."
+
+
+def _stood_over(player: str, auction: AuctionState) -> bool:
+    """Have I passed over partner's latest call, with their bid now the
+    contract? (Partner has passed since, by definition.)"""
+    calls = auction.calls
+    pd = PARTNERS[player]
+    j = max((i for i, (w, c) in enumerate(calls) if w == pd and c != 'Pass'), default=None)
+    if j is None:
+        return False
+    mine = [i for i in range(j + 1, len(calls)) if calls[i][0] == player]
+    if not mine:
+        return False
+    hb = auction.highest_bid
+    if not hb or PARTNERSHIP[hb[2]] == PARTNERSHIP[player]:
+        return False
+    if STOOD_FREE_ONLY:
+        k = mine[0]
+        if not any(w not in (player, pd) and c != 'Pass' for w, c in calls[j + 1:k]):
+            return False
+    return True
+
+
+def _stood_pass(player: str, auction: AuctionState, decision: tuple) -> tuple | None:
+    if STOOD_PASS is None or decision[0] in ('Pass', 'X', 'XX'):
+        return None
+    if not _stood_over(player, auction):
+        return None
+    bid = parse_bid(decision[0])
+    if not bid:
+        return None
+    legal = auction.legal_calls()
+    if STOOD_PASS in ('raise', 'two') and bid[1] in SUITS and bid[0] <= 3:
+        side = (player, PARTNERS[player])
+        shown = {_reads_as(auction.calls, i) for i, (w, c) in enumerate(auction.calls)
+                 if w in side and parse_bid(c)}
+        if bid[1] in shown and _cheapest(bid[1], 1, legal) == decision[0]:
+            return None
+    if STOOD_PASS == 'two' and bid[1] in SUITS and bid[0] == 2 \
+            and _cheapest(bid[1], 1, legal) == decision[0] and 'rtificial' not in decision[1]:
+        return None
+    return 'Pass', STOOD_ALERT
 
 
 def _robot_alerts(auction: AuctionState) -> dict[int, str]:
