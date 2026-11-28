@@ -2618,10 +2618,10 @@ function partnerLength(ctx: Ctx, s: Suit): number {
   const u = UNUSUAL_CUE_REPLY ? unusualCues(ctx) : null;
   for (let i = 0; i < ctx.ours.length; i++) {
     const [who, call] = ctx.ours[i];
-    if (u && i === 1 && (u[1] as string[]).includes(strainOf(call) as string) && levelOf(call) === 3) {
+    if (u && i === 1 && (u[1] as string[]).includes(strainOf(call) as string) && (levelOf(call) === 3 || cueSpotNew(ctx))) {
       // Responder's cuebid over their Unusual 2NT shows no clubs or
       // diamonds: a limit raise of ours, or five of the fourth suit.
-      const limit = strainOf(call) === u[1][0];
+      const limit = strainOf(call) === limitCueSuit(ctx, u[1]);
       if (who !== ctx.me && s === (limit ? u[0] : u[2])) n = Math.max(n, limit ? 3 : 5);
       continue;
     }
@@ -3252,6 +3252,9 @@ function weOpenedContested(ctx: Ctx): Decision | null {
   const natural2nt = answerNatural2nt(ctx);
   if (natural2nt) return natural2nt;
 
+  const defense = twoSuiterResponse(ctx) ?? afterTwoSuiterDouble(ctx);
+  if (defense) return defense;
+
   if (seq.length === 1 && !ctx.iAmOpener() && levelOf(first) === 1) return respondOverInterference(ctx, x);
 
   if (ctx.iAmOpener() && levelOf(first) === 1 && seq.length === 2 && seq[1] === 'X'
@@ -3817,6 +3820,8 @@ export const UNUSUAL_CUE_REPLY = true;
 /** [x, their two suits, the fourth suit, start index] when our 1x opening
  * was overcalled with a direct 2NT, their only bid so far. */
 function unusualCues(ctx: Ctx): [Suit, Suit[], Suit | null, number] | null {
+  const spot = twoSuiterSpot(ctx);
+  if (spot) return ctx.calls.length >= spot[3] + 3 ? [spot[0], spot[1], spot[2], spot[3]] : null;
   const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
   if (i < 0 || ctx.calls.length < i + 3) return null;
   const [w0, c0] = ctx.calls[i];
@@ -3845,8 +3850,8 @@ function unusualCueReply(ctx: Ctx): Decision | null {
   const responder = ctx.iAmOpener() ? ctx.pd : ctx.me;
   if (!after.length || after[0][0] !== responder) return null;
   const cue = after[0][1];
-  if (!(shown as string[]).includes(strainOf(cue) as string) || levelOf(cue) !== 3) return null;
-  const limit = strainOf(cue) === shown[0];
+  if (!(shown as string[]).includes(strainOf(cue) as string) || (levelOf(cue) !== 3 && !cueSpotNew(ctx))) return null;
+  const limit = strainOf(cue) === limitCueSuit(ctx, shown);
   const stops = shown.every((s) => h.stopper(s));
   const game = (): Decision | null => {
     if (isMajor(x) && ctx.ok(`4${x}`)) return [`4${x}`, TO_PLAY];
@@ -3894,6 +3899,148 @@ function unusualCueReply(ctx: Ctx): Decision | null {
     return ['Pass', 'No game.'];
   }
   return null;
+}
+
+/** Our defense to their two-suited overcall straight over our 1x opening,
+ * from bridgebum.com: Michaels (https://www.bridgebum.com/defense_to_michaels.php)
+ * and Unusual 2NT (https://www.bridgebum.com/unusual_vs_unusual.php). The
+ * double shows values and the wish to penalize at least one of their suits;
+ * the cuebid of their higher known suit is a limit raise or better; of the
+ * lower one, five of the fourth suit, forcing. gib.py has the full story. */
+export const MICHAELS_DEFENSE = false;
+/** ...the same over their Unusual 2NT. */
+export const UNUSUAL_DEFENSE = false;
+/** The double's values, in judgement points. */
+export const TWO_SUITER_X_JUDGE = 10;
+const TWO_SUITER_X_ALERT = 'Values, penalty interest in their suits.';
+
+function defenseOn(two: string): boolean {
+  return two !== '2NT' ? MICHAELS_DEFENSE : UNUSUAL_DEFENSE;
+}
+
+type TwoSuiterSpot = [Suit, Suit[], Suit | null, number, string];
+
+/** [x, their known suits low to high, the fourth suit, start index, their
+ * call] when our 1x opening was overcalled straight away with Michaels or
+ * the Unusual 2NT, still their only bid, with the defense switched on. */
+function twoSuiterSpot(ctx: Ctx): TwoSuiterSpot | null {
+  const i = ctx.calls.findIndex(([, c]) => c !== 'Pass');
+  if (i < 0 || ctx.calls.length < i + 2) return null;
+  const [w0, c0] = ctx.calls[i];
+  const c1 = ctx.calls[i + 1][1];
+  const x = strainOf(c0);
+  if ((w0 !== ctx.me && w0 !== ctx.pd) || levelOf(c0) !== 1 || !isSuit(x)) return null;
+  if ((c1 !== '2NT' && c1 !== `2${x}`) || !defenseOn(c1)) return null;
+  const bids = ctx.theirs.filter(([, c]) => parseBid(c));
+  if (!bids.length || bids[0][1] !== c1) return null;
+  let known: Suit[];
+  if (c1 === '2NT') known = SUITS.filter((s) => s !== x).slice(0, 2);
+  else if (isMinor(x)) known = ['H', 'S'];
+  else known = [x === 'H' ? 'S' : 'H'];
+  const rest = SUITS.filter((s) => s !== x && !known.includes(s));
+  return [x, known, rest.length === 1 ? rest[0] : null, i, c1];
+}
+
+/** Responder's call straight over their two-suiter (bridgebum, above). */
+function twoSuiterResponse(ctx: Ctx): Decision | null {
+  const spot = twoSuiterSpot(ctx);
+  if (!spot) return null;
+  const [x, known, fourth, i, two] = spot;
+  if (ctx.iAmOpener() || ctx.calls.length !== i + 2) return null;
+  const h = ctx.h;
+  const hcp = h.hcp, sup = h.len[x], need = cueSupport(x);
+  const unusual = two === '2NT';
+  const limit = ctx.cheapest(known[known.length - 1], 2);
+  const other = known.length === 2 ? ctx.cheapest(known[0], 2) : null;
+  const gf = unusual ? 12 : 10;
+  if (other && fourth && h.len[fourth] >= 5 && hcp >= gf && sup < need && levelOf(other) <= 3) {
+    const what = unusual ? 'game forcing' : 'forcing';
+    return [other, `Cuebid: 5+ ${SYM[fourth]}, ${gf}+ HCP, ${what}. Artificial.`];
+  }
+  if (limit && sup >= need && hcp >= 10 && levelOf(limit) <= 3) {
+    return [limit, `Cuebid: ${need}+ ${SYM[x]}, 10+ HCP. Limit raise or better. Artificial.`];
+  }
+  const jump = `4${x}`;
+  if (isMajor(x) && ctx.ok(jump) && ((sup >= 5 && hcp >= 4 && hcp <= 11) || (sup === 4 && hcp >= 4 && hcp <= 9))) {
+    return [jump, `4+ ${SYM[x]}, under 12 HCP. Pre-emptive.`];
+  }
+  if (isMinor(x) && ctx.ok(jump) && sup >= 5 && hcp >= 4 && hcp <= 9 && ctx.cheapest(x, 2) !== jump) {
+    return [jump, `5+ ${SYM[x]}, under 10 HCP. Pre-emptive.`];
+  }
+  if (sup >= (isMajor(x) ? 3 : need) && hcp >= 6 && hcp <= 9) {
+    const call = ctx.cheapest(x, 2);
+    if (call && levelOf(call) <= 3) return [call, `${isMajor(x) ? 3 : need}+ ${SYM[x]}, 6-9 HCP. Not forcing.`];
+  }
+  const naturals = fourth ? [fourth] : MINORS.filter((s) => s !== x);
+  const order = [...naturals].sort((a, b) => (h.len[b] - h.len[a]) || (SUITS.indexOf(a) - SUITS.indexOf(b)));
+  for (const s of order) {
+    const call = ctx.cheapest(s, 2);
+    if (h.len[s] >= 5 && hcp >= 6 && hcp <= 9 && call && levelOf(call) <= 3) {
+      return [call, `5+ ${SYM[s]}, 6-9 HCP. Not forcing.`];
+    }
+  }
+  const maybe = [...known, ...(!fourth && !unusual ? MINORS : [])];
+  if (h.judge >= TWO_SUITER_X_JUDGE && ctx.ok('X') && (isMinor(x) || sup <= 2)
+    && maybe.some((s) => h.len[s] >= 4)) {
+    return ['X', isMajor(x) ? `${TWO_SUITER_X_ALERT.slice(0, -1)}, 2 or fewer ${SYM[x]}.` : TWO_SUITER_X_ALERT];
+  }
+  return ['Pass', 'Nothing to show.'];
+}
+
+/** After responder's values double of their two-suiter: 1x (2x) X (bid).
+ * Opener doubles their bid with four of it, rebids a six-card suit, else
+ * passes; responder, when that comes round, doubles with four of it (three
+ * and 12+ HCP), bids a five-card suit of its own, else passes. Partner's
+ * penalty double stands. */
+function afterTwoSuiterDouble(ctx: Ctx): Decision | null {
+  const spot = twoSuiterSpot(ctx);
+  if (!spot) return null;
+  const [x, known, , i] = spot;
+  const calls = ctx.calls.slice(i + 2);
+  if (!calls.length || calls[0][1] !== 'X' || calls[0][0] === ctx.calls[i][0]) return null;
+  const after = calls.slice(1).map(([, c]) => c);
+  const h = ctx.h;
+  if (!after.length || after.includes('XX')) return null;
+  const run = after[0];
+  const s = parseBid(run) ? strainOf(run) : null;
+  if (ctx.iAmOpener() && after.length === 1) {
+    if (s && isSuit(s) && s !== x && h.len[s] >= 4 && levelOf(run) <= 3 && ctx.ok('X')) {
+      return ['X', `Penalty: 4+ ${SYM[s]}.`];
+    }
+    if (h.len[x] >= 6) {
+      const call = ctx.cheapest(x, 2);
+      if (call && levelOf(call) <= 3) return [call, `6+ ${SYM[x]}.`];
+    }
+    return ['Pass', "Partner's double showed values."];
+  }
+  if (!ctx.iAmOpener() && after.length === 3 && after[1] === 'Pass' && after[2] === 'Pass' && s && isSuit(s)) {
+    if (s !== x && (h.len[s] >= 4 || (h.len[s] >= 3 && h.hcp >= 12)) && ctx.ok('X')) {
+      return ['X', `Penalty: 3+ ${SYM[s]}.`];
+    }
+    const order = [...SUITS].sort((a, b) => (h.len[b] - h.len[a]) || (SUITS.indexOf(a) - SUITS.indexOf(b)));
+    for (const t of order) {
+      if (t === x || t === s || known.includes(t) || h.len[t] < 5) continue;
+      const call = ctx.cheapest(t, 2);
+      if (call && levelOf(call) <= 3) return [call, `5+ ${SYM[t]}.`];
+    }
+    return ['Pass', 'Nothing more to show.'];
+  }
+  if (after.length >= 2 && after[after.length - 1] === 'Pass' && after[after.length - 2] === 'X'
+    && ((ctx.iAmOpener() && after.length === 5) || (!ctx.iAmOpener() && after.length === 3))) {
+    return ['Pass', "Partner's double is for penalty."];
+  }
+  return null;
+}
+
+/** The cuebids over their two-suiter follow bridgebum (`MICHAELS_DEFENSE`). */
+function cueSpotNew(ctx: Ctx): boolean {
+  return twoSuiterSpot(ctx) !== null;
+}
+
+/** Which of their suits responder cuebids for a limit raise: bridgebum's
+ * higher one (the only one, after Michaels over a major), before the cheaper. */
+function limitCueSuit(ctx: Ctx, shown: Suit[]): Suit {
+  return cueSpotNew(ctx) ? shown[shown.length - 1] : shown[0];
 }
 
 function responderPassed(ctx: Ctx): boolean {

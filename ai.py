@@ -1733,6 +1733,8 @@ def _call_shows(calls: list, i: int) -> set:
             and parse_bid(opening) and parse_bid(opening)[0] == 1 and parse_bid(opening)[1] in SUITS):
         over = parse_bid(calls[bids[1]][1])
         if over and calls[bids[1]][0] not in side and over[1] in SUITS:
+            if gib.MICHAELS_DEFENSE and bids[1] == f + 1 and over == (2, parse_bid(opening)[1]):
+                return set()                  # values over Michaels, no suit
             unbid = [s for s in SUITS if s not in (parse_bid(opening)[1], over[1])]
             return set([s for s in unbid if s in ('H', 'S')] or unbid)
     return set()

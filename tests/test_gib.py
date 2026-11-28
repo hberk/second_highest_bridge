@@ -2855,3 +2855,42 @@ def test_game_force_without_a_fit_rebids_a_six_card_suit():
     # 1♦ P 2♣ P 2♠ P: six clubs rebid before the generic 2NT (GF_NO_FIT_SUITS).
     call, why = bid('9S AH KH 9H 2H KD 7D KC QC JC 9C 4C 2C', '1D', 'Pass', '2C', 'Pass', '2S', 'Pass')
     assert (call, why) == ('3C', '6+ ♣. Game forcing.'), (call, why)
+
+
+def test_defense_to_michaels_and_unusual_2nt_follows_bridgebum():
+    """The user's board (2026-11-28): P 1♠ (2♠) X was alerted "Negative: 4+
+    ♥, 8+ HCP", reading the Michaels cuebid as natural spades. Bridgebum's
+    defense (https://www.bridgebum.com/defense_to_michaels.php and
+    https://www.bridgebum.com/unusual_vs_unusual.php): the double shows
+    values and penalty interest; the cuebid of their higher known suit is a
+    limit raise; of the lower one, five of the fourth suit."""
+    saved = gib.MICHAELS_DEFENSE, gib.UNUSUAL_DEFENSE
+    try:
+        gib.MICHAELS_DEFENSE = gib.UNUSUAL_DEFENSE = True
+        south = '2S KH JH 9H 4H AD QD 6D 3D KC 8C 5C 2C'
+        call, why = bid(south, 'Pass', '1S', '2S', dealer='West')
+        assert call == 'X' and why.startswith('Values') and '♥' not in why, why
+        # 13 HCP, two spades, three hearts: it used to pass ("Nothing to show").
+        assert bid('2S 3S KH JH 9H AD QD 6D 3D KC 8C 5C 2C', 'Pass', '1S', '2S', dealer='West')[0] == 'X'
+        # Limit raise: the cuebid of their known suit (hearts over 1♠).
+        assert bid('2S 3S QS KH JH AD QD 6D 3D KC 8C 5C 2C', 'Pass', '1S', '2S', dealer='West')[0] == '3H'
+        # Over 1♦ (2♦ both majors) the higher major is the raise.
+        assert bid('2S 3S QS KH JH AD QD 6D 3D KC 8C 5C 2C', 'Pass', '1D', '2D', dealer='West')[0] == '2S'
+        # Over 1♥ (2NT): 3♣ is game forcing with five spades, 3♦ the raise.
+        assert bid('KS QS 10S 4S 3S 4H AD QD 6D 3D KC 8C 5C', 'Pass', '1H', '2NT', dealer='West')[0] == '3C'
+        assert bid('KS QS 10S 4H 3H 2H AD QD 6D 3D KC 8C 5C', 'Pass', '1H', '2NT', dealer='West')[0] == '3D'
+        north = 'AH KH JH 9H 4H AS 5S KD 6D 3D 8C 5C 2C'
+        assert bid(north, 'Pass', '1H', '2NT', '3D', 'Pass', dealer='West') == ('3H', 'Minimum, ♥.')
+        # Follow-ups: opener doubles their run-out with four, responder with
+        # three and 12+ once it comes round; then the double stands.
+        assert bid('AS KS JS 9S 4S QH 10H 9H 5H KD 6D 3D 8C', 'Pass', '1S', '2S', 'X', '3H',
+                   dealer='West') == ('X', 'Penalty: 4+ ♥.')
+        assert bid(south, 'Pass', '1S', '2S', 'X', '3H', 'Pass', 'Pass', dealer='West') == \
+            ('X', 'Penalty: 3+ ♥.')
+        assert bid('AS KS JS 9S 4S 3S QH 10H KD 6D 3D 8C 7C', 'Pass', '1S', '2S', 'X', '3H',
+                   'Pass', 'Pass', 'X', 'Pass', dealer='West')[0] == 'Pass'
+        calls = [(PLAYERS[(PLAYERS.index('West') + k) % 4], c)
+                 for k, c in enumerate(('Pass', '1H', '2H', 'X'))]
+        assert ai._call_shows(calls, 3) == set()
+    finally:
+        gib.MICHAELS_DEFENSE, gib.UNUSUAL_DEFENSE = saved

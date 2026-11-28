@@ -9,7 +9,7 @@ import {
 import {
   AuctionState, PARTNERS, PARTNERSHIP, PLAYERS, legalPlays, resolveTrick, type Play,
 } from './auction';
-import { advanceRaiseGuard, ARTIFICIAL_READ, Ctx, DOUBLE_SHOWN_NATURAL, NT_X_SYSTEMS, OVER_1NT_2C, shownSuit, doublerGuard, FIVE_TWO_PREFERENCE, gibBid, Hand, ourTwoSuiter, isGameBid, gameValuesShown, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
+import { advanceRaiseGuard, ARTIFICIAL_READ, MICHAELS_DEFENSE, Ctx, DOUBLE_SHOWN_NATURAL, NT_X_SYSTEMS, OVER_1NT_2C, shownSuit, doublerGuard, FIVE_TWO_PREFERENCE, gibBid, Hand, ourTwoSuiter, isGameBid, gameValuesShown, jamAlert, leadDoubler, LOTT, LOTT_ALERT, nameTheSuit, ourSuitAfterArtificial, raiseAlert, SUPPORT_XX, supportXRaise, supportXRaiseAlert, weakJumpOvercall } from './gib';
 // meanings.ts imports this module; its functions are only called, never at load.
 import { prng, SAMPLE_HANDS, sampleHand, seedOf } from '../meanings';
 
@@ -1229,6 +1229,9 @@ function callShows(calls: [Seat, string][], i: number): Set<string> {
       && open && open[0] === 1 && (SUITS as readonly string[]).includes(open[1])) {
     const over = parseBid(calls[bids[1]][1]);
     if (over && !side.includes(calls[bids[1]][0]) && (SUITS as readonly string[]).includes(over[1])) {
+      if (MICHAELS_DEFENSE && bids[1] === f + 1 && over[0] === 2 && over[1] === open[1]) {
+        return new Set();                                  // values over Michaels, no suit
+      }
       const unbid = SUITS.filter((s) => s !== open[1] && s !== over[1]);
       const majors = unbid.filter((s) => s === 'H' || s === 'S');
       return new Set(majors.length ? majors : unbid);

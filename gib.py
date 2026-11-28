@@ -2906,10 +2906,10 @@ def _partner_length(ctx: Ctx, s: str) -> int:
     mine_first = None
     u = _unusual_cues(ctx) if UNUSUAL_CUE_REPLY else None
     for i, (who, call) in enumerate(ctx.ours):
-        if u and i == 1 and strain_of(call) in u[1] and level_of(call) == 3:
+        if u and i == 1 and strain_of(call) in u[1] and (level_of(call) == 3 or _cue_spot_new(ctx)):
             # Responder's cuebid over their Unusual 2NT shows no clubs or
             # diamonds: a limit raise of ours, or five of the fourth suit.
-            limit = strain_of(call) == u[1][0]
+            limit = strain_of(call) == _limit_cue_suit(ctx, u[1])
             if who != ctx.me and s == (u[0] if limit else u[2]):
                 n = max(n, 3 if limit else 5)
             continue
@@ -3650,6 +3650,10 @@ def we_opened_contested(ctx: Ctx) -> tuple | None:
     if natural_2nt:
         return natural_2nt
 
+    defense = _two_suiter_response(ctx) or _after_two_suiter_double(ctx)
+    if defense:
+        return defense
+
     # Responder's first call over interference.
     if len(seq) == 1 and not ctx.i_am_opener() and level_of(first) == 1:
         return _respond_over_interference(ctx, x)
@@ -4352,6 +4356,9 @@ UNUSUAL_CUE_REPLY = True
 def _unusual_cues(ctx: Ctx) -> tuple | None:
     """(x, their two suits, the fourth suit, start index) when our 1x opening
     was overcalled with a direct 2NT, their only bid so far."""
+    spot = _two_suiter_spot(ctx)
+    if spot is not None:
+        return spot[:4] if len(ctx.calls) >= spot[3] + 3 else None
     i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
     if i is None or len(ctx.calls) < i + 3:
         return None
@@ -4363,6 +4370,17 @@ def _unusual_cues(ctx: Ctx) -> tuple | None:
     shown = [s for s in SUITS if s != x][:2]
     rest = [s for s in SUITS if s != x and s not in shown]
     return x, shown, rest[0] if rest else None, i
+
+
+def _cue_spot_new(ctx: Ctx) -> bool:
+    """The cuebids over their two-suiter follow bridgebum (`MICHAELS_DEFENSE`)."""
+    return _two_suiter_spot(ctx) is not None
+
+
+def _limit_cue_suit(ctx: Ctx, shown: list) -> str:
+    """Which of their suits responder cuebids for a limit raise: bridgebum's
+    higher one (the only one, after Michaels over a major), before the cheaper."""
+    return shown[-1] if _cue_spot_new(ctx) else shown[0]
 
 
 def _unusual_cue_reply(ctx: Ctx) -> tuple | None:
@@ -4384,9 +4402,9 @@ def _unusual_cue_reply(ctx: Ctx) -> tuple | None:
     if not after or after[0][0] != responder:
         return None
     cue = after[0][1]
-    if strain_of(cue) not in shown or level_of(cue) != 3:
+    if strain_of(cue) not in shown or level_of(cue) != 3 and not _cue_spot_new(ctx):
         return None
-    limit = strain_of(cue) == shown[0]
+    limit = strain_of(cue) == _limit_cue_suit(ctx, shown)
     stops = all(h.stopper(s) for s in shown)
 
     def game() -> tuple | None:
@@ -4434,6 +4452,149 @@ def _unusual_cue_reply(ctx: Ctx) -> tuple | None:
             if g:
                 return g
         return 'Pass', "No game."
+    return None
+
+
+#: Our defense to their two-suited overcall straight over our 1x opening,
+#: from bridgebum.com: Michaels (https://www.bridgebum.com/defense_to_michaels.php)
+#: and Unusual 2NT (https://www.bridgebum.com/unusual_vs_unusual.php). The
+#: user's board (2026-11-28): P 1♠ (2♠) X was alerted "Negative: 4+ ♥, 8+
+#: HCP", because `_negative_double` read the Michaels cuebid as a natural
+#: spade overcall and promised the suit the cuebid SHOWED. Over a two-suiter
+#: the double instead shows values and the wish to penalize at least one of
+#: their suits; denying three-card support of a major. The cuebid of their
+#: higher known suit is a limit raise or better; the cuebid of the lower one
+#: (both their suits known) shows five of the fourth suit, forcing; raises
+#: and the fourth suit are natural and non-forcing; four of our suit is
+#: pre-emptive. Before, the only call with values and no fit was a 3NT that
+#: needed a stopper in OUR suit (1♥ (2♥) 3NT "13+ HCP, ♥ stopper").
+MICHAELS_DEFENSE = False
+#: ...the same over their Unusual 2NT, where the cheaper cuebid used to be
+#: the limit raise and the dearer one the fourth suit; bridgebum has them the
+#: other way round, and the double too.
+UNUSUAL_DEFENSE = False
+#: The double's values, in judgement points.
+TWO_SUITER_X_JUDGE = 10
+TWO_SUITER_X_ALERT = "Values, penalty interest in their suits."
+
+
+def _defense_on(ctx: Ctx, two: str) -> bool:
+    return MICHAELS_DEFENSE if two != '2NT' else UNUSUAL_DEFENSE
+
+
+def _two_suiter_spot(ctx: Ctx) -> tuple | None:
+    """(x, their known suits low to high, the fourth suit or None, start
+    index, their call) when our 1x opening was overcalled straight away with
+    Michaels or the Unusual 2NT, and that is still their only bid -- with
+    the defense for it switched on."""
+    i = next((k for k, (_, c) in enumerate(ctx.calls) if c != 'Pass'), None)
+    if i is None or len(ctx.calls) < i + 2:
+        return None
+    (w0, c0), (_, c1) = ctx.calls[i], ctx.calls[i + 1]
+    x = strain_of(c0)
+    if w0 not in (ctx.me, ctx.pd) or level_of(c0) != 1 or x not in SUITS:
+        return None
+    if c1 not in ('2NT', f"2{x}") or not _defense_on(ctx, c1):
+        return None
+    if [c for _, c in ctx.theirs if parse_bid(c)][:1] != [c1]:
+        return None
+    if c1 == '2NT':
+        known = [s for s in SUITS if s != x][:2]
+    elif x in MINORS:
+        known = ['H', 'S']
+    else:
+        known = ['S' if x == 'H' else 'H']
+    rest = [s for s in SUITS if s != x and s not in known]
+    fourth = rest[0] if len(rest) == 1 else None
+    return x, known, fourth, i, c1
+
+
+def _two_suiter_response(ctx: Ctx) -> tuple | None:
+    """Responder's call straight over their two-suiter (bridgebum, above)."""
+    spot = _two_suiter_spot(ctx)
+    if spot is None:
+        return None
+    x, known, fourth, i, two = spot
+    if ctx.i_am_opener() or len(ctx.calls) != i + 2:
+        return None
+    h = ctx.h
+    hcp, sup, need = h.hcp, h.len[x], _cue_support(x)
+    unusual = two == '2NT'
+    limit = ctx.cheapest(known[-1], 2)
+    other = ctx.cheapest(known[0], 2) if len(known) == 2 else None
+    # The cuebid of their lower suit: five of the fourth suit, forcing (game
+    # forcing over the 2NT).
+    gf = 12 if unusual else 10
+    if (other and fourth and h.len[fourth] >= 5 and hcp >= gf and sup < need
+            and level_of(other) <= 3):
+        what = "game forcing" if unusual else "forcing"
+        return other, f"Cuebid: 5+ {SYM[fourth]}, {gf}+ HCP, {what}. Artificial."
+    if limit and sup >= need and hcp >= 10 and level_of(limit) <= 3:
+        return limit, f"Cuebid: {need}+ {SYM[x]}, 10+ HCP. Limit raise or better. Artificial."
+    jump = f"4{x}"
+    if x in MAJORS and ctx.ok(jump) and (sup >= 5 and 4 <= hcp <= 11 or sup == 4 and 4 <= hcp <= 9):
+        return jump, f"4+ {SYM[x]}, under 12 HCP. Pre-emptive."
+    if x in MINORS and ctx.ok(jump) and sup >= 5 and 4 <= hcp <= 9 and ctx.cheapest(x, 2) != jump:
+        return jump, f"5+ {SYM[x]}, under 10 HCP. Pre-emptive."
+    if sup >= (3 if x in MAJORS else need) and 6 <= hcp <= 9:
+        call = ctx.cheapest(x, 2)
+        if call and level_of(call) <= 3:
+            return call, f"{3 if x in MAJORS else need}+ {SYM[x]}, 6-9 HCP. Not forcing."
+    naturals = [fourth] if fourth else [s for s in MINORS if s != x]
+    for s in sorted(naturals, key=lambda s: (-h.len[s], SUITS.index(s))):
+        call = ctx.cheapest(s, 2)
+        if h.len[s] >= 5 and 6 <= hcp <= 9 and call and level_of(call) <= 3:
+            return call, f"5+ {SYM[s]}, 6-9 HCP. Not forcing."
+    # The double: values, no fit for our major, and four or more in a suit
+    # they may hold (their known suits, and over 1M (2M) either minor).
+    maybe = known + ([s for s in MINORS] if not fourth and not unusual else [])
+    if (h.judge >= TWO_SUITER_X_JUDGE and ctx.ok('X')
+            and (x in MINORS or sup <= 2) and any(h.len[s] >= 4 for s in maybe)):
+        return 'X', (f"{TWO_SUITER_X_ALERT[:-1]}, 2 or fewer {SYM[x]}."
+                     if x in MAJORS else TWO_SUITER_X_ALERT)
+    return 'Pass', "Nothing to show."
+
+
+def _after_two_suiter_double(ctx: Ctx) -> tuple | None:
+    """After responder's values double of their two-suiter: 1x (2x) X (bid).
+    Opener doubles their bid with four of it, rebids a six-card suit, else
+    passes for partner; responder, when that comes round, doubles with four
+    of it (three and 12+ HCP), bids a five-card suit of its own, else
+    passes. Partner's penalty double stands."""
+    spot = _two_suiter_spot(ctx)
+    if spot is None:
+        return None
+    x, known, fourth, i, two = spot
+    calls = ctx.calls[i + 2:]
+    if not calls or calls[0][1] != 'X' or calls[0][0] == ctx.calls[i][0]:
+        return None
+    after = [c for _, c in calls[1:]]
+    h = ctx.h
+    if not after or 'XX' in after:
+        return None
+    run = after[0]
+    s = strain_of(run) if parse_bid(run) else None
+    if ctx.i_am_opener() and len(after) == 1:
+        if s in SUITS and s != x and h.len[s] >= 4 and level_of(run) <= 3 and ctx.ok('X'):
+            return 'X', f"Penalty: 4+ {SYM[s]}."
+        if h.len[x] >= 6:
+            call = ctx.cheapest(x, 2)
+            if call and level_of(call) <= 3:
+                return call, f"6+ {SYM[x]}."
+        return 'Pass', "Partner's double showed values."
+    if not ctx.i_am_opener() and len(after) == 3 and after[1:] == ['Pass', 'Pass'] and s in SUITS:
+        if s != x and (h.len[s] >= 4 or h.len[s] >= 3 and h.hcp >= 12) and ctx.ok('X'):
+            return 'X', f"Penalty: 3+ {SYM[s]}."
+        for t in sorted(SUITS, key=lambda t: (-h.len[t], SUITS.index(t))):
+            if t in (x, s) or t in known or h.len[t] < 5:
+                continue
+            call = ctx.cheapest(t, 2)
+            if call and level_of(call) <= 3:
+                return call, f"5+ {SYM[t]}."
+        return 'Pass', "Nothing more to show."
+    if after[1:] and after[-1] == 'Pass' and after[-2:-1] == ['X'] and (
+            ctx.i_am_opener() and len(after) == 5 or not ctx.i_am_opener() and len(after) == 3):
+        return 'Pass', "Partner's double is for penalty."
     return None
 
 
