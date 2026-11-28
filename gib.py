@@ -1674,10 +1674,53 @@ def strong_two(ctx: Ctx) -> tuple:
 
 # ── Weak twos and pre-empts ───────────────────────────────────────────────────
 
+#: Partner's fourth-seat two-bid is sound, not a pre-empt (the user, 2026-11-28:
+#: P P P 2♥ P, South's 3♥ read "Pre-emptive raise: a jump raise on a weak
+#: hand"). `preempt` raised any two-bid to 3M on three trumps and up to 15
+#: judgement points, reading only that partner had opened at the two level.
+#: The whole auction says otherwise: everyone passed first, so there is no
+#: one left to pre-empt, partner has FOURTH_SEAT points, and I am a passed
+#: hand. 3M is an invitation, judged on the fit like any other; 4M is game;
+#: and the opener accepts on FOURTH_SEAT_ACCEPT judgement points, plus one
+#: FIT_POINTS for each trump past the six shown. False: the old raise.
+FOURTH_SEAT_RAISE = True
+FOURTH_SEAT_ACCEPT = 13
+#: ...and wherever `continuation` judges the level later (they compete, say),
+#: partner's fourth-seat two-bid counts FOURTH_SEAT[0] points, not a weak
+#: two's 5. False: the old floor.
+FOURTH_SEAT_FLOOR = True
+
+
+def _fourth_seat_two(ctx: Ctx) -> bool:
+    """Was our two-level suit opening made after three passes?"""
+    first = next(i for i, (_, c) in enumerate(ctx.calls) if c != 'Pass')
+    return first == 3 and level_of(ctx.calls[first][1]) == 2
+
+
+def _fourth_seat_raise(ctx: Ctx, x: str) -> tuple:
+    """A passed hand over partner's sound fourth-seat 2M: game, invite, or pass."""
+    h = ctx.h
+    if h.len[x] >= 3:
+        fit = h.judge + _fit_bonus(h, x, 6)
+        if fit + FOURTH_SEAT[0] >= GAME_MAJOR and ctx.ok(f"4{x}"):
+            return f"4{x}", TO_PLAY
+        if fit + FOURTH_SEAT[1] >= GAME_MAJOR and ctx.ok(f"3{x}"):
+            return f"3{x}", f"3+ {SYM[x]}, invitational."
+    return 'Pass', "No game opposite a fourth-seat opening."
+
+
 def preempt(ctx: Ctx) -> tuple:
     seq = ctx.seq
     h = ctx.h
     x = strain_of(seq[0])
+    fourth = FOURTH_SEAT_RAISE and x in MAJORS and _fourth_seat_two(ctx)
+    if fourth and len(seq) == 1:
+        return _fourth_seat_raise(ctx, x)
+    if fourth and len(seq) == 2 and seq[1] == f"3{x}" and ctx.i_am_opener():
+        value = h.judge + FIT_POINTS * max(0, h.len[x] - 6)
+        if value >= FOURTH_SEAT_ACCEPT and ctx.ok(f"4{x}"):
+            return f"4{x}", TO_PLAY
+        return 'Pass', "Declining the invitation."
     if len(seq) == 1:
         if x in MAJORS and h.len[x] >= 2 and h.judge >= 16 and ctx.ok(f"4{x}"):
             return f"4{x}", TO_PLAY
@@ -3135,6 +3178,8 @@ def _jam_spot(ctx: Ctx) -> str | None:
         return None
     if not ctx.theirs and (not JAM_UNCONTESTED or level_of(ctx.seq[0]) == 1):
         return None
+    if FOURTH_SEAT_RAISE and ctx.we_opened and _fourth_seat_two(ctx):
+        return None                      # a sound opening after three passes, not a pre-empt
     if not JAM_OVER_BIDS and any(c != 'X' for _, c in ctx.theirs):
         return None
     game = f"4{x}" if x in MAJORS else f"5{x}"
@@ -3380,6 +3425,8 @@ def continuation(ctx: Ctx) -> tuple:
                       and plen[s] + mylen[s] >= 8), None)
     elif OVER_1NT_2C and not ctx.we_opened and seq[0] == '2C':
         pmin = OVERCALL_2[0] if p_parity == 0 else 0     # (1NT) 2♣: Cappelletti
+    elif FOURTH_SEAT_FLOOR and ctx.we_opened and p_parity == 0 and _fourth_seat_two(ctx):
+        pmin = max(pmin, FOURTH_SEAT[0])                 # P P P 2x: sound, not weak
     comb = h.judge + pmin
     gf = _game_forced(seq, ctx) and not two
     current = ctx.current()

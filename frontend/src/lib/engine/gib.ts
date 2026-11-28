@@ -1464,10 +1464,43 @@ function strongTwo(ctx: Ctx): Decision {
 
 // ── Weak twos and pre-empts ───────────────────────────────────────────────────
 
+// Partner's fourth-seat two-bid is sound, not a pre-empt (the user, 2026-11-28:
+// P P P 2♥ P, 3♥ read "Pre-emptive raise"). Everyone passed first, so there is
+// no one to pre-empt and I am a passed hand: 3M invites, 4M is game, and the
+// opener accepts on FOURTH_SEAT_ACCEPT judgement points. See gib.py.
+export const FOURTH_SEAT_RAISE = true;
+export const FOURTH_SEAT_ACCEPT = 13;
+// ...and `continuation` counts partner's fourth-seat two-bid as FOURTH_SEAT[0].
+export const FOURTH_SEAT_FLOOR = true;
+
+/** Was our two-level suit opening made after three passes? */
+function fourthSeatTwo(ctx: Ctx): boolean {
+  const first = ctx.calls.findIndex(([, c]) => c !== 'Pass');
+  return first === 3 && levelOf(ctx.calls[first][1]) === 2;
+}
+
+/** A passed hand over partner's sound fourth-seat 2M: game, invite, or pass. */
+function fourthSeatRaise(ctx: Ctx, x: Suit): Decision {
+  const h = ctx.h;
+  if (h.len[x] >= 3) {
+    const fit = h.judge + fitBonus(h, x, 6);
+    if (fit + FOURTH_SEAT[0] >= GAME_MAJOR && ctx.ok(`4${x}`)) return [`4${x}`, TO_PLAY];
+    if (fit + FOURTH_SEAT[1] >= GAME_MAJOR && ctx.ok(`3${x}`)) return [`3${x}`, `3+ ${SYM[x]}, invitational.`];
+  }
+  return ['Pass', 'No game opposite a fourth-seat opening.'];
+}
+
 function preempt(ctx: Ctx): Decision {
   const seq = ctx.seq;
   const h = ctx.h;
   const x = strainOf(seq[0]) as Suit;
+  const fourth = FOURTH_SEAT_RAISE && isMajor(x) && fourthSeatTwo(ctx);
+  if (fourth && seq.length === 1) return fourthSeatRaise(ctx, x);
+  if (fourth && seq.length === 2 && seq[1] === `3${x}` && ctx.iAmOpener()) {
+    const value = h.judge + FIT_POINTS * Math.max(0, h.len[x] - 6);
+    if (value >= FOURTH_SEAT_ACCEPT && ctx.ok(`4${x}`)) return [`4${x}`, TO_PLAY];
+    return ['Pass', 'Declining the invitation.'];
+  }
   if (seq.length === 1) {
     if (isMajor(x) && h.len[x] >= 2 && h.judge >= 16 && ctx.ok(`4${x}`)) return [`4${x}`, TO_PLAY];
     if (isMajor(x) && h.len[x] >= 3 && h.judge <= 15) {
@@ -2800,6 +2833,7 @@ function jamSpot(ctx: Ctx): string | null {
   if (!isSuit(x) || !JAM_OPENINGS.includes(levelOf(ctx.seq[0])) || ctx.seq[0] === '2C'
     || (isMinor(x) && !JAM_MINORS)) return null;
   if (!ctx.theirs.length && (!JAM_UNCONTESTED || levelOf(ctx.seq[0]) === 1)) return null;
+  if (FOURTH_SEAT_RAISE && ctx.weOpened && fourthSeatTwo(ctx)) return null; // sound, not a pre-empt
   if (!JAM_OVER_BIDS && ctx.theirs.some(([, c]) => c !== 'X')) return null;
   const game = isMajor(x) ? `4${x}` : `5${x}`;
   return ctx.ok(game) ? game : null;
@@ -3014,6 +3048,8 @@ function continuation(ctx: Ctx): Decision {
     trump = SUITS.find((s) => p2[s] && m2[s] && p2[s] + m2[s] >= 8) ?? null;
   } else if (OVER_1NT_2C && !ctx.weOpened && seq[0] === '2C') {
     pmin = pParity === 0 ? OVERCALL_2[0] : 0;     // (1NT) 2♣: Cappelletti
+  } else if (FOURTH_SEAT_FLOOR && ctx.weOpened && pParity === 0 && fourthSeatTwo(ctx)) {
+    pmin = Math.max(pmin, FOURTH_SEAT[0]);        // P P P 2x: sound, not weak
   }
   let comb = h.judge + pmin;
   const gf = gameForced(seq, ctx) && !two;

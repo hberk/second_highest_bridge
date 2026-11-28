@@ -2855,3 +2855,22 @@ def test_game_force_without_a_fit_rebids_a_six_card_suit():
     # 1♦ P 2♣ P 2♠ P: six clubs rebid before the generic 2NT (GF_NO_FIT_SUITS).
     call, why = bid('9S AH KH 9H 2H KD 7D KC QC JC 9C 4C 2C', '1D', 'Pass', '2C', 'Pass', '2S', 'Pass')
     assert (call, why) == ('3C', '6+ ♣. Game forcing.'), (call, why)
+
+
+def test_raise_of_fourth_seat_two_bid_invites():
+    # The user's board (2026-11-28): P P P 2♥ P and South's 3♥ read
+    # "Pre-emptive raise". Everyone passed first, so 2♥ is sound (11-15) and
+    # I am a passed hand: 3♥ invites, 4♥ is game, a weak hand passes.
+    calls = ('Pass', 'Pass', 'Pass', '2H', 'Pass')
+    assert bid('KS 8S 4S 2S 9H 7H 3H QD 8D 5D 2D 9C 3C', *calls, dealer='East')[0] == 'Pass'
+    assert bid('KS QS 4S KH 9H 7H 3H QD 8D 5D 2D 9C 3C', *calls, dealer='East') == \
+        ('3H', '3+ ♥, invitational.')
+    assert bid('KS QS 4S KH 10H 9H 7H 3H QD 8D 5D 3C 2C', *calls, dealer='East') == \
+        ('4H', 'To play, ♥.')
+    # The opener accepts on judgement points, not on HCP.
+    accept, decline = 'KS 5S KH QH 10H 9H 8H 3H QD 4D 7C 5C 2C', 'AS 5S KH QH JH 9H 8H 3H KD 4D 7C 5C 2C'
+    assert bid(accept, *calls, '3H', 'Pass', dealer='East')[0] == '4H'
+    assert bid(decline, *calls, '3H', 'Pass', dealer='East')[0] == 'Pass'
+    # A weak two is still raised pre-emptively.
+    assert bid('KS 8S 4S 2S 9H 7H 3H QD 8D 5D 2D 9C 3C', '2H', 'Pass') == \
+        ('3H', '3+ ♥, pre-emptive raise.')

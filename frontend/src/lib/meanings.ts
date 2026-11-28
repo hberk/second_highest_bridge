@@ -292,7 +292,7 @@ const PLAIN: Record<string, string> = {
   'Weak jump overcall': 'A jump that shows a weak hand with a long suit, to take bidding room away.',
   'Weak jump shift': 'A jump in a new suit showing a weak hand with a long suit.',
   'Strong jump shift': 'A jump in a new suit showing a strong hand, interested in slam.',
-  'Pre-emptive raise': 'A jump raise on a weak hand with good support, to take bidding room away.',
+  'Pre-emptive raise': 'A raise on a weak hand with good support, to take bidding room away.',
   'Pre-empt': 'A weak hand with a long suit, bid high to take bidding room away from the opponents.',
   'Help-suit game try': 'Asks partner to bid game if they can help in this suit.',
   'Short-suit game try': 'Shows a singleton or void somewhere, without saying where. Partner can ask where with the next bid up, or choose between three and four of the major.',
