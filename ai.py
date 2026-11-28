@@ -1397,9 +1397,11 @@ PENALTY_FIT_JP: float | None = 4
 #: Separate bars for part scores and for games (the user's study, 2026-11-28:
 #: double their part scores less, their games more). A double of a part score
 #: (below 4H/4S/5C/5D) needs PENALTY_JUDGE_PART judgement points, one of game
-#: or higher PENALTY_JUDGE_GAME. None uses PENALTY_JUDGE for both.
+#: or higher PENALTY_JUDGE_GAME. None uses PENALTY_JUDGE. Game bar 16, the
+#: user's pick 2026-11-28: +0.80, +0.68, +0.63 a board; a higher part-score
+#: bar lost on every setting (BIDDING.md).
 PENALTY_JUDGE_PART: float | None = None
-PENALTY_JUDGE_GAME: float | None = None
+PENALTY_JUDGE_GAME: float | None = 16
 
 
 def _partner_middle(partner: str, auction: AuctionState, alerts: dict, mine: int) -> float:

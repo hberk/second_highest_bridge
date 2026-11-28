@@ -926,7 +926,7 @@ export const PENALTY_FIT_JP: number | null = 4;
 /** Separate bars for part scores (below 4H/4S/5C/5D) and for games and
  *  higher; null uses PENALTY_JUDGE for both. See ai.py. */
 export const PENALTY_JUDGE_PART: number | null = null;
-export const PENALTY_JUDGE_GAME: number | null = null;
+export const PENALTY_JUDGE_GAME: number | null = 16;
 
 /** Both opponents bid the suit of `last`, their game, reached
  *  constructively. See `_their_game_fit` in ai.py. */

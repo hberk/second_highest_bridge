@@ -127,7 +127,9 @@ def test_a_raise_never_climbs_past_what_the_fit_can_make():
         "precondition: the cheapest club raise here really is at the 7-level"
 
     call = ai.ai_bid('South', MINIMUM_CLUB_SUPPORT, auction)
-    assert call == 'Pass', f"bid {call} rather than passing a hopeless 7-level raise"
+    # The four hearts behind their 6H may double it (PENALTY_JUDGE_GAME, 16:
+    # 5 JP plus a third of the rest for a partner with no alert); never 7C.
+    assert call in ('Pass', 'X'), f"bid {call} rather than passing a hopeless 7-level raise"
 
 
 def test_no_runaway_levels_over_many_boards():

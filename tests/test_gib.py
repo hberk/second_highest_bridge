@@ -2199,8 +2199,9 @@ def test_long_trumps_count_toward_the_penalty_double():
     half a point short of PENALTY_JUDGE. 4♠ takes seven tricks. The fifth
     trump now counts PENALTY_TRUMP_JP."""
     hands = {s: hand(t) for s, t in _D30.items()}
-    saved = ai.PENALTY_TRUMP_JP
+    saved = ai.PENALTY_TRUMP_JP, ai.PENALTY_JUDGE_GAME
     try:
+        ai.PENALTY_JUDGE_GAME = None     # the bar of 20 the deal was played at
         for jp in (None, 4):
             ai.PENALTY_TRUMP_JP = jp
             auction = AuctionState(dealer='South', vulnerability='Both')
@@ -2211,7 +2212,7 @@ def test_long_trumps_count_toward_the_penalty_double():
             call, why = ai.ai_bid_explained('West', hands['West'], auction)
             assert call == ('X' if jp else 'Pass'), (jp, call, why)
     finally:
-        ai.PENALTY_TRUMP_JP = saved
+        ai.PENALTY_TRUMP_JP, ai.PENALTY_JUDGE_GAME = saved
 
 
 def test_penalty_bars_split_part_score_and_game():

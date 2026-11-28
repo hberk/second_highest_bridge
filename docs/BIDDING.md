@@ -511,8 +511,8 @@ logic answers. `frontend/src/lib/engine/gib.ts` is its line-for-line port.
     takeout ban alone over any game lost on pre-emptive raises (2♥ P 4♥ X,
     then 4♠), -0.05; the fit points in part scores too lost on seed 8
     (`/mnt/project-files/fit-penalty-x/REPORT.md`).
-  - Measured, off for the user's pick: **separate bars for part scores and
-    games** (`PENALTY_JUDGE_PART`, `PENALTY_JUDGE_GAME`, None = `PENALTY_JUDGE`;
+  - **A lower bar for doubling their game** (`PENALTY_JUDGE_GAME = 16`, on: the
+    user's pick 2026-11-28; `PENALTY_JUDGE_PART` stays None = `PENALTY_JUDGE`;
     the user's study, 2026-11-28). Seeds 7M-9M (3,000 deals): a game bar of 16
     +0.80, +0.68, +0.63 a board (t 3.8-5.8), 14 +0.78 mean, 18 +0.44; almost all
     of it 4♥/4♠ doubled on exactly four trumps. Raising the part-score bar
