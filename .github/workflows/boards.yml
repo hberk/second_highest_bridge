@@ -5,10 +5,8 @@
 # On demand (Actions > Shared boards > Run workflow): a report for the days
 # you choose on the run's page, with every row attached as boards.jsonl.
 #
-# Nothing older than 7 days is kept: the stats branch holds only the latest
-# report (one commit, replaced each day), attached rows expire after 7 days,
-# and each run deletes this workflow's runs older than 7 days. The boards
-# themselves stay in D1.
+# The stats branch holds only the latest report (one commit, replaced each
+# day), so reports don't pile up; attached rows expire after 7 days.
 #
 # Needs CLOUDFLARE_D1_TOKEN (Account > D1 > Read) beside the deploy secrets in
 # the `cloudflare` environment; until it is set, the run says so and stops.
@@ -33,7 +31,6 @@ jobs:
     environment: cloudflare
     permissions:
       contents: write
-      actions: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -75,12 +72,3 @@ jobs:
           git add STATS.md
           git commit -q -m "Shared boards report, $(date -u +%F)"
           git push -q --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" stats
-      - name: Delete this workflow's runs older than 7 days
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          cutoff=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
-          gh api --paginate "repos/${{ github.repository }}/actions/workflows/boards.yml/runs?per_page=100" \
-            --jq ".workflow_runs[] | select(.created_at < \"$cutoff\") | .id" |
-            while read -r id; do gh api -X DELETE "repos/${{ github.repository }}/actions/runs/$id" >/dev/null || true; done

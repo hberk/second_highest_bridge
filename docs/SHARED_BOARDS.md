@@ -119,8 +119,8 @@ all-time tables as `STATS.md` on the repository's `stats` branch
 can see what everyone's boards show; Settings and How to play link to it. Only
 the latest report is kept: the branch is one commit, replaced daily. The page
 exists from the first daily run after this reaches main with
-`CLOUDFLARE_D1_TOKEN` set. The workflow also deletes its own runs older than 7
-days, and the rows it attaches expire after 7 days; the boards in D1 are kept.
+`CLOUDFLARE_D1_TOKEN` set. Rows attached to an on-demand run expire after 7
+days; the boards in D1 are kept.
 
 **The report workflow on demand** prints the same tables without opening the dashboard:
 GitHub > Actions > **Shared boards** > **Run workflow** (days to show, 30 by
